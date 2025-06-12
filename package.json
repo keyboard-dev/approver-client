@@ -1,0 +1,51 @@
+{
+  "name": "mcp-notification-app",
+  "version": "1.0.0",
+  "description": "Desktop notification app for MCP approval workflow",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc && node scripts/build-renderer.js",
+    "build:watch": "tsc --watch",
+    "build:renderer": "node scripts/build-renderer.js",
+    "start": "npm run build && electron dist/main.js",
+    "dev": "npm run build && electron dist/main.js --dev",
+    "build-mac": "npm run build && electron-builder --mac",
+    "build-win": "npm run build && electron-builder --win",
+    "build-linux": "npm run build && electron-builder --linux",
+    "test-client": "node test-client.js"
+  },
+  "dependencies": {
+    "ws": "^8.14.2",
+    "node-notifier": "^10.0.1"
+  },
+  "devDependencies": {
+    "electron": "^27.1.2",
+    "electron-builder": "^24.6.4",
+    "typescript": "^5.3.2",
+    "@types/node": "^20.10.0",
+    "@types/ws": "^8.5.9"
+  },
+  "build": {
+    "appId": "com.mcp.notification-companion",
+    "productName": "MCP Notification Companion",
+    "directories": {
+      "output": "dist-build"
+    },
+    "files": [
+      "dist/**/*",
+      "public/**/*",
+      "assets/**/*",
+      "node_modules/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "icon": "assets/icon.png"
+    },
+    "win": {
+      "icon": "assets/icon.ico"
+    },
+    "linux": {
+      "icon": "assets/icon.png"
+    }
+  }
+}

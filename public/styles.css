@@ -1,0 +1,310 @@
+/* Reset and base styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #333;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.container {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+}
+
+/* Header */
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 30px;
+    background: rgba(255, 255, 255, 0.1);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(20px);
+}
+
+.header h1 {
+    font-size: 24px;
+    font-weight: 600;
+    color: #2d3748;
+}
+
+/* Content area */
+.content {
+    flex: 1;
+    display: flex;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Message List */
+.message-list {
+    width: 100%;
+    padding: 20px;
+    overflow-y: auto;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.message-item {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 16px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+}
+
+.message-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+}
+
+.message-item.unread {
+    border-left: 4px solid #4299e1;
+    background: linear-gradient(135deg, #fff 0%, #f7fafc 100%);
+}
+
+.message-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 8px;
+}
+
+.message-item-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #2d3748;
+    line-height: 1.4;
+}
+
+.message-item-time {
+    font-size: 12px;
+    color: #718096;
+    white-space: nowrap;
+}
+
+.message-item-preview {
+    color: #4a5568;
+    font-size: 14px;
+    line-height: 1.5;
+    margin-bottom: 8px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.message-item-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.message-item-sender {
+    font-size: 12px;
+    color: #718096;
+}
+
+/* Empty state */
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: #718096;
+}
+
+.empty-icon {
+    font-size: 64px;
+    margin-bottom: 20px;
+}
+
+.empty-state h2 {
+    font-size: 24px;
+    margin-bottom: 10px;
+    color: #4a5568;
+}
+
+.empty-state p {
+    font-size: 16px;
+}
+
+/* Message Detail */
+.message-detail {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.98);
+    backdrop-filter: blur(20px);
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.3s ease;
+}
+
+.message-detail.hidden {
+    transform: translateX(100%);
+}
+
+.message-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 30px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.message-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.message-content {
+    flex: 1;
+    padding: 30px;
+    overflow-y: auto;
+}
+
+.message-content h2 {
+    font-size: 28px;
+    font-weight: 600;
+    color: #2d3748;
+    margin-bottom: 16px;
+    line-height: 1.3;
+}
+
+.message-meta {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 30px;
+    padding: 15px;
+    background: rgba(0, 0, 0, 0.02);
+    border-radius: 8px;
+}
+
+.message-meta span {
+    font-size: 14px;
+    color: #718096;
+}
+
+.message-body {
+    font-size: 16px;
+    line-height: 1.6;
+    color: #4a5568;
+    white-space: pre-wrap;
+}
+
+/* Priority badges */
+.priority-badge {
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.priority-badge.high {
+    background: #fed7d7;
+    color: #c53030;
+}
+
+.priority-badge.normal {
+    background: #bee3f8;
+    color: #2b6cb0;
+}
+
+.priority-badge.low {
+    background: #c6f6d5;
+    color: #276749;
+}
+
+/* Buttons */
+.btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+    color: white;
+    box-shadow: 0 4px 15px rgba(66, 153, 225, 0.3);
+}
+
+.btn-primary:hover {
+    box-shadow: 0 6px 20px rgba(66, 153, 225, 0.4);
+}
+
+.btn-secondary {
+    background: #e2e8f0;
+    color: #4a5568;
+}
+
+.btn-secondary:hover {
+    background: #cbd5e0;
+}
+
+.btn-outline {
+    background: transparent;
+    border: 1px solid #cbd5e0;
+    color: #4a5568;
+}
+
+.btn-outline:hover {
+    background: #f7fafc;
+}
+
+.btn-danger {
+    background: linear-gradient(135deg, #f56565 0%, #e53e3e 100%);
+    color: white;
+    box-shadow: 0 4px 15px rgba(245, 101, 101, 0.3);
+}
+
+.btn-danger:hover {
+    box-shadow: 0 6px 20px rgba(245, 101, 101, 0.4);
+}
+
+/* Utilities */
+.hidden {
+    display: none;
+}
+
+/* Scrollbar styling for webkit browsers */
+::-webkit-scrollbar {
+    width: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.3);
+} 
