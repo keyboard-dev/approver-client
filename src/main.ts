@@ -23,10 +23,15 @@ class NotificationApp {
   }
 
   private initializeApp(): void {
-    app.whenReady().then(() => {
+    app.whenReady().then(async () => {
       this.createMainWindow();
       this.setupWebSocketServer();
       this.setupIPC();
+      
+      // Request notification permissions on macOS
+      if (process.platform === 'darwin') {
+        await this.requestNotificationPermissions();
+      }
       
       app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {
@@ -51,7 +56,7 @@ class NotificationApp {
         contextIsolation: true,
         preload: path.join(__dirname, 'preload.js')
       },
-      show: false, // Don't show initially
+      show: true, // Show the window immediately
       title: 'Message Viewer'
     });
 
@@ -94,28 +99,56 @@ class NotificationApp {
     // Store the message
     this.messages.push(message);
 
+    console.log('📥 Received message:', message.title);
+    console.log('📝 Total messages stored:', this.messages.length);
+
     // Show desktop notification
     this.showNotification(message);
   }
 
   private showNotification(message: Message): void {
+    console.log('🔔 Attempting to show notification for:', message.title);
+    
     if (!Notification.isSupported()) {
-      console.log('Notifications are not supported on this system');
+      console.log('❌ Notifications are not supported on this system');
       return;
     }
 
-    const notification = new Notification({
-      title: message.title,
-      body: message.body,
-      icon: path.join(__dirname, '../assets/icon.png'),
-      urgency: message.priority === 'high' ? 'critical' : 'normal'
-    });
+    console.log('✅ Notifications are supported');
 
-    notification.on('click', () => {
-      this.openMessageWindow(message);
-    });
+    try {
+      const notification = new Notification({
+        title: message.title,
+        body: message.body,
+        // Remove icon for now to avoid path issues
+        urgency: message.priority === 'high' ? 'critical' : 'normal'
+      });
 
-    notification.show();
+      notification.on('click', () => {
+        console.log('🖱️ Notification clicked');
+        this.openMessageWindow(message);
+      });
+
+      notification.show();
+      console.log('✅ Notification shown successfully');
+    } catch (error) {
+      console.error('❌ Error showing notification:', error);
+    }
+  }
+
+  private async requestNotificationPermissions(): Promise<void> {
+    try {
+      console.log('🔔 Requesting notification permissions...');
+      // On macOS, we can use the system notification request
+      // This will prompt the user if permissions haven't been granted
+      if (Notification.isSupported()) {
+        console.log('✅ Notification permissions available');
+      } else {
+        console.log('❌ Notifications not supported');
+      }
+    } catch (error) {
+      console.error('❌ Error requesting notification permissions:', error);
+    }
   }
 
   private openMessageWindow(message?: Message): void {

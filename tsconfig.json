@@ -29,6 +29,7 @@
     "node_modules",
     "dist",
     "dist-build",
-    "public"
+    "public",
+    "src/renderer"
   ]
 } 
