@@ -10,6 +10,9 @@ interface Message {
   priority?: 'low' | 'normal' | 'high';
   sender?: string;
   read?: boolean;
+  status?: 'pending' | 'approved' | 'rejected';
+  feedback?: string;
+  requiresResponse?: boolean;
 }
 
 class NotificationApp {
@@ -96,6 +99,11 @@ class NotificationApp {
       message.timestamp = Date.now();
     }
 
+    // Set default status if not provided
+    if (!message.status) {
+      message.status = 'pending';
+    }
+
     // Store the message
     this.messages.push(message);
 
@@ -104,6 +112,11 @@ class NotificationApp {
 
     // Show desktop notification
     this.showNotification(message);
+
+    // Send to renderer via websocket-message event
+    if (this.mainWindow) {
+      this.mainWindow.webContents.send('websocket-message', message);
+    }
   }
 
   private showNotification(message: Message): void {
@@ -186,10 +199,60 @@ class NotificationApp {
       this.messages = this.messages.filter(msg => msg.id !== messageId);
     });
 
+    // Handle approve message
+    ipcMain.handle('approve-message', (event, messageId: string, feedback?: string): void => {
+      const message = this.messages.find(msg => msg.id === messageId);
+      if (message) {
+        message.status = 'approved';
+        message.feedback = feedback;
+        console.log('✅ Message approved:', message.title);
+        
+        // Send response back through WebSocket if needed
+        this.sendWebSocketResponse(message, 'approved', feedback);
+      }
+    });
+
+    // Handle reject message
+    ipcMain.handle('reject-message', (event, messageId: string, feedback?: string): void => {
+      const message = this.messages.find(msg => msg.id === messageId);
+      if (message) {
+        message.status = 'rejected';
+        message.feedback = feedback;
+        console.log('❌ Message rejected:', message.title);
+        
+        // Send response back through WebSocket if needed
+        this.sendWebSocketResponse(message, 'rejected', feedback);
+      }
+    });
+
     // Handle show all messages
     ipcMain.on('show-messages', (): void => {
       this.openMessageWindow();
     });
+  }
+
+  private sendWebSocketResponse(message: Message, status: 'approved' | 'rejected', feedback?: string): void {
+    if (this.wsServer && message.requiresResponse) {
+      const response = {
+        id: message.id,
+        status: status,
+        feedback: feedback,
+        timestamp: Date.now(),
+        originalMessage: {
+          id: message.id,
+          title: message.title
+        }
+      };
+
+      // Send response to all connected WebSocket clients
+      this.wsServer.clients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(JSON.stringify(response));
+        }
+      });
+
+      console.log(`📤 Sent ${status} response for message: ${message.title}`);
+    }
   }
 }
 
