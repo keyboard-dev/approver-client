@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Message } from '../preload';
 import MessageList from './components/MessageList';
 import MessageDetail from './components/MessageDetail';
+import TailwindTest from './components/TailwindTest';
 import './App.css';
 
 const App: React.FC = () => {
@@ -86,7 +87,23 @@ const App: React.FC = () => {
 
   return (
     <div className="app">
-      {currentMessage ? (
+      {/* Temporarily show Tailwind test - remove this later */}
+      <div className="fixed top-4 right-4 z-50">
+        <button 
+          onClick={() => setCurrentMessage(null)}
+          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg transition-colors"
+        >
+          View Tailwind Test
+        </button>
+        <button className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+          yellow
+        </button>
+      </div>
+      
+      {/* Show Tailwind test when no message is selected */}
+      {!currentMessage && messages.length === 0 ? (
+        <TailwindTest />
+      ) : currentMessage ? (
         <MessageDetail
           message={currentMessage}
           onBack={showMessageList}
