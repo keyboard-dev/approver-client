@@ -13,6 +13,9 @@ interface Message {
   status?: 'pending' | 'approved' | 'rejected';
   feedback?: string;
   requiresResponse?: boolean;
+  codeEval?: boolean;
+  code?: string;
+  explaination?: string;
 }
 
 class NotificationApp {
@@ -200,28 +203,37 @@ class NotificationApp {
     });
 
     // Handle approve message
-    ipcMain.handle('approve-message', (event, messageId: string, feedback?: string): void => {
+    ipcMain.handle('approve-message', (event, messageId: string, feedback?: string, messageBody?: string): void => {
+      console.log('🔧 approve-message IPC called for messageId:', messageId);
       const message = this.messages.find(msg => msg.id === messageId);
       if (message) {
         message.status = 'approved';
         message.feedback = feedback;
         console.log('✅ Message approved:', message.title);
+        console.log('🔧 Message requiresResponse:', message.requiresResponse);
+        console.log('🔧 Message body:', messageBody);
         
         // Send response back through WebSocket if needed
         this.sendWebSocketResponse(message, 'approved', feedback);
+      } else {
+        console.log('❌ Message not found for ID:', messageId);
       }
     });
 
     // Handle reject message
     ipcMain.handle('reject-message', (event, messageId: string, feedback?: string): void => {
+      console.log('🔧 reject-message IPC called for messageId:', messageId);
       const message = this.messages.find(msg => msg.id === messageId);
       if (message) {
         message.status = 'rejected';
         message.feedback = feedback;
         console.log('❌ Message rejected:', message.title);
+        console.log('🔧 Message requiresResponse:', message.requiresResponse);
         
         // Send response back through WebSocket if needed
         this.sendWebSocketResponse(message, 'rejected', feedback);
+      } else {
+        console.log('❌ Message not found for ID:', messageId);
       }
     });
 
@@ -232,17 +244,29 @@ class NotificationApp {
   }
 
   private sendWebSocketResponse(message: Message, status: 'approved' | 'rejected', feedback?: string): void {
+    console.log('🔧 sendWebSocketResponse called');
+    console.log('🔧 wsServer exists:', !!this.wsServer);
+    console.log('🔧 message.requiresResponse:', message.requiresResponse);
+    console.log('🔧 wsServer clients count:', this.wsServer?.clients?.size || 0);
+    
     if (this.wsServer && message.requiresResponse) {
-      const response = {
+      let response = {
         id: message.id,
         status: status,
         feedback: feedback,
         timestamp: Date.now(),
         originalMessage: {
           id: message.id,
-          title: message.title
+          title: message.title,
+          body: "no body"
         }
       };
+      if(status === 'approved') {
+        if(message.body) {
+          response.originalMessage.body = message.body;
+        }
+      }
+
 
       // Send response to all connected WebSocket clients
       this.wsServer.clients.forEach((client) => {
@@ -252,6 +276,8 @@ class NotificationApp {
       });
 
       console.log(`📤 Sent ${status} response for message: ${message.title}`);
+    } else {
+      console.log('🔧 Not sending WebSocket response - wsServer:', !!this.wsServer, 'requiresResponse:', message.requiresResponse);
     }
   }
 }

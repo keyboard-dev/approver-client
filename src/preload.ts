@@ -11,13 +11,16 @@ export interface Message {
   status?: 'pending' | 'approved' | 'rejected';
   feedback?: string;
   requiresResponse?: boolean;
+  codeEval?: boolean;
+  code?: string;
+  explaination?: string;
 }
 
 export interface ElectronAPI {
   getMessages: () => Promise<Message[]>;
   markMessageRead: (messageId: string) => Promise<void>;
   deleteMessage: (messageId: string) => Promise<void>;
-  approveMessage: (messageId: string, feedback?: string) => Promise<void>;
+  approveMessage: (messageId: string, feedback?: string, messageBody?: string) => Promise<void>;
   rejectMessage: (messageId: string, feedback?: string) => Promise<void>;
   showMessages: () => void;
   onShowMessage: (callback: (event: IpcRendererEvent, message: Message) => void) => void;
@@ -31,7 +34,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getMessages: (): Promise<Message[]> => ipcRenderer.invoke('get-messages'),
   markMessageRead: (messageId: string): Promise<void> => ipcRenderer.invoke('mark-message-read', messageId),
   deleteMessage: (messageId: string): Promise<void> => ipcRenderer.invoke('delete-message', messageId),
-  approveMessage: (messageId: string, feedback?: string): Promise<void> => ipcRenderer.invoke('approve-message', messageId, feedback),
+  approveMessage: (messageId: string, feedback?: string, messageBody?: string): Promise<void> => ipcRenderer.invoke('approve-message', messageId, feedback, messageBody),
   rejectMessage: (messageId: string, feedback?: string): Promise<void> => ipcRenderer.invoke('reject-message', messageId, feedback),
   showMessages: (): void => ipcRenderer.send('show-messages'),
   

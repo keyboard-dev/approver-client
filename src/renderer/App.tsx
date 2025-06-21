@@ -6,7 +6,8 @@ import { Textarea } from '../components/ui/textarea';
 import { Alert, AlertDescription } from '../components/ui/alert';
 import { Separator } from '../components/ui/separator';
 import { Badge } from './components/ui/badge';
-import { CheckCircle, XCircle, Clock, AlertTriangle } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from './components/ui/tabs';
+import { CheckCircle, XCircle, Clock, AlertTriangle, X, Wifi, WifiOff } from 'lucide-react';
 import './App.css';
 
 const App: React.FC = () => {
@@ -16,6 +17,7 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'connecting'>('disconnected');
+  const [isAlertDismissed, setIsAlertDismissed] = useState(false);
 
   // Load messages from Electron API
   const loadMessages = useCallback(async () => {
@@ -58,6 +60,7 @@ const App: React.FC = () => {
         return [message, ...prev];
       });
       setConnectionStatus('connected');
+      setIsAlertDismissed(false); // Reset alert dismissal when connection is restored
     };
 
     window.electronAPI.onShowMessage(handleShowMessage);
@@ -75,7 +78,7 @@ const App: React.FC = () => {
     if (!currentMessage) return;
 
     try {
-      await window.electronAPI.approveMessage(currentMessage.id, showFeedback ? feedback : undefined);
+      await window.electronAPI.approveMessage(currentMessage.id, showFeedback ? feedback : undefined, currentMessage.body);
       
       const updatedMessage = { 
         ...currentMessage, 
@@ -170,15 +173,25 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 p-4">
-      {/* Connection Status */}
-      <div className="fixed top-4 right-4 z-50">
-        <Alert className={`w-64 ${connectionStatus === 'connected' ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>
-            WebSocket: {connectionStatus === 'connected' ? 'Connected' : 'Disconnected'}
-          </AlertDescription>
-        </Alert>
-      </div>
+      {/* Dismissible Connection Alert - Only show when disconnected and not dismissed */}
+      {connectionStatus === 'disconnected' && !isAlertDismissed && (
+        <div className="fixed top-4 right-4 z-40">
+          <Alert className="w-72 border-red-200 bg-red-50 relative">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              WebSocket disconnected. Some features may not work properly.
+            </AlertDescription>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="absolute top-2 right-2 h-6 w-6 p-0 hover:bg-red-100"
+              onClick={() => setIsAlertDismissed(true)}
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          </Alert>
+        </div>
+      )}
 
       <div className="max-w-4xl mx-auto">
         {currentMessage ? (
@@ -189,9 +202,29 @@ const App: React.FC = () => {
                 <Button variant="outline" onClick={showMessageList}>
                   ← Back to Messages
                 </Button>
-                <div className="flex items-center space-x-2">
-                  {getStatusIcon(currentMessage.status)}
-                  {getStatusBadge(currentMessage.status)}
+                <div className="flex items-center space-x-3">
+                  {/* Connection Status Badge */}
+                  <Badge 
+                    variant={connectionStatus === 'connected' ? 'default' : 'destructive'}
+                    className={`flex items-center space-x-2 px-3 py-2 ${
+                      connectionStatus === 'connected' 
+                        ? 'bg-green-100 text-green-800 border-green-200 hover:bg-green-100' 
+                        : 'bg-red-100 text-red-800 border-red-200 hover:bg-red-100'
+                    }`}
+                  >
+                    {connectionStatus === 'connected' ? (
+                      <Wifi className="h-3 w-3" />
+                    ) : (
+                      <WifiOff className="h-3 w-3" />
+                    )}
+                    <span className="text-xs font-medium">
+                      {connectionStatus === 'connected' ? 'Connected' : 'Disconnected'}
+                    </span>
+                  </Badge>
+                  <div className="flex items-center space-x-2">
+                    {getStatusIcon(currentMessage.status)}
+                    {getStatusBadge(currentMessage.status)}
+                  </div>
                 </div>
               </div>
               <CardTitle className="text-2xl font-bold mt-4">
@@ -210,12 +243,31 @@ const App: React.FC = () => {
               </div>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Message Body */}
+              {/* Message Body - Show tabs if codeEval is true, otherwise show regular body */}
               <div>
                 <h3 className="text-lg font-semibold mb-2">Request Details</h3>
-                <div className="bg-gray-100 p-4 rounded-lg">
-                  <pre className="whitespace-pre-wrap text-sm">{currentMessage.body}</pre>
-                </div>
+                {currentMessage.codeEval ? (
+                  <Tabs defaultValue="code" className="w-full">
+                    <TabsList className="grid w-full grid-cols-2">
+                      <TabsTrigger value="code">Code</TabsTrigger>
+                      <TabsTrigger value="explanation">Explanation</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="code" className="mt-2">
+                      <div className="bg-gray-100 p-4 rounded-lg">
+                        <pre className="whitespace-pre-wrap text-sm font-mono">{currentMessage.code || 'No code provided'}</pre>
+                      </div>
+                    </TabsContent>
+                    <TabsContent value="explanation" className="mt-2">
+                      <div className="bg-gray-100 p-4 rounded-lg">
+                        <pre className="whitespace-pre-wrap text-sm">{currentMessage.explaination || 'No explanation provided'}</pre>
+                      </div>
+                    </TabsContent>
+                  </Tabs>
+                ) : (
+                  <div className="bg-gray-100 p-4 rounded-lg">
+                    <pre className="whitespace-pre-wrap text-sm">{currentMessage.body}</pre>
+                  </div>
+                )}
               </div>
 
               <Separator />
@@ -297,9 +349,29 @@ const App: React.FC = () => {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h1 className="text-3xl font-bold">Message Approvals</h1>
-              <Button onClick={loadMessages} disabled={isLoading}>
-                {isLoading ? 'Loading...' : 'Refresh'}
-              </Button>
+              <div className="flex items-center space-x-3">
+                {/* Connection Status Badge */}
+                <Badge 
+                  variant={connectionStatus === 'connected' ? 'default' : 'destructive'}
+                  className={`flex items-center space-x-2 px-3 py-2 ${
+                    connectionStatus === 'connected' 
+                      ? 'bg-green-100 text-green-800 border-green-200 hover:bg-green-100' 
+                      : 'bg-red-100 text-red-800 border-red-200 hover:bg-red-100'
+                  }`}
+                >
+                  {connectionStatus === 'connected' ? (
+                    <Wifi className="h-3 w-3" />
+                  ) : (
+                    <WifiOff className="h-3 w-3" />
+                  )}
+                  <span className="text-xs font-medium">
+                    {connectionStatus === 'connected' ? 'Connected' : 'Disconnected'}
+                  </span>
+                </Badge>
+                <Button onClick={loadMessages} disabled={isLoading}>
+                  {isLoading ? 'Loading...' : 'Refresh'}
+                </Button>
+              </div>
             </div>
 
             {messages.length === 0 ? (
