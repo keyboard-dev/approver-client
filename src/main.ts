@@ -16,6 +16,7 @@ interface Message {
   codeEval?: boolean;
   code?: string;
   explaination?: string;
+  type?: string;
 }
 
 class NotificationApp {
