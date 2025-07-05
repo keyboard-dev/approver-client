@@ -16,6 +16,21 @@ export interface Message {
   explaination?: string;
 }
 
+export interface AuthStatus {
+  authenticated: boolean;
+  user?: {
+    id: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+    profilePictureUrl?: string;
+  };
+}
+
+export interface AuthError {
+  message: string;
+}
+
 export interface ElectronAPI {
   getMessages: () => Promise<Message[]>;
   markMessageRead: (messageId: string) => Promise<void>;
@@ -26,6 +41,13 @@ export interface ElectronAPI {
   onShowMessage: (callback: (event: IpcRendererEvent, message: Message) => void) => void;
   onWebSocketMessage: (callback: (event: IpcRendererEvent, message: Message) => void) => void;
   removeAllListeners: (channel: string) => void;
+  startOAuth: () => Promise<void>;
+  getAuthStatus: () => Promise<AuthStatus>;
+  logout: () => Promise<void>;
+  getAccessToken: () => Promise<string | null>;
+  onAuthSuccess: (callback: (event: IpcRendererEvent, data: AuthStatus) => void) => void;
+  onAuthError: (callback: (event: IpcRendererEvent, error: AuthError) => void) => void;
+  onAuthLogout: (callback: (event: IpcRendererEvent) => void) => void;
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -47,6 +69,23 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   removeAllListeners: (channel: string): void => {
     ipcRenderer.removeAllListeners(channel);
+  },
+  
+  // OAuth-related functions
+  startOAuth: (): Promise<void> => ipcRenderer.invoke('start-oauth'),
+  getAuthStatus: (): Promise<AuthStatus> => ipcRenderer.invoke('get-auth-status'),
+  logout: (): Promise<void> => ipcRenderer.invoke('logout'),
+  getAccessToken: (): Promise<string | null> => ipcRenderer.invoke('get-access-token'),
+  
+  // OAuth event listeners
+  onAuthSuccess: (callback: (event: IpcRendererEvent, data: AuthStatus) => void): void => {
+    ipcRenderer.on('auth-success', callback);
+  },
+  onAuthError: (callback: (event: IpcRendererEvent, error: AuthError) => void): void => {
+    ipcRenderer.on('auth-error', callback);
+  },
+  onAuthLogout: (callback: (event: IpcRendererEvent) => void): void => {
+    ipcRenderer.on('auth-logout', callback);
   }
 } as ElectronAPI);
 

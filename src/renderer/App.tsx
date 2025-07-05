@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Message } from '../preload';
+import { Message, AuthStatus } from '../preload';
 import { Button } from './components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
 import { Textarea } from '../components/ui/textarea';
@@ -8,6 +8,7 @@ import { Separator } from '../components/ui/separator';
 import { Badge } from './components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './components/ui/tabs';
 import { CheckCircle, XCircle, Clock, AlertTriangle, X, Wifi, WifiOff } from 'lucide-react';
+import AuthComponent from './components/AuthComponent';
 import './App.css';
 
 const App: React.FC = () => {
@@ -18,9 +19,31 @@ const App: React.FC = () => {
   const [showFeedback, setShowFeedback] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'connecting'>('disconnected');
   const [isAlertDismissed, setIsAlertDismissed] = useState(false);
+  const [authStatus, setAuthStatus] = useState<AuthStatus>({ authenticated: false });
+
+  // Handle authentication state changes
+  const handleAuthChange = (newAuthStatus: AuthStatus) => {
+    setAuthStatus(newAuthStatus);
+    
+    // If user logged out, clear messages for security
+    if (!newAuthStatus.authenticated) {
+      setMessages([]);
+      setCurrentMessage(null);
+      setFeedback('');
+      setShowFeedback(false);
+    } else {
+      // If user logged in, load messages
+      loadMessages();
+    }
+  };
 
   // Load messages from Electron API
   const loadMessages = useCallback(async () => {
+    // Only load messages if authenticated
+    if (!authStatus.authenticated) {
+      return;
+    }
+
     setIsLoading(true);
     try {
       const loadedMessages = await window.electronAPI.getMessages();
@@ -30,14 +53,22 @@ const App: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [authStatus.authenticated]);
 
   // Initialize messages on component mount
   useEffect(() => {
-    loadMessages();
+    // Only load messages if authenticated
+    if (authStatus.authenticated) {
+      loadMessages();
+    }
 
     // Listen for regular messages from main process
     const handleShowMessage = (event: any, message: Message) => {
+      // Only handle messages if authenticated
+      if (!authStatus.authenticated) {
+        return;
+      }
+
       setCurrentMessage(message);
       setMessages(prev => {
         const existing = prev.find(m => m.id === message.id);
@@ -50,6 +81,11 @@ const App: React.FC = () => {
 
     // Listen for websocket messages
     const handleWebSocketMessage = (event: any, message: Message) => {
+      // Only handle messages if authenticated
+      if (!authStatus.authenticated) {
+        return;
+      }
+
       console.log('Received websocket message:', message);
       setCurrentMessage(message);
       setMessages(prev => {
@@ -71,11 +107,11 @@ const App: React.FC = () => {
       window.electronAPI.removeAllListeners('show-message');
       window.electronAPI.removeAllListeners('websocket-message');
     };
-  }, [loadMessages]);
+  }, [loadMessages, authStatus.authenticated]);
 
   // Approve message
   const approveMessage = async () => {
-    if (!currentMessage) return;
+    if (!currentMessage || !authStatus.authenticated) return;
 
     try {
       await window.electronAPI.approveMessage(currentMessage.id, showFeedback ? feedback : undefined, currentMessage.body);
@@ -97,7 +133,7 @@ const App: React.FC = () => {
 
   // Reject message
   const rejectMessage = async () => {
-    if (!currentMessage) return;
+    if (!currentMessage || !authStatus.authenticated) return;
 
     try {
       await window.electronAPI.rejectMessage(currentMessage.id, showFeedback ? feedback : undefined);
@@ -119,6 +155,8 @@ const App: React.FC = () => {
 
   // Show message detail
   const showMessageDetail = (message: Message) => {
+    if (!authStatus.authenticated) return;
+    
     setCurrentMessage(message);
     setFeedback(message.feedback || '');
     setShowFeedback(false);
@@ -174,7 +212,7 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       {/* Dismissible Connection Alert - Only show when disconnected and not dismissed */}
-      {connectionStatus === 'disconnected' && !isAlertDismissed && (
+      {connectionStatus === 'disconnected' && !isAlertDismissed && authStatus.authenticated && (
         <div className="fixed top-4 right-4 z-40">
           <Alert className="w-72 border-red-200 bg-red-50 relative">
             <AlertTriangle className="h-4 w-4" />
@@ -194,229 +232,237 @@ const App: React.FC = () => {
       )}
 
       <div className="max-w-4xl mx-auto">
-        {currentMessage ? (
-          // Message Detail View
-          <Card className="w-full">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <Button variant="outline" onClick={showMessageList}>
-                  ← Back to Messages
-                </Button>
-                <div className="flex items-center space-x-3">
-                  {/* Connection Status Badge */}
-                  <Badge 
-                    variant={connectionStatus === 'connected' ? 'default' : 'destructive'}
-                    className={`flex items-center space-x-2 px-3 py-2 ${
-                      connectionStatus === 'connected' 
-                        ? 'bg-green-100 text-green-800 border-green-200 hover:bg-green-100' 
-                        : 'bg-red-100 text-red-800 border-red-200 hover:bg-red-100'
-                    }`}
-                  >
-                    {connectionStatus === 'connected' ? (
-                      <Wifi className="h-3 w-3" />
-                    ) : (
-                      <WifiOff className="h-3 w-3" />
-                    )}
-                    <span className="text-xs font-medium">
-                      {connectionStatus === 'connected' ? 'Connected' : 'Disconnected'}
-                    </span>
-                  </Badge>
-                  <div className="flex items-center space-x-2">
-                    {getStatusIcon(currentMessage.status)}
-                    {getStatusBadge(currentMessage.status)}
-                  </div>
-                </div>
-              </div>
-              <CardTitle className="text-2xl font-bold mt-4">
-                {currentMessage.title}
-              </CardTitle>
-              <div className="flex items-center space-x-4 text-sm text-gray-500">
-                <span>From: {currentMessage.sender || 'Unknown'}</span>
-                <span>•</span>
-                <span>{new Date(currentMessage.timestamp).toLocaleString()}</span>
-                {currentMessage.priority && (
-                  <>
-                    <span>•</span>
-                    {getPriorityBadge(currentMessage.priority)}
-                  </>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Message Body - Show tabs if codeEval is true, otherwise show regular body */}
-              <div>
-                <h3 className="text-lg font-semibold mb-2">Request Details</h3>
-                {currentMessage.codeEval ? (
-                  <Tabs defaultValue="code" className="w-full">
-                    <TabsList className="grid w-full grid-cols-2">
-                      <TabsTrigger value="code">Code</TabsTrigger>
-                      <TabsTrigger value="explanation">Explanation</TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="code" className="mt-2">
-                      <div className="bg-gray-100 p-4 rounded-lg">
-                        <pre className="whitespace-pre-wrap text-sm font-mono">{currentMessage.code || 'No code provided'}</pre>
+        {/* Authentication Component */}
+        <AuthComponent onAuthChange={handleAuthChange} />
+
+        {/* Only show main content if authenticated */}
+        {authStatus.authenticated && (
+          <>
+            {currentMessage ? (
+              // Message Detail View
+              <Card className="w-full">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <Button variant="outline" onClick={showMessageList}>
+                      ← Back to Messages
+                    </Button>
+                    <div className="flex items-center space-x-3">
+                      {/* Connection Status Badge */}
+                      <Badge 
+                        variant={connectionStatus === 'connected' ? 'default' : 'destructive'}
+                        className={`flex items-center space-x-2 px-3 py-2 ${
+                          connectionStatus === 'connected' 
+                            ? 'bg-green-100 text-green-800 border-green-200 hover:bg-green-100' 
+                            : 'bg-red-100 text-red-800 border-red-200 hover:bg-red-100'
+                        }`}
+                      >
+                        {connectionStatus === 'connected' ? (
+                          <Wifi className="h-3 w-3" />
+                        ) : (
+                          <WifiOff className="h-3 w-3" />
+                        )}
+                        <span className="text-xs font-medium">
+                          {connectionStatus === 'connected' ? 'Connected' : 'Disconnected'}
+                        </span>
+                      </Badge>
+                      <div className="flex items-center space-x-2">
+                        {getStatusIcon(currentMessage.status)}
+                        {getStatusBadge(currentMessage.status)}
                       </div>
-                    </TabsContent>
-                    <TabsContent value="explanation" className="mt-2">
-                      <div className="bg-gray-100 p-4 rounded-lg">
-                        <pre className="whitespace-pre-wrap text-sm">{currentMessage.explaination || 'No explanation provided'}</pre>
-                      </div>
-                    </TabsContent>
-                  </Tabs>
-                ) : (
-                  <div className="bg-gray-100 p-4 rounded-lg">
-                    <pre className="whitespace-pre-wrap text-sm">{currentMessage.body}</pre>
-                  </div>
-                )}
-              </div>
-
-              <Separator />
-
-              {/* Action Buttons */}
-              {currentMessage.status === 'pending' || !currentMessage.status ? (
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold">Actions Required</h3>
-                  
-                  {/* Feedback Section Toggle */}
-                                     <div className="flex items-center space-x-2">
-                     <input
-                       type="checkbox"
-                       id="show-feedback"
-                       checked={showFeedback}
-                       onChange={(e: React.ChangeEvent<HTMLInputElement>) => setShowFeedback(e.target.checked)}
-                       className="rounded"
-                     />
-                    <label htmlFor="show-feedback" className="text-sm">
-                      Add feedback/comments
-                    </label>
-                  </div>
-
-                  {/* Feedback Textarea */}
-                  {showFeedback && (
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Feedback</label>
-                      <Textarea
-                        placeholder="Enter your feedback or comments..."
-                        value={feedback}
-                        onChange={(e) => setFeedback(e.target.value)}
-                        className="min-h-[100px]"
-                      />
                     </div>
-                  )}
+                  </div>
+                  <CardTitle className="text-2xl font-bold mt-4">
+                    {currentMessage.title}
+                  </CardTitle>
+                  <div className="flex items-center space-x-4 text-sm text-gray-500">
+                    <span>From: {currentMessage.sender || 'Unknown'}</span>
+                    <span>•</span>
+                    <span>{new Date(currentMessage.timestamp).toLocaleString()}</span>
+                    {currentMessage.priority && (
+                      <>
+                        <span>•</span>
+                        {getPriorityBadge(currentMessage.priority)}
+                      </>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* Message Body - Show tabs if codeEval is true, otherwise show regular body */}
+                  <div>
+                    <h3 className="text-lg font-semibold mb-2">Request Details</h3>
+                    {currentMessage.codeEval ? (
+                      <Tabs defaultValue="code" className="w-full">
+                        <TabsList className="grid w-full grid-cols-2">
+                          <TabsTrigger value="code">Code</TabsTrigger>
+                          <TabsTrigger value="explanation">Explanation</TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="code" className="mt-2">
+                          <div className="bg-gray-100 p-4 rounded-lg">
+                            <pre className="whitespace-pre-wrap text-sm font-mono">{currentMessage.code || 'No code provided'}</pre>
+                          </div>
+                        </TabsContent>
+                        <TabsContent value="explanation" className="mt-2">
+                          <div className="bg-gray-100 p-4 rounded-lg">
+                            <pre className="whitespace-pre-wrap text-sm">{currentMessage.explaination || 'No explanation provided'}</pre>
+                          </div>
+                        </TabsContent>
+                      </Tabs>
+                    ) : (
+                      <div className="bg-gray-100 p-4 rounded-lg">
+                        <pre className="whitespace-pre-wrap text-sm">{currentMessage.body}</pre>
+                      </div>
+                    )}
+                  </div>
+
+                  <Separator />
 
                   {/* Action Buttons */}
-                  <div className="flex space-x-4">
-                    <Button 
-                      onClick={approveMessage}
-                      className="bg-green-600 hover:bg-green-700 text-white"
-                    >
-                      <CheckCircle className="mr-2 h-4 w-4" />
-                      Approve
-                    </Button>
-                    <Button 
-                      onClick={rejectMessage}
-                      variant="destructive"
-                    >
-                      <XCircle className="mr-2 h-4 w-4" />
-                      Reject
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold">Status</h3>
-                  <div className="flex items-center space-x-2">
-                    {getStatusIcon(currentMessage.status)}
-                    <span className="text-sm">
-                      This request has been {currentMessage.status}
-                    </span>
-                  </div>
-                  
-                  {currentMessage.feedback && (
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Feedback</label>
-                      <div className="bg-gray-100 p-3 rounded-lg text-sm">
-                        {currentMessage.feedback}
+                  {currentMessage.status === 'pending' || !currentMessage.status ? (
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-semibold">Actions Required</h3>
+                      
+                      {/* Feedback Section Toggle */}
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id="show-feedback"
+                          checked={showFeedback}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setShowFeedback(e.target.checked)}
+                          className="rounded"
+                        />
+                        <label htmlFor="show-feedback" className="text-sm">
+                          Add feedback/comments
+                        </label>
+                      </div>
+
+                      {/* Feedback Textarea */}
+                      {showFeedback && (
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Feedback</label>
+                          <Textarea
+                            placeholder="Enter your feedback or comments..."
+                            value={feedback}
+                            onChange={(e) => setFeedback(e.target.value)}
+                            className="min-h-[100px]"
+                          />
+                        </div>
+                      )}
+
+                      {/* Action Buttons */}
+                      <div className="flex space-x-4">
+                        <Button 
+                          onClick={approveMessage}
+                          className="bg-green-600 hover:bg-green-700 text-white"
+                        >
+                          <CheckCircle className="mr-2 h-4 w-4" />
+                          Approve
+                        </Button>
+                        <Button 
+                          onClick={rejectMessage}
+                          variant="destructive"
+                        >
+                          <XCircle className="mr-2 h-4 w-4" />
+                          Reject
+                        </Button>
                       </div>
                     </div>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        ) : (
-          // Message List View
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h1 className="text-3xl font-bold">Message Approvals</h1>
-              <div className="flex items-center space-x-3">
-                {/* Connection Status Badge */}
-                <Badge 
-                  variant={connectionStatus === 'connected' ? 'default' : 'destructive'}
-                  className={`flex items-center space-x-2 px-3 py-2 ${
-                    connectionStatus === 'connected' 
-                      ? 'bg-green-100 text-green-800 border-green-200 hover:bg-green-100' 
-                      : 'bg-red-100 text-red-800 border-red-200 hover:bg-red-100'
-                  }`}
-                >
-                  {connectionStatus === 'connected' ? (
-                    <Wifi className="h-3 w-3" />
                   ) : (
-                    <WifiOff className="h-3 w-3" />
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-semibold">Status</h3>
+                      <div className="flex items-center space-x-2">
+                        {getStatusIcon(currentMessage.status)}
+                        <span className="text-sm">
+                          This request has been {currentMessage.status}
+                        </span>
+                      </div>
+                      
+                      {currentMessage.feedback && (
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Feedback</label>
+                          <div className="bg-gray-100 p-3 rounded-lg text-sm">
+                            {currentMessage.feedback}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   )}
-                  <span className="text-xs font-medium">
-                    {connectionStatus === 'connected' ? 'Connected' : 'Disconnected'}
-                  </span>
-                </Badge>
-                <Button onClick={loadMessages} disabled={isLoading}>
-                  {isLoading ? 'Loading...' : 'Refresh'}
-                </Button>
-              </div>
-            </div>
-
-            {messages.length === 0 ? (
-              <Card>
-                <CardContent className="p-8 text-center">
-                  <Clock className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                  <p className="text-gray-500">
-                    {isLoading ? 'Loading messages...' : 'No messages to approve. Waiting for WebSocket messages...'}
-                  </p>
                 </CardContent>
               </Card>
             ) : (
-              <div className="grid gap-4">
-                {messages.map((message) => (
-                  <Card 
-                    key={message.id} 
-                    className="cursor-pointer hover:shadow-md transition-shadow"
-                    onClick={() => showMessageDetail(message)}
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <h3 className="text-lg font-semibold truncate">{message.title}</h3>
-                        <div className="flex items-center space-x-2">
-                          {getStatusIcon(message.status)}
-                          {getStatusBadge(message.status)}
-                        </div>
-                      </div>
-                      <p className="text-gray-600 text-sm mb-2 line-clamp-2">
-                        {message.body}
-                      </p>
-                      <div className="flex items-center justify-between text-xs text-gray-500">
-                        <span>From: {message.sender || 'Unknown'}</span>
-                        <span>{new Date(message.timestamp).toLocaleString()}</span>
-                      </div>
-                      {message.priority && (
-                        <div className="mt-2">
-                          {getPriorityBadge(message.priority)}
-                        </div>
+              // Message List View
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h1 className="text-3xl font-bold">Message Approvals</h1>
+                  <div className="flex items-center space-x-3">
+                    {/* Connection Status Badge */}
+                    <Badge 
+                      variant={connectionStatus === 'connected' ? 'default' : 'destructive'}
+                      className={`flex items-center space-x-2 px-3 py-2 ${
+                        connectionStatus === 'connected' 
+                          ? 'bg-green-100 text-green-800 border-green-200 hover:bg-green-100' 
+                          : 'bg-red-100 text-red-800 border-red-200 hover:bg-red-100'
+                      }`}
+                    >
+                      {connectionStatus === 'connected' ? (
+                        <Wifi className="h-3 w-3" />
+                      ) : (
+                        <WifiOff className="h-3 w-3" />
                       )}
+                      <span className="text-xs font-medium">
+                        {connectionStatus === 'connected' ? 'Connected' : 'Disconnected'}
+                      </span>
+                    </Badge>
+                    <Button onClick={loadMessages} disabled={isLoading}>
+                      {isLoading ? 'Loading...' : 'Refresh'}
+                    </Button>
+                  </div>
+                </div>
+
+                {messages.length === 0 ? (
+                  <Card>
+                    <CardContent className="p-8 text-center">
+                      <Clock className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                      <p className="text-gray-500">
+                        {isLoading ? 'Loading messages...' : 'No messages to approve. Waiting for WebSocket messages...'}
+                      </p>
                     </CardContent>
                   </Card>
-                ))}
+                ) : (
+                  <div className="grid gap-4">
+                    {messages.map((message) => (
+                      <Card 
+                        key={message.id} 
+                        className="cursor-pointer hover:shadow-md transition-shadow"
+                        onClick={() => showMessageDetail(message)}
+                      >
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-lg font-semibold truncate">{message.title}</h3>
+                            <div className="flex items-center space-x-2">
+                              {getStatusIcon(message.status)}
+                              {getStatusBadge(message.status)}
+                            </div>
+                          </div>
+                          <p className="text-gray-600 text-sm mb-2 line-clamp-2">
+                            {message.body}
+                          </p>
+                          <div className="flex items-center justify-between text-xs text-gray-500">
+                            <span>From: {message.sender || 'Unknown'}</span>
+                            <span>{new Date(message.timestamp).toLocaleString()}</span>
+                          </div>
+                          {message.priority && (
+                            <div className="mt-2">
+                              {getPriorityBadge(message.priority)}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
-          </div>
+          </>
         )}
       </div>
     </div>
