@@ -2,73 +2,13 @@ import { app, BrowserWindow, Notification, ipcMain, shell, protocol } from 'elec
 import * as WebSocket from 'ws';
 import * as path from 'path';
 import * as crypto from 'crypto';
-
-interface Message {
-  id: string;
-  title: string;
-  body: string;
-  timestamp: number;
-  priority?: 'low' | 'normal' | 'high';
-  sender?: string;
-  read?: boolean;
-  status?: 'pending' | 'approved' | 'rejected';
-  feedback?: string;
-  requiresResponse?: boolean;
-  codeEval?: boolean;
-  code?: string;
-  explaination?: string;
-  type?: string;
-}
-
-interface AuthTokens {
-  access_token: string;
-  refresh_token: string;
-  token_type: string;
-  expires_in: number;
-  expires_at: number;
-  user: {
-    id: string;
-    email: string;
-    firstName: string;
-    lastName: string;
-    profile_picture?: string;
-  };
-}
-
-interface PKCEParams {
-  codeVerifier: string;
-  codeChallenge: string;
-  state: string;
-}
-
-interface AuthorizeResponse {
-  authorization_url: string;
-  state: string;
-  redirect_uri: string;
-}
-
-interface TokenResponse {
-  access_token: string;
-  refresh_token: string;
-  token_type: string;
-  expires_in: number;
-  user: {
-    id: string;
-    email: string;
-    firstName: string;
-    lastName: string;
-    profile_picture?: string;
-  };
-}
-
-interface ErrorResponse {
-  error?: string;
-  error_description?: string;
-}
+import { RestAPIServer } from './rest-api';
+import { Message, AuthTokens, PKCEParams, AuthorizeResponse, TokenResponse, ErrorResponse } from './types';
 
 class NotificationApp {
   private mainWindow: BrowserWindow | null = null;
   private wsServer: WebSocket.Server | null = null;
+  private restApiServer: RestAPIServer | null = null;
   private messages: Message[] = [];
   private readonly WS_PORT = 8080;
   private readonly OAUTH_SERVER_URL = process.env.OAUTH_SERVER_URL || 'http://localhost:4000';
@@ -85,7 +25,6 @@ class NotificationApp {
     const gotTheLock = app.requestSingleInstanceLock();
 
     if (!gotTheLock) {
-      console.log('🔒 Another instance is already running, quitting...');
       app.quit();
       return;
     }
@@ -95,21 +34,14 @@ class NotificationApp {
     // Handle macOS open-url events (MUST be before app.whenReady())
     app.on('open-url', (event, url) => {
       event.preventDefault();
-      console.log('🍎 macOS open-url event:', url);
-      console.log('🔧 App ready state:', app.isReady());
-      console.log('🔧 Main window exists:', !!this.mainWindow);
       this.handleOAuthCallback(url);
     });
 
     // Handle second instance (protocol callbacks)
     app.on('second-instance', (event, commandLine, workingDirectory) => {
-      console.log('🔄 Second instance detected');
-      console.log('📋 Command line:', commandLine);
-      
       // Find protocol URL in command line arguments
       const url = commandLine.find(arg => arg.startsWith(`${this.CUSTOM_PROTOCOL}://`));
       if (url) {
-        console.log('🔗 OAuth callback URL found:', url);
         this.handleOAuthCallback(url);
       }
       
@@ -123,16 +55,15 @@ class NotificationApp {
 
     // STEP 3: Register as default protocol client
     if (!app.isDefaultProtocolClient(this.CUSTOM_PROTOCOL)) {
-      console.log('🔗 Registering as default protocol client for:', this.CUSTOM_PROTOCOL);
       app.setAsDefaultProtocolClient(this.CUSTOM_PROTOCOL);
     }
 
     // STEP 4: App ready event
     app.whenReady().then(async () => {
-      console.log('🚀 App is ready, creating main window...');
       // Remove duplicate protocol registration
       this.createMainWindow();
       this.setupWebSocketServer();
+      this.setupRestAPI();
       this.setupIPC();
       
       // Request notification permissions on macOS
@@ -149,6 +80,7 @@ class NotificationApp {
 
     app.on('window-all-closed', () => {
       if (process.platform !== 'darwin') {
+        this.cleanup();
         app.quit();
       }
     });
@@ -167,8 +99,6 @@ class NotificationApp {
 
   private async startOAuthFlow(): Promise<void> {
     try {
-      console.log('🔐 Starting OAuth flow...');
-      
       // Generate PKCE parameters
       this.currentPKCE = this.generatePKCE();
       
@@ -188,8 +118,6 @@ class NotificationApp {
 
       const data = await response.json() as AuthorizeResponse;
       
-      console.log('🔗 Opening authorization URL:', data.authorization_url);
-      
       // Open browser for user authentication
       await shell.openExternal(data.authorization_url);
       
@@ -201,8 +129,6 @@ class NotificationApp {
 
   private async handleOAuthCallback(url: string): Promise<void> {
     try {
-      console.log('🔄 Handling OAuth callback:', url);
-      
       const urlObj = new URL(url);
       const code = urlObj.searchParams.get('code');
       const state = urlObj.searchParams.get('state');
@@ -231,8 +157,6 @@ class NotificationApp {
 
   private async exchangeCodeForTokens(code: string): Promise<void> {
     try {
-      console.log('🔄 Exchanging code for tokens...');
-      
       if (!this.currentPKCE) {
         throw new Error('No PKCE parameters available');
       }
@@ -266,8 +190,6 @@ class NotificationApp {
       this.authTokens = authTokens;
       this.currentPKCE = null; // Clear PKCE data
       
-      console.log('✅ Authentication successful for user:', tokens.user.email);
-      
       // Notify the renderer process
       if (this.mainWindow) {
         this.mainWindow.webContents.send('auth-success', {
@@ -297,8 +219,6 @@ class NotificationApp {
         return false;
       }
 
-      console.log('🔄 Refreshing access token...');
-
       const response = await fetch(`${this.OAUTH_SERVER_URL}/oauth/refresh`, {
         method: 'POST',
         headers: {
@@ -326,7 +246,6 @@ class NotificationApp {
         expires_at: Date.now() + (tokens.expires_in * 1000)
       };
 
-      console.log('✅ Tokens refreshed successfully');
       return true;
 
     } catch (error) {
@@ -343,7 +262,6 @@ class NotificationApp {
     // Check if token is expired (with 5 minute buffer)
     const bufferTime = 5 * 60 * 1000; // 5 minutes
     if (Date.now() >= (this.authTokens.expires_at - bufferTime)) {
-      console.log('🔄 Access token expired, refreshing...');
       const refreshed = await this.refreshTokens();
       if (!refreshed) {
         this.authTokens = null;
@@ -374,8 +292,6 @@ class NotificationApp {
     this.authTokens = null;
     this.currentPKCE = null;
     
-    console.log('🔐 User logged out');
-    
     if (this.mainWindow) {
       this.mainWindow.webContents.send('auth-logout');
     }
@@ -404,18 +320,13 @@ class NotificationApp {
   private setupWebSocketServer(): void {
     this.wsServer = new WebSocket.Server({ port: this.WS_PORT });
     
-    console.log(`WebSocket server listening on port ${this.WS_PORT}`);
-
     this.wsServer.on('connection', (ws: WebSocket) => {
-      console.log('Client connected to WebSocket server');
-
       ws.on('message', async (data: WebSocket.Data) => {
         try {
           const message = JSON.parse(data.toString());
           
           // Handle token request
           if (message.type === 'request-token') {
-            console.log('🔑 Token request received');
             const token = await this.getValidAccessToken();
             
             const tokenResponse = {
@@ -428,7 +339,6 @@ class NotificationApp {
             };
             
             ws.send(JSON.stringify(tokenResponse));
-            console.log('📤 Token response sent');
             return;
           }
           
@@ -440,8 +350,7 @@ class NotificationApp {
       });
 
       ws.on('close', () => {
-        console.log('Client disconnected from WebSocket server');
-      });
+        });
     });
   }
 
@@ -459,9 +368,6 @@ class NotificationApp {
     // Store the message
     this.messages.push(message);
 
-    console.log('📥 Received message:', message.title);
-    console.log('📝 Total messages stored:', this.messages.length);
-
     // Show desktop notification
     this.showNotification(message);
 
@@ -472,14 +378,9 @@ class NotificationApp {
   }
 
   private showNotification(message: Message): void {
-    console.log('🔔 Attempting to show notification for:', message.title);
-    
     if (!Notification.isSupported()) {
-      console.log('❌ Notifications are not supported on this system');
       return;
     }
-
-    console.log('✅ Notifications are supported');
 
     try {
       const notification = new Notification({
@@ -490,27 +391,22 @@ class NotificationApp {
       });
 
       notification.on('click', () => {
-        console.log('🖱️ Notification clicked');
         this.openMessageWindow(message);
       });
 
       notification.show();
-      console.log('✅ Notification shown successfully');
-    } catch (error) {
+      } catch (error) {
       console.error('❌ Error showing notification:', error);
     }
   }
 
   private async requestNotificationPermissions(): Promise<void> {
     try {
-      console.log('🔔 Requesting notification permissions...');
       // On macOS, we can use the system notification request
       // This will prompt the user if permissions haven't been granted
       if (Notification.isSupported()) {
-        console.log('✅ Notification permissions available');
-      } else {
-        console.log('❌ Notifications not supported');
-      }
+        } else {
+        }
     } catch (error) {
       console.error('❌ Error requesting notification permissions:', error);
     }
@@ -573,37 +469,26 @@ class NotificationApp {
 
     // Handle approve message
     ipcMain.handle('approve-message', (event, messageId: string, feedback?: string, messageBody?: string): void => {
-      console.log('🔧 approve-message IPC called for messageId:', messageId);
       const message = this.messages.find(msg => msg.id === messageId);
       if (message) {
         message.status = 'approved';
         message.feedback = feedback;
-        console.log('✅ Message approved:', message.title);
-        console.log('🔧 Message requiresResponse:', message.requiresResponse);
-        console.log('🔧 Message body:', messageBody);
-        
         // Send response back through WebSocket if needed
         this.sendWebSocketResponse(message, 'approved', feedback);
       } else {
-        console.log('❌ Message not found for ID:', messageId);
-      }
+        }
     });
 
     // Handle reject message
     ipcMain.handle('reject-message', (event, messageId: string, feedback?: string): void => {
-      console.log('🔧 reject-message IPC called for messageId:', messageId);
       const message = this.messages.find(msg => msg.id === messageId);
       if (message) {
         message.status = 'rejected';
         message.feedback = feedback;
-        console.log('❌ Message rejected:', message.title);
-        console.log('🔧 Message requiresResponse:', message.requiresResponse);
-        
         // Send response back through WebSocket if needed
         this.sendWebSocketResponse(message, 'rejected', feedback);
       } else {
-        console.log('❌ Message not found for ID:', messageId);
-      }
+        }
     });
 
     // Handle show all messages
@@ -613,11 +498,6 @@ class NotificationApp {
   }
 
   private sendWebSocketResponse(message: Message, status: 'approved' | 'rejected', feedback?: string): void {
-    console.log('🔧 sendWebSocketResponse called');
-    console.log('🔧 wsServer exists:', !!this.wsServer);
-    console.log('🔧 message.requiresResponse:', message.requiresResponse);
-    console.log('🔧 wsServer clients count:', this.wsServer?.clients?.size || 0);
-    
     if (this.wsServer && message.requiresResponse) {
       let response = {
         id: message.id,
@@ -644,9 +524,44 @@ class NotificationApp {
         }
       });
 
-      console.log(`📤 Sent ${status} response for message: ${message.title}`);
-    } else {
-      console.log('🔧 Not sending WebSocket response - wsServer:', !!this.wsServer, 'requiresResponse:', message.requiresResponse);
+      } else {
+      }
+  }
+
+  private setupRestAPI(): void {
+    this.restApiServer = new RestAPIServer(
+      () => this.messages,
+      () => this.authTokens,
+      () => !!this.wsServer,
+      (messageId: string, status: 'approved' | 'rejected', feedback?: string) => {
+        const message = this.messages.find(msg => msg.id === messageId);
+        if (message) {
+          message.status = status;
+          message.feedback = feedback;
+          
+          // Send response through WebSocket if needed
+          this.sendWebSocketResponse(message, status, feedback);
+          
+          return true;
+        }
+        return false;
+      }
+    );
+
+    this.restApiServer.start().catch(error => {
+      console.error('Failed to start REST API server:', error);
+    });
+  }
+
+  private cleanup(): void {
+    if (this.restApiServer) {
+      this.restApiServer.stop().catch(error => {
+        console.error('Error stopping REST API server:', error);
+      });
+    }
+    
+    if (this.wsServer) {
+      this.wsServer.close();
     }
   }
 }

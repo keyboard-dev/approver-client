@@ -8,12 +8,9 @@ class ApprovalTestClient {
     }
 
     connect() {
-        console.log('🔗 Connecting to approval WebSocket server...');
         this.ws = new WebSocket('ws://localhost:8080');
 
         this.ws.on('open', () => {
-            console.log('✅ Connected to Electron app');
-            
             // Send test approval messages
             setTimeout(() => this.sendApprovalMessages(), 1000);
         });
@@ -21,10 +18,8 @@ class ApprovalTestClient {
         this.ws.on('message', (data) => {
             try {
                 const response = JSON.parse(data.toString());
-                console.log('📨 Received response:', response);
-            } catch (error) {
-                console.log('📨 Received raw message:', data.toString());
-            }
+                } catch (error) {
+                }
         });
 
         this.ws.on('error', (error) => {
@@ -32,8 +27,7 @@ class ApprovalTestClient {
         });
 
         this.ws.on('close', () => {
-            console.log('🔌 Disconnected from Electron app');
-        });
+            });
     }
 
     sendApprovalMessages() {
@@ -72,15 +66,13 @@ class ApprovalTestClient {
 
         messages.forEach((message, index) => {
             setTimeout(() => {
-                console.log(`📤 Sending approval request ${index + 1}:`, message.title);
                 this.ws.send(JSON.stringify(message));
             }, index * 2000);
         });
 
         // Close connection after all messages are sent
         setTimeout(() => {
-            console.log('✅ All approval messages sent. Connection will remain open for responses.');
-        }, messages.length * 2000);
+            }, messages.length * 2000);
     }
 }
 

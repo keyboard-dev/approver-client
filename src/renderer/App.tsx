@@ -86,7 +86,6 @@ const App: React.FC = () => {
         return;
       }
 
-      console.log('Received websocket message:', message);
       setCurrentMessage(message);
       setMessages(prev => {
         const existing = prev.find(m => m.id === message.id);

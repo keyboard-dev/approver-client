@@ -11,8 +11,6 @@ class TestClient {
         this.ws = new WebSocket('ws://localhost:8080');
 
         this.ws.on('open', () => {
-            console.log('Connected to Electron app');
-            
             // Send a few test messages
             setTimeout(() => this.sendTestMessages(), 1000);
         });
@@ -22,15 +20,13 @@ class TestClient {
         });
 
         this.ws.on('close', () => {
-            console.log('Disconnected from Electron app');
-        });
+            });
     }
 
     sendMessage(message) {
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
             this.ws.send(JSON.stringify(message));
-            console.log('Sent message:', message.title);
-        }
+            }
     }
 
     sendTestMessages() {
@@ -71,18 +67,10 @@ class TestClient {
         // Schedule disconnect after 10 seconds
         setTimeout(() => {
             this.ws.close();
-            console.log('Test completed. Check your Electron app for notifications!');
-        }, 10000);
+            }, 10000);
     }
 }
 
 // Usage instructions
-console.log('Test Client for Electron Notification App');
-console.log('========================================');
-console.log('Make sure your Electron app is running first with: npm start');
-console.log('Then run this test client with: node test-client.js');
-console.log('');
-console.log('Starting test client...');
-
 // Create test client
 new TestClient(); 

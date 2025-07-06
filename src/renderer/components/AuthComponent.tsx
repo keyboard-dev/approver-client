@@ -22,7 +22,6 @@ const AuthComponent: React.FC<AuthComponentProps> = ({ onAuthChange }) => {
     
     // Listen for auth events
     const handleAuthSuccess = (event: any, data: AuthStatus) => {
-      console.log('Auth success:', data);
       setAuthStatus(data);
       setError(null);
       setIsLoading(false);
@@ -36,7 +35,6 @@ const AuthComponent: React.FC<AuthComponentProps> = ({ onAuthChange }) => {
     };
 
     const handleAuthLogout = () => {
-      console.log('Auth logout');
       setAuthStatus({ authenticated: false });
       setError(null);
       onAuthChange({ authenticated: false });
