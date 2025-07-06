@@ -172,7 +172,7 @@ const AuthComponent: React.FC<AuthComponentProps> = ({ onAuthChange }) => {
             className="bg-blue-600 hover:bg-blue-700 text-white"
           >
             <LogIn className="h-4 w-4 mr-2" />
-            {isLoading ? 'Authenticating...' : 'Sign In with WorkOS'}
+            {isLoading ? 'Authenticating...' : 'Sign In'}
           </Button>
         </div>
 

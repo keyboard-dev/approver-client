@@ -1,293 +1,550 @@
-import express, { Request, Response, NextFunction } from 'express';
+import express, { Request, Response, NextFunction, Application } from 'express';
 import { Message, AuthTokens } from './types';
+import { Server } from 'http';
+import {
+  saveScriptTemplate,
+  getScriptTemplate,
+  listScriptTemplates,
+  updateScriptTemplate,
+  deleteScriptTemplate,
+  searchScriptTemplates,
+  interpolateScript,
+  validateInputs,
+  ScriptTemplate,
+  ScriptInputSchema
+} from './keyboard-shortcuts';
 
 interface AuthenticatedRequest extends Request {
   user?: any;
+  token?: string;
 }
 
-export class RestAPIServer {
-  private app: express.Application;
-  private server: any;
-  private readonly PORT = 8081;
+interface RestAPIConfig {
+  port?: number;
+  host?: string;
+}
 
-  constructor(
-    private getMessages: () => Message[],
-    private getAuthTokens: () => AuthTokens | null,
-    private getWebSocketServerStatus: () => boolean,
-    private updateMessageStatus: (messageId: string, status: 'approved' | 'rejected', feedback?: string) => boolean
-  ) {
-    this.app = express();
-    this.setupMiddleware();
-    this.setupRoutes();
-  }
+interface RestAPIServerDeps {
+  getMessages: () => Message[];
+  getAuthTokens: () => AuthTokens | null;
+  getWebSocketServerStatus: () => boolean;
+  updateMessageStatus: (messageId: string, status: 'approved' | 'rejected', feedback?: string) => boolean;
+}
 
-  private setupMiddleware(): void {
-    this.app.use(express.json());
-    this.app.use(express.urlencoded({ extended: true }));
+interface RestAPIServerInterface {
+  start: () => Promise<void>;
+  stop: () => Promise<void>;
+  getPort: () => number;
+  getApp: () => Application;
+}
+
+// Middleware factory functions
+const createCorsMiddleware = () => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
     
-    // CORS middleware
-    this.app.use((req: Request, res: Response, next: NextFunction) => {
-      res.header('Access-Control-Allow-Origin', '*');
-      res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-      res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-      
-      if (req.method === 'OPTIONS') {
-        res.sendStatus(200);
-      } else {
-        next();
-      }
-    });
-  }
+    if (req.method === 'OPTIONS') {
+      res.sendStatus(200);
+    } else {
+      next();
+    }
+  };
+};
 
-  private authenticateRequest = (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
+const createAuthMiddleware = (getAuthTokens: () => AuthTokens | null) => {
+  return (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
     const authHeader = req.headers.authorization;
     const token = authHeader?.split(' ')[1]; // Bearer token
     
-    const authTokens = this.getAuthTokens();
+    const authTokens = getAuthTokens();
     
-    // For now, we'll do a simple check - in production, you'd want proper JWT validation
     if (!authTokens || !token) {
       res.status(401).json({ error: 'Authentication required' });
       return;
     }
     
-    // Simple token validation (you might want to implement proper JWT validation)
     if (token !== authTokens.access_token) {
       res.status(401).json({ error: 'Invalid token' });
       return;
     }
     
     req.user = authTokens.user;
+    req.token = token;
     next();
   };
+};
 
-  private setupRoutes(): void {
-    // Health check endpoint (no auth required)
-    this.app.get('/api/health', (req: Request, res: Response) => {
-      res.json({
-        status: 'healthy',
-        websocket: this.getWebSocketServerStatus() ? 'running' : 'stopped',
-        authenticated: !!this.getAuthTokens(),
-        messageCount: this.getMessages().length,
-        timestamp: new Date().toISOString()
-      });
+// Route handler factories
+const createHealthHandler = (
+  getMessages: () => Message[],
+  getAuthTokens: () => AuthTokens | null,
+  getWebSocketServerStatus: () => boolean
+) => {
+  return (req: Request, res: Response) => {
+    res.json({
+      status: 'healthy',
+      websocket: getWebSocketServerStatus() ? 'running' : 'stopped',
+      authenticated: !!getAuthTokens(),
+      messageCount: getMessages().length,
+      timestamp: new Date().toISOString()
     });
+  };
+};
 
-    // Get authentication status
-    this.app.get('/api/auth/status', (req: Request, res: Response) => {
-      const authTokens = this.getAuthTokens();
-      res.json({
-        authenticated: !!authTokens,
-        user: authTokens?.user || null,
-        expiresAt: authTokens?.expires_at || null
-      });
+const createAuthStatusHandler = (getAuthTokens: () => AuthTokens | null) => {
+  return (req: Request, res: Response) => {
+    const authTokens = getAuthTokens();
+    res.json({
+      authenticated: !!authTokens,
+      user: authTokens?.user || null,
+      expiresAt: authTokens?.expires_at || null
     });
+  };
+};
 
-    // Get messages with pagination (requires auth)
-    this.app.get('/api/messages', this.authenticateRequest, (req: AuthenticatedRequest, res: Response) => {
-      const page = parseInt(req.query.page as string) || 1;
-      const limit = Math.min(parseInt(req.query.limit as string) || 10, 100); // Max 100 items
-      const status = req.query.status as string;
-      const priority = req.query.priority as string;
-      
-      let messages = this.getMessages();
-      
-      // Filter by status if provided
-      if (status) {
-        messages = messages.filter(msg => msg.status === status);
+const createMessagesHandler = (getMessages: () => Message[]) => {
+  return (req: AuthenticatedRequest, res: Response) => {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = Math.min(parseInt(req.query.limit as string) || 10, 100);
+    const status = req.query.status as string;
+    const priority = req.query.priority as string;
+    
+    let messages = getMessages();
+    
+    if (status) {
+      messages = messages.filter(msg => msg.status === status);
+    }
+    
+    if (priority) {
+      messages = messages.filter(msg => msg.priority === priority);
+    }
+    
+    messages.sort((a, b) => b.timestamp - a.timestamp);
+    
+    const start = (page - 1) * limit;
+    const paginatedMessages = messages.slice(start, start + limit);
+    
+    res.json({
+      messages: paginatedMessages,
+      total: messages.length,
+      page,
+      limit,
+      hasMore: start + limit < messages.length
+    });
+  };
+};
+
+const createMessageByIdHandler = (getMessages: () => Message[]) => {
+  return (req: AuthenticatedRequest, res: Response) => {
+    const messageId = req.params.id;
+    const message = getMessages().find(msg => msg.id === messageId);
+    
+    if (!message) {
+      res.status(404).json({ error: 'Message not found' });
+      return;
+    }
+    
+    res.json(message);
+  };
+};
+
+const createApproveMessageHandler = (
+  updateMessageStatus: (messageId: string, status: 'approved' | 'rejected', feedback?: string) => boolean
+) => {
+  return (req: AuthenticatedRequest, res: Response) => {
+    const messageId = req.params.id;
+    const { feedback } = req.body;
+    
+    const success = updateMessageStatus(messageId, 'approved', feedback);
+    
+    if (!success) {
+      res.status(404).json({ error: 'Message not found' });
+      return;
+    }
+    
+    res.json({ 
+      success: true, 
+      messageId, 
+      status: 'approved',
+      feedback: feedback || null,
+      timestamp: Date.now()
+    });
+  };
+};
+
+const createRejectMessageHandler = (
+  updateMessageStatus: (messageId: string, status: 'approved' | 'rejected', feedback?: string) => boolean
+) => {
+  return (req: AuthenticatedRequest, res: Response) => {
+    const messageId = req.params.id;
+    const { feedback } = req.body;
+    
+    const success = updateMessageStatus(messageId, 'rejected', feedback);
+    
+    if (!success) {
+      res.status(404).json({ error: 'Message not found' });
+      return;
+    }
+    
+    res.json({ 
+      success: true, 
+      messageId, 
+      status: 'rejected',
+      feedback: feedback || null,
+      timestamp: Date.now()
+    });
+  };
+};
+
+const createBatchApproveHandler = (
+  updateMessageStatus: (messageId: string, status: 'approved' | 'rejected', feedback?: string) => boolean
+) => {
+  return (req: AuthenticatedRequest, res: Response) => {
+    const { messageIds, feedback } = req.body;
+    
+    if (!Array.isArray(messageIds)) {
+      res.status(400).json({ error: 'messageIds must be an array' });
+      return;
+    }
+    
+    const approved: string[] = [];
+    const failed: string[] = [];
+    
+    messageIds.forEach((id: string) => {
+      const success = updateMessageStatus(id, 'approved', feedback);
+      if (success) {
+        approved.push(id);
+      } else {
+        failed.push(id);
       }
-      
-      // Filter by priority if provided
-      if (priority) {
-        messages = messages.filter(msg => msg.priority === priority);
-      }
-      
-      // Sort by timestamp (newest first)
-      messages.sort((a, b) => b.timestamp - a.timestamp);
-      
-      const start = (page - 1) * limit;
-      const paginatedMessages = messages.slice(start, start + limit);
-      
-      res.json({
-        messages: paginatedMessages,
-        total: messages.length,
-        page,
-        limit,
-        hasMore: start + limit < messages.length
-      });
     });
+    
+    res.json({ 
+      approved, 
+      failed,
+      approvedCount: approved.length,
+      failedCount: failed.length,
+      feedback: feedback || null,
+      timestamp: Date.now()
+    });
+  };
+};
 
-    // Get specific message by ID (requires auth)
-    this.app.get('/api/messages/:id', this.authenticateRequest, (req: AuthenticatedRequest, res: Response) => {
-      const messageId = req.params.id;
-      const message = this.getMessages().find(msg => msg.id === messageId);
+const createBatchRejectHandler = (
+  updateMessageStatus: (messageId: string, status: 'approved' | 'rejected', feedback?: string) => boolean
+) => {
+  return (req: AuthenticatedRequest, res: Response) => {
+    const { messageIds, feedback } = req.body;
+    
+    if (!Array.isArray(messageIds)) {
+      res.status(400).json({ error: 'messageIds must be an array' });
+      return;
+    }
+    
+    const rejected: string[] = [];
+    const failed: string[] = [];
+    
+    messageIds.forEach((id: string) => {
+      const success = updateMessageStatus(id, 'rejected', feedback);
+      if (success) {
+        rejected.push(id);
+      } else {
+        failed.push(id);
+      }
+    });
+    
+    res.json({ 
+      rejected, 
+      failed,
+      rejectedCount: rejected.length,
+      failedCount: failed.length,
+      feedback: feedback || null,
+      timestamp: Date.now()
+    });
+  };
+};
+
+const createStatsHandler = (getMessages: () => Message[]) => {
+  return (req: AuthenticatedRequest, res: Response) => {
+    const messages = getMessages();
+    
+    const stats = {
+      total: messages.length,
+      pending: messages.filter(msg => msg.status === 'pending').length,
+      approved: messages.filter(msg => msg.status === 'approved').length,
+      rejected: messages.filter(msg => msg.status === 'rejected').length,
+      byPriority: {
+        low: messages.filter(msg => msg.priority === 'low').length,
+        normal: messages.filter(msg => msg.priority === 'normal').length,
+        high: messages.filter(msg => msg.priority === 'high').length,
+        urgent: messages.filter(msg => msg.priority === 'urgent').length
+      },
+      recent: messages.filter(msg => Date.now() - msg.timestamp < 24 * 60 * 60 * 1000).length
+    };
+    
+    res.json(stats);
+  };
+};
+
+// Error handling middleware
+const createErrorHandler = () => {
+  return (err: Error, req: Request, res: Response, next: NextFunction) => {
+    console.error('REST API Error:', err);
+    res.status(500).json({ 
+      error: 'Internal server error',
+      message: err.message 
+    });
+  };
+};
+
+const createNotFoundHandler = () => {
+  return (req: Request, res: Response) => {
+    res.status(404).json({ error: 'Endpoint not found' });
+  };
+};
+
+// Application setup function
+const setupExpressApp = (deps: RestAPIServerDeps): Application => {
+  const app = express();
+  
+  // Middleware setup
+  app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
+  app.use(createCorsMiddleware());
+  
+  // Create auth middleware
+  const authMiddleware = createAuthMiddleware(deps.getAuthTokens);
+  
+  // Route handlers
+  app.get('/api/health', createHealthHandler(
+    deps.getMessages,
+    deps.getAuthTokens,
+    deps.getWebSocketServerStatus
+  ));
+
+  app.get('/api/auth-status', createAuthStatusHandler(deps.getAuthTokens));
+
+  app.get('/api/messages', createMessagesHandler(deps.getMessages));
+
+  app.get('/api/messages/:id', createMessageByIdHandler(deps.getMessages));
+
+  app.post('/api/messages/:id/approve', createApproveMessageHandler(deps.updateMessageStatus));
+
+  app.post('/api/messages/:id/reject', createRejectMessageHandler(deps.updateMessageStatus));
+
+  app.post('/api/messages/batch/approve', createBatchApproveHandler(deps.updateMessageStatus));
+
+  app.post('/api/messages/batch/reject', createBatchRejectHandler(deps.updateMessageStatus));
+
+  app.get('/api/stats', createStatsHandler(deps.getMessages));
+
+  // Keyboard shortcuts endpoints
+  app.post('/api/scripts', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      console.log('req.body', req.body);
+      console.log('req headers', req.headers);
+      const { name, description, schema, script, tags } = req.body;
+      const userId = req.user?.id || req.user?.sub || 'unknown';
+      const token = req.token || '';
       
-      if (!message) {
-        res.status(404).json({ error: 'Message not found' });
+      if (!name || !description || !script) {
+        res.status(400).json({ error: 'Name, description, and script are required' });
         return;
       }
       
-      res.json(message);
-    });
+      const result = await saveScriptTemplate({
+        name,
+        description,
+        schema: schema || {},
+        script,
+        tags: tags || []
+      }, token);
+      
+      if (result.success) {
+        res.json({ success: true, id: result.id });
+      } else {
+        res.status(500).json({ error: result.error });
+      }
+    } catch (error) {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
 
-    // Approve a single message (requires auth)
-    this.app.post('/api/messages/:id/approve', this.authenticateRequest, (req: AuthenticatedRequest, res: Response) => {
-      const messageId = req.params.id;
-      const { feedback } = req.body;
+  app.get('/api/scripts/:id', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { id } = req.params;
+      const token = req.token || '';
       
-      const success = this.updateMessageStatus(messageId, 'approved', feedback);
+      const result = await getScriptTemplate(id, token);
       
-      if (!success) {
-        res.status(404).json({ error: 'Message not found' });
+      if (result.success) {
+        res.json({ success: true, script: result.script });
+      } else {
+        res.status(404).json({ error: result.error });
+      }
+    } catch (error) {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.get('/api/scripts', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const token = req.token || '';
+      const tags = req.query.tags ? (req.query.tags as string).split(',') : undefined;
+      
+      const result = await listScriptTemplates(token, tags);
+      
+      if (result.success) {
+        res.json({ success: true, scripts: result.scripts });
+      } else {
+        res.status(500).json({ error: result.error });
+      }
+    } catch (error) {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.put('/api/scripts/:id', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { id } = req.params;
+      const token = req.token || '';
+      const updates = req.body;
+      
+      const result = await updateScriptTemplate(id, token, updates);
+      
+      if (result.success) {
+        res.json({ success: true });
+      } else {
+        res.status(404).json({ error: result.error });
+      }
+    } catch (error) {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.delete('/api/scripts/:id', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { id } = req.params;
+      const token = req.token || '';
+      
+      const result = await deleteScriptTemplate(id, token);
+      
+      if (result.success) {
+        res.json({ success: true });
+      } else {
+        res.status(404).json({ error: result.error });
+      }
+    } catch (error) {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.get('/api/scripts/search', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const token = req.token || '';
+      const searchTerm = req.query.q as string;
+      
+      if (!searchTerm) {
+        res.status(400).json({ error: 'Search term (q) is required' });
         return;
       }
       
-      res.json({ 
-        success: true, 
-        messageId, 
-        status: 'approved',
-        feedback: feedback || null,
-        timestamp: Date.now()
-      });
-    });
+      const result = await searchScriptTemplates(token, searchTerm);
+      
+      if (result.success) {
+        res.json({ success: true, scripts: result.scripts });
+      } else {
+        res.status(500).json({ error: result.error });
+      }
+    } catch (error) {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
 
-    // Reject a single message (requires auth)
-    this.app.post('/api/messages/:id/reject', this.authenticateRequest, (req: AuthenticatedRequest, res: Response) => {
-      const messageId = req.params.id;
-      const { feedback } = req.body;
+  app.post('/api/scripts/:id/interpolate', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { variables } = req.body;
+      const token = req.token || '';
       
-      const success = this.updateMessageStatus(messageId, 'rejected', feedback);
-      
-      if (!success) {
-        res.status(404).json({ error: 'Message not found' });
+      // Get the script template
+      const templateResult = await getScriptTemplate(id, token);
+      if (!templateResult.success) {
+        res.status(404).json({ error: templateResult.error });
         return;
       }
       
-      res.json({ 
-        success: true, 
-        messageId, 
-        status: 'rejected',
-        feedback: feedback || null,
-        timestamp: Date.now()
-      });
-    });
-
-    // Batch approve messages (requires auth)
-    this.app.post('/api/messages/batch-approve', this.authenticateRequest, (req: AuthenticatedRequest, res: Response) => {
-      const { messageIds, feedback } = req.body;
+      const script = templateResult.script!;
       
-      if (!Array.isArray(messageIds)) {
-        res.status(400).json({ error: 'messageIds must be an array' });
-        return;
-      }
-      
-      const approved: string[] = [];
-      const failed: string[] = [];
-      
-      messageIds.forEach((id: string) => {
-        const success = this.updateMessageStatus(id, 'approved', feedback);
-        if (success) {
-          approved.push(id);
-        } else {
-          failed.push(id);
+      // Validate variables against schema if schema exists
+      if (script.schema && Object.keys(script.schema).length > 0) {
+        const validation = validateInputs(variables || {}, script.schema);
+        if (!validation.valid) {
+          res.status(400).json({
+            error: 'Variable validation failed',
+            errors: validation.errors
+          });
+          return;
         }
-      });
-      
-      res.json({ 
-        approved, 
-        failed,
-        approvedCount: approved.length,
-        failedCount: failed.length,
-        feedback: feedback || null,
-        timestamp: Date.now()
-      });
-    });
-
-    // Batch reject messages (requires auth)
-    this.app.post('/api/messages/batch-reject', this.authenticateRequest, (req: AuthenticatedRequest, res: Response) => {
-      const { messageIds, feedback } = req.body;
-      
-      if (!Array.isArray(messageIds)) {
-        res.status(400).json({ error: 'messageIds must be an array' });
-        return;
       }
       
-      const rejected: string[] = [];
-      const failed: string[] = [];
+      // Interpolate the script
+      const interpolated = interpolateScript(script.script, variables || {});
       
-      messageIds.forEach((id: string) => {
-        const success = this.updateMessageStatus(id, 'rejected', feedback);
-        if (success) {
-          rejected.push(id);
-        } else {
-          failed.push(id);
-        }
+      res.json({
+        success: true,
+        scriptId: id,
+        scriptName: script.name,
+        scriptDescription: script.description,
+        template: script.script,
+        variables: variables || {},
+        interpolatedCode: interpolated.interpolated,
+        availableVariables: Object.keys(script.schema || {}),
+        tags: script.tags
       });
-      
-      res.json({ 
-        rejected, 
-        failed,
-        rejectedCount: rejected.length,
-        failedCount: failed.length,
-        feedback: feedback || null,
-        timestamp: Date.now()
-      });
-    });
+    } catch (error) {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
 
-    // Get message statistics (requires auth)
-    this.app.get('/api/stats', this.authenticateRequest, (req: AuthenticatedRequest, res: Response) => {
-      const messages = this.getMessages();
-      
-      const stats = {
-        total: messages.length,
-        pending: messages.filter(msg => msg.status === 'pending').length,
-        approved: messages.filter(msg => msg.status === 'approved').length,
-        rejected: messages.filter(msg => msg.status === 'rejected').length,
-        byPriority: {
-          low: messages.filter(msg => msg.priority === 'low').length,
-          normal: messages.filter(msg => msg.priority === 'normal').length,
-          high: messages.filter(msg => msg.priority === 'high').length,
-          urgent: messages.filter(msg => msg.priority === 'urgent').length
-        },
-        recent: messages.filter(msg => Date.now() - msg.timestamp < 24 * 60 * 60 * 1000).length // Last 24 hours
-      };
-      
-      res.json(stats);
-    });
+  // Error handling
+  app.use(createErrorHandler());
+  app.use(createNotFoundHandler());
+  
+  return app;
+};
 
-    // Error handling middleware
-    this.app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
-      console.error('REST API Error:', err);
-      res.status(500).json({ 
-        error: 'Internal server error',
-        message: err.message 
-      });
-    });
-
-    // 404 handler
-    this.app.use((req: Request, res: Response) => {
-      res.status(404).json({ error: 'Endpoint not found' });
-    });
-  }
-
-  public start(): Promise<void> {
+// Main factory function
+export const createRestAPIServer = (
+  deps: RestAPIServerDeps,
+  config: RestAPIConfig = {}
+): RestAPIServerInterface => {
+  const port = config.port || 8081;
+  const host = config.host || '127.0.0.1';
+  
+  const app = setupExpressApp(deps);
+  let server: Server | null = null;
+  
+  const start = (): Promise<void> => {
     return new Promise((resolve, reject) => {
-      this.server = this.app.listen(this.PORT, '127.0.0.1', () => {
-        console.log(`🚀 REST API server running on http://127.0.0.1:${this.PORT}`);
+      server = app.listen(port, host, () => {
+        console.log(`🚀 REST API server running on http://${host}:${port}`);
         resolve();
       });
       
-      this.server.on('error', (err: Error) => {
+      server.on('error', (err: Error) => {
         console.error('❌ REST API server error:', err);
         reject(err);
       });
     });
-  }
-
-  public stop(): Promise<void> {
+  };
+  
+  const stop = (): Promise<void> => {
     return new Promise((resolve) => {
-      if (this.server) {
-        this.server.close(() => {
+      if (server) {
+        server.close(() => {
           console.log('🛑 REST API server stopped');
           resolve();
         });
@@ -295,9 +552,18 @@ export class RestAPIServer {
         resolve();
       }
     });
-  }
+  };
+  
+  const getPort = (): number => port;
+  const getApp = (): Application => app;
+  
+  return {
+    start,
+    stop,
+    getPort,
+    getApp
+  };
+};
 
-  public getPort(): number {
-    return this.PORT;
-  }
-} 
+// For backward compatibility, export the class-like interface
+ 

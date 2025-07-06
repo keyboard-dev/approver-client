@@ -2,13 +2,13 @@ import { app, BrowserWindow, Notification, ipcMain, shell, protocol } from 'elec
 import * as WebSocket from 'ws';
 import * as path from 'path';
 import * as crypto from 'crypto';
-import { RestAPIServer } from './rest-api';
+import { createRestAPIServer } from './rest-api';
 import { Message, AuthTokens, PKCEParams, AuthorizeResponse, TokenResponse, ErrorResponse } from './types';
 
 class NotificationApp {
   private mainWindow: BrowserWindow | null = null;
   private wsServer: WebSocket.Server | null = null;
-  private restApiServer: RestAPIServer | null = null;
+  private restApiServer: any = null;
   private messages: Message[] = [];
   private readonly WS_PORT = 8080;
   private readonly OAUTH_SERVER_URL = process.env.OAUTH_SERVER_URL || 'http://localhost:4000';
@@ -180,7 +180,7 @@ class NotificationApp {
       }
 
       const tokens = await response.json() as TokenResponse;
-      
+      console.log('tokens', tokens);
       // Calculate expiration time and create AuthTokens object
       const authTokens: AuthTokens = {
         ...tokens,
@@ -529,11 +529,11 @@ class NotificationApp {
   }
 
   private setupRestAPI(): void {
-    this.restApiServer = new RestAPIServer(
-      () => this.messages,
-      () => this.authTokens,
-      () => !!this.wsServer,
-      (messageId: string, status: 'approved' | 'rejected', feedback?: string) => {
+    this.restApiServer = createRestAPIServer({
+      getMessages: () => this.messages,
+      getAuthTokens: () => this.authTokens,
+      getWebSocketServerStatus: () => !!this.wsServer,
+      updateMessageStatus: (messageId: string, status: 'approved' | 'rejected', feedback?: string) => {
         const message = this.messages.find(msg => msg.id === messageId);
         if (message) {
           message.status = status;
@@ -546,16 +546,16 @@ class NotificationApp {
         }
         return false;
       }
-    );
+    });
 
-    this.restApiServer.start().catch(error => {
+    this.restApiServer.start().catch((error: Error) => {
       console.error('Failed to start REST API server:', error);
     });
   }
 
   private cleanup(): void {
     if (this.restApiServer) {
-      this.restApiServer.stop().catch(error => {
+      this.restApiServer.stop().catch((error: Error) => {
         console.error('Error stopping REST API server:', error);
       });
     }
