@@ -409,9 +409,30 @@ class NotificationApp {
     this.wsServer.on('connection', (ws: WebSocket) => {
       console.log('Client connected to WebSocket server');
 
-      ws.on('message', (data: WebSocket.Data) => {
+      ws.on('message', async (data: WebSocket.Data) => {
         try {
-          const message: Message = JSON.parse(data.toString());
+          const message = JSON.parse(data.toString());
+          
+          // Handle token request
+          if (message.type === 'request-token') {
+            console.log('🔑 Token request received');
+            const token = await this.getValidAccessToken();
+            
+            const tokenResponse = {
+              type: 'auth-token',
+              token: token,
+              timestamp: Date.now(),
+              requestId: message.requestId, // Echo back request ID if provided
+              authenticated: !!token,
+              user: token ? this.authTokens?.user : null
+            };
+            
+            ws.send(JSON.stringify(tokenResponse));
+            console.log('📤 Token response sent');
+            return;
+          }
+          
+          // Handle regular messages
           this.handleIncomingMessage(message);
         } catch (error) {
           console.error('Error parsing message:', error);
