@@ -30,7 +30,6 @@ const result = tsc.transpileModule(source, { compilerOptions: options });
 
 // Write the output
 fs.writeFileSync(outputPath, result.outputText);
-console.log('Renderer TypeScript compiled successfully!');
 `;
 
 // Write a temporary TypeScript compiler

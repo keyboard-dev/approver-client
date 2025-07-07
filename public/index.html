@@ -4,45 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Message Viewer</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="dist/main.css">
 </head>
 <body>
-    <div class="container">
-        <header class="header">
-            <h1>📩 Message Center</h1>
-            <button id="refreshBtn" class="btn btn-primary">🔄 Refresh</button>
-        </header>
-        
-        <div class="content">
-            <div id="messageList" class="message-list">
-                <div class="empty-state" id="emptyState">
-                    <div class="empty-icon">📬</div>
-                    <h2>No messages yet</h2>
-                    <p>Messages from external applications will appear here</p>
-                </div>
-            </div>
-            
-            <div id="messageDetail" class="message-detail hidden">
-                <div class="message-header">
-                    <button id="backBtn" class="btn btn-secondary">← Back</button>
-                    <div class="message-actions">
-                        <button id="markReadBtn" class="btn btn-outline">✓ Mark Read</button>
-                        <button id="deleteBtn" class="btn btn-danger">🗑 Delete</button>
-                    </div>
-                </div>
-                <div class="message-content">
-                    <h2 id="messageTitle"></h2>
-                    <div class="message-meta">
-                        <span id="messageSender"></span>
-                        <span id="messageTime"></span>
-                        <span id="messagePriority" class="priority-badge"></span>
-                    </div>
-                    <div id="messageBody" class="message-body"></div>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <script type="module" src="renderer.js"></script>
+    <div id="root"></div>
+    <script type="module" src="dist/main.js"></script>
 </body>
 </html> 
