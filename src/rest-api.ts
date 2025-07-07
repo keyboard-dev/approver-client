@@ -13,6 +13,7 @@ import {
   ScriptTemplate,
   ScriptInputSchema
 } from './keyboard-shortcuts';
+import { encryptWithCustomKey, decryptWithCustomKey } from './encryption';
 
 interface AuthenticatedRequest extends Request {
   user?: any;
@@ -504,6 +505,27 @@ const setupExpressApp = (deps: RestAPIServerDeps): Application => {
         availableVariables: Object.keys(script.schema || {}),
         tags: script.tags
       });
+    } catch (error) {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.post('/api/encrypt', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      let codeToEncrypt = req.body.code;
+      let encryptedCode = encryptWithCustomKey(codeToEncrypt);
+      res.json({ success: true, encryptedCode });
+    } catch (error) {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.post('/api/decrypt', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      console.warn("req.body", req.body)
+      let codeToDecrypt = req.body.code;
+      let decryptedCode = decryptWithCustomKey(codeToDecrypt);
+      res.json({ success: true, decryptedCode });
     } catch (error) {
       res.status(500).json({ error: 'Internal server error' });
     }

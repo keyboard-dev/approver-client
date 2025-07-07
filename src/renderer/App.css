@@ -5,6 +5,60 @@
   background-color: #f8f9fa;
 }
 
+/* Smooth transitions for all elements */
+* {
+  transition: opacity 0.2s ease-in-out, background-color 0.2s ease-in-out, border-color 0.2s ease-in-out;
+}
+
+/* Loading state transitions */
+.loading-fade {
+  opacity: 0.7;
+  transition: opacity 0.3s ease-in-out;
+}
+
+.connection-status-badge {
+  transition: all 0.3s ease-in-out;
+}
+
+/* Alert animations */
+.alert-enter {
+  opacity: 0;
+  transform: translateX(100%);
+}
+
+.alert-enter-active {
+  opacity: 1;
+  transform: translateX(0);
+  transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+}
+
+.alert-exit {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.alert-exit-active {
+  opacity: 0;
+  transform: translateX(100%);
+  transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+}
+
+/* Smooth content transitions */
+.content-fade-in {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* Header Styles */
 .header {
   display: flex;

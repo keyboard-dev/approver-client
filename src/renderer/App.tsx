@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Message, AuthStatus } from '../preload';
 import { Button } from './components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
@@ -20,9 +20,47 @@ const App: React.FC = () => {
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'connecting'>('disconnected');
   const [isAlertDismissed, setIsAlertDismissed] = useState(false);
   const [authStatus, setAuthStatus] = useState<AuthStatus>({ authenticated: false });
+  const [isInitialized, setIsInitialized] = useState(false);
+  
+  // Use refs to track state without causing re-renders
+  const authStatusRef = useRef<AuthStatus>({ authenticated: false });
+  const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Debounced connection status update
+  const updateConnectionStatus = useCallback((status: 'connected' | 'disconnected' | 'connecting') => {
+    if (connectionTimeoutRef.current) {
+      clearTimeout(connectionTimeoutRef.current);
+    }
+    
+    connectionTimeoutRef.current = setTimeout(() => {
+      setConnectionStatus(status);
+      if (status === 'connected') {
+        setIsAlertDismissed(false);
+      }
+    }, 100); // Small debounce to prevent rapid flickering
+  }, []);
+
+  // Debounced loading state update
+  const updateLoadingState = useCallback((loading: boolean) => {
+    if (loadingTimeoutRef.current) {
+      clearTimeout(loadingTimeoutRef.current);
+    }
+    
+    if (loading) {
+      // Show loading immediately
+      setIsLoading(true);
+    } else {
+      // Delay hiding loading to prevent flicker
+      loadingTimeoutRef.current = setTimeout(() => {
+        setIsLoading(false);
+      }, 200);
+    }
+  }, []);
 
   // Handle authentication state changes
-  const handleAuthChange = (newAuthStatus: AuthStatus) => {
+  const handleAuthChange = useCallback((newAuthStatus: AuthStatus) => {
+    authStatusRef.current = newAuthStatus;
     setAuthStatus(newAuthStatus);
     
     // If user logged out, clear messages for security
@@ -31,41 +69,65 @@ const App: React.FC = () => {
       setCurrentMessage(null);
       setFeedback('');
       setShowFeedback(false);
-    } else {
-      // If user logged in, load messages
-      loadMessages();
+      setIsInitialized(false);
+    } else if (!isInitialized) {
+      // Only load messages on first authentication, not on every auth change
+      setIsInitialized(true);
+      // Load messages directly without dependency
+      (async () => {
+        if (newAuthStatus.authenticated) {
+          updateLoadingState(true);
+          try {
+            const loadedMessages = await window.electronAPI.getMessages();
+            setMessages(loadedMessages);
+          } catch (error) {
+            console.error('Error loading messages:', error);
+          } finally {
+            updateLoadingState(false);
+          }
+        }
+      })();
     }
-  };
+  }, [isInitialized, updateLoadingState]);
 
   // Load messages from Electron API
   const loadMessages = useCallback(async () => {
     // Only load messages if authenticated
-    if (!authStatus.authenticated) {
+    if (!authStatusRef.current.authenticated) {
       return;
     }
 
-    setIsLoading(true);
+    updateLoadingState(true);
     try {
       const loadedMessages = await window.electronAPI.getMessages();
       setMessages(loadedMessages);
     } catch (error) {
       console.error('Error loading messages:', error);
     } finally {
-      setIsLoading(false);
+      updateLoadingState(false);
     }
-  }, [authStatus.authenticated]);
+  }, [updateLoadingState]);
 
-  // Initialize messages on component mount
+  // Refresh messages without showing loading state for better UX
+  const refreshMessages = useCallback(async () => {
+    if (!authStatusRef.current.authenticated) {
+      return;
+    }
+
+    try {
+      const loadedMessages = await window.electronAPI.getMessages();
+      setMessages(loadedMessages);
+    } catch (error) {
+      console.error('Error refreshing messages:', error);
+    }
+  }, []);
+
+  // Initialize event listeners only once
   useEffect(() => {
-    // Only load messages if authenticated
-    if (authStatus.authenticated) {
-      loadMessages();
-    }
-
     // Listen for regular messages from main process
     const handleShowMessage = (event: any, message: Message) => {
       // Only handle messages if authenticated
-      if (!authStatus.authenticated) {
+      if (!authStatusRef.current.authenticated) {
         return;
       }
 
@@ -82,7 +144,7 @@ const App: React.FC = () => {
     // Listen for websocket messages
     const handleWebSocketMessage = (event: any, message: Message) => {
       // Only handle messages if authenticated
-      if (!authStatus.authenticated) {
+      if (!authStatusRef.current.authenticated) {
         return;
       }
 
@@ -94,23 +156,44 @@ const App: React.FC = () => {
         }
         return [message, ...prev];
       });
-      setConnectionStatus('connected');
-      setIsAlertDismissed(false); // Reset alert dismissal when connection is restored
+      updateConnectionStatus('connected');
+    };
+
+    // Listen for connection status changes
+    const handleConnectionStatusChange = (event: any, status: 'connected' | 'disconnected' | 'connecting') => {
+      updateConnectionStatus(status);
     };
 
     window.electronAPI.onShowMessage(handleShowMessage);
     window.electronAPI.onWebSocketMessage(handleWebSocketMessage);
+    
+    // Listen for connection status if available
+    if ((window.electronAPI as any).onConnectionStatusChange) {
+      (window.electronAPI as any).onConnectionStatusChange(handleConnectionStatusChange);
+    }
 
     // Cleanup listeners on unmount
     return () => {
       window.electronAPI.removeAllListeners('show-message');
       window.electronAPI.removeAllListeners('websocket-message');
+      
+      if ((window.electronAPI as any).removeAllListeners) {
+        (window.electronAPI as any).removeAllListeners('connection-status-change');
+      }
+      
+      // Clean up timeouts
+      if (connectionTimeoutRef.current) {
+        clearTimeout(connectionTimeoutRef.current);
+      }
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+      }
     };
-  }, [loadMessages, authStatus.authenticated]);
+  }, [updateConnectionStatus]); // Only depend on the stable callback
 
   // Approve message
   const approveMessage = async () => {
-    if (!currentMessage || !authStatus.authenticated) return;
+    if (!currentMessage || !authStatusRef.current.authenticated) return;
 
     try {
       await window.electronAPI.approveMessage(currentMessage.id, showFeedback ? feedback : undefined, currentMessage.body);
@@ -132,7 +215,7 @@ const App: React.FC = () => {
 
   // Reject message
   const rejectMessage = async () => {
-    if (!currentMessage || !authStatus.authenticated) return;
+    if (!currentMessage || !authStatusRef.current.authenticated) return;
 
     try {
       await window.electronAPI.rejectMessage(currentMessage.id, showFeedback ? feedback : undefined);
@@ -154,7 +237,7 @@ const App: React.FC = () => {
 
   // Show message detail
   const showMessageDetail = (message: Message) => {
-    if (!authStatus.authenticated) return;
+    if (!authStatusRef.current.authenticated) return;
     
     setCurrentMessage(message);
     setFeedback(message.feedback || '');
@@ -166,7 +249,7 @@ const App: React.FC = () => {
     setCurrentMessage(null);
     setFeedback('');
     setShowFeedback(false);
-    loadMessages(); // Refresh to show updated status
+    refreshMessages(); // Refresh to show updated status without loading state
   };
 
   const getStatusIcon = (status?: string) => {
@@ -210,8 +293,8 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 p-4">
-      {/* Dismissible Connection Alert - Only show when disconnected and not dismissed */}
-      {connectionStatus === 'disconnected' && !isAlertDismissed && authStatus.authenticated && (
+              {/* Dismissible Connection Alert - Only show when disconnected and not dismissed */}
+        {connectionStatus === 'disconnected' && !isAlertDismissed && authStatus.authenticated && (
         <div className="fixed top-4 right-4 z-40">
           <Alert className="w-72 border-red-200 bg-red-50 relative">
             <AlertTriangle className="h-4 w-4" />
@@ -236,7 +319,7 @@ const App: React.FC = () => {
 
         {/* Only show main content if authenticated */}
         {authStatus.authenticated && (
-          <>
+          <div className="content-fade-in">
             {currentMessage ? (
               // Message Detail View
               <Card className="w-full">
@@ -249,7 +332,7 @@ const App: React.FC = () => {
                       {/* Connection Status Badge */}
                       <Badge 
                         variant={connectionStatus === 'connected' ? 'default' : 'destructive'}
-                        className={`flex items-center space-x-2 px-3 py-2 ${
+                        className={`connection-status-badge flex items-center space-x-2 px-3 py-2 ${
                           connectionStatus === 'connected' 
                             ? 'bg-green-100 text-green-800 border-green-200 hover:bg-green-100' 
                             : 'bg-red-100 text-red-800 border-red-200 hover:bg-red-100'
@@ -393,27 +476,7 @@ const App: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <h1 className="text-3xl font-bold">Message Approvals</h1>
                   <div className="flex items-center space-x-3">
-                    {/* Connection Status Badge */}
-                    <Badge 
-                      variant={connectionStatus === 'connected' ? 'default' : 'destructive'}
-                      className={`flex items-center space-x-2 px-3 py-2 ${
-                        connectionStatus === 'connected' 
-                          ? 'bg-green-100 text-green-800 border-green-200 hover:bg-green-100' 
-                          : 'bg-red-100 text-red-800 border-red-200 hover:bg-red-100'
-                      }`}
-                    >
-                      {connectionStatus === 'connected' ? (
-                        <Wifi className="h-3 w-3" />
-                      ) : (
-                        <WifiOff className="h-3 w-3" />
-                      )}
-                      <span className="text-xs font-medium">
-                        {connectionStatus === 'connected' ? 'Connected' : 'Disconnected'}
-                      </span>
-                    </Badge>
-                    <Button onClick={loadMessages} disabled={isLoading}>
-                      {isLoading ? 'Loading...' : 'Refresh'}
-                    </Button>
+              
                   </div>
                 </div>
 
@@ -427,7 +490,7 @@ const App: React.FC = () => {
                     </CardContent>
                   </Card>
                 ) : (
-                  <div className="grid gap-4">
+                  <div className={`grid gap-4 ${isLoading ? 'loading-fade' : ''}`}>
                     {messages.map((message) => (
                       <Card 
                         key={message.id} 
@@ -461,7 +524,7 @@ const App: React.FC = () => {
                 )}
               </div>
             )}
-          </>
+          </div>
         )}
       </div>
     </div>
