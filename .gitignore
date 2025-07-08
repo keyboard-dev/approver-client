@@ -8,3 +8,4 @@ dist-build
 .env.production.local
 .DS_Store
 .env.keys
+.env*

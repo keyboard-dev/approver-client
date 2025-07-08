@@ -11,7 +11,7 @@ class NotificationApp {
   private restApiServer: any = null;
   private messages: Message[] = [];
   private readonly WS_PORT = 8080;
-  private readonly OAUTH_SERVER_URL = process.env.OAUTH_SERVER_URL || 'http://localhost:4000';
+  private readonly OAUTH_SERVER_URL = process.env.OAUTH_SERVER_URL || 'https://api.keyboard.dev';
   private readonly CUSTOM_PROTOCOL = 'mcpauth';
   private currentPKCE: PKCEParams | null = null;
   private authTokens: AuthTokens | null = null;
