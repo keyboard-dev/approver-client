@@ -3,7 +3,7 @@ import { encrypt, decrypt } from './encryption';
 
 // Get API URL from environment or default to empty string
 const getApiUrl = () => {
-  return process.env.API_URL || '';
+  return process.env.API_URL || 'https://api.keyboard.dev';
 };
 
 // Helper function to make authenticated API requests to external service
