@@ -54,6 +54,10 @@ export interface ElectronAPI {
   windowToggleVisibility: () => Promise<void>;
   windowSetOpacity: (opacity: number) => Promise<void>;
   windowResize: (dimensions: { width: number; height: number }) => Promise<void>;
+  // Drag methods
+  windowStartDrag: () => Promise<boolean>;
+  windowMove: (position: { x: number; y: number }) => Promise<void>;
+  windowGetPosition: () => Promise<[number, number]>;
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -98,7 +102,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   windowClose: (): Promise<void> => ipcRenderer.invoke('window-close'),
   windowToggleVisibility: (): Promise<void> => ipcRenderer.invoke('window-toggle-visibility'),
   windowSetOpacity: (opacity: number): Promise<void> => ipcRenderer.invoke('window-set-opacity', opacity),
-  windowResize: (dimensions: { width: number; height: number }): Promise<void> => ipcRenderer.invoke('window-resize', dimensions)
+  windowResize: (dimensions: { width: number; height: number }): Promise<void> => ipcRenderer.invoke('window-resize', dimensions),
+  // Drag methods
+  windowStartDrag: (): Promise<boolean> => ipcRenderer.invoke('window-start-drag'),
+  windowMove: (position: { x: number; y: number }): Promise<void> => ipcRenderer.invoke('window-move', position),
+  windowGetPosition: (): Promise<[number, number]> => ipcRenderer.invoke('window-get-position')
 } as ElectronAPI);
 
 // Extend the global Window interface

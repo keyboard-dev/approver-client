@@ -34,13 +34,16 @@ class MenuBarNotificationApp {
 
     // STEP 2: Set up event listeners BEFORE app.whenReady()
     
-    // Handle macOS open-url events (MUST be before app.whenReady())
-    app.on('open-url', (event, url) => {
-      event.preventDefault();
-      this.handleOAuthCallback(url);
-    });
+    // Platform-specific protocol handling
+    if (process.platform === 'darwin') {
+      // Handle macOS open-url events (MUST be before app.whenReady())
+      app.on('open-url', (event, url) => {
+        event.preventDefault();
+        this.handleOAuthCallback(url);
+      });
+    }
 
-    // Handle second instance (protocol callbacks)
+    // Handle second instance (protocol callbacks for all platforms)
     app.on('second-instance', (event, commandLine, workingDirectory) => {
       // Find protocol URL in command line arguments
       const url = commandLine.find(arg => arg.startsWith(`${this.CUSTOM_PROTOCOL}://`));
@@ -85,7 +88,7 @@ class MenuBarNotificationApp {
 
     // Handle app termination
     app.on('before-quit', () => {
-      this.cleanup();
+        this.cleanup();
     });
   }
 
@@ -184,7 +187,8 @@ class MenuBarNotificationApp {
   }
 
   private createMainWindow(): void {
-    this.mainWindow = new BrowserWindow({
+    // Base configuration that works across platforms
+    const baseConfig = {
       width: 600,  // Larger for reading code
       height: 700, // Taller for explanations
       webPreferences: {
@@ -194,40 +198,86 @@ class MenuBarNotificationApp {
       },
       show: false,
       frame: false,
-      transparent: true,
       resizable: true,
+      movable: true, // Enable window to be movable
       alwaysOnTop: true,
       skipTaskbar: true,
       hasShadow: true,
       minimizable: false,
       maximizable: false,
-      type: 'panel', // This helps with menu bar behavior
+    };
+
+    // Platform-specific configurations
+    const platformConfig: Partial<Electron.BrowserWindowConstructorOptions> = {
       // macOS specific
       ...(process.platform === 'darwin' && {
-        vibrancy: 'under-window',
-        visualEffectState: 'active',
-        level: 'floating' // Use floating level instead of screen-saver
+        transparent: true,
+        type: 'panel' as const,
+        vibrancy: 'under-window' as const,
+        visualEffectState: 'active' as const,
+        level: 'floating' as const,
+        titleBarStyle: 'hidden' as const
+      }),
+      
+      // Linux specific
+      ...(process.platform === 'linux' && {
+        transparent: true, // Most Linux DEs support this
+        type: 'toolbar' as const, // Better for Linux than 'panel'
+        // Don't use vibrancy on Linux
+      }),
+      
+      // Windows specific
+      ...(process.platform === 'win32' && {
+        transparent: true,
+        type: 'toolbar' as const,
       })
+    };
+
+    this.mainWindow = new BrowserWindow({
+      ...baseConfig,
+      ...platformConfig
     });
 
     this.mainWindow.loadFile(path.join(__dirname, '../public/index.html'));
 
-    // Hide window when it loses focus
-    this.mainWindow.on('blur', () => {
-      if (this.mainWindow?.isVisible()) {
-        setTimeout(() => {
-          if (this.mainWindow?.isVisible() && !this.mainWindow?.isFocused()) {
-            this.mainWindow.hide();
-          }
-        }, 100);
-      }
-    });
+    // Platform-specific window behavior
+    this.setupPlatformSpecificBehavior();
 
     this.mainWindow.on('closed', () => {
       this.mainWindow = null;
     });
 
     this.setupWindowControls();
+  }
+
+  private setupPlatformSpecificBehavior(): void {
+    if (!this.mainWindow) return;
+
+    // Platform-specific blur behavior
+    if (process.platform === 'linux') {
+      // Some Linux DEs don't handle blur events well for tray apps
+      // Add a longer delay or different behavior
+      this.mainWindow.on('blur', () => {
+        if (this.mainWindow?.isVisible()) {
+          setTimeout(() => {
+            if (this.mainWindow?.isVisible() && !this.mainWindow?.isFocused()) {
+              this.mainWindow.hide();
+            }
+          }, 200); // Longer delay for Linux
+        }
+      });
+    } else {
+      // macOS and Windows - standard behavior
+      this.mainWindow.on('blur', () => {
+        if (this.mainWindow?.isVisible()) {
+          setTimeout(() => {
+            if (this.mainWindow?.isVisible() && !this.mainWindow?.isFocused()) {
+              this.mainWindow.hide();
+            }
+          }, 100);
+        }
+      });
+    }
   }
 
   private showContextMenu(): void {
@@ -311,6 +361,31 @@ class MenuBarNotificationApp {
       if (this.mainWindow) {
         this.mainWindow.setSize(width, height);
       }
+    });
+
+    // Handle window drag
+    ipcMain.handle('window-start-drag', () => {
+      if (this.mainWindow) {
+        // For Electron, we don't need to call startDrag - the window is already movable
+        // This is mainly for the renderer to know drag started
+        return true;
+      }
+      return false;
+    });
+
+    // Handle window move
+    ipcMain.handle('window-move', (event, { x, y }) => {
+      if (this.mainWindow) {
+        this.mainWindow.setPosition(x, y);
+      }
+    });
+
+    // Get window position
+    ipcMain.handle('window-get-position', () => {
+      if (this.mainWindow) {
+        return this.mainWindow.getPosition();
+      }
+      return [0, 0];
     });
   }
 
@@ -632,10 +707,10 @@ class MenuBarNotificationApp {
 
   private openMessageWindow(message?: Message): void {
     this.showWindow();
-    
-    // Send message data to renderer if specific message was clicked
+      
+      // Send message data to renderer if specific message was clicked
     if (message && this.mainWindow) {
-      this.mainWindow.webContents.send('show-message', message);
+        this.mainWindow.webContents.send('show-message', message);
     }
   }
 
@@ -694,7 +769,7 @@ class MenuBarNotificationApp {
         
         // Send response back through WebSocket if needed
         this.sendWebSocketResponse(message, 'approved', feedback);
-      }
+        }
     });
 
     // Handle reject message
@@ -710,7 +785,7 @@ class MenuBarNotificationApp {
         
         // Send response back through WebSocket if needed
         this.sendWebSocketResponse(message, 'rejected', feedback);
-      }
+        }
     });
 
     // Handle show all messages
@@ -744,7 +819,7 @@ class MenuBarNotificationApp {
           client.send(JSON.stringify(response));
         }
       });
-    }
+      }
   }
 
   private setupRestAPI(): void {
