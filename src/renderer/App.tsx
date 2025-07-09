@@ -9,7 +9,11 @@ import { Badge } from './components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './components/ui/tabs';
 import { CheckCircle, XCircle, Clock, AlertTriangle, X, Wifi, WifiOff } from 'lucide-react';
 import AuthComponent from './components/AuthComponent';
+
+import WebSocketKeyManager from './components/WebSocketKeyManager';
+
 import DragHandle from './components/DragHandle';
+
 import './App.css';
 
 const App: React.FC = () => {
@@ -22,6 +26,7 @@ const App: React.FC = () => {
   const [isAlertDismissed, setIsAlertDismissed] = useState(false);
   const [authStatus, setAuthStatus] = useState<AuthStatus>({ authenticated: false });
   const [isInitialized, setIsInitialized] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   
   // Use refs to track state without causing re-renders
   const authStatusRef = useRef<AuthStatus>({ authenticated: false });
@@ -250,7 +255,15 @@ const App: React.FC = () => {
     setCurrentMessage(null);
     setFeedback('');
     setShowFeedback(false);
+    setShowSettings(false);
     refreshMessages(); // Refresh to show updated status without loading state
+  };
+
+  const toggleSettings = () => {
+    setShowSettings(!showSettings);
+    setCurrentMessage(null);
+    setFeedback('');
+    setShowFeedback(false);
   };
 
   const getStatusIcon = (status?: string) => {
@@ -473,9 +486,39 @@ const App: React.FC = () => {
                     <div className="flex items-center space-x-3">
                   
                     </div>
+
+                  )}
+                </CardContent>
+              </Card>
+            ) : (
+              // Message List View
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h1 className="text-3xl font-bold">
+                    {showSettings ? 'Settings' : 'Message Approvals'}
+                  </h1>
+                  <div className="flex items-center space-x-3">
+                    <Button
+                      variant="outline"
+                      onClick={toggleSettings}
+                      className="flex items-center space-x-2"
+                    >
+                      <span>{showSettings ? 'Back to Messages' : 'Settings'}</span>
+                    </Button>
                   </div>
 
+
+{showSettings ? (
+                  // Settings View
+                  <div className="space-y-6">
+                    <WebSocketKeyManager />
+                  </div>
+                ) : (
+                  // Message List View
+                  messages.length === 0 ? (
+
                   {messages.length === 0 ? (
+
                     <Card>
                       <CardContent className="p-8 text-center">
                         <Clock className="mx-auto h-12 w-12 text-gray-400 mb-4" />
@@ -516,12 +559,21 @@ const App: React.FC = () => {
                         </Card>
                       ))}
                     </div>
+
+                  )
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
                   )}
                 </div>
               )}
             </div>
           )}
         </div>
+
       </div>
     </div>
   );

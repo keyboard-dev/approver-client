@@ -2,6 +2,8 @@ import { app, BrowserWindow, Notification, ipcMain, shell, protocol, screen, Tra
 import * as WebSocket from 'ws';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import * as fs from 'fs';
+import * as os from 'os';
 import { createRestAPIServer } from './rest-api';
 import { Message, AuthTokens, PKCEParams, AuthorizeResponse, TokenResponse, ErrorResponse } from './types';
 
@@ -19,6 +21,11 @@ class MenuBarNotificationApp {
   private readonly CUSTOM_PROTOCOL = 'mcpauth';
   private currentPKCE: PKCEParams | null = null;
   private authTokens: AuthTokens | null = null;
+  
+  // WebSocket security
+  //mcpauth://callback
+  private wsConnectionKey: string | null = null;
+  private readonly WS_KEY_FILE = path.join(os.homedir(), '.keyboard-mcp-ws-key');
 
   constructor() {
     this.initializeApp();
@@ -65,6 +72,11 @@ class MenuBarNotificationApp {
 
     // STEP 4: App ready event
     app.whenReady().then(async () => {
+
+      // Initialize WebSocket security key first
+      await this.initializeWebSocketKey();
+      
+
       this.createTray();
       this.createMainWindow();
       this.setupWebSocketServer();
@@ -419,6 +431,79 @@ class MenuBarNotificationApp {
     });
   }
 
+  // WebSocket Security Methods
+  private async initializeWebSocketKey(): Promise<void> {
+    try {
+      // Try to load existing key
+      if (fs.existsSync(this.WS_KEY_FILE)) {
+        const keyData = fs.readFileSync(this.WS_KEY_FILE, 'utf8');
+        const parsedData = JSON.parse(keyData);
+        
+        // Validate key format and age (regenerate if older than 30 days)
+        if (parsedData.key && parsedData.createdAt) {
+          const keyAge = Date.now() - parsedData.createdAt;
+          const maxAge = 30 * 24 * 60 * 60 * 1000; // 30 days
+          
+          if (keyAge < maxAge) {
+            this.wsConnectionKey = parsedData.key;
+            console.log('🔑 Loaded existing WebSocket connection key');
+            return;
+          }
+        }
+      }
+      
+      // Generate new key if none exists or is expired
+      await this.generateNewWebSocketKey();
+      
+    } catch (error) {
+      console.error('❌ Error initializing WebSocket key:', error);
+      // Fallback: generate new key
+      await this.generateNewWebSocketKey();
+    }
+  }
+
+  private async generateNewWebSocketKey(): Promise<void> {
+    try {
+      // Generate a secure random key
+      this.wsConnectionKey = crypto.randomBytes(32).toString('hex');
+      
+      // Store key with metadata
+      const keyData = {
+        key: this.wsConnectionKey,
+        createdAt: Date.now(),
+        version: '1.0'
+      };
+      
+      // Write to file with restricted permissions
+      fs.writeFileSync(this.WS_KEY_FILE, JSON.stringify(keyData, null, 2), { mode: 0o600 });
+      
+      console.log('🔑 Generated new WebSocket connection key');
+      
+      // Notify UI if window exists
+      if (this.mainWindow) {
+        this.mainWindow.webContents.send('ws-key-generated', {
+          key: this.wsConnectionKey,
+          createdAt: keyData.createdAt
+        });
+      }
+      
+    } catch (error) {
+      console.error('❌ Error generating WebSocket key:', error);
+      throw error;
+    }
+  }
+
+  private getWebSocketConnectionUrl(): string {
+    if (!this.wsConnectionKey) {
+      throw new Error('WebSocket connection key not initialized');
+    }
+    return `ws://127.0.0.1:${this.WS_PORT}?key=${this.wsConnectionKey}`;
+  }
+
+  private validateWebSocketKey(providedKey: string): boolean {
+    return this.wsConnectionKey === providedKey;
+  }
+
   private generatePKCE(): PKCEParams {
     const codeVerifier = crypto.randomBytes(32).toString('base64url');
     const codeChallenge = crypto
@@ -633,10 +718,107 @@ class MenuBarNotificationApp {
     }
   }
 
+
+  private createMainWindow(): void {
+    this.mainWindow = new BrowserWindow({
+      width: 800,
+      height: 600,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        preload: path.join(__dirname, 'preload.js')
+      },
+      show: true, // Show the window immediately
+      title: 'Message Viewer'
+    });
+
+    this.mainWindow.loadFile(path.join(__dirname, '../public/index.html'));
+
+    this.mainWindow.on('closed', () => {
+      this.mainWindow = null;
+    });
+  }
+
+  private createTray(): void {
+    const iconPath = path.join(__dirname, '../public/icon.png');
+    const icon = nativeImage.createFromPath(iconPath);
+
+    this.tray = new Tray(icon);
+    this.tray.setToolTip('Message Approver');
+
+    const contextMenu = Menu.buildFromTemplate([
+      { label: 'Show Messages', click: () => this.showWindow() },
+      { label: 'Settings', click: () => this.showSettings() },
+      { label: 'Logout', click: () => this.logout() },
+      { type: 'separator' },
+      { label: 'Quit', click: () => app.quit() }
+    ]);
+
+    this.tray.setContextMenu(contextMenu);
+  }
+
+  private showWindow(): void {
+    if (!this.mainWindow) {
+      this.createMainWindow();
+    }
+
+    if (this.mainWindow) {
+      this.mainWindow.show();
+      this.mainWindow.focus();
+    }
+  }
+
+  private showSettings(): void {
+    if (!this.mainWindow) {
+      this.createMainWindow();
+    }
+
+    if (this.mainWindow) {
+      this.mainWindow.webContents.send('show-settings');
+    }
+  }
+
+
   private setupWebSocketServer(): void {
-    this.wsServer = new WebSocket.Server({ port: this.WS_PORT });
+    this.wsServer = new WebSocket.Server({ 
+      port: this.WS_PORT,
+      host: '127.0.0.1', // Localhost only for security
+      verifyClient: (info: any) => {
+        try {
+          // Extract key from query parameters
+          const url = new URL(info.req.url!, `ws://127.0.0.1:${this.WS_PORT}`);
+          const providedKey = url.searchParams.get('key');
+          
+          // Validate connection is from localhost
+          const remoteAddress = info.req.connection.remoteAddress;
+          const isLocalhost = remoteAddress === '127.0.0.1' || 
+                             remoteAddress === '::1' || 
+                             remoteAddress === '::ffff:127.0.0.1';
+          
+          if (!isLocalhost) {
+            console.warn(`🚨 Rejected WebSocket connection from non-localhost: ${remoteAddress}`);
+            return false;
+          }
+          
+          // Validate key
+          if (!providedKey || !this.validateWebSocketKey(providedKey)) {
+            console.warn(`🚨 Rejected WebSocket connection with invalid key from ${remoteAddress}`);
+            return false;
+          }
+          
+          console.log(`✅ Accepted secure WebSocket connection from ${remoteAddress}`);
+          return true;
+          
+        } catch (error) {
+          console.error('❌ Error validating WebSocket connection:', error);
+          return false;
+        }
+      }
+    });
     
-    this.wsServer.on('connection', (ws: WebSocket) => {
+    this.wsServer.on('connection', (ws: WebSocket, req) => {
+      console.log(`🔐 Secure WebSocket connection established from ${req.connection.remoteAddress}`);
+      
       ws.on('message', async (data: WebSocket.Data) => {
         try {
           const message = JSON.parse(data.toString());
@@ -666,7 +848,8 @@ class MenuBarNotificationApp {
       });
 
       ws.on('close', () => {
-        });
+        console.log('🔐 Secure WebSocket connection closed');
+      });
     });
   }
 
@@ -957,6 +1140,43 @@ class MenuBarNotificationApp {
     // Handle show all messages
     ipcMain.on('show-messages', (): void => {
       this.showWindow();
+    });
+
+    // WebSocket key management
+    ipcMain.handle('get-ws-connection-key', (): string | null => {
+      return this.wsConnectionKey;
+    });
+
+    ipcMain.handle('get-ws-connection-url', (): string => {
+      return this.getWebSocketConnectionUrl();
+    });
+
+    ipcMain.handle('regenerate-ws-key', async (): Promise<{ key: string; createdAt: number }> => {
+      await this.generateNewWebSocketKey();
+      return {
+        key: this.wsConnectionKey!,
+        createdAt: Date.now()
+      };
+    });
+
+    ipcMain.handle('get-ws-key-info', (): { key: string | null; createdAt: number | null; keyFile: string } => {
+      let createdAt: number | null = null;
+      
+      try {
+        if (fs.existsSync(this.WS_KEY_FILE)) {
+          const keyData = fs.readFileSync(this.WS_KEY_FILE, 'utf8');
+          const parsedData = JSON.parse(keyData);
+          createdAt = parsedData.createdAt;
+        }
+      } catch (error) {
+        console.error('Error reading key file:', error);
+      }
+      
+      return {
+        key: this.wsConnectionKey,
+        createdAt,
+        keyFile: this.WS_KEY_FILE
+      };
     });
   }
 
