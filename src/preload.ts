@@ -48,6 +48,12 @@ export interface ElectronAPI {
   onAuthSuccess: (callback: (event: IpcRendererEvent, data: AuthStatus) => void) => void;
   onAuthError: (callback: (event: IpcRendererEvent, error: AuthError) => void) => void;
   onAuthLogout: (callback: (event: IpcRendererEvent) => void) => void;
+  // WebSocket key management
+  getWSConnectionKey: () => Promise<string | null>;
+  getWSConnectionUrl: () => Promise<string>;
+  regenerateWSKey: () => Promise<{ key: string; createdAt: number }>;
+  getWSKeyInfo: () => Promise<{ key: string | null; createdAt: number | null; keyFile: string }>;
+  onWSKeyGenerated: (callback: (event: IpcRendererEvent, data: { key: string; createdAt: number }) => void) => void;
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -86,6 +92,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   onAuthLogout: (callback: (event: IpcRendererEvent) => void): void => {
     ipcRenderer.on('auth-logout', callback);
+  },
+  
+  // WebSocket key management
+  getWSConnectionKey: (): Promise<string | null> => ipcRenderer.invoke('get-ws-connection-key'),
+  getWSConnectionUrl: (): Promise<string> => ipcRenderer.invoke('get-ws-connection-url'),
+  regenerateWSKey: (): Promise<{ key: string; createdAt: number }> => ipcRenderer.invoke('regenerate-ws-key'),
+  getWSKeyInfo: (): Promise<{ key: string | null; createdAt: number | null; keyFile: string }> => ipcRenderer.invoke('get-ws-key-info'),
+  onWSKeyGenerated: (callback: (event: IpcRendererEvent, data: { key: string; createdAt: number }) => void): void => {
+    ipcRenderer.on('ws-key-generated', callback);
   }
 } as ElectronAPI);
 

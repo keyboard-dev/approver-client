@@ -1,20 +1,30 @@
-import { app, BrowserWindow, Notification, ipcMain, shell, protocol } from 'electron';
+import { app, BrowserWindow, Notification, ipcMain, shell, protocol, screen, Tray, Menu, nativeImage } from 'electron';
 import * as WebSocket from 'ws';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import * as fs from 'fs';
+import * as os from 'os';
 import { createRestAPIServer } from './rest-api';
 import { Message, AuthTokens, PKCEParams, AuthorizeResponse, TokenResponse, ErrorResponse } from './types';
 
-class NotificationApp {
+class MenuBarNotificationApp {
   private mainWindow: BrowserWindow | null = null;
+  private tray: Tray | null = null;
   private wsServer: WebSocket.Server | null = null;
   private restApiServer: any = null;
   private messages: Message[] = [];
+  private pendingCount: number = 0;
+  private notificationsEnabled: boolean = true;
   private readonly WS_PORT = 8080;
   private readonly OAUTH_SERVER_URL = process.env.OAUTH_SERVER_URL || 'https://api.keyboard.dev';
+  private readonly SKIP_AUTH = process.env.SKIP_AUTH === 'true';
   private readonly CUSTOM_PROTOCOL = 'mcpauth';
   private currentPKCE: PKCEParams | null = null;
   private authTokens: AuthTokens | null = null;
+  
+  // WebSocket security
+  private wsConnectionKey: string | null = null;
+  private readonly WS_KEY_FILE = path.join(os.homedir(), '.keyboard-mcp-ws-key');
 
   constructor() {
     this.initializeApp();
@@ -31,13 +41,16 @@ class NotificationApp {
 
     // STEP 2: Set up event listeners BEFORE app.whenReady()
     
-    // Handle macOS open-url events (MUST be before app.whenReady())
-    app.on('open-url', (event, url) => {
-      event.preventDefault();
-      this.handleOAuthCallback(url);
-    });
+    // Platform-specific protocol handling
+    if (process.platform === 'darwin') {
+      // Handle macOS open-url events (MUST be before app.whenReady())
+      app.on('open-url', (event, url) => {
+        event.preventDefault();
+        this.handleOAuthCallback(url);
+      });
+    }
 
-    // Handle second instance (protocol callbacks)
+    // Handle second instance (protocol callbacks for all platforms)
     app.on('second-instance', (event, commandLine, workingDirectory) => {
       // Find protocol URL in command line arguments
       const url = commandLine.find(arg => arg.startsWith(`${this.CUSTOM_PROTOCOL}://`));
@@ -45,11 +58,9 @@ class NotificationApp {
         this.handleOAuthCallback(url);
       }
       
-      // Focus the existing window
+      // Show the window if it exists
       if (this.mainWindow) {
-        if (this.mainWindow.isMinimized()) this.mainWindow.restore();
-        this.mainWindow.focus();
-        this.mainWindow.show();
+        this.showWindow();
       }
     });
 
@@ -60,30 +71,106 @@ class NotificationApp {
 
     // STEP 4: App ready event
     app.whenReady().then(async () => {
-      // Remove duplicate protocol registration
+      // Initialize WebSocket security key first
+      await this.initializeWebSocketKey();
+      
+      this.createTray();
       this.createMainWindow();
       this.setupWebSocketServer();
       this.setupRestAPI();
       this.setupIPC();
       
-      // Request notification permissions on macOS
-      if (process.platform === 'darwin') {
-        await this.requestNotificationPermissions();
-      }
+      // Request notification permissions on all platforms
+      await this.requestNotificationPermissions();
       
       app.on('activate', () => {
-        if (BrowserWindow.getAllWindows().length === 0) {
-          this.createMainWindow();
-        }
+        // On macOS, show window when app is activated
+        this.showWindow();
       });
     });
 
+    // Don't quit when all windows are closed (menu bar app behavior)
     app.on('window-all-closed', () => {
-      if (process.platform !== 'darwin') {
-        this.cleanup();
-        app.quit();
-      }
+      // Keep running in background for menu bar app
     });
+
+    // Handle app termination
+    app.on('before-quit', () => {
+        this.cleanup();
+    });
+  }
+
+  // WebSocket Security Methods
+  private async initializeWebSocketKey(): Promise<void> {
+    try {
+      // Try to load existing key
+      if (fs.existsSync(this.WS_KEY_FILE)) {
+        const keyData = fs.readFileSync(this.WS_KEY_FILE, 'utf8');
+        const parsedData = JSON.parse(keyData);
+        
+        // Validate key format and age (regenerate if older than 30 days)
+        if (parsedData.key && parsedData.createdAt) {
+          const keyAge = Date.now() - parsedData.createdAt;
+          const maxAge = 30 * 24 * 60 * 60 * 1000; // 30 days
+          
+          if (keyAge < maxAge) {
+            this.wsConnectionKey = parsedData.key;
+            console.log('🔑 Loaded existing WebSocket connection key');
+            return;
+          }
+        }
+      }
+      
+      // Generate new key if none exists or is expired
+      await this.generateNewWebSocketKey();
+      
+    } catch (error) {
+      console.error('❌ Error initializing WebSocket key:', error);
+      // Fallback: generate new key
+      await this.generateNewWebSocketKey();
+    }
+  }
+
+  private async generateNewWebSocketKey(): Promise<void> {
+    try {
+      // Generate a secure random key
+      this.wsConnectionKey = crypto.randomBytes(32).toString('hex');
+      
+      // Store key with metadata
+      const keyData = {
+        key: this.wsConnectionKey,
+        createdAt: Date.now(),
+        version: '1.0'
+      };
+      
+      // Write to file with restricted permissions
+      fs.writeFileSync(this.WS_KEY_FILE, JSON.stringify(keyData, null, 2), { mode: 0o600 });
+      
+      console.log('🔑 Generated new WebSocket connection key');
+      
+      // Notify UI if window exists
+      if (this.mainWindow) {
+        this.mainWindow.webContents.send('ws-key-generated', {
+          key: this.wsConnectionKey,
+          createdAt: keyData.createdAt
+        });
+      }
+      
+    } catch (error) {
+      console.error('❌ Error generating WebSocket key:', error);
+      throw error;
+    }
+  }
+
+  private getWebSocketConnectionUrl(): string {
+    if (!this.wsConnectionKey) {
+      throw new Error('WebSocket connection key not initialized');
+    }
+    return `ws://127.0.0.1:${this.WS_PORT}?key=${this.wsConnectionKey}`;
+  }
+
+  private validateWebSocketKey(providedKey: string): boolean {
+    return this.wsConnectionKey === providedKey;
   }
 
   private generatePKCE(): PKCEParams {
@@ -317,10 +404,85 @@ class NotificationApp {
     });
   }
 
+  private createTray(): void {
+    const iconPath = path.join(__dirname, '../public/icon.png');
+    const icon = nativeImage.createFromPath(iconPath);
+
+    this.tray = new Tray(icon);
+    this.tray.setToolTip('Message Approver');
+
+    const contextMenu = Menu.buildFromTemplate([
+      { label: 'Show Messages', click: () => this.showWindow() },
+      { label: 'Settings', click: () => this.showSettings() },
+      { label: 'Logout', click: () => this.logout() },
+      { type: 'separator' },
+      { label: 'Quit', click: () => app.quit() }
+    ]);
+
+    this.tray.setContextMenu(contextMenu);
+  }
+
+  private showWindow(): void {
+    if (!this.mainWindow) {
+      this.createMainWindow();
+    }
+
+    if (this.mainWindow) {
+      this.mainWindow.show();
+      this.mainWindow.focus();
+    }
+  }
+
+  private showSettings(): void {
+    if (!this.mainWindow) {
+      this.createMainWindow();
+    }
+
+    if (this.mainWindow) {
+      this.mainWindow.webContents.send('show-settings');
+    }
+  }
+
   private setupWebSocketServer(): void {
-    this.wsServer = new WebSocket.Server({ port: this.WS_PORT });
+    this.wsServer = new WebSocket.Server({ 
+      port: this.WS_PORT,
+      host: '127.0.0.1', // Localhost only for security
+      verifyClient: (info: any) => {
+        try {
+          // Extract key from query parameters
+          const url = new URL(info.req.url!, `ws://127.0.0.1:${this.WS_PORT}`);
+          const providedKey = url.searchParams.get('key');
+          
+          // Validate connection is from localhost
+          const remoteAddress = info.req.connection.remoteAddress;
+          const isLocalhost = remoteAddress === '127.0.0.1' || 
+                             remoteAddress === '::1' || 
+                             remoteAddress === '::ffff:127.0.0.1';
+          
+          if (!isLocalhost) {
+            console.warn(`🚨 Rejected WebSocket connection from non-localhost: ${remoteAddress}`);
+            return false;
+          }
+          
+          // Validate key
+          if (!providedKey || !this.validateWebSocketKey(providedKey)) {
+            console.warn(`🚨 Rejected WebSocket connection with invalid key from ${remoteAddress}`);
+            return false;
+          }
+          
+          console.log(`✅ Accepted secure WebSocket connection from ${remoteAddress}`);
+          return true;
+          
+        } catch (error) {
+          console.error('❌ Error validating WebSocket connection:', error);
+          return false;
+        }
+      }
+    });
     
-    this.wsServer.on('connection', (ws: WebSocket) => {
+    this.wsServer.on('connection', (ws: WebSocket, req) => {
+      console.log(`🔐 Secure WebSocket connection established from ${req.connection.remoteAddress}`);
+      
       ws.on('message', async (data: WebSocket.Data) => {
         try {
           const message = JSON.parse(data.toString());
@@ -331,11 +493,11 @@ class NotificationApp {
             
             const tokenResponse = {
               type: 'auth-token',
-              token: token,
+              token: token || (this.SKIP_AUTH ? 'test-token' : null),
               timestamp: Date.now(),
               requestId: message.requestId, // Echo back request ID if provided
-              authenticated: !!token,
-              user: token ? this.authTokens?.user : null
+              authenticated: !!token || this.SKIP_AUTH,
+              user: token ? this.authTokens?.user : (this.SKIP_AUTH ? { email: 'test@example.com', firstName: 'Test' } : null)
             };
             
             ws.send(JSON.stringify(tokenResponse));
@@ -350,7 +512,8 @@ class NotificationApp {
       });
 
       ws.on('close', () => {
-        });
+        console.log('🔐 Secure WebSocket connection closed');
+      });
     });
   }
 
@@ -495,6 +658,43 @@ class NotificationApp {
     ipcMain.on('show-messages', (): void => {
       this.openMessageWindow();
     });
+
+    // WebSocket key management
+    ipcMain.handle('get-ws-connection-key', (): string | null => {
+      return this.wsConnectionKey;
+    });
+
+    ipcMain.handle('get-ws-connection-url', (): string => {
+      return this.getWebSocketConnectionUrl();
+    });
+
+    ipcMain.handle('regenerate-ws-key', async (): Promise<{ key: string; createdAt: number }> => {
+      await this.generateNewWebSocketKey();
+      return {
+        key: this.wsConnectionKey!,
+        createdAt: Date.now()
+      };
+    });
+
+    ipcMain.handle('get-ws-key-info', (): { key: string | null; createdAt: number | null; keyFile: string } => {
+      let createdAt: number | null = null;
+      
+      try {
+        if (fs.existsSync(this.WS_KEY_FILE)) {
+          const keyData = fs.readFileSync(this.WS_KEY_FILE, 'utf8');
+          const parsedData = JSON.parse(keyData);
+          createdAt = parsedData.createdAt;
+        }
+      } catch (error) {
+        console.error('Error reading key file:', error);
+      }
+      
+      return {
+        key: this.wsConnectionKey,
+        createdAt,
+        keyFile: this.WS_KEY_FILE
+      };
+    });
   }
 
   private sendWebSocketResponse(message: Message, status: 'approved' | 'rejected', feedback?: string): void {
@@ -567,4 +767,4 @@ class NotificationApp {
 }
 
 // Create the app instance
-new NotificationApp();
+new MenuBarNotificationApp();

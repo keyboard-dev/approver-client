@@ -9,6 +9,7 @@ import { Badge } from './components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './components/ui/tabs';
 import { CheckCircle, XCircle, Clock, AlertTriangle, X, Wifi, WifiOff } from 'lucide-react';
 import AuthComponent from './components/AuthComponent';
+import WebSocketKeyManager from './components/WebSocketKeyManager';
 import './App.css';
 
 const App: React.FC = () => {
@@ -21,6 +22,7 @@ const App: React.FC = () => {
   const [isAlertDismissed, setIsAlertDismissed] = useState(false);
   const [authStatus, setAuthStatus] = useState<AuthStatus>({ authenticated: false });
   const [isInitialized, setIsInitialized] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   
   // Use refs to track state without causing re-renders
   const authStatusRef = useRef<AuthStatus>({ authenticated: false });
@@ -249,7 +251,15 @@ const App: React.FC = () => {
     setCurrentMessage(null);
     setFeedback('');
     setShowFeedback(false);
+    setShowSettings(false);
     refreshMessages(); // Refresh to show updated status without loading state
+  };
+
+  const toggleSettings = () => {
+    setShowSettings(!showSettings);
+    setCurrentMessage(null);
+    setFeedback('');
+    setShowFeedback(false);
   };
 
   const getStatusIcon = (status?: string) => {
@@ -474,53 +484,69 @@ const App: React.FC = () => {
               // Message List View
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <h1 className="text-3xl font-bold">Message Approvals</h1>
+                  <h1 className="text-3xl font-bold">
+                    {showSettings ? 'Settings' : 'Message Approvals'}
+                  </h1>
                   <div className="flex items-center space-x-3">
-              
+                    <Button
+                      variant="outline"
+                      onClick={toggleSettings}
+                      className="flex items-center space-x-2"
+                    >
+                      <span>{showSettings ? 'Back to Messages' : 'Settings'}</span>
+                    </Button>
                   </div>
                 </div>
 
-                {messages.length === 0 ? (
-                  <Card>
-                    <CardContent className="p-8 text-center">
-                      <Clock className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                      <p className="text-gray-500">
-                        {isLoading ? 'Loading messages...' : 'No messages to approve. Waiting for WebSocket messages...'}
-                      </p>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <div className={`grid gap-4 ${isLoading ? 'loading-fade' : ''}`}>
-                    {messages.map((message) => (
-                      <Card 
-                        key={message.id} 
-                        className="cursor-pointer hover:shadow-md transition-shadow"
-                        onClick={() => showMessageDetail(message)}
-                      >
-                        <CardContent className="p-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <h3 className="text-lg font-semibold truncate">{message.title}</h3>
-                            <div className="flex items-center space-x-2">
-                              {getStatusIcon(message.status)}
-                              {getStatusBadge(message.status)}
-                            </div>
-                          </div>
-                          <p className="text-gray-600 text-sm mb-2 line-clamp-2">
-                            {message.body}
-                          </p>
-                          <div className="flex items-center justify-between text-xs text-gray-500">
-                            <span>From: {message.sender || 'Unknown'}</span>
-                            <span>{new Date(message.timestamp).toLocaleString()}</span>
-                          </div>
-                          {message.priority && (
-                            <div className="mt-2">
-                              {getPriorityBadge(message.priority)}
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
-                    ))}
+{showSettings ? (
+                  // Settings View
+                  <div className="space-y-6">
+                    <WebSocketKeyManager />
                   </div>
+                ) : (
+                  // Message List View
+                  messages.length === 0 ? (
+                    <Card>
+                      <CardContent className="p-8 text-center">
+                        <Clock className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                        <p className="text-gray-500">
+                          {isLoading ? 'Loading messages...' : 'No messages to approve. Waiting for WebSocket messages...'}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <div className={`grid gap-4 ${isLoading ? 'loading-fade' : ''}`}>
+                      {messages.map((message) => (
+                        <Card 
+                          key={message.id} 
+                          className="cursor-pointer hover:shadow-md transition-shadow"
+                          onClick={() => showMessageDetail(message)}
+                        >
+                          <CardContent className="p-4">
+                            <div className="flex items-center justify-between mb-2">
+                              <h3 className="text-lg font-semibold truncate">{message.title}</h3>
+                              <div className="flex items-center space-x-2">
+                                {getStatusIcon(message.status)}
+                                {getStatusBadge(message.status)}
+                              </div>
+                            </div>
+                            <p className="text-gray-600 text-sm mb-2 line-clamp-2">
+                              {message.body}
+                            </p>
+                            <div className="flex items-center justify-between text-xs text-gray-500">
+                              <span>From: {message.sender || 'Unknown'}</span>
+                              <span>{new Date(message.timestamp).toLocaleString()}</span>
+                            </div>
+                            {message.priority && (
+                              <div className="mt-2">
+                                {getPriorityBadge(message.priority)}
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  )
                 )}
               </div>
             )}
