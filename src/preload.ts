@@ -25,6 +25,7 @@ export interface AuthStatus {
     lastName: string;
     profilePictureUrl?: string;
   };
+  skipAuth?: boolean;
 }
 
 export interface AuthError {
@@ -48,6 +49,11 @@ export interface ElectronAPI {
   onAuthSuccess: (callback: (event: IpcRendererEvent, data: AuthStatus) => void) => void;
   onAuthError: (callback: (event: IpcRendererEvent, error: AuthError) => void) => void;
   onAuthLogout: (callback: (event: IpcRendererEvent) => void) => void;
+  // Window control methods
+  windowClose: () => Promise<void>;
+  windowToggleVisibility: () => Promise<void>;
+  windowSetOpacity: (opacity: number) => Promise<void>;
+  windowResize: (dimensions: { width: number; height: number }) => Promise<void>;
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -86,7 +92,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   onAuthLogout: (callback: (event: IpcRendererEvent) => void): void => {
     ipcRenderer.on('auth-logout', callback);
-  }
+  },
+  
+  // Window control methods
+  windowClose: (): Promise<void> => ipcRenderer.invoke('window-close'),
+  windowToggleVisibility: (): Promise<void> => ipcRenderer.invoke('window-toggle-visibility'),
+  windowSetOpacity: (opacity: number): Promise<void> => ipcRenderer.invoke('window-set-opacity', opacity),
+  windowResize: (dimensions: { width: number; height: number }): Promise<void> => ipcRenderer.invoke('window-resize', dimensions)
 } as ElectronAPI);
 
 // Extend the global Window interface

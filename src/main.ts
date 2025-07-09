@@ -1,17 +1,20 @@
-import { app, BrowserWindow, Notification, ipcMain, shell, protocol } from 'electron';
+import { app, BrowserWindow, Notification, ipcMain, shell, protocol, screen, Tray, Menu, nativeImage } from 'electron';
 import * as WebSocket from 'ws';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { createRestAPIServer } from './rest-api';
 import { Message, AuthTokens, PKCEParams, AuthorizeResponse, TokenResponse, ErrorResponse } from './types';
 
-class NotificationApp {
+class MenuBarNotificationApp {
   private mainWindow: BrowserWindow | null = null;
+  private tray: Tray | null = null;
   private wsServer: WebSocket.Server | null = null;
   private restApiServer: any = null;
   private messages: Message[] = [];
+  private pendingCount: number = 0;
   private readonly WS_PORT = 8080;
   private readonly OAUTH_SERVER_URL = process.env.OAUTH_SERVER_URL || 'https://api.keyboard.dev';
+  private readonly SKIP_AUTH = process.env.SKIP_AUTH === 'true';
   private readonly CUSTOM_PROTOCOL = 'mcpauth';
   private currentPKCE: PKCEParams | null = null;
   private authTokens: AuthTokens | null = null;
@@ -45,11 +48,9 @@ class NotificationApp {
         this.handleOAuthCallback(url);
       }
       
-      // Focus the existing window
+      // Show the window if it exists
       if (this.mainWindow) {
-        if (this.mainWindow.isMinimized()) this.mainWindow.restore();
-        this.mainWindow.focus();
-        this.mainWindow.show();
+        this.showWindow();
       }
     });
 
@@ -60,7 +61,7 @@ class NotificationApp {
 
     // STEP 4: App ready event
     app.whenReady().then(async () => {
-      // Remove duplicate protocol registration
+      this.createTray();
       this.createMainWindow();
       this.setupWebSocketServer();
       this.setupRestAPI();
@@ -72,16 +73,243 @@ class NotificationApp {
       }
       
       app.on('activate', () => {
-        if (BrowserWindow.getAllWindows().length === 0) {
-          this.createMainWindow();
-        }
+        // On macOS, show window when app is activated
+        this.showWindow();
       });
     });
 
+    // Don't quit when all windows are closed (menu bar app behavior)
     app.on('window-all-closed', () => {
-      if (process.platform !== 'darwin') {
-        this.cleanup();
-        app.quit();
+      // Keep running in background for menu bar app
+    });
+
+    // Handle app termination
+    app.on('before-quit', () => {
+      this.cleanup();
+    });
+  }
+
+  private createTray(): void {
+    // Create tray icon
+    const icon = this.createTrayIcon();
+    this.tray = new Tray(icon);
+    
+    this.tray.setToolTip('Message Approver');
+    
+    // Click to toggle window
+    this.tray.on('click', (event, bounds) => {
+      this.toggleWindow(bounds);
+    });
+
+    // Right-click for context menu
+    this.tray.on('right-click', () => {
+      this.showContextMenu();
+    });
+
+    this.updateTrayIcon();
+  }
+
+  private createTrayIcon(): Electron.NativeImage {
+    // Create a simple 16x16 icon
+    const size = 16;
+    
+    // Create a simple colored square as fallback (works without canvas)
+    const canvas = Buffer.alloc(size * size * 4);
+    const color = this.pendingCount > 0 ? [255, 59, 48, 255] : [0, 122, 255, 255];
+    
+    // Fill the buffer with the color
+    for (let i = 0; i < canvas.length; i += 4) {
+      canvas[i] = color[0];     // R
+      canvas[i + 1] = color[1]; // G
+      canvas[i + 2] = color[2]; // B
+      canvas[i + 3] = color[3]; // A
+    }
+    
+    return nativeImage.createFromBuffer(canvas, { width: size, height: size });
+  }
+
+  private toggleWindow(bounds?: Electron.Rectangle): void {
+    if (this.mainWindow?.isVisible()) {
+      this.mainWindow.hide();
+    } else {
+      this.showWindow(bounds);
+    }
+  }
+
+  private showWindow(bounds?: Electron.Rectangle): void {
+    if (!this.mainWindow) {
+      this.createMainWindow();
+    }
+
+    if (this.mainWindow) {
+      if (bounds && this.tray) {
+        // Position window near tray icon
+        const windowBounds = this.mainWindow.getBounds();
+        const trayBounds = this.tray.getBounds();
+        
+        let x = Math.round(trayBounds.x + (trayBounds.width / 2) - (windowBounds.width / 2));
+        let y = Math.round(trayBounds.y + trayBounds.height + 5);
+        
+        // Make sure window stays on screen
+        const { screen } = require('electron');
+        const primaryDisplay = screen.getPrimaryDisplay();
+        const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+        
+        x = Math.max(0, Math.min(x, screenWidth - windowBounds.width));
+        y = Math.max(0, Math.min(y, screenHeight - windowBounds.height));
+        
+        this.mainWindow.setPosition(x, y);
+      }
+
+      // Force window to appear on current desktop/space only when showing from tray
+      if (process.platform === 'darwin' && bounds) {
+        this.mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+        
+        // Show and focus
+        this.mainWindow.show();
+        this.mainWindow.focus();
+        
+        // Reset workspace visibility after showing
+        setTimeout(() => {
+          if (this.mainWindow) {
+            this.mainWindow.setVisibleOnAllWorkspaces(false);
+          }
+        }, 200);
+      } else {
+        // Normal show for other cases (like OAuth callbacks)
+        this.mainWindow.show();
+        this.mainWindow.focus();
+      }
+    }
+  }
+
+  private createMainWindow(): void {
+    this.mainWindow = new BrowserWindow({
+      width: 600,  // Larger for reading code
+      height: 700, // Taller for explanations
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        preload: path.join(__dirname, 'preload.js')
+      },
+      show: false,
+      frame: false,
+      transparent: true,
+      resizable: true,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      hasShadow: true,
+      minimizable: false,
+      maximizable: false,
+      type: 'panel', // This helps with menu bar behavior
+      // macOS specific
+      ...(process.platform === 'darwin' && {
+        vibrancy: 'under-window',
+        visualEffectState: 'active',
+        level: 'floating' // Use floating level instead of screen-saver
+      })
+    });
+
+    this.mainWindow.loadFile(path.join(__dirname, '../public/index.html'));
+
+    // Hide window when it loses focus
+    this.mainWindow.on('blur', () => {
+      if (this.mainWindow?.isVisible()) {
+        setTimeout(() => {
+          if (this.mainWindow?.isVisible() && !this.mainWindow?.isFocused()) {
+            this.mainWindow.hide();
+          }
+        }, 100);
+      }
+    });
+
+    this.mainWindow.on('closed', () => {
+      this.mainWindow = null;
+    });
+
+    this.setupWindowControls();
+  }
+
+  private showContextMenu(): void {
+    const contextMenu = Menu.buildFromTemplate([
+      {
+        label: `Messages (${this.pendingCount} pending)`,
+        enabled: false
+      },
+      { type: 'separator' },
+      {
+        label: 'Show Messages',
+        click: () => this.showWindow()
+      },
+      {
+        label: 'Clear All',
+        click: () => this.clearAllMessages(),
+        enabled: this.messages.length > 0
+      },
+      { type: 'separator' },
+      {
+        label: 'Quit',
+        click: () => app.quit()
+      }
+    ]);
+
+    this.tray?.popUpContextMenu(contextMenu);
+  }
+
+  private clearAllMessages(): void {
+    this.messages = [];
+    this.pendingCount = 0;
+    this.updateTrayIcon();
+    
+    // Notify renderer
+    if (this.mainWindow) {
+      this.mainWindow.webContents.send('messages-cleared');
+    }
+  }
+
+  private updateTrayIcon(): void {
+    if (this.tray) {
+      const icon = this.createTrayIcon();
+      this.tray.setImage(icon);
+      
+      // Update tooltip with pending count
+      const tooltip = this.pendingCount > 0 
+        ? `Message Approver (${this.pendingCount} pending)`
+        : 'Message Approver';
+      this.tray.setToolTip(tooltip);
+    }
+  }
+
+  private setupWindowControls(): void {
+    // Handle window close
+    ipcMain.handle('window-close', () => {
+      if (this.mainWindow) {
+        this.mainWindow.hide();
+      }
+    });
+
+    // Handle window hide/show toggle
+    ipcMain.handle('window-toggle-visibility', () => {
+      if (this.mainWindow) {
+        if (this.mainWindow.isVisible()) {
+          this.mainWindow.hide();
+        } else {
+          this.mainWindow.show();
+        }
+      }
+    });
+
+    // Handle window opacity change
+    ipcMain.handle('window-set-opacity', (event, opacity: number) => {
+      if (this.mainWindow) {
+        this.mainWindow.setOpacity(Math.max(0.1, Math.min(1.0, opacity)));
+      }
+    });
+
+    // Handle window resize
+    ipcMain.handle('window-resize', (event, { width, height }) => {
+      if (this.mainWindow) {
+        this.mainWindow.setSize(width, height);
       }
     });
   }
@@ -198,6 +426,9 @@ class NotificationApp {
         });
       }
 
+      // Show the window after successful authentication
+      this.showWindow();
+
       // Show success notification
       this.showNotification({
         id: 'auth-success',
@@ -297,26 +528,6 @@ class NotificationApp {
     }
   }
 
-  private createMainWindow(): void {
-    this.mainWindow = new BrowserWindow({
-      width: 800,
-      height: 600,
-      webPreferences: {
-        nodeIntegration: false,
-        contextIsolation: true,
-        preload: path.join(__dirname, 'preload.js')
-      },
-      show: true, // Show the window immediately
-      title: 'Message Viewer'
-    });
-
-    this.mainWindow.loadFile(path.join(__dirname, '../public/index.html'));
-
-    this.mainWindow.on('closed', () => {
-      this.mainWindow = null;
-    });
-  }
-
   private setupWebSocketServer(): void {
     this.wsServer = new WebSocket.Server({ port: this.WS_PORT });
     
@@ -331,11 +542,11 @@ class NotificationApp {
             
             const tokenResponse = {
               type: 'auth-token',
-              token: token,
+              token: token || (this.SKIP_AUTH ? 'test-token' : null),
               timestamp: Date.now(),
               requestId: message.requestId, // Echo back request ID if provided
-              authenticated: !!token,
-              user: token ? this.authTokens?.user : null
+              authenticated: !!token || this.SKIP_AUTH,
+              user: token ? this.authTokens?.user : (this.SKIP_AUTH ? { email: 'test@example.com', firstName: 'Test' } : null)
             };
             
             ws.send(JSON.stringify(tokenResponse));
@@ -368,12 +579,21 @@ class NotificationApp {
     // Store the message
     this.messages.push(message);
 
+    // Update pending count
+    this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length;
+    this.updateTrayIcon();
+
     // Show desktop notification
     this.showNotification(message);
 
     // Send to renderer via websocket-message event
     if (this.mainWindow) {
       this.mainWindow.webContents.send('websocket-message', message);
+    }
+
+    // Auto-show window for high priority messages
+    if (message.priority === 'high') {
+      this.showWindow();
     }
   }
 
@@ -386,7 +606,6 @@ class NotificationApp {
       const notification = new Notification({
         title: message.title,
         body: message.body,
-        // Remove icon for now to avoid path issues
         urgency: message.priority === 'high' ? 'critical' : 'normal'
       });
 
@@ -403,7 +622,6 @@ class NotificationApp {
   private async requestNotificationPermissions(): Promise<void> {
     try {
       // On macOS, we can use the system notification request
-      // This will prompt the user if permissions haven't been granted
       if (Notification.isSupported()) {
         } else {
         }
@@ -413,18 +631,11 @@ class NotificationApp {
   }
 
   private openMessageWindow(message?: Message): void {
-    if (!this.mainWindow) {
-      this.createMainWindow();
-    }
-
-    if (this.mainWindow) {
-      this.mainWindow.show();
-      this.mainWindow.focus();
-      
-      // Send message data to renderer if specific message was clicked
-      if (message) {
-        this.mainWindow.webContents.send('show-message', message);
-      }
+    this.showWindow();
+    
+    // Send message data to renderer if specific message was clicked
+    if (message && this.mainWindow) {
+      this.mainWindow.webContents.send('show-message', message);
     }
   }
 
@@ -434,10 +645,11 @@ class NotificationApp {
       await this.startOAuthFlow();
     });
 
-    ipcMain.handle('get-auth-status', (): { authenticated: boolean; user?: any } => {
+    ipcMain.handle('get-auth-status', (): { authenticated: boolean; user?: any; skipAuth?: boolean } => {
       return {
-        authenticated: !!this.authTokens,
-        user: this.authTokens?.user
+        authenticated: !!this.authTokens || this.SKIP_AUTH,
+        user: this.authTokens?.user || (this.SKIP_AUTH ? { email: 'test@example.com', firstName: 'Test' } : undefined),
+        skipAuth: this.SKIP_AUTH
       };
     });
 
@@ -465,6 +677,8 @@ class NotificationApp {
     // Handle delete message
     ipcMain.handle('delete-message', (event, messageId: string): void => {
       this.messages = this.messages.filter(msg => msg.id !== messageId);
+      this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length;
+      this.updateTrayIcon();
     });
 
     // Handle approve message
@@ -473,10 +687,14 @@ class NotificationApp {
       if (message) {
         message.status = 'approved';
         message.feedback = feedback;
+        
+        // Update pending count
+        this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length;
+        this.updateTrayIcon();
+        
         // Send response back through WebSocket if needed
         this.sendWebSocketResponse(message, 'approved', feedback);
-      } else {
-        }
+      }
     });
 
     // Handle reject message
@@ -485,15 +703,19 @@ class NotificationApp {
       if (message) {
         message.status = 'rejected';
         message.feedback = feedback;
+        
+        // Update pending count
+        this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length;
+        this.updateTrayIcon();
+        
         // Send response back through WebSocket if needed
         this.sendWebSocketResponse(message, 'rejected', feedback);
-      } else {
-        }
+      }
     });
 
     // Handle show all messages
     ipcMain.on('show-messages', (): void => {
-      this.openMessageWindow();
+      this.showWindow();
     });
   }
 
@@ -516,16 +738,13 @@ class NotificationApp {
         }
       }
 
-
       // Send response to all connected WebSocket clients
       this.wsServer.clients.forEach((client) => {
         if (client.readyState === WebSocket.OPEN) {
           client.send(JSON.stringify(response));
         }
       });
-
-      } else {
-      }
+    }
   }
 
   private setupRestAPI(): void {
@@ -538,6 +757,10 @@ class NotificationApp {
         if (message) {
           message.status = status;
           message.feedback = feedback;
+          
+          // Update pending count
+          this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length;
+          this.updateTrayIcon();
           
           // Send response through WebSocket if needed
           this.sendWebSocketResponse(message, status, feedback);
@@ -563,8 +786,12 @@ class NotificationApp {
     if (this.wsServer) {
       this.wsServer.close();
     }
+
+    if (this.tray) {
+      this.tray.destroy();
+    }
   }
 }
 
 // Create the app instance
-new NotificationApp();
+new MenuBarNotificationApp();
