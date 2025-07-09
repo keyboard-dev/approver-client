@@ -750,4 +750,4 @@ class MenuBarNotificationApp {
 }
 
 // Create the app instance
-new MenuBarNotificationApp();
+new MenuBarNotificationApp(); 
