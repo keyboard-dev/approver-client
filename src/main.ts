@@ -12,6 +12,7 @@ class MenuBarNotificationApp {
   private restApiServer: any = null;
   private messages: Message[] = [];
   private pendingCount: number = 0;
+  private notificationsEnabled: boolean = true;
   private readonly WS_PORT = 8080;
   private readonly OAUTH_SERVER_URL = process.env.OAUTH_SERVER_URL || 'https://api.keyboard.dev';
   private readonly SKIP_AUTH = process.env.SKIP_AUTH === 'true';
@@ -70,10 +71,8 @@ class MenuBarNotificationApp {
       this.setupRestAPI();
       this.setupIPC();
       
-      // Request notification permissions on macOS
-      if (process.platform === 'darwin') {
-        await this.requestNotificationPermissions();
-      }
+      // Request notification permissions on all platforms
+      await this.requestNotificationPermissions();
       
       app.on('activate', () => {
         // On macOS, show window when app is activated
@@ -298,12 +297,43 @@ class MenuBarNotificationApp {
       },
       { type: 'separator' },
       {
+        label: 'Notifications',
+        submenu: [
+          {
+            label: 'Enable Notifications',
+            type: 'checkbox',
+            checked: this.notificationsEnabled,
+            click: () => this.toggleNotifications()
+          },
+          {
+            label: 'Test Notification',
+            click: () => this.showTestNotification()
+          }
+        ]
+      },
+      { type: 'separator' },
+      {
         label: 'Quit',
         click: () => app.quit()
       }
     ]);
 
     this.tray?.popUpContextMenu(contextMenu);
+  }
+
+  private toggleNotifications(): void {
+    this.notificationsEnabled = !this.notificationsEnabled;
+    console.log(`🔔 Notifications ${this.notificationsEnabled ? 'enabled' : 'disabled'}`);
+    
+    if (this.notificationsEnabled) {
+      this.showNotification({
+        id: 'notifications-enabled',
+        title: 'Notifications Enabled',
+        body: 'You will now receive desktop notifications for new approval requests.',
+        timestamp: Date.now(),
+        priority: 'normal'
+      });
+    }
   }
 
   private clearAllMessages(): void {
@@ -658,7 +688,7 @@ class MenuBarNotificationApp {
     this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length;
     this.updateTrayIcon();
 
-    // Show desktop notification
+    // Show desktop notification for new approval requests
     this.showNotification(message);
 
     // Send to renderer via websocket-message event
@@ -674,13 +704,82 @@ class MenuBarNotificationApp {
 
   private showNotification(message: Message): void {
     if (!Notification.isSupported()) {
+      console.warn('⚠️ Desktop notifications not supported on this platform');
+      return;
+    }
+
+    if (!this.notificationsEnabled) {
+      console.log('🔕 Notifications disabled - skipping notification for:', message.title);
       return;
     }
 
     try {
+      // Create enhanced notification with more details
       const notification = new Notification({
-        title: message.title,
-        body: message.body,
+        title: `🔔 New Approval Request`,
+        subtitle: message.title,
+        body: this.formatNotificationBody(message),
+        urgency: message.priority === 'high' ? 'critical' : 'normal',
+        silent: false,
+        timeoutType: 'default',
+        actions: [
+          {
+            type: 'button',
+            text: 'View Details'
+          },
+          {
+            type: 'button', 
+            text: 'Dismiss'
+          }
+        ]
+      });
+
+      // Handle notification click - show window and focus on message
+      notification.on('click', () => {
+        this.openMessageWindow(message);
+      });
+
+      // Handle notification action buttons
+      notification.on('action', (event, index) => {
+        if (index === 0) { // View Details
+          this.openMessageWindow(message);
+        }
+        // Index 1 is dismiss - no action needed
+      });
+
+      // Handle notification close
+      notification.on('close', () => {
+        // Optional: Mark as shown or track analytics
+      });
+
+      notification.show();
+
+      // Auto-dismiss after 10 seconds for normal priority, 30 seconds for high priority
+      const timeout = message.priority === 'high' ? 30000 : 10000;
+      setTimeout(() => {
+        notification.close();
+      }, timeout);
+
+    } catch (error) {
+      console.error('❌ Error showing notification:', error);
+      // Fallback: show simple system notification
+      this.showFallbackNotification(message);
+    }
+  }
+
+  private formatNotificationBody(message: Message): string {
+    const sender = message.sender || 'Unknown';
+    const priority = message.priority ? ` (${message.priority.toUpperCase()})` : '';
+    const preview = message.body?.substring(0, 100) || 'No preview available';
+    
+    return `From: ${sender}${priority}\n${preview}${message.body && message.body.length > 100 ? '...' : ''}`;
+  }
+
+  private showFallbackNotification(message: Message): void {
+    try {
+      const notification = new Notification({
+        title: 'New Approval Request',
+        body: `${message.title}\nFrom: ${message.sender || 'Unknown'}`,
         urgency: message.priority === 'high' ? 'critical' : 'normal'
       });
 
@@ -689,19 +788,68 @@ class MenuBarNotificationApp {
       });
 
       notification.show();
-      } catch (error) {
-      console.error('❌ Error showing notification:', error);
+    } catch (error) {
+      console.error('❌ Fallback notification also failed:', error);
     }
   }
 
   private async requestNotificationPermissions(): Promise<void> {
     try {
-      // On macOS, we can use the system notification request
-      if (Notification.isSupported()) {
-        } else {
-        }
+      if (!Notification.isSupported()) {
+        console.warn('⚠️ Desktop notifications not supported on this platform');
+        return;
+      }
+
+      // Request permission for desktop notifications
+      console.log('🔔 Requesting notification permissions...');
+      
+      // On macOS, this will prompt the user if permissions haven't been granted
+      // On Linux/Windows, this usually works automatically
+      if (process.platform === 'darwin') {
+        // macOS specific - show a helpful message
+        console.log('📱 macOS: Please allow notifications in System Preferences if prompted');
+      } else if (process.platform === 'linux') {
+        // Linux specific - permissions vary by desktop environment
+        console.log('🐧 Linux: Notification permissions depend on your desktop environment');
+      } else if (process.platform === 'win32') {
+        // Windows specific
+        console.log('🪟 Windows: Notification permissions should work automatically');
+      }
+
+      // Test notification to verify permissions
+      setTimeout(() => {
+        this.showTestNotification();
+      }, 2000);
+
     } catch (error) {
       console.error('❌ Error requesting notification permissions:', error);
+    }
+  }
+
+  private showTestNotification(): void {
+    try {
+      const testNotification = new Notification({
+        title: '✅ Notifications Enabled',
+        body: 'You will receive desktop notifications for new approval requests.',
+        urgency: 'normal',
+        silent: true
+      });
+
+      testNotification.on('click', () => {
+        if (this.mainWindow) {
+          this.showWindow();
+        }
+      });
+
+      testNotification.show();
+
+      // Auto-dismiss test notification
+      setTimeout(() => {
+        testNotification.close();
+      }, 5000);
+
+    } catch (error) {
+      console.error('❌ Test notification failed:', error);
     }
   }
 
@@ -769,6 +917,15 @@ class MenuBarNotificationApp {
         
         // Send response back through WebSocket if needed
         this.sendWebSocketResponse(message, 'approved', feedback);
+        
+        // Show confirmation notification
+        this.showNotification({
+          id: `approved-${message.id}`,
+          title: '✅ Request Approved',
+          body: `"${message.title}" has been approved${feedback ? ' with feedback' : ''}`,
+          timestamp: Date.now(),
+          priority: 'normal'
+        });
         }
     });
 
@@ -785,6 +942,15 @@ class MenuBarNotificationApp {
         
         // Send response back through WebSocket if needed
         this.sendWebSocketResponse(message, 'rejected', feedback);
+        
+        // Show confirmation notification
+        this.showNotification({
+          id: `rejected-${message.id}`,
+          title: '❌ Request Rejected',
+          body: `"${message.title}" has been rejected${feedback ? ' with feedback' : ''}`,
+          timestamp: Date.now(),
+          priority: 'normal'
+        });
         }
     });
 
