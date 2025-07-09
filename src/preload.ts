@@ -25,6 +25,7 @@ export interface AuthStatus {
     lastName: string;
     profilePictureUrl?: string;
   };
+  skipAuth?: boolean;
 }
 
 export interface AuthError {
@@ -54,6 +55,16 @@ export interface ElectronAPI {
   regenerateWSKey: () => Promise<{ key: string; createdAt: number }>;
   getWSKeyInfo: () => Promise<{ key: string | null; createdAt: number | null; keyFile: string }>;
   onWSKeyGenerated: (callback: (event: IpcRendererEvent, data: { key: string; createdAt: number }) => void) => void;
+
+  // Window control methods
+  windowClose: () => Promise<void>;
+  windowToggleVisibility: () => Promise<void>;
+  windowSetOpacity: (opacity: number) => Promise<void>;
+  windowResize: (dimensions: { width: number; height: number }) => Promise<void>;
+  // Drag methods
+  windowStartDrag: () => Promise<boolean>;
+  windowMove: (position: { x: number; y: number }) => Promise<void>;
+  windowGetPosition: () => Promise<[number, number]>;
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -94,6 +105,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('auth-logout', callback);
   },
   
+
   // WebSocket key management
   getWSConnectionKey: (): Promise<string | null> => ipcRenderer.invoke('get-ws-connection-key'),
   getWSConnectionUrl: (): Promise<string> => ipcRenderer.invoke('get-ws-connection-url'),
@@ -102,6 +114,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onWSKeyGenerated: (callback: (event: IpcRendererEvent, data: { key: string; createdAt: number }) => void): void => {
     ipcRenderer.on('ws-key-generated', callback);
   }
+  // Window control methods
+  windowClose: (): Promise<void> => ipcRenderer.invoke('window-close'),
+  windowToggleVisibility: (): Promise<void> => ipcRenderer.invoke('window-toggle-visibility'),
+  windowSetOpacity: (opacity: number): Promise<void> => ipcRenderer.invoke('window-set-opacity', opacity),
+  windowResize: (dimensions: { width: number; height: number }): Promise<void> => ipcRenderer.invoke('window-resize', dimensions),
+  // Drag methods
+  windowStartDrag: (): Promise<boolean> => ipcRenderer.invoke('window-start-drag'),
+  windowMove: (position: { x: number; y: number }): Promise<void> => ipcRenderer.invoke('window-move', position),
+  windowGetPosition: (): Promise<[number, number]> => ipcRenderer.invoke('window-get-position')
 } as ElectronAPI);
 
 // Extend the global Window interface

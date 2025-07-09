@@ -9,7 +9,11 @@ import { Badge } from './components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './components/ui/tabs';
 import { CheckCircle, XCircle, Clock, AlertTriangle, X, Wifi, WifiOff } from 'lucide-react';
 import AuthComponent from './components/AuthComponent';
+
 import WebSocketKeyManager from './components/WebSocketKeyManager';
+
+import DragHandle from './components/DragHandle';
+
 import './App.css';
 
 const App: React.FC = () => {
@@ -302,181 +306,187 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
-              {/* Dismissible Connection Alert - Only show when disconnected and not dismissed */}
-        {connectionStatus === 'disconnected' && !isAlertDismissed && authStatus.authenticated && (
-        <div className="fixed top-4 right-4 z-40">
-          <Alert className="w-72 border-red-200 bg-red-50 relative">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>
-              WebSocket disconnected. Some features may not work properly.
-            </AlertDescription>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="absolute top-2 right-2 h-6 w-6 p-0 hover:bg-red-100"
-              onClick={() => setIsAlertDismissed(true)}
-            >
-              <X className="h-3 w-3" />
-            </Button>
-          </Alert>
-        </div>
-      )}
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+      {/* Drag Handle Bar */}
+      <div className="flex items-center justify-between bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-4 py-2">
+        <DragHandle className="flex-1 py-1" />
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => window.electronAPI.windowClose()}
+          className="h-6 w-6 p-0 hover:bg-red-100 hover:text-red-600"
+        >
+          <X className="h-3 w-3" />
+        </Button>
+      </div>
 
-      <div className="max-w-4xl mx-auto">
-        {/* Authentication Component */}
-        <AuthComponent onAuthChange={handleAuthChange} />
+      <div className="p-4">
+        <div className="max-w-4xl mx-auto">
+          {/* Authentication Component */}
+          <AuthComponent onAuthChange={handleAuthChange} />
 
-        {/* Only show main content if authenticated */}
-        {authStatus.authenticated && (
-          <div className="content-fade-in">
-            {currentMessage ? (
-              // Message Detail View
-              <Card className="w-full">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <Button variant="outline" onClick={showMessageList}>
-                      ← Back to Messages
-                    </Button>
-                    <div className="flex items-center space-x-3">
-                      {/* Connection Status Badge */}
-                      <Badge 
-                        variant={connectionStatus === 'connected' ? 'default' : 'destructive'}
-                        className={`connection-status-badge flex items-center space-x-2 px-3 py-2 ${
-                          connectionStatus === 'connected' 
-                            ? 'bg-green-100 text-green-800 border-green-200 hover:bg-green-100' 
-                            : 'bg-red-100 text-red-800 border-red-200 hover:bg-red-100'
-                        }`}
-                      >
-                        {connectionStatus === 'connected' ? (
-                          <Wifi className="h-3 w-3" />
-                        ) : (
-                          <WifiOff className="h-3 w-3" />
-                        )}
-                        <span className="text-xs font-medium">
-                          {connectionStatus === 'connected' ? 'Connected' : 'Disconnected'}
-                        </span>
-                      </Badge>
-                      <div className="flex items-center space-x-2">
-                        {getStatusIcon(currentMessage.status)}
-                        {getStatusBadge(currentMessage.status)}
+          {/* Only show main content if authenticated */}
+          {authStatus.authenticated && (
+            <div className="content-fade-in">
+              {currentMessage ? (
+                // Message Detail View
+                <Card className="w-full">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <Button variant="outline" onClick={showMessageList}>
+                        ← Back to Messages
+                      </Button>
+                      <div className="flex items-center space-x-3">
+                        {/* Connection Status Badge */}
+                        <Badge 
+                          variant={connectionStatus === 'connected' ? 'default' : 'destructive'}
+                          className={`connection-status-badge flex items-center space-x-2 px-3 py-2 ${
+                            connectionStatus === 'connected' 
+                              ? 'bg-green-100 text-green-800 border-green-200 hover:bg-green-100' 
+                              : 'bg-red-100 text-red-800 border-red-200 hover:bg-red-100'
+                          }`}
+                        >
+                          {connectionStatus === 'connected' ? (
+                            <Wifi className="h-3 w-3" />
+                          ) : (
+                            <WifiOff className="h-3 w-3" />
+                          )}
+                          <span className="text-xs font-medium">
+                            {connectionStatus === 'connected' ? 'Connected' : 'Disconnected'}
+                          </span>
+                        </Badge>
+                        <div className="flex items-center space-x-2">
+                          {getStatusIcon(currentMessage.status)}
+                          {getStatusBadge(currentMessage.status)}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <CardTitle className="text-2xl font-bold mt-4">
-                    {currentMessage.title}
-                  </CardTitle>
-                  <div className="flex items-center space-x-4 text-sm text-gray-500">
-                    <span>From: {currentMessage.sender || 'Unknown'}</span>
-                    <span>•</span>
-                    <span>{new Date(currentMessage.timestamp).toLocaleString()}</span>
-                    {currentMessage.priority && (
-                      <>
-                        <span>•</span>
-                        {getPriorityBadge(currentMessage.priority)}
-                      </>
-                    )}
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  {/* Message Body - Show tabs if codeEval is true, otherwise show regular body */}
-                  <div>
-                    <h3 className="text-lg font-semibold mb-2">Request Details</h3>
-                    {currentMessage.codeEval ? (
-                      <Tabs defaultValue="code" className="w-full">
-                        <TabsList className="grid w-full grid-cols-2">
-                          <TabsTrigger value="code">Code</TabsTrigger>
-                          <TabsTrigger value="explanation">Explanation</TabsTrigger>
-                        </TabsList>
-                        <TabsContent value="code" className="mt-2">
-                          <div className="bg-gray-100 p-4 rounded-lg">
-                            <pre className="whitespace-pre-wrap text-sm font-mono">{currentMessage.code || 'No code provided'}</pre>
-                          </div>
-                        </TabsContent>
-                        <TabsContent value="explanation" className="mt-2">
-                          <div className="bg-gray-100 p-4 rounded-lg">
-                            <pre className="whitespace-pre-wrap text-sm">{currentMessage.explaination || 'No explanation provided'}</pre>
-                          </div>
-                        </TabsContent>
-                      </Tabs>
-                    ) : (
-                      <div className="bg-gray-100 p-4 rounded-lg">
-                        <pre className="whitespace-pre-wrap text-sm">{currentMessage.body}</pre>
-                      </div>
-                    )}
-                  </div>
+                    <CardTitle className="text-2xl font-bold mt-4">
+                      {currentMessage.title}
+                    </CardTitle>
+                    <div className="flex items-center space-x-4 text-sm text-gray-500">
+                      <span>From: {currentMessage.sender || 'Unknown'}</span>
+                      <span>•</span>
+                      <span>{new Date(currentMessage.timestamp).toLocaleString()}</span>
+                      {currentMessage.priority && (
+                        <>
+                          <span>•</span>
+                          {getPriorityBadge(currentMessage.priority)}
+                        </>
+                      )}
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    {/* Message Body - Show tabs if codeEval is true, otherwise show regular body */}
+                    <div>
+                      <h3 className="text-lg font-semibold mb-2">Request Details</h3>
+                      {currentMessage.codeEval ? (
+                        <Tabs defaultValue="code" className="w-full">
+                          <TabsList className="grid w-full grid-cols-2">
+                            <TabsTrigger value="code">Code</TabsTrigger>
+                            <TabsTrigger value="explanation">Explanation</TabsTrigger>
+                          </TabsList>
+                          <TabsContent value="code" className="mt-2">
+                            <div className="bg-gray-100 p-4 rounded-lg">
+                              <pre className="whitespace-pre-wrap text-sm font-mono">{currentMessage.code || 'No code provided'}</pre>
+                            </div>
+                          </TabsContent>
+                          <TabsContent value="explanation" className="mt-2">
+                            <div className="bg-gray-100 p-4 rounded-lg">
+                              <pre className="whitespace-pre-wrap text-sm">{currentMessage.explaination || 'No explanation provided'}</pre>
+                            </div>
+                          </TabsContent>
+                        </Tabs>
+                      ) : (
+                        <div className="bg-gray-100 p-4 rounded-lg">
+                          <pre className="whitespace-pre-wrap text-sm">{currentMessage.body}</pre>
+                        </div>
+                      )}
+                    </div>
 
-                  <Separator />
+                    <Separator />
 
-                  {/* Action Buttons */}
-                  {currentMessage.status === 'pending' || !currentMessage.status ? (
-                    <div className="space-y-4">
-                      <h3 className="text-lg font-semibold">Actions Required</h3>
-                      
-                      {/* Feedback Section Toggle */}
-                      <div className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          id="show-feedback"
-                          checked={showFeedback}
-                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setShowFeedback(e.target.checked)}
-                          className="rounded"
-                        />
-                        <label htmlFor="show-feedback" className="text-sm">
-                          Add feedback/comments
-                        </label>
-                      </div>
-
-                      {/* Feedback Textarea */}
-                      {showFeedback && (
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium">Feedback</label>
-                          <Textarea
-                            placeholder="Enter your feedback or comments..."
-                            value={feedback}
-                            onChange={(e) => setFeedback(e.target.value)}
-                            className="min-h-[100px]"
+                    {/* Action Buttons */}
+                    {currentMessage.status === 'pending' || !currentMessage.status ? (
+                      <div className="space-y-4">
+                        <h3 className="text-lg font-semibold">Actions Required</h3>
+                        
+                        {/* Feedback Section Toggle */}
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            id="show-feedback"
+                            checked={showFeedback}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setShowFeedback(e.target.checked)}
+                            className="rounded"
                           />
+                          <label htmlFor="show-feedback" className="text-sm">
+                            Add feedback/comments
+                          </label>
                         </div>
-                      )}
 
-                      {/* Action Buttons */}
-                      <div className="flex space-x-4">
-                        <Button 
-                          onClick={approveMessage}
-                          className="bg-green-600 hover:bg-green-700 text-white"
-                        >
-                          <CheckCircle className="mr-2 h-4 w-4" />
-                          Approve
-                        </Button>
-                        <Button 
-                          onClick={rejectMessage}
-                          variant="destructive"
-                        >
-                          <XCircle className="mr-2 h-4 w-4" />
-                          Reject
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      <h3 className="text-lg font-semibold">Status</h3>
-                      <div className="flex items-center space-x-2">
-                        {getStatusIcon(currentMessage.status)}
-                        <span className="text-sm">
-                          This request has been {currentMessage.status}
-                        </span>
-                      </div>
-                      
-                      {currentMessage.feedback && (
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium">Feedback</label>
-                          <div className="bg-gray-100 p-3 rounded-lg text-sm">
-                            {currentMessage.feedback}
+                        {/* Feedback Textarea */}
+                        {showFeedback && (
+                          <div className="space-y-2">
+                            <label className="text-sm font-medium">Feedback</label>
+                            <Textarea
+                              placeholder="Enter your feedback or comments..."
+                              value={feedback}
+                              onChange={(e) => setFeedback(e.target.value)}
+                              className="min-h-[100px]"
+                            />
                           </div>
+                        )}
+
+                        {/* Action Buttons */}
+                        <div className="flex space-x-4">
+                          <Button 
+                            onClick={approveMessage}
+                            className="bg-green-600 hover:bg-green-700 text-white"
+                          >
+                            <CheckCircle className="mr-2 h-4 w-4" />
+                            Approve
+                          </Button>
+                          <Button 
+                            onClick={rejectMessage}
+                            variant="destructive"
+                          >
+                            <XCircle className="mr-2 h-4 w-4" />
+                            Reject
+                          </Button>
                         </div>
-                      )}
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <h3 className="text-lg font-semibold">Status</h3>
+                        <div className="flex items-center space-x-2">
+                          {getStatusIcon(currentMessage.status)}
+                          <span className="text-sm">
+                            This request has been {currentMessage.status}
+                          </span>
+                        </div>
+                        
+                        {currentMessage.feedback && (
+                          <div className="space-y-2">
+                            <label className="text-sm font-medium">Feedback</label>
+                            <div className="bg-gray-100 p-3 rounded-lg text-sm">
+                              {currentMessage.feedback}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ) : (
+                // Message List View
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h1 className="text-3xl font-bold">Message Approvals</h1>
+                    <div className="flex items-center space-x-3">
+                  
                     </div>
+
                   )}
                 </CardContent>
               </Card>
@@ -496,7 +506,7 @@ const App: React.FC = () => {
                       <span>{showSettings ? 'Back to Messages' : 'Settings'}</span>
                     </Button>
                   </div>
-                </div>
+
 
 {showSettings ? (
                   // Settings View
@@ -506,6 +516,9 @@ const App: React.FC = () => {
                 ) : (
                   // Message List View
                   messages.length === 0 ? (
+
+                  {messages.length === 0 ? (
+
                     <Card>
                       <CardContent className="p-8 text-center">
                         <Clock className="mx-auto h-12 w-12 text-gray-400 mb-4" />
@@ -546,12 +559,21 @@ const App: React.FC = () => {
                         </Card>
                       ))}
                     </div>
+
                   )
                 )}
               </div>
             )}
           </div>
         )}
+
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
       </div>
     </div>
   );
