@@ -23,6 +23,7 @@ class MenuBarNotificationApp {
   private authTokens: AuthTokens | null = null;
   
   // WebSocket security
+  //mcpauth://callback
   private wsConnectionKey: string | null = null;
   private readonly WS_KEY_FILE = path.join(os.homedir(), '.keyboard-mcp-ws-key');
 
