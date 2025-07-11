@@ -268,7 +268,6 @@ class MenuBarNotificationApp {
       }
 
       const tokens = await response.json() as TokenResponse;
-      console.log('tokens', tokens);
       // Calculate expiration time and create AuthTokens object
       const authTokens: AuthTokens = {
         ...tokens,
@@ -471,7 +470,7 @@ class MenuBarNotificationApp {
             return false;
           }
           
-          console.log(`✅ Accepted secure WebSocket connection from ${remoteAddress}`);
+
           return true;
           
         } catch (error) {
