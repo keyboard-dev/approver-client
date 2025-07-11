@@ -8,6 +8,7 @@ import { createRestAPIServer } from './rest-api';
 import { Message, AuthTokens, PKCEParams, AuthorizeResponse, TokenResponse, ErrorResponse } from './types';
 import { TrayManager, TrayManagerOptions } from './tray-manager';
 import { WindowManager, WindowManagerOptions } from './window-manager';
+import { setEncryptionKeyProvider } from './encryption';
 
 class MenuBarNotificationApp {
   private trayManager: TrayManager;
@@ -27,6 +28,10 @@ class MenuBarNotificationApp {
   // WebSocket security
   private wsConnectionKey: string | null = null;
   private readonly WS_KEY_FILE = path.join(os.homedir(), '.keyboard-mcp-ws-key');
+  
+  // Encryption key management
+  private encryptionKey: string | null = null;
+  private readonly ENCRYPTION_KEY_FILE = path.join(os.homedir(), '.keyboard-mcp-encryption-key');
 
   constructor() {
     // Initialize managers
@@ -54,6 +59,11 @@ class MenuBarNotificationApp {
       },
       getMessages: () => this.messages,
       getPendingCount: () => this.pendingCount
+    });
+
+    // Set up encryption key provider
+    setEncryptionKeyProvider({
+      getActiveEncryptionKey: () => this.getActiveEncryptionKey()
     });
 
     this.initializeApp();
@@ -100,6 +110,9 @@ class MenuBarNotificationApp {
     app.whenReady().then(async () => {
       // Initialize WebSocket security key first
       await this.initializeWebSocketKey();
+      
+      // Initialize encryption key
+      await this.initializeEncryptionKey();
       
       this.trayManager.createTray();
       this.setupWebSocketServer();
@@ -195,6 +208,112 @@ class MenuBarNotificationApp {
 
   private validateWebSocketKey(providedKey: string): boolean {
     return this.wsConnectionKey === providedKey;
+  }
+
+  // Encryption Key Management Methods
+  private async initializeEncryptionKey(): Promise<void> {
+    try {
+      // Priority 1: Check if environment variable is set
+      if (process.env.ENCRYPTION_KEY) {
+        const envKey = Buffer.from(process.env.ENCRYPTION_KEY, 'hex');
+        if (envKey.length === 32) {
+          this.encryptionKey = process.env.ENCRYPTION_KEY;
+          console.log('🔑 Using encryption key from environment variable');
+          return;
+        } else {
+          console.warn('⚠️ ENCRYPTION_KEY environment variable is not 32 bytes, falling back to generated key');
+        }
+      }
+
+      // Priority 2: Try to load existing generated key
+      if (fs.existsSync(this.ENCRYPTION_KEY_FILE)) {
+        const keyData = fs.readFileSync(this.ENCRYPTION_KEY_FILE, 'utf8');
+        const parsedData = JSON.parse(keyData);
+        
+        // Validate key format and age (regenerate if older than 365 days)
+        if (parsedData.key && parsedData.createdAt) {
+          const keyAge = Date.now() - parsedData.createdAt;
+          const maxAge = 365 * 24 * 60 * 60 * 1000; // 365 days
+          
+          if (keyAge < maxAge) {
+            this.encryptionKey = parsedData.key;
+            console.log('🔑 Loaded existing generated encryption key');
+            return;
+          }
+        }
+      }
+      
+      // Priority 3: Generate new key if none exists or is expired
+      await this.generateNewEncryptionKey();
+      
+    } catch (error) {
+      console.error('❌ Error initializing encryption key:', error);
+      // Fallback: generate new key
+      await this.generateNewEncryptionKey();
+    }
+  }
+
+  private async generateNewEncryptionKey(): Promise<void> {
+    try {
+      // Generate a secure random key
+      this.encryptionKey = crypto.randomBytes(32).toString('hex');
+      
+      // Store key with metadata
+      const keyData = {
+        key: this.encryptionKey,
+        createdAt: Date.now(),
+        version: '1.0',
+        source: 'generated'
+      };
+      
+      // Write to file with restricted permissions
+      fs.writeFileSync(this.ENCRYPTION_KEY_FILE, JSON.stringify(keyData, null, 2), { mode: 0o600 });
+      
+      console.log('🔑 Generated new encryption key');
+      
+      // Notify UI if window exists
+      this.windowManager.sendMessage('encryption-key-generated', {
+        key: this.encryptionKey,
+        createdAt: keyData.createdAt,
+        source: keyData.source
+      });
+      
+    } catch (error) {
+      console.error('❌ Error generating encryption key:', error);
+      throw error;
+    }
+  }
+
+  private getEncryptionKeyInfo(): { key: string | null; createdAt: number | null; keyFile: string; source: 'environment' | 'generated' | null } {
+    let createdAt: number | null = null;
+    let source: 'environment' | 'generated' | null = null;
+    
+    // Check if using environment variable
+    if (process.env.ENCRYPTION_KEY && this.encryptionKey === process.env.ENCRYPTION_KEY) {
+      source = 'environment';
+    } else {
+      source = 'generated';
+      try {
+        if (fs.existsSync(this.ENCRYPTION_KEY_FILE)) {
+          const keyData = fs.readFileSync(this.ENCRYPTION_KEY_FILE, 'utf8');
+          const parsedData = JSON.parse(keyData);
+          createdAt = parsedData.createdAt;
+        }
+      } catch (error) {
+        console.error('Error reading encryption key file:', error);
+      }
+    }
+    
+    return {
+      key: this.encryptionKey,
+      createdAt,
+      keyFile: this.ENCRYPTION_KEY_FILE,
+      source
+    };
+  }
+
+  public getActiveEncryptionKey(): string | null {
+    return this.encryptionKey;
   }
 
   private generatePKCE(): PKCEParams {
@@ -673,6 +792,29 @@ class MenuBarNotificationApp {
         createdAt,
         keyFile: this.WS_KEY_FILE
       };
+    });
+
+    // Encryption key management
+    ipcMain.handle('get-encryption-key', (): string | null => {
+      return this.encryptionKey;
+    });
+
+    ipcMain.handle('regenerate-encryption-key', async (): Promise<{ key: string; createdAt: number; source: string }> => {
+      // Only allow regeneration if not using environment variable
+      if (process.env.ENCRYPTION_KEY && this.encryptionKey === process.env.ENCRYPTION_KEY) {
+        throw new Error('Cannot regenerate encryption key when using environment variable');
+      }
+      
+      await this.generateNewEncryptionKey();
+      return {
+        key: this.encryptionKey!,
+        createdAt: Date.now(),
+        source: 'generated'
+      };
+    });
+
+    ipcMain.handle('get-encryption-key-info', (): { key: string | null; createdAt: number | null; keyFile: string; source: 'environment' | 'generated' | null } => {
+      return this.getEncryptionKeyInfo();
     });
   }
 

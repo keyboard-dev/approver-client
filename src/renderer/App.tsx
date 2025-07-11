@@ -10,6 +10,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from './components/ui/tabs';
 import { CheckCircle, XCircle, Clock, AlertTriangle, X, Wifi, WifiOff } from 'lucide-react';
 import AuthComponent from './components/AuthComponent';
 import WebSocketKeyManager from './components/WebSocketKeyManager';
+import EncryptionKeyManager from './components/EncryptionKeyManager';
 import './App.css';
 
 const App: React.FC = () => {
@@ -502,6 +503,7 @@ const App: React.FC = () => {
                   // Settings View
                   <div className="space-y-6">
                     <WebSocketKeyManager />
+                    <EncryptionKeyManager />
                   </div>
                 ) : (
                   // Message List View

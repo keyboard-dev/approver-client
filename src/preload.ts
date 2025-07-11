@@ -54,6 +54,11 @@ export interface ElectronAPI {
   regenerateWSKey: () => Promise<{ key: string; createdAt: number }>;
   getWSKeyInfo: () => Promise<{ key: string | null; createdAt: number | null; keyFile: string }>;
   onWSKeyGenerated: (callback: (event: IpcRendererEvent, data: { key: string; createdAt: number }) => void) => void;
+  // Encryption key management
+  getEncryptionKey: () => Promise<string | null>;
+  regenerateEncryptionKey: () => Promise<{ key: string; createdAt: number; source: string }>;
+  getEncryptionKeyInfo: () => Promise<{ key: string | null; createdAt: number | null; keyFile: string; source: 'environment' | 'generated' | null }>;
+  onEncryptionKeyGenerated: (callback: (event: IpcRendererEvent, data: { key: string; createdAt: number; source: string }) => void) => void;
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -101,6 +106,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getWSKeyInfo: (): Promise<{ key: string | null; createdAt: number | null; keyFile: string }> => ipcRenderer.invoke('get-ws-key-info'),
   onWSKeyGenerated: (callback: (event: IpcRendererEvent, data: { key: string; createdAt: number }) => void): void => {
     ipcRenderer.on('ws-key-generated', callback);
+  },
+  
+  // Encryption key management
+  getEncryptionKey: (): Promise<string | null> => ipcRenderer.invoke('get-encryption-key'),
+  regenerateEncryptionKey: (): Promise<{ key: string; createdAt: number; source: string }> => ipcRenderer.invoke('regenerate-encryption-key'),
+  getEncryptionKeyInfo: (): Promise<{ key: string | null; createdAt: number | null; keyFile: string; source: 'environment' | 'generated' | null }> => ipcRenderer.invoke('get-encryption-key-info'),
+  onEncryptionKeyGenerated: (callback: (event: IpcRendererEvent, data: { key: string; createdAt: number; source: string }) => void): void => {
+    ipcRenderer.on('encryption-key-generated', callback);
   }
 } as ElectronAPI);
 
