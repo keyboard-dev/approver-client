@@ -5,28 +5,45 @@ import { Alert, AlertDescription } from '../../components/ui/alert';
 import { Badge } from './ui/badge';
 import { User, LogIn, LogOut, Shield, AlertCircle, CheckCircle } from 'lucide-react';
 import { AuthStatus, AuthError } from '../../preload';
+import { SKIP_AUTH_USER_ID } from '../../lib/constants/auth.constants';
 
 interface AuthComponentProps {
+  isSkippingAuth: boolean;
   onAuthChange: (authStatus: AuthStatus) => void;
+  setIsSkippingAuth: (isSkippingAuth: boolean) => void;
 }
 
-const AuthComponent: React.FC<AuthComponentProps> = ({ onAuthChange }) => {
+const AuthComponent: React.FC<AuthComponentProps> = ({
+  isSkippingAuth,
+  onAuthChange,
+  setIsSkippingAuth,
+}) => {
   const [authStatus, setAuthStatus] = useState<AuthStatus>({ authenticated: false });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAuthDetails, setShowAuthDetails] = useState(false);
 
+  const handleAuthSuccess = (
+    _event: Electron.CrossProcessExports.IpcRendererEvent | null,
+    data: AuthStatus
+  ) => {
+    onAuthChange(data);
+    setAuthStatus(data);
+    setError(null);
+    setIsLoading(false);
+  };
+
   // Load initial auth status
   useEffect(() => {
     loadAuthStatus();
-    
+
     // Listen for auth events
-    const handleAuthSuccess = (event: any, data: AuthStatus) => {
-      setAuthStatus(data);
-      setError(null);
-      setIsLoading(false);
-      onAuthChange(data);
-    };
+    // const handleAuthSuccess = (event: any, data: AuthStatus) => {
+    //   setAuthStatus(data);
+    //   setError(null);
+    //   setIsLoading(false);
+    //   onAuthChange(data);
+    // };
 
     const handleAuthError = (event: any, errorData: AuthError) => {
       console.error('Auth error:', errorData);
@@ -53,6 +70,12 @@ const AuthComponent: React.FC<AuthComponentProps> = ({ onAuthChange }) => {
 
   const loadAuthStatus = async () => {
     try {
+      if (isSkippingAuth) {
+        setAuthStatus({ authenticated: true, user: { id: SKIP_AUTH_USER_ID, email: 'test@test.com', firstName: 'Test', lastName: 'User' } });
+        onAuthChange({ authenticated: true, user: { id: SKIP_AUTH_USER_ID, email: 'test@test.com', firstName: 'Test', lastName: 'User' } });
+        return;
+      }
+
       const status = await window.electronAPI.getAuthStatus();
       setAuthStatus(status);
       onAuthChange(status);
@@ -64,7 +87,7 @@ const AuthComponent: React.FC<AuthComponentProps> = ({ onAuthChange }) => {
   const handleLogin = async () => {
     setIsLoading(true);
     setError(null);
-    
+
     try {
       await window.electronAPI.startOAuth();
       // The actual authentication will be handled by the OAuth flow
@@ -76,7 +99,31 @@ const AuthComponent: React.FC<AuthComponentProps> = ({ onAuthChange }) => {
     }
   };
 
+  const handleSkipAuth = () => {
+    setIsSkippingAuth(true);
+    // console.warn('handleSkipAuth');
+    setError(null);
+
+    handleAuthSuccess(
+      null,
+      {
+        authenticated: true,
+        user: {
+          id: SKIP_AUTH_USER_ID,
+          email: 'test@test.com',
+          firstName: 'Test',
+          lastName: 'User',
+        },
+      }
+    );
+  };
+
   const handleLogout = async () => {
+    if (isSkippingAuth) {
+      setIsSkippingAuth(false);
+      return;
+    }
+
     try {
       await window.electronAPI.logout();
       // The auth-logout event will be triggered
@@ -86,19 +133,19 @@ const AuthComponent: React.FC<AuthComponentProps> = ({ onAuthChange }) => {
     }
   };
 
-  if (authStatus.authenticated) {
+  if (authStatus.authenticated || isSkippingAuth) {
     return (
       <Card className="w-full mb-4">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg flex items-center space-x-2">
               <Shield className="h-5 w-5 text-green-600" />
-              <span>Authenticated</span>
+              {isSkippingAuth ? 'Skipping Authentication' : 'Authenticated'}
             </CardTitle>
             <div className="flex items-center space-x-2">
               <Badge variant="default" className="bg-green-100 text-green-800 border-green-200">
                 <CheckCircle className="h-3 w-3 mr-1" />
-                Logged In
+                {isSkippingAuth ? 'Skipping Authentication' : 'Logged In'}
               </Badge>
               <Button
                 variant="ghost"
@@ -155,7 +202,7 @@ const AuthComponent: React.FC<AuthComponentProps> = ({ onAuthChange }) => {
         <p className="text-sm text-gray-600">
           Please authenticate to access the message approval system. This will open your browser for secure login.
         </p>
-        
+
         {error && (
           <Alert className="border-red-200 bg-red-50">
             <AlertCircle className="h-4 w-4" />
@@ -165,14 +212,23 @@ const AuthComponent: React.FC<AuthComponentProps> = ({ onAuthChange }) => {
           </Alert>
         )}
 
-        <div className="flex justify-center">
+        <div className="flex flex-col gap-2 justify-center items-center w-full">
           <Button
             onClick={handleLogin}
             disabled={isLoading}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
+            className="bg-blue-600 hover:bg-blue-700 text-white w-fit"
           >
             <LogIn className="h-4 w-4 mr-2" />
             {isLoading ? 'Authenticating...' : 'Sign In'}
+          </Button>
+
+          <Button
+            onClick={handleSkipAuth}
+            disabled={isLoading}
+            className="bg-green-600 hover:bg-green-700 text-white w-fit"
+          >
+            {/* <Skip className="h-4 w-4 mr-2" /> */}
+            Skip Authentication
           </Button>
         </div>
 
@@ -185,4 +241,4 @@ const AuthComponent: React.FC<AuthComponentProps> = ({ onAuthChange }) => {
   );
 };
 
-export default AuthComponent; 
+export default AuthComponent;
