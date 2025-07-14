@@ -101,7 +101,6 @@ const AuthComponent: React.FC<AuthComponentProps> = ({
 
   const handleSkipAuth = () => {
     setIsSkippingAuth(true);
-    // console.warn('handleSkipAuth');
     setError(null);
 
     handleAuthSuccess(

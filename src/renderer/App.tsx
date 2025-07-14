@@ -33,7 +33,6 @@ const App: React.FC = () => {
 
   // Debounced connection status update
   const updateConnectionStatus = useCallback((status: 'connected' | 'disconnected' | 'connecting') => {
-    console.log('updateConnectionStatus', status);
     if (connectionTimeoutRef.current) {
       clearTimeout(connectionTimeoutRef.current);
     }
@@ -65,7 +64,6 @@ const App: React.FC = () => {
 
   // Handle authentication state changes
   const handleAuthChange = useCallback((newAuthStatus: AuthStatus) => {
-    console.warn('newAuthStatus', JSON.stringify(newAuthStatus, null, 2));
     authStatusRef.current = newAuthStatus;
     setAuthStatus(newAuthStatus);
 
@@ -81,7 +79,6 @@ const App: React.FC = () => {
       setIsInitialized(true);
       // Load messages directly without dependency
       (async () => {
-        console.log('newAuthStatus', JSON.stringify(newAuthStatus, null, 2));
         if (newAuthStatus.authenticated) {
           updateLoadingState(true);
           try {
@@ -169,7 +166,6 @@ const App: React.FC = () => {
 
     // Listen for connection status changes
     const handleConnectionStatusChange = (event: any, status: 'connected' | 'disconnected' | 'connecting') => {
-      console.log(event, status);
       updateConnectionStatus(status);
     };
 
