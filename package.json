@@ -118,7 +118,7 @@
     ],
     "mac": {
       "category": "public.app-category.developer-tools",
-      "icon": "assets/icon.png"
+      "icon": "assets/keyboard512px.png"
     },
     "win": {
       "icon": "assets/icon.ico"
