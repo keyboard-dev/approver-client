@@ -342,7 +342,10 @@ const App: React.FC = () => {
           <div className="bg-gray-100 p-4 rounded-lg">
             <pre className="whitespace-pre-wrap text-sm">{stdout || 'No output'}</pre>
             {stderr && (
-              <pre className="whitespace-pre-wrap text-sm text-red-600">{stderr}</pre>
+              <div className="mt-2">
+                <div className="text-sm font-medium text-red-700 mb-1">Error Output (Please review to see if there are any sensitive content):</div>
+                <pre className="whitespace-pre-wrap text-sm text-red-600 bg-red-50 p-2 rounded border border-red-200">{stderr}</pre>
+              </div>
             )}
           </div>
         );
