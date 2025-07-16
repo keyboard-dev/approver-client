@@ -65,7 +65,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   approveMessage: (messageId: string, feedback?: string, messageBody?: string): Promise<void> => ipcRenderer.invoke('approve-message', messageId, feedback, messageBody),
   rejectMessage: (messageId: string, feedback?: string): Promise<void> => ipcRenderer.invoke('reject-message', messageId, feedback),
   showMessages: (): void => ipcRenderer.send('show-messages'),
-  
+
   // Listen for messages from main process
   onShowMessage: (callback: (event: IpcRendererEvent, message: Message) => void): void => {
     ipcRenderer.on('show-message', callback);
@@ -76,13 +76,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   removeAllListeners: (channel: string): void => {
     ipcRenderer.removeAllListeners(channel);
   },
-  
+
   // OAuth-related functions
   startOAuth: (): Promise<void> => ipcRenderer.invoke('start-oauth'),
   getAuthStatus: (): Promise<AuthStatus> => ipcRenderer.invoke('get-auth-status'),
   logout: (): Promise<void> => ipcRenderer.invoke('logout'),
   getAccessToken: (): Promise<string | null> => ipcRenderer.invoke('get-access-token'),
-  
+
   // OAuth event listeners
   onAuthSuccess: (callback: (event: IpcRendererEvent, data: AuthStatus) => void): void => {
     ipcRenderer.on('auth-success', callback);
@@ -93,7 +93,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onAuthLogout: (callback: (event: IpcRendererEvent) => void): void => {
     ipcRenderer.on('auth-logout', callback);
   },
-  
+
   // WebSocket key management
   getWSConnectionKey: (): Promise<string | null> => ipcRenderer.invoke('get-ws-connection-key'),
   getWSConnectionUrl: (): Promise<string> => ipcRenderer.invoke('get-ws-connection-url'),
@@ -101,7 +101,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getWSKeyInfo: (): Promise<{ key: string | null; createdAt: number | null; keyFile: string }> => ipcRenderer.invoke('get-ws-key-info'),
   onWSKeyGenerated: (callback: (event: IpcRendererEvent, data: { key: string; createdAt: number }) => void): void => {
     ipcRenderer.on('ws-key-generated', callback);
-  }
+  },
 } as ElectronAPI);
 
 // Extend the global Window interface
@@ -109,4 +109,4 @@ declare global {
   interface Window {
     electronAPI: ElectronAPI;
   }
-} 
+}

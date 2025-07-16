@@ -344,8 +344,6 @@ const setupExpressApp = (deps: RestAPIServerDeps): Application => {
   // Keyboard shortcuts endpoints
   app.post('/api/scripts', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
     try {
-      console.log('req.body', req.body);
-      console.log('req headers', req.headers);
       const { name, description, schema, script, tags } = req.body;
       const userId = req.user?.id || req.user?.sub || 'unknown';
       const token = req.token || '';
@@ -552,7 +550,6 @@ export const createRestAPIServer = (
   const start = (): Promise<void> => {
     return new Promise((resolve, reject) => {
       server = app.listen(port, host, () => {
-        console.log(`🚀 REST API server running on http://${host}:${port}`);
         resolve();
       });
       
