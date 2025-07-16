@@ -2,60 +2,24 @@ import { app, BrowserWindow, Notification, ipcMain, shell, protocol, screen, Tra
 import * as WebSocket from 'ws';
 import * as path from 'path';
 import * as crypto from 'crypto';
-import * as fs from 'fs';
-import * as os from 'os';
 import { createRestAPIServer } from './rest-api';
 import { Message, AuthTokens, PKCEParams, AuthorizeResponse, TokenResponse, ErrorResponse } from './types';
-import { TrayManager, TrayManagerOptions } from './tray-manager';
-import { WindowManager, WindowManagerOptions } from './window-manager';
 
 class MenuBarNotificationApp {
-  private trayManager: TrayManager;
-  private windowManager: WindowManager;
+  private mainWindow: BrowserWindow | null = null;
+  private tray: Tray | null = null;
   private wsServer: WebSocket.Server | null = null;
   private restApiServer: any = null;
   private messages: Message[] = [];
   private pendingCount: number = 0;
-  private notificationsEnabled: boolean = true;
   private readonly WS_PORT = 8080;
   private readonly OAUTH_SERVER_URL = process.env.OAUTH_SERVER_URL || 'https://api.keyboard.dev';
   private readonly SKIP_AUTH = process.env.SKIP_AUTH === 'true';
   private readonly CUSTOM_PROTOCOL = 'mcpauth';
   private currentPKCE: PKCEParams | null = null;
   private authTokens: AuthTokens | null = null;
-  
-  // WebSocket security
-  private wsConnectionKey: string | null = null;
-  private readonly WS_KEY_FILE = path.join(os.homedir(), '.keyboard-mcp-ws-key');
 
   constructor() {
-    // Initialize managers
-    this.windowManager = new WindowManager({
-      onWindowClosed: () => {
-        // Handle window closed
-      },
-      onMessageShow: (message: Message) => {
-        // Handle message show
-      }
-    });
-
-    this.trayManager = new TrayManager({
-      onToggleWindow: (bounds?: Electron.Rectangle) => {
-        this.windowManager.toggleWindow(bounds);
-      },
-      onShowWindow: () => {
-        this.windowManager.showWindow();
-      },
-      onClearAllMessages: () => {
-        this.clearAllMessages();
-      },
-      onQuit: () => {
-        app.quit();
-      },
-      getMessages: () => this.messages,
-      getPendingCount: () => this.pendingCount
-    });
-
     this.initializeApp();
   }
 
@@ -70,16 +34,13 @@ class MenuBarNotificationApp {
 
     // STEP 2: Set up event listeners BEFORE app.whenReady()
     
-    // Platform-specific protocol handling
-    if (process.platform === 'darwin') {
-      // Handle macOS open-url events (MUST be before app.whenReady())
-      app.on('open-url', (event, url) => {
-        event.preventDefault();
-        this.handleOAuthCallback(url);
-      });
-    }
+    // Handle macOS open-url events (MUST be before app.whenReady())
+    app.on('open-url', (event, url) => {
+      event.preventDefault();
+      this.handleOAuthCallback(url);
+    });
 
-    // Handle second instance (protocol callbacks for all platforms)
+    // Handle second instance (protocol callbacks)
     app.on('second-instance', (event, commandLine, workingDirectory) => {
       // Find protocol URL in command line arguments
       const url = commandLine.find(arg => arg.startsWith(`${this.CUSTOM_PROTOCOL}://`));
@@ -88,7 +49,9 @@ class MenuBarNotificationApp {
       }
       
       // Show the window if it exists
-      this.windowManager.showWindow();
+      if (this.mainWindow) {
+        this.showWindow();
+      }
     });
 
     // STEP 3: Register as default protocol client
@@ -98,20 +61,20 @@ class MenuBarNotificationApp {
 
     // STEP 4: App ready event
     app.whenReady().then(async () => {
-      // Initialize WebSocket security key first
-      await this.initializeWebSocketKey();
-      
-      this.trayManager.createTray();
+      this.createTray();
+      this.createMainWindow();
       this.setupWebSocketServer();
       this.setupRestAPI();
       this.setupIPC();
       
-      // Request notification permissions on all platforms
-      await this.requestNotificationPermissions();
+      // Request notification permissions on macOS
+      if (process.platform === 'darwin') {
+        await this.requestNotificationPermissions();
+      }
       
       app.on('activate', () => {
         // On macOS, show window when app is activated
-        this.windowManager.showWindow();
+        this.showWindow();
       });
     });
 
@@ -122,79 +85,233 @@ class MenuBarNotificationApp {
 
     // Handle app termination
     app.on('before-quit', () => {
-        this.cleanup();
+      this.cleanup();
     });
   }
 
-  // WebSocket Security Methods
-  private async initializeWebSocketKey(): Promise<void> {
-    try {
-      // Try to load existing key
-      if (fs.existsSync(this.WS_KEY_FILE)) {
-        const keyData = fs.readFileSync(this.WS_KEY_FILE, 'utf8');
-        const parsedData = JSON.parse(keyData);
+  private createTray(): void {
+    // Create tray icon
+    const icon = this.createTrayIcon();
+    this.tray = new Tray(icon);
+    
+    this.tray.setToolTip('Message Approver');
+    
+    // Click to toggle window
+    this.tray.on('click', (event, bounds) => {
+      this.toggleWindow(bounds);
+    });
+
+    // Right-click for context menu
+    this.tray.on('right-click', () => {
+      this.showContextMenu();
+    });
+
+    this.updateTrayIcon();
+  }
+
+  private createTrayIcon(): Electron.NativeImage {
+    // Create a simple 16x16 icon
+    const size = 16;
+    
+    // Create a simple colored square as fallback (works without canvas)
+    const canvas = Buffer.alloc(size * size * 4);
+    const color = this.pendingCount > 0 ? [255, 59, 48, 255] : [0, 122, 255, 255];
+    
+    // Fill the buffer with the color
+    for (let i = 0; i < canvas.length; i += 4) {
+      canvas[i] = color[0];     // R
+      canvas[i + 1] = color[1]; // G
+      canvas[i + 2] = color[2]; // B
+      canvas[i + 3] = color[3]; // A
+    }
+    
+    return nativeImage.createFromBuffer(canvas, { width: size, height: size });
+  }
+
+  private toggleWindow(bounds?: Electron.Rectangle): void {
+    if (this.mainWindow?.isVisible()) {
+      this.mainWindow.hide();
+    } else {
+      this.showWindow(bounds);
+    }
+  }
+
+  private showWindow(bounds?: Electron.Rectangle): void {
+    if (!this.mainWindow) {
+      this.createMainWindow();
+    }
+
+    if (this.mainWindow) {
+      if (bounds && this.tray) {
+        // Position window near tray icon
+        const windowBounds = this.mainWindow.getBounds();
+        const trayBounds = this.tray.getBounds();
         
-        // Validate key format and age (regenerate if older than 30 days)
-        if (parsedData.key && parsedData.createdAt) {
-          const keyAge = Date.now() - parsedData.createdAt;
-          const maxAge = 30 * 24 * 60 * 60 * 1000; // 30 days
-          
-          if (keyAge < maxAge) {
-            this.wsConnectionKey = parsedData.key;
-            console.log('🔑 Loaded existing WebSocket connection key');
-            return;
+        let x = Math.round(trayBounds.x + (trayBounds.width / 2) - (windowBounds.width / 2));
+        let y = Math.round(trayBounds.y + trayBounds.height + 5);
+        
+        // Make sure window stays on screen
+        const { screen } = require('electron');
+        const primaryDisplay = screen.getPrimaryDisplay();
+        const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+        
+        x = Math.max(0, Math.min(x, screenWidth - windowBounds.width));
+        y = Math.max(0, Math.min(y, screenHeight - windowBounds.height));
+        
+        this.mainWindow.setPosition(x, y);
+      }
+
+      // Force window to appear on current desktop/space only when showing from tray
+      if (process.platform === 'darwin' && bounds) {
+        this.mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+        
+        // Show and focus
+        this.mainWindow.show();
+        this.mainWindow.focus();
+        
+        // Reset workspace visibility after showing
+        setTimeout(() => {
+          if (this.mainWindow) {
+            this.mainWindow.setVisibleOnAllWorkspaces(false);
           }
+        }, 200);
+      } else {
+        // Normal show for other cases (like OAuth callbacks)
+        this.mainWindow.show();
+        this.mainWindow.focus();
+      }
+    }
+  }
+
+  private createMainWindow(): void {
+    this.mainWindow = new BrowserWindow({
+      width: 600,  // Larger for reading code
+      height: 700, // Taller for explanations
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        preload: path.join(__dirname, 'preload.js')
+      },
+      show: false,
+      frame: false,
+      transparent: true,
+      resizable: true,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      hasShadow: true,
+      minimizable: false,
+      maximizable: false,
+      type: 'panel', // This helps with menu bar behavior
+      // macOS specific
+      ...(process.platform === 'darwin' && {
+        vibrancy: 'under-window',
+        visualEffectState: 'active',
+        level: 'floating' // Use floating level instead of screen-saver
+      })
+    });
+
+    this.mainWindow.loadFile(path.join(__dirname, '../public/index.html'));
+
+    // Hide window when it loses focus
+    this.mainWindow.on('blur', () => {
+      if (this.mainWindow?.isVisible()) {
+        setTimeout(() => {
+          if (this.mainWindow?.isVisible() && !this.mainWindow?.isFocused()) {
+            this.mainWindow.hide();
+          }
+        }, 100);
+      }
+    });
+
+    this.mainWindow.on('closed', () => {
+      this.mainWindow = null;
+    });
+
+    this.setupWindowControls();
+  }
+
+  private showContextMenu(): void {
+    const contextMenu = Menu.buildFromTemplate([
+      {
+        label: `Messages (${this.pendingCount} pending)`,
+        enabled: false
+      },
+      { type: 'separator' },
+      {
+        label: 'Show Messages',
+        click: () => this.showWindow()
+      },
+      {
+        label: 'Clear All',
+        click: () => this.clearAllMessages(),
+        enabled: this.messages.length > 0
+      },
+      { type: 'separator' },
+      {
+        label: 'Quit',
+        click: () => app.quit()
+      }
+    ]);
+
+    this.tray?.popUpContextMenu(contextMenu);
+  }
+
+  private clearAllMessages(): void {
+    this.messages = [];
+    this.pendingCount = 0;
+    this.updateTrayIcon();
+    
+    // Notify renderer
+    if (this.mainWindow) {
+      this.mainWindow.webContents.send('messages-cleared');
+    }
+  }
+
+  private updateTrayIcon(): void {
+    if (this.tray) {
+      const icon = this.createTrayIcon();
+      this.tray.setImage(icon);
+      
+      // Update tooltip with pending count
+      const tooltip = this.pendingCount > 0 
+        ? `Message Approver (${this.pendingCount} pending)`
+        : 'Message Approver';
+      this.tray.setToolTip(tooltip);
+    }
+  }
+
+  private setupWindowControls(): void {
+    // Handle window close
+    ipcMain.handle('window-close', () => {
+      if (this.mainWindow) {
+        this.mainWindow.hide();
+      }
+    });
+
+    // Handle window hide/show toggle
+    ipcMain.handle('window-toggle-visibility', () => {
+      if (this.mainWindow) {
+        if (this.mainWindow.isVisible()) {
+          this.mainWindow.hide();
+        } else {
+          this.mainWindow.show();
         }
       }
-      
-      // Generate new key if none exists or is expired
-      await this.generateNewWebSocketKey();
-      
-    } catch (error) {
-      console.error('❌ Error initializing WebSocket key:', error);
-      // Fallback: generate new key
-      await this.generateNewWebSocketKey();
-    }
-  }
+    });
 
-  private async generateNewWebSocketKey(): Promise<void> {
-    try {
-      // Generate a secure random key
-      this.wsConnectionKey = crypto.randomBytes(32).toString('hex');
-      
-      // Store key with metadata
-      const keyData = {
-        key: this.wsConnectionKey,
-        createdAt: Date.now(),
-        version: '1.0'
-      };
-      
-      // Write to file with restricted permissions
-      fs.writeFileSync(this.WS_KEY_FILE, JSON.stringify(keyData, null, 2), { mode: 0o600 });
-      
-      console.log('🔑 Generated new WebSocket connection key');
-      
-      // Notify UI if window exists
-      this.windowManager.sendMessage('ws-key-generated', {
-        key: this.wsConnectionKey,
-        createdAt: keyData.createdAt
-      });
-      
-    } catch (error) {
-      console.error('❌ Error generating WebSocket key:', error);
-      throw error;
-    }
-  }
+    // Handle window opacity change
+    ipcMain.handle('window-set-opacity', (event, opacity: number) => {
+      if (this.mainWindow) {
+        this.mainWindow.setOpacity(Math.max(0.1, Math.min(1.0, opacity)));
+      }
+    });
 
-  private getWebSocketConnectionUrl(): string {
-    if (!this.wsConnectionKey) {
-      throw new Error('WebSocket connection key not initialized');
-    }
-    return `ws://127.0.0.1:${this.WS_PORT}?key=${this.wsConnectionKey}`;
-  }
-
-  private validateWebSocketKey(providedKey: string): boolean {
-    return this.wsConnectionKey === providedKey;
+    // Handle window resize
+    ipcMain.handle('window-resize', (event, { width, height }) => {
+      if (this.mainWindow) {
+        this.mainWindow.setSize(width, height);
+      }
+    });
   }
 
   private generatePKCE(): PKCEParams {
@@ -291,6 +408,7 @@ class MenuBarNotificationApp {
       }
 
       const tokens = await response.json() as TokenResponse;
+      console.log('tokens', tokens);
       // Calculate expiration time and create AuthTokens object
       const authTokens: AuthTokens = {
         ...tokens,
@@ -301,13 +419,15 @@ class MenuBarNotificationApp {
       this.currentPKCE = null; // Clear PKCE data
       
       // Notify the renderer process
-      this.windowManager.sendMessage('auth-success', {
-        user: tokens.user,
-        authenticated: true
-      });
+      if (this.mainWindow) {
+        this.mainWindow.webContents.send('auth-success', {
+          user: tokens.user,
+          authenticated: true
+        });
+      }
 
       // Show the window after successful authentication
-      this.windowManager.showWindow();
+      this.showWindow();
 
       // Show success notification
       this.showNotification({
@@ -386,7 +506,9 @@ class MenuBarNotificationApp {
   private notifyAuthError(message: string): void {
     console.error('🔐 Auth Error:', message);
     
-    this.windowManager.sendMessage('auth-error', { message });
+    if (this.mainWindow) {
+      this.mainWindow.webContents.send('auth-error', { message });
+    }
 
     this.showNotification({
       id: 'auth-error',
@@ -401,49 +523,15 @@ class MenuBarNotificationApp {
     this.authTokens = null;
     this.currentPKCE = null;
     
-    this.windowManager.sendMessage('auth-logout');
+    if (this.mainWindow) {
+      this.mainWindow.webContents.send('auth-logout');
+    }
   }
 
   private setupWebSocketServer(): void {
-    this.wsServer = new WebSocket.Server({ 
-      port: this.WS_PORT,
-      host: '127.0.0.1', // Localhost only for security
-      verifyClient: (info: any) => {
-        try {
-          // Extract key from query parameters
-          const url = new URL(info.req.url!, `ws://127.0.0.1:${this.WS_PORT}`);
-          const providedKey = url.searchParams.get('key');
-          
-          // Validate connection is from localhost
-          const remoteAddress = info.req.connection.remoteAddress;
-          const isLocalhost = remoteAddress === '127.0.0.1' || 
-                             remoteAddress === '::1' || 
-                             remoteAddress === '::ffff:127.0.0.1';
-          
-          if (!isLocalhost) {
-            console.warn(`🚨 Rejected WebSocket connection from non-localhost: ${remoteAddress}`);
-            return false;
-          }
-          
-          // Validate key
-          if (!providedKey || !this.validateWebSocketKey(providedKey)) {
-            console.warn(`🚨 Rejected WebSocket connection with invalid key from ${remoteAddress}`);
-            return false;
-          }
-          
-
-          return true;
-          
-        } catch (error) {
-          console.error('❌ Error validating WebSocket connection:', error);
-          return false;
-        }
-      }
-    });
+    this.wsServer = new WebSocket.Server({ port: this.WS_PORT });
     
-    this.wsServer.on('connection', (ws: WebSocket, req) => {
-      console.log(`🔐 Secure WebSocket connection established from ${req.connection.remoteAddress}`);
-      
+    this.wsServer.on('connection', (ws: WebSocket) => {
       ws.on('message', async (data: WebSocket.Data) => {
         try {
           const message = JSON.parse(data.toString());
@@ -473,8 +561,7 @@ class MenuBarNotificationApp {
       });
 
       ws.on('close', () => {
-        console.log('🔐 Secure WebSocket connection closed');
-      });
+        });
     });
   }
 
@@ -494,17 +581,19 @@ class MenuBarNotificationApp {
 
     // Update pending count
     this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length;
-    this.trayManager.updateTrayIcon();
+    this.updateTrayIcon();
 
     // Show desktop notification
     this.showNotification(message);
 
     // Send to renderer via websocket-message event
-    this.windowManager.sendMessage('websocket-message', message);
+    if (this.mainWindow) {
+      this.mainWindow.webContents.send('websocket-message', message);
+    }
 
     // Auto-show window for high priority messages
     if (message.priority === 'high') {
-      this.windowManager.showWindow();
+      this.showWindow();
     }
   }
 
@@ -542,21 +631,12 @@ class MenuBarNotificationApp {
   }
 
   private openMessageWindow(message?: Message): void {
-    this.windowManager.showWindow();
+    this.showWindow();
     
     // Send message data to renderer if specific message was clicked
-    if (message) {
-      this.windowManager.showMessage(message);
+    if (message && this.mainWindow) {
+      this.mainWindow.webContents.send('show-message', message);
     }
-  }
-
-  private clearAllMessages(): void {
-    this.messages = [];
-    this.pendingCount = 0;
-    this.trayManager.updateTrayIcon();
-    
-    // Notify renderer
-    this.windowManager.sendMessage('messages-cleared');
   }
 
   private setupIPC(): void {
@@ -565,10 +645,11 @@ class MenuBarNotificationApp {
       await this.startOAuthFlow();
     });
 
-    ipcMain.handle('get-auth-status', (): { authenticated: boolean; user?: any } => {
+    ipcMain.handle('get-auth-status', (): { authenticated: boolean; user?: any; skipAuth?: boolean } => {
       return {
-        authenticated: !!this.authTokens,
-        user: this.authTokens?.user
+        authenticated: !!this.authTokens || this.SKIP_AUTH,
+        user: this.authTokens?.user || (this.SKIP_AUTH ? { email: 'test@example.com', firstName: 'Test' } : undefined),
+        skipAuth: this.SKIP_AUTH
       };
     });
 
@@ -597,7 +678,7 @@ class MenuBarNotificationApp {
     ipcMain.handle('delete-message', (event, messageId: string): void => {
       this.messages = this.messages.filter(msg => msg.id !== messageId);
       this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length;
-      this.trayManager.updateTrayIcon();
+      this.updateTrayIcon();
     });
 
     // Handle approve message
@@ -609,7 +690,7 @@ class MenuBarNotificationApp {
         
         // Update pending count
         this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length;
-        this.trayManager.updateTrayIcon();
+        this.updateTrayIcon();
         
         // Send response back through WebSocket if needed
         this.sendWebSocketResponse(message, 'approved', feedback);
@@ -625,7 +706,7 @@ class MenuBarNotificationApp {
         
         // Update pending count
         this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length;
-        this.trayManager.updateTrayIcon();
+        this.updateTrayIcon();
         
         // Send response back through WebSocket if needed
         this.sendWebSocketResponse(message, 'rejected', feedback);
@@ -634,44 +715,7 @@ class MenuBarNotificationApp {
 
     // Handle show all messages
     ipcMain.on('show-messages', (): void => {
-      this.windowManager.showWindow();
-    });
-
-    // WebSocket key management
-    ipcMain.handle('get-ws-connection-key', (): string | null => {
-      return this.wsConnectionKey;
-    });
-
-    ipcMain.handle('get-ws-connection-url', (): string => {
-      return this.getWebSocketConnectionUrl();
-    });
-
-    ipcMain.handle('regenerate-ws-key', async (): Promise<{ key: string; createdAt: number }> => {
-      await this.generateNewWebSocketKey();
-      return {
-        key: this.wsConnectionKey!,
-        createdAt: Date.now()
-      };
-    });
-
-    ipcMain.handle('get-ws-key-info', (): { key: string | null; createdAt: number | null; keyFile: string } => {
-      let createdAt: number | null = null;
-      
-      try {
-        if (fs.existsSync(this.WS_KEY_FILE)) {
-          const keyData = fs.readFileSync(this.WS_KEY_FILE, 'utf8');
-          const parsedData = JSON.parse(keyData);
-          createdAt = parsedData.createdAt;
-        }
-      } catch (error) {
-        console.error('Error reading key file:', error);
-      }
-      
-      return {
-        key: this.wsConnectionKey,
-        createdAt,
-        keyFile: this.WS_KEY_FILE
-      };
+      this.showWindow();
     });
   }
 
@@ -716,7 +760,7 @@ class MenuBarNotificationApp {
           
           // Update pending count
           this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length;
-          this.trayManager.updateTrayIcon();
+          this.updateTrayIcon();
           
           // Send response through WebSocket if needed
           this.sendWebSocketResponse(message, status, feedback);
@@ -743,8 +787,9 @@ class MenuBarNotificationApp {
       this.wsServer.close();
     }
 
-    this.trayManager.destroy();
-    this.windowManager.destroy();
+    if (this.tray) {
+      this.tray.destroy();
+    }
   }
 }
 
