@@ -121,10 +121,10 @@
       "icon": "assets/keyboard512px.png"
     },
     "win": {
-      "icon": "assets/icon.ico"
+      "icon": "assets/keyboard512px.png"
     },
     "linux": {
-      "icon": "assets/icon.png"
+      "icon": "assets/keyboard512px.png"
     }
   }
 }

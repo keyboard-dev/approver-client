@@ -32,6 +32,7 @@ class MenuBarNotificationApp {
   // Encryption key management
   private encryptionKey: string | null = null;
   private readonly ENCRYPTION_KEY_FILE = path.join(os.homedir(), '.keyboard-mcp-encryption-key');
+  
 
   constructor() {
     // Initialize managers
@@ -634,10 +635,14 @@ class MenuBarNotificationApp {
     }
 
     try {
+      // Path to your logo for notifications
+      const iconPath = path.join(__dirname, '..', 'assets', 'keyboard512px.png');
+      
       const notification = new Notification({
         title: message.title,
         body: message.body,
-        urgency: message.priority === 'high' ? 'critical' : 'normal'
+        urgency: message.priority === 'high' ? 'critical' : 'normal',
+        icon: iconPath // Add your logo here
       });
 
       notification.on('click', () => {
@@ -645,7 +650,7 @@ class MenuBarNotificationApp {
       });
 
       notification.show();
-      } catch (error) {
+    } catch (error) {
       console.error('❌ Error showing notification:', error);
     }
   }

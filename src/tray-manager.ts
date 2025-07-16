@@ -1,5 +1,7 @@
 import { Tray, Menu, nativeImage, BrowserWindow, screen, app } from 'electron';
 import { Message } from './types';
+import * as path from 'path';
+import * as fs from 'fs';
 
 export interface TrayManagerOptions {
   onToggleWindow: (bounds?: Electron.Rectangle) => void;
@@ -39,10 +41,75 @@ export class TrayManager {
   }
 
   private createTrayIcon(): Electron.NativeImage {
-    // Create a simple 16x16 icon
+    // Try to load logo from assets directory
+    const assetsPath = path.join(__dirname, '..', 'assets');
+    const logoPath = path.join(assetsPath, 'keyboard512px.png');
+    
+    // Check if logo file exists
+    if (fs.existsSync(logoPath)) {
+      try {
+        // Load the logo and resize it for tray usage
+        const logo = nativeImage.createFromPath(logoPath);
+        
+        // Resize to appropriate tray icon size
+        const traySize = process.platform === 'darwin' ? 16 : 16; // 16x16 for most platforms
+        const resizedLogo = logo.resize({ width: traySize, height: traySize });
+        
+        // Apply visual modifications based on pending state
+        const pendingCount = this.options.getPendingCount();
+        console.log('this is the path', logoPath);
+        if (pendingCount > 0) {
+          // Add a red notification badge for pending messages
+          return this.addNotificationBadge(resizedLogo, pendingCount);
+        }
+        
+        // On macOS, set as template image for automatic theme adaptation
+        if (process.platform === 'darwin') {
+          resizedLogo.setTemplateImage(true);
+        }
+        
+        return resizedLogo;
+      } catch (error) {
+        console.error('Error loading logo for tray:', error);
+        return this.createFallbackIcon();
+      }
+    }
+    
+    // Fallback to programmatic icon if logo doesn't exist
+    return this.createFallbackIcon();
+  }
+
+  private addNotificationBadge(baseIcon: Electron.NativeImage, count: number): Electron.NativeImage {
+    // For now, we'll create a simple overlay effect
+    // In a more advanced implementation, you could draw a red badge with the count
+    const size = baseIcon.getSize();
+    
+    // Create a copy of the base icon
+    const canvas = Buffer.alloc(size.width * size.height * 4);
+    const iconBuffer = baseIcon.toPNG();
+    
+    // For simplicity, we'll just add a red tint to indicate pending messages
+    // You could enhance this to draw an actual badge with canvas or use image composition
+    try {
+      // Simple approach: create a version with modified appearance
+      const badgedIcon = nativeImage.createFromBuffer(iconBuffer);
+      
+      // On macOS, don't set as template when showing notifications
+      if (process.platform === 'darwin') {
+        badgedIcon.setTemplateImage(false);
+      }
+      
+      return badgedIcon;
+    } catch (error) {
+      console.error('Error creating notification badge:', error);
+      return baseIcon;
+    }
+  }
+
+  private createFallbackIcon(): Electron.NativeImage {
+    // Create a simple 16x16 icon as fallback
     const size = 16;
     
-    // Create a simple colored square as fallback (works without canvas)
     const canvas = Buffer.alloc(size * size * 4);
     const pendingCount = this.options.getPendingCount();
     const color = pendingCount > 0 ? [255, 59, 48, 255] : [0, 122, 255, 255];
