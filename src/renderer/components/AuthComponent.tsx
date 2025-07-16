@@ -5,7 +5,7 @@ import { Alert, AlertDescription } from '../../components/ui/alert';
 import { Badge } from './ui/badge';
 import { User, LogIn, LogOut, Shield, AlertCircle, CheckCircle } from 'lucide-react';
 import { AuthStatus, AuthError } from '../../preload';
-import { SKIP_AUTH_USER_ID } from '../../lib/constants/auth.constants';
+import { SKIP_AUTH_USER_EMAIL, SKIP_AUTH_USER_FIRST_NAME, SKIP_AUTH_USER_ID, SKIP_AUTH_USER_LAST_NAME } from '../../lib/constants/auth.constants';
 
 interface AuthComponentProps {
   isSkippingAuth: boolean;
@@ -71,8 +71,8 @@ const AuthComponent: React.FC<AuthComponentProps> = ({
   const loadAuthStatus = async () => {
     try {
       if (isSkippingAuth) {
-        setAuthStatus({ authenticated: true, user: { id: SKIP_AUTH_USER_ID, email: 'test@test.com', firstName: 'Test', lastName: 'User' } });
-        onAuthChange({ authenticated: true, user: { id: SKIP_AUTH_USER_ID, email: 'test@test.com', firstName: 'Test', lastName: 'User' } });
+        setAuthStatus({ authenticated: true, user: { id: SKIP_AUTH_USER_ID, email: SKIP_AUTH_USER_EMAIL, firstName: SKIP_AUTH_USER_FIRST_NAME, lastName: SKIP_AUTH_USER_LAST_NAME} });
+        onAuthChange({ authenticated: true, user: { id: SKIP_AUTH_USER_ID, email: SKIP_AUTH_USER_EMAIL, firstName: SKIP_AUTH_USER_FIRST_NAME, lastName: SKIP_AUTH_USER_LAST_NAME } });
         return;
       }
 
@@ -109,9 +109,9 @@ const AuthComponent: React.FC<AuthComponentProps> = ({
         authenticated: true,
         user: {
           id: SKIP_AUTH_USER_ID,
-          email: 'test@test.com',
-          firstName: 'Test',
-          lastName: 'User',
+          email: SKIP_AUTH_USER_EMAIL,
+          firstName: SKIP_AUTH_USER_FIRST_NAME,
+          lastName: SKIP_AUTH_USER_LAST_NAME,
         },
       }
     );
@@ -197,7 +197,7 @@ const AuthComponent: React.FC<AuthComponentProps> = ({
           <span>Authentication Required</span>
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 flex flex-col items-start">
         <p className="text-sm text-gray-600">
           Please authenticate to access the message approval system. This will open your browser for secure login.
         </p>
@@ -211,27 +211,26 @@ const AuthComponent: React.FC<AuthComponentProps> = ({
           </Alert>
         )}
 
-        <div className="flex flex-col gap-2 justify-center items-center w-full">
+        <div className="flex flex-col gap-2 justify-center items-center w-40 self-center">
           <Button
             onClick={handleLogin}
             disabled={isLoading}
-            className="bg-blue-600 hover:bg-blue-700 text-white w-fit"
+            className="bg-gray-200 hover:bg-gray-400 text-gray-800 w-full"
           >
-            <LogIn className="h-4 w-4 mr-2" />
+            {/* <LogIn className="h-4 w-4 mr-2" /> */}
             {isLoading ? 'Authenticating...' : 'Sign In'}
           </Button>
 
           <Button
             onClick={handleSkipAuth}
             disabled={isLoading}
-            className="bg-green-600 hover:bg-green-700 text-white w-fit"
+            className="bg-gray-600 hover:bg-gray-800 text-white w-full"
           >
-            {/* <Skip className="h-4 w-4 mr-2" /> */}
             Skip Authentication
           </Button>
         </div>
 
-        <div className="text-xs text-gray-500 text-center">
+        <div className="text-xs text-gray-500 text-center self-center">
           <p>This will open your default browser for secure authentication.</p>
           <p>You'll be redirected back to this app after login.</p>
         </div>

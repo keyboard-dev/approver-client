@@ -11,7 +11,7 @@ import { CheckCircle, XCircle, Clock, AlertTriangle, X, Wifi, WifiOff } from 'lu
 import AuthComponent from './components/AuthComponent';
 import WebSocketKeyManager from './components/WebSocketKeyManager';
 import './App.css';
-import { SKIP_AUTH_USER_ID } from '../lib/constants/auth.constants';
+import { extractJsonFromCodeApproval } from '../lib/utils/data.utils';
 
 const App: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -129,6 +129,7 @@ const App: React.FC = () => {
 
   // Initialize event listeners only once
   useEffect(() => {
+
     // Listen for regular messages from main process
     const handleShowMessage = (event: any, message: Message) => {
       // Only handle messages if authenticated
@@ -244,6 +245,9 @@ const App: React.FC = () => {
   const showMessageDetail = (message: Message) => {
     if (!authStatusRef.current.authenticated) return;
 
+    console.log('message', message);
+
+
     setCurrentMessage(message);
     setFeedback(message.feedback || '');
     setShowFeedback(false);
@@ -301,6 +305,55 @@ const App: React.FC = () => {
         return <Badge variant="outline">Low Priority</Badge>;
       default:
         return null;
+    }
+  };
+
+  const getCodeBlock = (message: Message) => {
+    switch (message.title) {
+      case 'Security Evaluation Request':
+        return (
+          <Tabs defaultValue="code" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="code">Code</TabsTrigger>
+              <TabsTrigger value="explanation">Explanation</TabsTrigger>
+            </TabsList>
+            <TabsContent value="code" className="mt-2">
+              <div className="bg-gray-100 p-4 rounded-lg">
+                <pre className="whitespace-pre-wrap text-sm font-mono">{message.code || 'No code provided'}</pre>
+              </div>
+            </TabsContent>
+            <TabsContent value="explanation" className="mt-2">
+              <div className="bg-gray-100 p-4 rounded-lg">
+                <pre className="whitespace-pre-wrap text-sm">{message.explaination || 'No explanation provided'}</pre>
+              </div>
+            </TabsContent>
+          </Tabs>
+        );
+      case "code response approval":
+        const parsedBody = extractJsonFromCodeApproval(message.body);
+        const { data } = parsedBody;
+        let stdout, stderr;
+        if (data) {
+          ({ stdout, stderr } = data);
+        } else {
+          ({ stdout, stderr } = parsedBody);
+        }
+        return (
+          <div className="bg-gray-100 p-4 rounded-lg">
+            <pre className="whitespace-pre-wrap text-sm">{stdout || 'No output'}</pre>
+            {stderr && (
+              <pre className="whitespace-pre-wrap text-sm text-red-600">{stderr}</pre>
+            )}
+          </div>
+        );
+      default:
+        return (
+          <div className="bg-gray-100 p-4 rounded-lg">
+            <pre className="whitespace-pre-wrap text-sm">
+              {message.body}
+            </pre>
+          </div>
+        );
     }
   };
 
@@ -389,7 +442,8 @@ const App: React.FC = () => {
                   {/* Message Body - Show tabs if codeEval is true, otherwise show regular body */}
                   <div>
                     <h3 className="text-lg font-semibold mb-2">Request Details</h3>
-                    {currentMessage.codeEval ? (
+                    {getCodeBlock(currentMessage)}
+                    {/* {currentMessage.codeEval ? (
                       <Tabs defaultValue="code" className="w-full">
                         <TabsList className="grid w-full grid-cols-2">
                           <TabsTrigger value="code">Code</TabsTrigger>
@@ -410,7 +464,7 @@ const App: React.FC = () => {
                       <div className="bg-gray-100 p-4 rounded-lg">
                         <pre className="whitespace-pre-wrap text-sm">{currentMessage.body}</pre>
                       </div>
-                    )}
+                    )} */}
                   </div>
 
                   <Separator />
