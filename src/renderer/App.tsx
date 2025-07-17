@@ -10,6 +10,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from './components/ui/tabs';
 import { CheckCircle, XCircle, Clock, AlertTriangle, X, Wifi, WifiOff } from 'lucide-react';
 import AuthComponent from './components/AuthComponent';
 import WebSocketKeyManager from './components/WebSocketKeyManager';
+import { OAuthProviderManager } from './components/OAuthProviderManager';
 import './App.css';
 import { extractJsonFromCodeApproval } from '../lib/utils/data.utils';
 
@@ -562,7 +563,18 @@ const App: React.FC = () => {
 {showSettings ? (
                   // Settings View
                   <div className="space-y-6">
-                    <WebSocketKeyManager />
+                    <Tabs defaultValue="websocket" className="w-full">
+                      <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="websocket">WebSocket</TabsTrigger>
+                        <TabsTrigger value="oauth">OAuth Providers</TabsTrigger>
+                      </TabsList>
+                      <TabsContent value="websocket" className="mt-6">
+                        <WebSocketKeyManager />
+                      </TabsContent>
+                      <TabsContent value="oauth" className="mt-6">
+                        <OAuthProviderManager />
+                      </TabsContent>
+                    </Tabs>
                   </div>
                 ) : (
                   // Message List View

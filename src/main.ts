@@ -8,6 +8,9 @@ import { createRestAPIServer } from './rest-api';
 import { Message, AuthTokens, PKCEParams, AuthorizeResponse, TokenResponse, ErrorResponse } from './types';
 import { TrayManager, TrayManagerOptions } from './tray-manager';
 import { WindowManager, WindowManagerOptions } from './window-manager';
+import { OAuthProviderManager, OAuthProvider, ProviderTokens, PKCEParams as NewPKCEParams } from './oauth-providers';
+import { OAuthTokenStorage, StoredProviderTokens } from './oauth-token-storage';
+import { OAuthHttpServer, OAuthCallbackData } from './oauth-http-server';
 
 class MenuBarNotificationApp {
   private trayManager: TrayManager;
@@ -18,17 +21,29 @@ class MenuBarNotificationApp {
   private pendingCount: number = 0;
   private notificationsEnabled: boolean = true;
   private readonly WS_PORT = 8080;
+  private readonly OAUTH_PORT = 8082;
   private readonly OAUTH_SERVER_URL = process.env.OAUTH_SERVER_URL || 'https://api.keyboard.dev';
   private readonly SKIP_AUTH = process.env.SKIP_AUTH === 'true';
   private readonly CUSTOM_PROTOCOL = 'mcpauth';
   private currentPKCE: PKCEParams | null = null;
   private authTokens: AuthTokens | null = null;
   
+  // New OAuth provider system
+  private oauthProviderManager: OAuthProviderManager;
+  private oauthTokenStorage: OAuthTokenStorage;
+  private currentProviderPKCE: NewPKCEParams | null = null;
+  private oauthHttpServer: OAuthHttpServer;
+  
   // WebSocket security
   private wsConnectionKey: string | null = null;
   private readonly WS_KEY_FILE = path.join(os.homedir(), '.keyboard-mcp-ws-key');
 
   constructor() {
+    // Initialize OAuth provider system
+    this.oauthProviderManager = new OAuthProviderManager(this.CUSTOM_PROTOCOL);
+    this.oauthTokenStorage = new OAuthTokenStorage();
+    this.oauthHttpServer = new OAuthHttpServer(this.OAUTH_PORT);
+    
     // Initialize managers
     this.windowManager = new WindowManager({
       onWindowClosed: () => {
@@ -75,7 +90,11 @@ class MenuBarNotificationApp {
       // Handle macOS open-url events (MUST be before app.whenReady())
       app.on('open-url', (event, url) => {
         event.preventDefault();
-        this.handleOAuthCallback(url);
+        // Try new provider OAuth flow first, then fall back to legacy
+        this.handleProviderOAuthCallback(url).catch((error) => {
+          console.warn('Provider OAuth callback failed, trying legacy flow:', error);
+          this.handleOAuthCallback(url);
+        });
       });
     }
 
@@ -84,7 +103,11 @@ class MenuBarNotificationApp {
       // Find protocol URL in command line arguments
       const url = commandLine.find(arg => arg.startsWith(`${this.CUSTOM_PROTOCOL}://`));
       if (url) {
-        this.handleOAuthCallback(url);
+        // Try new provider OAuth flow first, then fall back to legacy
+        this.handleProviderOAuthCallback(url).catch((error) => {
+          console.warn('Provider OAuth callback failed, trying legacy flow:', error);
+          this.handleOAuthCallback(url);
+        });
       }
       
       // Show the window if it exists
@@ -206,6 +229,192 @@ class MenuBarNotificationApp {
     const state = crypto.randomBytes(16).toString('hex');
 
     return { codeVerifier, codeChallenge, state };
+  }
+
+  // New OAuth provider methods
+  private async startProviderOAuthFlow(providerId: string): Promise<void> {
+    try {
+      const provider = this.oauthProviderManager.getProvider(providerId);
+      if (!provider) {
+        throw new Error(`Provider ${providerId} not found`);
+      }
+
+      if (!provider.clientId) {
+        throw new Error(`Provider ${providerId} is not configured (missing client ID)`);
+      }
+
+      // Generate PKCE parameters
+      this.currentProviderPKCE = this.oauthProviderManager.generatePKCE(providerId);
+      
+      // Start HTTP server to handle OAuth callback
+      await this.oauthHttpServer.startServer((callbackData: OAuthCallbackData) => {
+        this.handleOAuthHttpCallback(callbackData);
+      });
+      
+      // Build authorization URL
+      const authUrl = this.oauthProviderManager.buildAuthorizationUrl(provider, this.currentProviderPKCE);
+      
+      // Open browser for user authentication
+      await shell.openExternal(authUrl);
+      
+      console.log(`🔐 Started OAuth flow for provider: ${providerId}`);
+      console.log(`🌐 OAuth callback server listening on http://localhost:${this.OAUTH_PORT}/callback`);
+      
+    } catch (error) {
+      console.error(`❌ OAuth flow error for ${providerId}:`, error);
+      this.notifyProviderAuthError(providerId, 'Failed to start authentication');
+      this.oauthHttpServer.stopServer(); // Clean up on error
+    }
+  }
+
+  private async handleProviderOAuthCallback(url: string): Promise<void> {
+    try {
+      const urlObj = new URL(url);
+      const code = urlObj.searchParams.get('code');
+      const state = urlObj.searchParams.get('state');
+      const error = urlObj.searchParams.get('error');
+
+      if (error) {
+        throw new Error(`OAuth error: ${error} - ${urlObj.searchParams.get('error_description')}`);
+      }
+
+      if (!code || !state) {
+        throw new Error('Missing authorization code or state');
+      }
+
+      if (!this.currentProviderPKCE || state !== this.currentProviderPKCE.state) {
+        throw new Error('State mismatch - potential CSRF attack');
+      }
+
+      // Get provider configuration
+      const provider = this.oauthProviderManager.getProvider(this.currentProviderPKCE.providerId);
+      if (!provider) {
+        throw new Error(`Provider ${this.currentProviderPKCE.providerId} not found`);
+      }
+
+      // Exchange code for tokens
+      await this.exchangeProviderCodeForTokens(provider, code, this.currentProviderPKCE);
+      
+    } catch (error) {
+      console.error('❌ Provider OAuth callback error:', error);
+      const providerId = this.currentProviderPKCE?.providerId || 'unknown';
+      this.notifyProviderAuthError(providerId, `Authentication failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  private async handleOAuthHttpCallback(callbackData: OAuthCallbackData): Promise<void> {
+    try {
+      if (callbackData.error) {
+        throw new Error(`OAuth error: ${callbackData.error} - ${callbackData.error_description || ''}`);
+      }
+
+      if (!callbackData.code || !callbackData.state) {
+        throw new Error('Missing authorization code or state');
+      }
+
+      if (!this.currentProviderPKCE || callbackData.state !== this.currentProviderPKCE.state) {
+        throw new Error('State mismatch - potential CSRF attack');
+      }
+
+      // Get provider configuration
+      const provider = this.oauthProviderManager.getProvider(this.currentProviderPKCE.providerId);
+      if (!provider) {
+        throw new Error(`Provider ${this.currentProviderPKCE.providerId} not found`);
+      }
+
+      // Exchange code for tokens
+      await this.exchangeProviderCodeForTokens(provider, callbackData.code, this.currentProviderPKCE);
+      
+    } catch (error) {
+      console.error('❌ OAuth HTTP callback error:', error);
+      const providerId = this.currentProviderPKCE?.providerId || 'unknown';
+      this.notifyProviderAuthError(providerId, `Authentication failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  private async exchangeProviderCodeForTokens(provider: OAuthProvider, code: string, pkceParams: NewPKCEParams): Promise<void> {
+    try {
+      // Exchange code for tokens using provider manager
+      const tokens = await this.oauthProviderManager.exchangeCodeForTokens(provider, code, pkceParams);
+      
+      // Store tokens securely
+      await this.oauthTokenStorage.storeTokens(tokens);
+      
+      // Clear PKCE data
+      this.currentProviderPKCE = null;
+      
+      // Notify the renderer process
+      this.windowManager.sendMessage('provider-auth-success', {
+        providerId: provider.id,
+        providerName: provider.name,
+        user: tokens.user,
+        authenticated: true
+      });
+
+      // Show the window after successful authentication
+      this.windowManager.showWindow();
+
+      // Show success notification
+      this.showNotification({
+        id: `auth-success-${provider.id}`,
+        title: `${provider.name} Authentication Successful`,
+        body: `Successfully connected to ${provider.name}${tokens.user ? ` as ${tokens.user.name || tokens.user.email}` : ''}`,
+        timestamp: Date.now(),
+        priority: 'normal'
+      });
+
+      console.log(`✅ Successfully authenticated with ${provider.name}`);
+
+    } catch (error) {
+      console.error(`❌ Token exchange error for ${provider.id}:`, error);
+      this.notifyProviderAuthError(provider.id, `Token exchange failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  private async refreshProviderTokens(providerId: string, refreshToken: string): Promise<ProviderTokens> {
+    const provider = this.oauthProviderManager.getProvider(providerId);
+    if (!provider) {
+      throw new Error(`Provider ${providerId} not found`);
+    }
+
+    return await this.oauthProviderManager.refreshTokens(provider, refreshToken);
+  }
+
+  private async getValidProviderAccessToken(providerId: string): Promise<string | null> {
+    return await this.oauthTokenStorage.getValidAccessToken(
+      providerId,
+      this.refreshProviderTokens.bind(this)
+    );
+  }
+
+  private notifyProviderAuthError(providerId: string, message: string): void {
+    console.error(`🔐 Auth Error for ${providerId}:`, message);
+    
+    this.windowManager.sendMessage('provider-auth-error', { 
+      providerId,
+      message 
+    });
+
+    const provider = this.oauthProviderManager.getProvider(providerId);
+    const providerName = provider?.name || providerId;
+
+    this.showNotification({
+      id: `auth-error-${providerId}`,
+      title: `${providerName} Authentication Error`,
+      body: message,
+      timestamp: Date.now(),
+      priority: 'high'
+    });
+  }
+
+  private async logoutProvider(providerId: string): Promise<void> {
+    await this.oauthTokenStorage.removeTokens(providerId);
+    this.windowManager.sendMessage('provider-auth-logout', { providerId });
+    
+    const provider = this.oauthProviderManager.getProvider(providerId);
+    const providerName = provider?.name || providerId;
+    
+    console.log(`👋 Logged out from ${providerName}`);
   }
 
   private async startOAuthFlow(): Promise<void> {
@@ -560,7 +769,7 @@ class MenuBarNotificationApp {
   }
 
   private setupIPC(): void {
-    // OAuth-related IPC handlers
+    // OAuth-related IPC handlers (Legacy)
     ipcMain.handle('start-oauth', async (): Promise<void> => {
       await this.startOAuthFlow();
     });
@@ -578,6 +787,55 @@ class MenuBarNotificationApp {
 
     ipcMain.handle('get-access-token', async (): Promise<string | null> => {
       return await this.getValidAccessToken();
+    });
+
+    // New OAuth Provider IPC handlers
+    ipcMain.handle('get-available-providers', (): OAuthProvider[] => {
+      return this.oauthProviderManager.getAvailableProviders();
+    });
+
+    ipcMain.handle('start-provider-oauth', async (event, providerId: string): Promise<void> => {
+      await this.startProviderOAuthFlow(providerId);
+    });
+
+    ipcMain.handle('get-provider-auth-status', async (): Promise<Record<string, any>> => {
+      return await this.oauthTokenStorage.getProviderStatus();
+    });
+
+    ipcMain.handle('get-provider-access-token', async (event, providerId: string): Promise<string | null> => {
+      return await this.getValidProviderAccessToken(providerId);
+    });
+
+    ipcMain.handle('logout-provider', async (event, providerId: string): Promise<void> => {
+      await this.logoutProvider(providerId);
+    });
+
+    ipcMain.handle('get-provider-tokens', async (event, providerId: string): Promise<StoredProviderTokens | null> => {
+      return await this.oauthTokenStorage.getTokens(providerId);
+    });
+
+    ipcMain.handle('refresh-provider-tokens', async (event, providerId: string): Promise<boolean> => {
+      try {
+        const tokens = await this.oauthTokenStorage.getTokens(providerId);
+        if (!tokens?.refresh_token) {
+          return false;
+        }
+        
+        const refreshedTokens = await this.refreshProviderTokens(providerId, tokens.refresh_token);
+        await this.oauthTokenStorage.storeTokens(refreshedTokens);
+        return true;
+      } catch (error) {
+        console.error(`Failed to refresh tokens for ${providerId}:`, error);
+        return false;
+      }
+    });
+
+    ipcMain.handle('clear-all-provider-tokens', async (): Promise<void> => {
+      await this.oauthTokenStorage.clearAllTokens();
+    });
+
+    ipcMain.handle('get-oauth-storage-info', (): any => {
+      return this.oauthTokenStorage.getStorageInfo();
     });
 
     // Handle requests for all messages
@@ -741,6 +999,11 @@ class MenuBarNotificationApp {
     
     if (this.wsServer) {
       this.wsServer.close();
+    }
+
+    // Stop OAuth HTTP server
+    if (this.oauthHttpServer) {
+      this.oauthHttpServer.stopServer();
     }
 
     this.trayManager.destroy();
