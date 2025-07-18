@@ -90,11 +90,15 @@ class MenuBarNotificationApp {
       // Handle macOS open-url events (MUST be before app.whenReady())
       app.on('open-url', (event, url) => {
         event.preventDefault();
-        // Try new provider OAuth flow first, then fall back to legacy
-        this.handleProviderOAuthCallback(url).catch((error) => {
-          console.warn('Provider OAuth callback failed, trying legacy flow:', error);
+        
+        // Only handle our custom protocol URLs, ignore HTTP URLs
+        if (url.startsWith(`${this.CUSTOM_PROTOCOL}://`)) {
+          console.log('🔗 Processing custom protocol callback:', url);
+          // Custom protocol URLs should only go to legacy OAuth handler
           this.handleOAuthCallback(url);
-        });
+        } else {
+          console.log('🔗 Ignoring non-protocol URL:', url);
+        }
       });
     }
 
@@ -103,11 +107,9 @@ class MenuBarNotificationApp {
       // Find protocol URL in command line arguments
       const url = commandLine.find(arg => arg.startsWith(`${this.CUSTOM_PROTOCOL}://`));
       if (url) {
-        // Try new provider OAuth flow first, then fall back to legacy
-        this.handleProviderOAuthCallback(url).catch((error) => {
-          console.warn('Provider OAuth callback failed, trying legacy flow:', error);
-          this.handleOAuthCallback(url);
-        });
+        console.log('🔗 Processing second instance protocol callback:', url);
+        // Custom protocol URLs should only go to legacy OAuth handler
+        this.handleOAuthCallback(url);
       }
       
       // Show the window if it exists
@@ -245,6 +247,12 @@ class MenuBarNotificationApp {
 
       // Generate PKCE parameters
       this.currentProviderPKCE = this.oauthProviderManager.generatePKCE(providerId);
+      console.log('🔑 Generated PKCE parameters:', {
+        providerId: this.currentProviderPKCE.providerId,
+        state: this.currentProviderPKCE.state,
+        hasCodeVerifier: !!this.currentProviderPKCE.codeVerifier,
+        hasCodeChallenge: !!this.currentProviderPKCE.codeChallenge
+      });
       
       // Start HTTP server to handle OAuth callback
       await this.oauthHttpServer.startServer((callbackData: OAuthCallbackData) => {
@@ -253,6 +261,7 @@ class MenuBarNotificationApp {
       
       // Build authorization URL
       const authUrl = this.oauthProviderManager.buildAuthorizationUrl(provider, this.currentProviderPKCE);
+      console.log('🔗 Authorization URL created:', authUrl.substring(0, 100) + '...');
       
       // Open browser for user authentication
       await shell.openExternal(authUrl);
@@ -304,6 +313,15 @@ class MenuBarNotificationApp {
 
   private async handleOAuthHttpCallback(callbackData: OAuthCallbackData): Promise<void> {
     try {
+      console.log('🌐 HTTP OAuth callback received:', {
+        hasError: !!callbackData.error,
+        hasCode: !!callbackData.code,
+        hasState: !!callbackData.state,
+        receivedState: callbackData.state,
+        storedState: this.currentProviderPKCE?.state,
+        storedProviderId: this.currentProviderPKCE?.providerId
+      });
+
       if (callbackData.error) {
         throw new Error(`OAuth error: ${callbackData.error} - ${callbackData.error_description || ''}`);
       }
@@ -312,9 +330,20 @@ class MenuBarNotificationApp {
         throw new Error('Missing authorization code or state');
       }
 
-      if (!this.currentProviderPKCE || callbackData.state !== this.currentProviderPKCE.state) {
+      if (!this.currentProviderPKCE) {
+        throw new Error('No PKCE parameters stored - possible callback timeout or duplicate callback');
+      }
+
+      if (callbackData.state !== this.currentProviderPKCE.state) {
+        console.error('❌ State mismatch details:', {
+          received: callbackData.state,
+          expected: this.currentProviderPKCE.state,
+          providerId: this.currentProviderPKCE.providerId
+        });
         throw new Error('State mismatch - potential CSRF attack');
       }
+
+      console.log('✅ State validation passed, proceeding with token exchange');
 
       // Get provider configuration
       const provider = this.oauthProviderManager.getProvider(this.currentProviderPKCE.providerId);
@@ -334,12 +363,15 @@ class MenuBarNotificationApp {
 
   private async exchangeProviderCodeForTokens(provider: OAuthProvider, code: string, pkceParams: NewPKCEParams): Promise<void> {
     try {
+      console.log('🔄 Starting token exchange for provider:', provider.id);
+      
       // Exchange code for tokens using provider manager
       const tokens = await this.oauthProviderManager.exchangeCodeForTokens(provider, code, pkceParams);
       
       // Store tokens securely
       await this.oauthTokenStorage.storeTokens(tokens);
       
+      console.log('🧹 Clearing PKCE data after successful token exchange');
       // Clear PKCE data
       this.currentProviderPKCE = null;
       
@@ -656,8 +688,9 @@ class MenuBarNotificationApp {
       ws.on('message', async (data: WebSocket.Data) => {
         try {
           const message = JSON.parse(data.toString());
+          console.log('🔐 Received message:', message);
           
-          // Handle token request
+          // Handle token request (legacy OAuth)
           if (message.type === 'request-token') {
             const token = await this.getValidAccessToken();
             
@@ -671,6 +704,84 @@ class MenuBarNotificationApp {
             };
             
             ws.send(JSON.stringify(tokenResponse));
+            return;
+          }
+
+          // Handle provider token request (new OAuth provider system)
+          if (message.type === 'request-provider-token') {
+            const { providerId } = message;
+            
+            if (!providerId) {
+              ws.send(JSON.stringify({
+                type: 'provider-auth-token',
+                error: 'Provider ID is required',
+                timestamp: Date.now(),
+                requestId: message.requestId
+              }));
+              return;
+            }
+
+            try {
+              const token = await this.getValidProviderAccessToken(providerId.toLowerCase());
+              const providerStatus = await this.oauthTokenStorage.getProviderStatus();
+              const providerInfo = providerStatus[providerId];
+              
+              const tokenResponse = {
+                type: 'provider-auth-token',
+                providerId: providerId,
+                token: token,
+                timestamp: Date.now(),
+                requestId: message.requestId,
+                authenticated: !!token || this.SKIP_AUTH,
+                user: providerInfo?.user || (this.SKIP_AUTH ? { email: 'test@example.com', firstName: 'Test Provider' } : null),
+                providerName: this.oauthProviderManager.getProvider(providerId)?.name || providerId
+              };
+              
+              ws.send(JSON.stringify(tokenResponse));
+            } catch (error) {
+              ws.send(JSON.stringify({
+                type: 'provider-auth-token',
+                providerId: providerId,
+                error: `Failed to get token: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                timestamp: Date.now(),
+                requestId: message.requestId
+              }));
+            }
+            return;
+          }
+
+          // Handle provider status request
+          if (message.type === 'request-provider-status') {
+            try {
+              const availableProviders = this.oauthProviderManager.getAvailableProviders();
+              const providerStatus = await this.oauthTokenStorage.getProviderStatus();
+              
+              const tokensAvailable: string[] = [];
+              
+              for (const provider of availableProviders) {
+                const status = providerStatus[provider.id];
+                if (status && status.authenticated) {
+                  tokensAvailable.push(`KEYBOARD_PROVIDER_USER_TOKEN_FOR_${provider.id.toUpperCase()}`);
+                }
+              }
+              
+              const statusResponse = {
+                type: 'user-tokens-available',
+                tokensAvailable: tokensAvailable,
+                timestamp: Date.now(),
+                requestId: message.requestId
+              };
+              console.log('🔐 Sending status response:', statusResponse);
+              
+              ws.send(JSON.stringify(statusResponse));
+            } catch (error) {
+              ws.send(JSON.stringify({
+                type: 'user-tokens-available',
+                error: `Failed to get provider status: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                timestamp: Date.now(),
+                requestId: message.requestId
+              }));
+            }
             return;
           }
           

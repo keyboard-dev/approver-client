@@ -11,3 +11,5 @@ dist-build
 .env*
 out
 out/
+.log*
+.log
