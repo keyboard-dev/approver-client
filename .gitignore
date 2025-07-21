@@ -13,3 +13,4 @@ out
 out/
 .log*
 .log
+scripts/build-signed.sh
