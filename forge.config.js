@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('@dotenvx/dotenvx').config()
 
 module.exports = {
   packagerConfig: {
