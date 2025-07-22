@@ -23,7 +23,7 @@ class MenuBarNotificationApp {
   private readonly CUSTOM_PROTOCOL = 'mcpauth';
   private currentPKCE: PKCEParams | null = null;
   private authTokens: AuthTokens | null = null;
-  
+
   // WebSocket security
   private wsConnectionKey: string | null = null;
   private readonly WS_KEY_FILE = path.join(os.homedir(), '.keyboard-mcp-ws-key');
@@ -69,7 +69,7 @@ class MenuBarNotificationApp {
     }
 
     // STEP 2: Set up event listeners BEFORE app.whenReady()
-    
+
     // Platform-specific protocol handling
     if (process.platform === 'darwin') {
       // Handle macOS open-url events (MUST be before app.whenReady())
@@ -86,7 +86,7 @@ class MenuBarNotificationApp {
       if (url) {
         this.handleOAuthCallback(url);
       }
-      
+
       // Show the window if it exists
       this.windowManager.showWindow();
     });
@@ -100,15 +100,15 @@ class MenuBarNotificationApp {
     app.whenReady().then(async () => {
       // Initialize WebSocket security key first
       await this.initializeWebSocketKey();
-      
+
       this.trayManager.createTray();
       this.setupWebSocketServer();
       this.setupRestAPI();
       this.setupIPC();
-      
+
       // Request notification permissions on all platforms
       await this.requestNotificationPermissions();
-      
+
       app.on('activate', () => {
         // On macOS, show window when app is activated
         this.windowManager.showWindow();
@@ -133,12 +133,12 @@ class MenuBarNotificationApp {
       if (fs.existsSync(this.WS_KEY_FILE)) {
         const keyData = fs.readFileSync(this.WS_KEY_FILE, 'utf8');
         const parsedData = JSON.parse(keyData);
-        
+
         // Validate key format and age (regenerate if older than 30 days)
         if (parsedData.key && parsedData.createdAt) {
           const keyAge = Date.now() - parsedData.createdAt;
           const maxAge = 30 * 24 * 60 * 60 * 1000; // 30 days
-          
+
           if (keyAge < maxAge) {
             this.wsConnectionKey = parsedData.key;
             console.log('🔑 Loaded existing WebSocket connection key');
@@ -146,10 +146,10 @@ class MenuBarNotificationApp {
           }
         }
       }
-      
+
       // Generate new key if none exists or is expired
       await this.generateNewWebSocketKey();
-      
+
     } catch (error) {
       console.error('❌ Error initializing WebSocket key:', error);
       // Fallback: generate new key
@@ -161,25 +161,25 @@ class MenuBarNotificationApp {
     try {
       // Generate a secure random key
       this.wsConnectionKey = crypto.randomBytes(32).toString('hex');
-      
+
       // Store key with metadata
       const keyData = {
         key: this.wsConnectionKey,
         createdAt: Date.now(),
         version: '1.0'
       };
-      
+
       // Write to file with restricted permissions
       fs.writeFileSync(this.WS_KEY_FILE, JSON.stringify(keyData, null, 2), { mode: 0o600 });
-      
+
       console.log('🔑 Generated new WebSocket connection key');
-      
+
       // Notify UI if window exists
       this.windowManager.sendMessage('ws-key-generated', {
         key: this.wsConnectionKey,
         createdAt: keyData.createdAt
       });
-      
+
     } catch (error) {
       console.error('❌ Error generating WebSocket key:', error);
       throw error;
@@ -212,7 +212,7 @@ class MenuBarNotificationApp {
     try {
       // Generate PKCE parameters
       this.currentPKCE = this.generatePKCE();
-      
+
       // Get authorization URL from server
       const params = new URLSearchParams({
         redirect_uri: `${this.CUSTOM_PROTOCOL}://callback`,
@@ -222,16 +222,16 @@ class MenuBarNotificationApp {
       });
 
       const response = await fetch(`${this.OAUTH_SERVER_URL}/oauth/authorize?${params}`);
-      
+
       if (!response.ok) {
         throw new Error(`Failed to get authorization URL: ${response.statusText}`);
       }
 
       const data = await response.json() as AuthorizeResponse;
-      
+
       // Open browser for user authentication
       await shell.openExternal(data.authorization_url);
-      
+
     } catch (error) {
       console.error('❌ OAuth flow error:', error);
       this.notifyAuthError('Failed to start authentication');
@@ -259,7 +259,7 @@ class MenuBarNotificationApp {
 
       // Exchange code for tokens
       await this.exchangeCodeForTokens(code);
-      
+
     } catch (error) {
       console.error('❌ OAuth callback error:', error);
       this.notifyAuthError(`Authentication failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -296,10 +296,10 @@ class MenuBarNotificationApp {
         ...tokens,
         expires_at: Date.now() + (tokens.expires_in * 1000)
       };
-      
+
       this.authTokens = authTokens;
       this.currentPKCE = null; // Clear PKCE data
-      
+
       // Notify the renderer process
       this.windowManager.sendMessage('auth-success', {
         user: tokens.user,
@@ -347,7 +347,7 @@ class MenuBarNotificationApp {
       }
 
       const tokens = await response.json() as TokenResponse;
-      
+
       // Update tokens
       this.authTokens = {
         ...this.authTokens,
@@ -385,7 +385,7 @@ class MenuBarNotificationApp {
 
   private notifyAuthError(message: string): void {
     console.error('🔐 Auth Error:', message);
-    
+
     this.windowManager.sendMessage('auth-error', { message });
 
     this.showNotification({
@@ -400,12 +400,12 @@ class MenuBarNotificationApp {
   private logout(): void {
     this.authTokens = null;
     this.currentPKCE = null;
-    
+
     this.windowManager.sendMessage('auth-logout');
   }
 
   private setupWebSocketServer(): void {
-    this.wsServer = new WebSocket.Server({ 
+    this.wsServer = new WebSocket.Server({
       port: this.WS_PORT,
       host: '127.0.0.1', // Localhost only for security
       verifyClient: (info: any) => {
@@ -413,45 +413,45 @@ class MenuBarNotificationApp {
           // Extract key from query parameters
           const url = new URL(info.req.url!, `ws://127.0.0.1:${this.WS_PORT}`);
           const providedKey = url.searchParams.get('key');
-          
+
           // Validate connection is from localhost
           const remoteAddress = info.req.connection.remoteAddress;
-          const isLocalhost = remoteAddress === '127.0.0.1' || 
-                             remoteAddress === '::1' || 
+          const isLocalhost = remoteAddress === '127.0.0.1' ||
+                             remoteAddress === '::1' ||
                              remoteAddress === '::ffff:127.0.0.1';
-          
+
           if (!isLocalhost) {
             console.warn(`🚨 Rejected WebSocket connection from non-localhost: ${remoteAddress}`);
             return false;
           }
-          
+
           // Validate key
           if (!providedKey || !this.validateWebSocketKey(providedKey)) {
             console.warn(`🚨 Rejected WebSocket connection with invalid key from ${remoteAddress}`);
             return false;
           }
-          
+
 
           return true;
-          
+
         } catch (error) {
           console.error('❌ Error validating WebSocket connection:', error);
           return false;
         }
       }
     });
-    
+
     this.wsServer.on('connection', (ws: WebSocket, req) => {
       console.log(`🔐 Secure WebSocket connection established from ${req.connection.remoteAddress}`);
-      
+
       ws.on('message', async (data: WebSocket.Data) => {
         try {
           const message = JSON.parse(data.toString());
-          
+
           // Handle token request
           if (message.type === 'request-token') {
             const token = await this.getValidAccessToken();
-            
+
             const tokenResponse = {
               type: 'auth-token',
               token: token || (this.SKIP_AUTH ? 'test-token' : null),
@@ -460,11 +460,11 @@ class MenuBarNotificationApp {
               authenticated: !!token || this.SKIP_AUTH,
               user: token ? this.authTokens?.user : (this.SKIP_AUTH ? { email: 'test@example.com', firstName: 'Test' } : null)
             };
-            
+
             ws.send(JSON.stringify(tokenResponse));
             return;
           }
-          
+
           // Handle regular messages
           this.handleIncomingMessage(message);
         } catch (error) {
@@ -489,15 +489,15 @@ class MenuBarNotificationApp {
       message.status = 'pending';
     }
 
+    // Show desktop notification
+    this.showNotification(message);
+
     // Store the message
     this.messages.push(message);
 
     // Update pending count
     this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length;
     this.trayManager.updateTrayIcon();
-
-    // Show desktop notification
-    this.showNotification(message);
 
     // Send to renderer via websocket-message event
     this.windowManager.sendMessage('websocket-message', message);
@@ -525,7 +525,7 @@ class MenuBarNotificationApp {
       });
 
       notification.show();
-      } catch (error) {
+    } catch (error) {
       console.error('❌ Error showing notification:', error);
     }
   }
@@ -543,7 +543,7 @@ class MenuBarNotificationApp {
 
   private openMessageWindow(message?: Message): void {
     this.windowManager.showWindow();
-    
+
     // Send message data to renderer if specific message was clicked
     if (message) {
       this.windowManager.showMessage(message);
@@ -554,7 +554,7 @@ class MenuBarNotificationApp {
     this.messages = [];
     this.pendingCount = 0;
     this.trayManager.updateTrayIcon();
-    
+
     // Notify renderer
     this.windowManager.sendMessage('messages-cleared');
   }
@@ -606,11 +606,11 @@ class MenuBarNotificationApp {
       if (message) {
         message.status = 'approved';
         message.feedback = feedback;
-        
+
         // Update pending count
         this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length;
         this.trayManager.updateTrayIcon();
-        
+
         // Send response back through WebSocket if needed
         this.sendWebSocketResponse(message, 'approved', feedback);
       }
@@ -622,11 +622,11 @@ class MenuBarNotificationApp {
       if (message) {
         message.status = 'rejected';
         message.feedback = feedback;
-        
+
         // Update pending count
         this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length;
         this.trayManager.updateTrayIcon();
-        
+
         // Send response back through WebSocket if needed
         this.sendWebSocketResponse(message, 'rejected', feedback);
       }
@@ -656,7 +656,7 @@ class MenuBarNotificationApp {
 
     ipcMain.handle('get-ws-key-info', (): { key: string | null; createdAt: number | null; keyFile: string } => {
       let createdAt: number | null = null;
-      
+
       try {
         if (fs.existsSync(this.WS_KEY_FILE)) {
           const keyData = fs.readFileSync(this.WS_KEY_FILE, 'utf8');
@@ -666,7 +666,7 @@ class MenuBarNotificationApp {
       } catch (error) {
         console.error('Error reading key file:', error);
       }
-      
+
       return {
         key: this.wsConnectionKey,
         createdAt,
@@ -713,14 +713,14 @@ class MenuBarNotificationApp {
         if (message) {
           message.status = status;
           message.feedback = feedback;
-          
+
           // Update pending count
           this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length;
           this.trayManager.updateTrayIcon();
-          
+
           // Send response through WebSocket if needed
           this.sendWebSocketResponse(message, status, feedback);
-          
+
           return true;
         }
         return false;
@@ -738,7 +738,7 @@ class MenuBarNotificationApp {
         console.error('Error stopping REST API server:', error);
       });
     }
-    
+
     if (this.wsServer) {
       this.wsServer.close();
     }
