@@ -10,56 +10,24 @@
     "build:renderer": "vite build",
     "dev:renderer": "vite --host",
     "start": "electron-forge start",
-    "dev": "npm run build && electron dist/main.js --dev",
+    "dev": "npm run build && npm run copy-assets && electron dist/main.js --dev",
+    "copy-assets": "cp -r assets dist/",
     "build-mac": "npm run build && electron-builder --mac",
+    "build-mac-forge": "npm run build && electron-forge make --platform=darwin",
+    "build-signed": "npm run build && electron-forge make --platform=darwin",
+    "build-signed-bg": "nohup npm run build-signed > build.log 2>&1 &",
+    "build-signed-ci": "dotenvx run -f .env.ci -- npm run build-signed",
+    "build-dev": "npm run build && electron-forge package --platform=darwin",
+    "check-build": "tail -f build.log",
     "build-win": "npm run build && electron-builder --win",
     "build-linux": "npm run build && electron-builder --linux",
+    "check-certificates": "node scripts/check-certificates.js",
     "test-client": "node test-client.js",
     "test-approval": "node test-approval-client.js",
     "package": "electron-forge package",
     "make": "electron-forge make",
-    "publish": "electron-forge publish"
-  },
-  "config": {
-    "forge": {
-      "packagerConfig": {
-        "asar": true,
-        "protocols": [
-          {
-            "name": "MCP Auth Protocol",
-            "schemes": ["mcpauth"]
-          }
-        ]
-      },
-      "makers": [
-        {
-          "name": "@electron-forge/maker-squirrel",
-          "config": {
-            "name": "electron_quick_start"
-          }
-        },
-        {
-          "name": "@electron-forge/maker-zip",
-          "platforms": [
-            "darwin"
-          ]
-        },
-        {
-          "name": "@electron-forge/maker-deb",
-          "config": {}
-        },
-        {
-          "name": "@electron-forge/maker-rpm",
-          "config": {}
-        }
-      ],
-      "plugins": [
-        {
-          "name": "@electron-forge/plugin-auto-unpack-natives",
-          "config": {}
-        }
-      ]
-    }
+    "publish": "electron-forge publish",
+    "encrypt-keys": "npx @dotenvx/dotenvx encrypt"
   },
   "dependencies": {
     "@dotenvx/dotenvx": "^1.45.2",
@@ -89,6 +57,7 @@
     "@electron-forge/plugin-auto-unpack-natives": "^7.8.1",
     "@electron-forge/plugin-fuses": "^7.8.1",
     "@electron/fuses": "^1.8.0",
+    "@electron/notarize": "^3.0.1",
     "@shadcn/ui": "^0.0.4",
     "@types/cors": "^2.8.19",
     "@types/express": "^4.17.23",
@@ -98,15 +67,17 @@
     "@types/ws": "^8.5.9",
     "@vitejs/plugin-react": "^4.0.0",
     "autoprefixer": "^10.4.21",
+    "dotenv": "^17.2.0",
     "electron": "^27.1.2",
+    "electron-builder": "^26.0.12",
     "postcss": "^8.5.5",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.3.2",
     "vite": "^5.0.0"
   },
   "build": {
-    "appId": "com.mcp.notification-companion",
-    "productName": "MCP Notification Companion",
+    "appId": "dev.keyboard.desktop",
+    "productName": "Keyboard Approver",
     "directories": {
       "output": "dist-build"
     },
@@ -118,13 +89,13 @@
     ],
     "mac": {
       "category": "public.app-category.developer-tools",
-      "icon": "assets/icon.png"
+      "icon": "assets/keyboard512px.png"
     },
     "win": {
-      "icon": "assets/icon.ico"
+      "icon": "assets/keyboard512px.png"
     },
     "linux": {
-      "icon": "assets/icon.png"
+      "icon": "assets/keyboard512px.png"
     }
   }
 }

@@ -31,6 +31,37 @@ export interface AuthError {
   message: string;
 }
 
+export interface OAuthProvider {
+  id: string;
+  name: string;
+  icon?: string;
+  clientId: string;
+  clientSecret?: string;
+  authorizationUrl: string;
+  tokenUrl: string;
+  userInfoUrl?: string;
+  scopes: string[];
+  usePKCE: boolean;
+  redirectUri: string;
+  additionalParams?: Record<string, string>;
+}
+
+export interface ProviderStatus {
+  authenticated: boolean;
+  expired: boolean;
+  user?: {
+    id: string;
+    email: string;
+    name: string;
+    firstName?: string;
+    lastName?: string;
+    picture?: string;
+    [key: string]: any;
+  };
+  storedAt?: number;
+  updatedAt?: number;
+}
+
 export interface ElectronAPI {
   getMessages: () => Promise<Message[]>;
   markMessageRead: (messageId: string) => Promise<void>;
@@ -41,6 +72,7 @@ export interface ElectronAPI {
   onShowMessage: (callback: (event: IpcRendererEvent, message: Message) => void) => void;
   onWebSocketMessage: (callback: (event: IpcRendererEvent, message: Message) => void) => void;
   removeAllListeners: (channel: string) => void;
+  // Legacy OAuth
   startOAuth: () => Promise<void>;
   getAuthStatus: () => Promise<AuthStatus>;
   logout: () => Promise<void>;
@@ -48,6 +80,19 @@ export interface ElectronAPI {
   onAuthSuccess: (callback: (event: IpcRendererEvent, data: AuthStatus) => void) => void;
   onAuthError: (callback: (event: IpcRendererEvent, error: AuthError) => void) => void;
   onAuthLogout: (callback: (event: IpcRendererEvent) => void) => void;
+  // OAuth Providers
+  getAvailableProviders: () => Promise<OAuthProvider[]>;
+  startProviderOAuth: (providerId: string) => Promise<void>;
+  getProviderAuthStatus: () => Promise<Record<string, ProviderStatus>>;
+  getProviderAccessToken: (providerId: string) => Promise<string | null>;
+  logoutProvider: (providerId: string) => Promise<void>;
+  getProviderTokens: (providerId: string) => Promise<any>;
+  refreshProviderTokens: (providerId: string) => Promise<boolean>;
+  clearAllProviderTokens: () => Promise<void>;
+  getOAuthStorageInfo: () => Promise<any>;
+  onProviderAuthSuccess: (callback: (event: IpcRendererEvent, data: any) => void) => void;
+  onProviderAuthError: (callback: (event: IpcRendererEvent, error: any) => void) => void;
+  onProviderAuthLogout: (callback: (event: IpcRendererEvent, data: any) => void) => void;
   // WebSocket key management
   getWSConnectionKey: () => Promise<string | null>;
   getWSConnectionUrl: () => Promise<string>;
@@ -56,6 +101,11 @@ export interface ElectronAPI {
   onWSKeyGenerated: (callback: (event: IpcRendererEvent, data: { key: string; createdAt: number }) => void) => void;
   // Window control
   closeWindow: () => Promise<void>;
+  // Encryption key management
+  getEncryptionKey: () => Promise<string | null>;
+  regenerateEncryptionKey: () => Promise<{ key: string; createdAt: number; source: string }>;
+  getEncryptionKeyInfo: () => Promise<{ key: string | null; createdAt: number | null; keyFile: string; source: 'environment' | 'generated' | null }>;
+  onEncryptionKeyGenerated: (callback: (event: IpcRendererEvent, data: { key: string; createdAt: number; source: string }) => void) => void;
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -79,13 +129,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.removeAllListeners(channel);
   },
 
-  // OAuth-related functions
+  // Legacy OAuth functions
   startOAuth: (): Promise<void> => ipcRenderer.invoke('start-oauth'),
   getAuthStatus: (): Promise<AuthStatus> => ipcRenderer.invoke('get-auth-status'),
   logout: (): Promise<void> => ipcRenderer.invoke('logout'),
   getAccessToken: (): Promise<string | null> => ipcRenderer.invoke('get-access-token'),
 
-  // OAuth event listeners
+  // Legacy OAuth event listeners
   onAuthSuccess: (callback: (event: IpcRendererEvent, data: AuthStatus) => void): void => {
     ipcRenderer.on('auth-success', callback);
   },
@@ -94,6 +144,28 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   onAuthLogout: (callback: (event: IpcRendererEvent) => void): void => {
     ipcRenderer.on('auth-logout', callback);
+  },
+
+  // OAuth Provider functions
+  getAvailableProviders: (): Promise<OAuthProvider[]> => ipcRenderer.invoke('get-available-providers'),
+  startProviderOAuth: (providerId: string): Promise<void> => ipcRenderer.invoke('start-provider-oauth', providerId),
+  getProviderAuthStatus: (): Promise<Record<string, ProviderStatus>> => ipcRenderer.invoke('get-provider-auth-status'),
+  getProviderAccessToken: (providerId: string): Promise<string | null> => ipcRenderer.invoke('get-provider-access-token', providerId),
+  logoutProvider: (providerId: string): Promise<void> => ipcRenderer.invoke('logout-provider', providerId),
+  getProviderTokens: (providerId: string): Promise<any> => ipcRenderer.invoke('get-provider-tokens', providerId),
+  refreshProviderTokens: (providerId: string): Promise<boolean> => ipcRenderer.invoke('refresh-provider-tokens', providerId),
+  clearAllProviderTokens: (): Promise<void> => ipcRenderer.invoke('clear-all-provider-tokens'),
+  getOAuthStorageInfo: (): Promise<any> => ipcRenderer.invoke('get-oauth-storage-info'),
+
+  // OAuth Provider event listeners
+  onProviderAuthSuccess: (callback: (event: IpcRendererEvent, data: any) => void): void => {
+    ipcRenderer.on('provider-auth-success', callback);
+  },
+  onProviderAuthError: (callback: (event: IpcRendererEvent, error: any) => void): void => {
+    ipcRenderer.on('provider-auth-error', callback);
+  },
+  onProviderAuthLogout: (callback: (event: IpcRendererEvent, data: any) => void): void => {
+    ipcRenderer.on('provider-auth-logout', callback);
   },
 
   // WebSocket key management
@@ -106,6 +178,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onWSKeyGenerated: (callback: (event: IpcRendererEvent, data: { key: string; createdAt: number }) => void): void => {
     ipcRenderer.on('ws-key-generated', callback);
   },
+
+  // Encryption key management
+  getEncryptionKey: (): Promise<string | null> => ipcRenderer.invoke('get-encryption-key'),
+  regenerateEncryptionKey: (): Promise<{ key: string; createdAt: number; source: string }> => ipcRenderer.invoke('regenerate-encryption-key'),
+  getEncryptionKeyInfo: (): Promise<{ key: string | null; createdAt: number | null; keyFile: string; source: 'environment' | 'generated' | null }> => ipcRenderer.invoke('get-encryption-key-info'),
+  onEncryptionKeyGenerated: (callback: (event: IpcRendererEvent, data: { key: string; createdAt: number; source: string }) => void): void => {
+    ipcRenderer.on('encryption-key-generated', callback);
+  }
 } as ElectronAPI);
 
 // Extend the global Window interface
