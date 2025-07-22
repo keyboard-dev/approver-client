@@ -1,13 +1,5 @@
 require('dotenv').config();
 
-console.log('=== ENVIRONMENT CHECK ===');
-Object.keys(process.env).forEach(key => {
-  if (key.includes('APPLE') || key.includes('CSC') || key.includes('AC_')) {
-    console.log(`${key}: ${process.env[key]}`);
-  }
-});
-console.log('=========================');
-
 module.exports = {
   packagerConfig: {
     asar: true,

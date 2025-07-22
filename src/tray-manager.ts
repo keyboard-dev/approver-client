@@ -3,6 +3,35 @@ import { Message } from './types';
 import * as path from 'path';
 import * as fs from 'fs';
 
+// Helper function to find assets directory reliably
+function getAssetsPath(): string {
+  const appPath = app.getAppPath();
+  
+  // In development, assets are in project root
+  // In production (packaged), assets should be in app bundle
+  const devAssetsPath = path.join(appPath, '..', 'assets');
+  const prodAssetsPath = path.join(appPath, 'assets');
+  
+  // Check development path first
+  if (fs.existsSync(devAssetsPath)) {
+    return devAssetsPath;
+  }
+  
+  // Fallback to production path
+  if (fs.existsSync(prodAssetsPath)) {
+    return prodAssetsPath;
+  }
+  
+  // Fallback to project root assets (for Electron Forge)
+  const rootAssetsPath = path.join(process.cwd(), 'assets');
+  if (fs.existsSync(rootAssetsPath)) {
+    return rootAssetsPath;
+  }
+  
+  console.warn('Assets directory not found, using default path');
+  return devAssetsPath; // Return something even if not found
+}
+
 export interface TrayManagerOptions {
   onToggleWindow: (bounds?: Electron.Rectangle) => void;
   onShowWindow: () => void;
@@ -41,8 +70,8 @@ export class TrayManager {
   }
 
   private createTrayIcon(): Electron.NativeImage {
-    // Try to load logo from assets directory
-    const assetsPath = path.join(__dirname, '..', 'assets');
+    // Fix: Use helper function for reliable asset path resolution
+    const assetsPath = getAssetsPath();
     const logoPath = path.join(assetsPath, 'keyboard512px.png');
     
     // Check if logo file exists

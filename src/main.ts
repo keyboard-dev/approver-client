@@ -13,6 +13,35 @@ import { OAuthProviderManager, OAuthProvider, ProviderTokens, PKCEParams as NewP
 import { OAuthTokenStorage, StoredProviderTokens } from './oauth-token-storage';
 import { OAuthHttpServer, OAuthCallbackData } from './oauth-http-server';
 
+// Helper function to find assets directory reliably
+function getAssetsPath(): string {
+  const appPath = app.getAppPath();
+  
+  // In development, assets are in project root
+  // In production (packaged), assets should be in app bundle
+  const devAssetsPath = path.join(appPath, '..', 'assets');
+  const prodAssetsPath = path.join(appPath, 'assets');
+  
+  // Check development path first
+  if (fs.existsSync(devAssetsPath)) {
+    return devAssetsPath;
+  }
+  
+  // Fallback to production path
+  if (fs.existsSync(prodAssetsPath)) {
+    return prodAssetsPath;
+  }
+  
+  // Fallback to project root assets (for Electron Forge)
+  const rootAssetsPath = path.join(process.cwd(), 'assets');
+  if (fs.existsSync(rootAssetsPath)) {
+    return rootAssetsPath;
+  }
+  
+  console.warn('Assets directory not found, using default path');
+  return devAssetsPath; // Return something even if not found
+}
+
 class MenuBarNotificationApp {
   private trayManager: TrayManager;
   private windowManager: WindowManager;
@@ -88,6 +117,7 @@ class MenuBarNotificationApp {
   private initializeApp(): void {
     // STEP 1: Handle single instance FIRST
     const gotTheLock = app.requestSingleInstanceLock();
+    app.dock.setIcon(path.join(__dirname, 'assets/keyboard512px.png'));
 
     if (!gotTheLock) {
       app.quit();
@@ -98,6 +128,26 @@ class MenuBarNotificationApp {
     
     // Platform-specific protocol handling
     if (process.platform === 'darwin') {
+      console.log('Setting dock icon');
+      // Fix: Use helper function for reliable asset path resolution
+      const assetsPath = getAssetsPath();
+      const iconPath = path.join(assetsPath, 'keyboard512px.png');
+      
+      // Check if file exists before setting
+      if (fs.existsSync(iconPath)) {
+        app.dock.setIcon(iconPath);
+        console.log('Dock icon set successfully:', iconPath);
+      } else {
+        console.warn('Dock icon not found at:', iconPath);
+        // List what's actually in the assets directory for debugging
+        try {
+          const files = fs.readdirSync(assetsPath);
+          console.log('Available assets:', files);
+        } catch (err) {
+          console.warn('Could not read assets directory:', assetsPath);
+        }
+      }
+  
       // Handle macOS open-url events (MUST be before app.whenReady())
       app.on('open-url', (event, url) => {
         event.preventDefault();
@@ -954,8 +1004,9 @@ class MenuBarNotificationApp {
     }
 
     try {
-      // Path to your logo for notifications
-      const iconPath = path.join(__dirname, '..', 'assets', 'keyboard512px.png');
+      // Fix: Use helper function for reliable asset path resolution
+      const assetsPath = getAssetsPath();
+      const iconPath = path.join(assetsPath, 'keyboard512px.png');
       
       const notification = new Notification({
         title: message.title,
