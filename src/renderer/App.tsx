@@ -361,7 +361,27 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
+    <div className="min-h-screen bg-gray-50">
+      <div
+        className="h-8 bg-gray-800 flex items-center justify-between px-4"
+        style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+      >
+        <div />
+        <div className="text-white text-sm font-medium">Code Response Approval</div>
+        <div className="flex items-center space-x-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 w-6 p-0 text-white hover:bg-gray-700"
+            style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+            onClick={() => window.electronAPI.closeWindow()}
+          >
+            <X className="h-3 w-3" />
+          </Button>
+        </div>
+      </div>
+
+      <div className="p-4">
               {/* Dismissible Connection Alert - Only show when disconnected and not dismissed */}
         {connectionStatus === 'disconnected' && !isAlertDismissed && authStatus.authenticated && (
         <div className="fixed top-4 right-4 z-40">
@@ -616,6 +636,7 @@ const App: React.FC = () => {
             )}
           </div>
         )}
+      </div>
       </div>
     </div>
   );

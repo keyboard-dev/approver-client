@@ -120,7 +120,6 @@ const AuthComponent: React.FC<AuthComponentProps> = ({
   const handleLogout = async () => {
     if (isSkippingAuth) {
       setIsSkippingAuth(false);
-      return;
     }
 
     try {

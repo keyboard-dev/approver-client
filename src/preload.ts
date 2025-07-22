@@ -54,6 +54,8 @@ export interface ElectronAPI {
   regenerateWSKey: () => Promise<{ key: string; createdAt: number }>;
   getWSKeyInfo: () => Promise<{ key: string | null; createdAt: number | null; keyFile: string }>;
   onWSKeyGenerated: (callback: (event: IpcRendererEvent, data: { key: string; createdAt: number }) => void) => void;
+  // Window control
+  closeWindow: () => Promise<void>;
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -98,6 +100,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getWSConnectionKey: (): Promise<string | null> => ipcRenderer.invoke('get-ws-connection-key'),
   getWSConnectionUrl: (): Promise<string> => ipcRenderer.invoke('get-ws-connection-url'),
   regenerateWSKey: (): Promise<{ key: string; createdAt: number }> => ipcRenderer.invoke('regenerate-ws-key'),
+  // Window control
+  closeWindow: (): Promise<void> => ipcRenderer.invoke('window-close'),
   getWSKeyInfo: (): Promise<{ key: string | null; createdAt: number | null; keyFile: string }> => ipcRenderer.invoke('get-ws-key-info'),
   onWSKeyGenerated: (callback: (event: IpcRendererEvent, data: { key: string; createdAt: number }) => void): void => {
     ipcRenderer.on('ws-key-generated', callback);
