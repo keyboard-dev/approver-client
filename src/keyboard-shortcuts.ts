@@ -253,9 +253,18 @@ export async function listScriptTemplates(
         };
       } catch (decryptError) {
         console.error(`Error decrypting script ${script.id}:`, decryptError);
+      }
+
+      let justScriptInfo = script
+      delete justScriptInfo["script"]
+      try {
         return {
-          ...script,
-          script: '[DECRYPTION ERROR]' // Fallback for decryption errors
+          ...justScriptInfo,
+        };
+      } catch (decryptError) {
+        console.error(`Error decrypting script ${script.id}:`, decryptError);
+        return {
+          ...justScriptInfo,
         };
       }
     });
@@ -324,11 +333,11 @@ export async function searchScriptTemplates(
         };
       } catch (decryptError) {
         console.error(`Error decrypting script ${script.id}:`, decryptError);
-        return {
-          ...script,
-          script: '[DECRYPTION ERROR]' // Fallback for decryption errors
-        };
       }
+
+      let justScriptInfo = script
+      delete justScriptInfo["script"]
+      return justScriptInfo
     });
     
     return { success: true, scripts: decryptedScripts };

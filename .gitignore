@@ -11,3 +11,6 @@ dist-build
 .env*
 out
 out/
+.log*
+.log
+scripts/build-signed.sh
