@@ -170,11 +170,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getWSConnectionKey: (): Promise<string | null> => ipcRenderer.invoke('get-ws-connection-key'),
   getWSConnectionUrl: (): Promise<string> => ipcRenderer.invoke('get-ws-connection-url'),
   regenerateWSKey: (): Promise<{ key: string; createdAt: number }> => ipcRenderer.invoke('regenerate-ws-key'),
+  // Window control
+  closeWindow: (): Promise<void> => ipcRenderer.invoke('window-close'),
   getWSKeyInfo: (): Promise<{ key: string | null; createdAt: number | null; keyFile: string }> => ipcRenderer.invoke('get-ws-key-info'),
   onWSKeyGenerated: (callback: (event: IpcRendererEvent, data: { key: string; createdAt: number }) => void): void => {
     ipcRenderer.on('ws-key-generated', callback);
   },
-  
+
   // Encryption key management
   getEncryptionKey: (): Promise<string | null> => ipcRenderer.invoke('get-encryption-key'),
   regenerateEncryptionKey: (): Promise<{ key: string; createdAt: number; source: string }> => ipcRenderer.invoke('regenerate-encryption-key'),
