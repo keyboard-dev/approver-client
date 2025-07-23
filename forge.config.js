@@ -22,7 +22,7 @@ module.exports = {
     {
       name: '@electron-forge/maker-squirrel',
       config: {
-        name: 'mcp-notification-app'  // Changed from 'electron_quick_start'
+        name: 'keyboard approver'  // Changed from 'electron_quick_start'
       }
     },
     {

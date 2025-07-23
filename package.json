@@ -1,5 +1,5 @@
 {
-  "name": "mcp-notification-app",
+  "name": "keyboard-approver App",
   "version": "1.0.0",
   "description": "Desktop notification app for MCP approval workflow",
   "main": "dist/main.js",

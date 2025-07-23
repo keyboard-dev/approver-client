@@ -394,7 +394,7 @@ const App: React.FC = () => {
         className="h-8 bg-gray-800 flex items-center justify-center px-4"
         style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
       >
-        <div className="text-white text-sm font-medium">Code Response Approval</div>
+        <div className="text-white text-sm font-medium">Keyboard Approver</div>
       </div>
 
       <div className="p-4">
