@@ -363,6 +363,31 @@ const App: React.FC = () => {
     }
   };
 
+  const getMessageSummary = (message: Message) => {
+    switch (message.title) {
+      case "code response approval":
+        const parsedBody = extractJsonFromCodeApproval(message.body);
+        const { data } = parsedBody;
+        let stdout, stderr;
+        if (data) {
+          ({ stdout, stderr } = data);
+        } else {
+          ({ stdout, stderr } = parsedBody);
+        }
+        return <>
+          {stderr && (
+            <span className="text-red-500">
+              Error: {stderr}
+            </span>
+          )}
+          {stdout}
+        </>;
+      case 'Security Evaluation Request':
+      default:
+        return message.body;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div
@@ -625,7 +650,7 @@ const App: React.FC = () => {
                                 </div>
                               </div>
                               <p className="text-gray-600 text-sm mb-2 line-clamp-2">
-                                {message.body}
+                                {getMessageSummary(message)}
                               </p>
                               <div className="flex items-center justify-between text-xs text-gray-500">
                                 <span>From: {message.sender || 'Unknown'}</span>
