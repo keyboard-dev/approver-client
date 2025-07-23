@@ -1050,15 +1050,14 @@ class MenuBarNotificationApp {
           // Handle provider status request
           if (message.type === 'request-provider-status') {
             try {
-              const availableProviders = this.oauthProviderManager.getAvailableProviders();
               const providerStatus = await this.oauthTokenStorage.getProviderStatus();
               
               const tokensAvailable: string[] = [];
               
-              for (const provider of availableProviders) {
-                const status = providerStatus[provider.id];
+              // Check ALL stored provider tokens (both direct and server provider tokens)
+              for (const [providerId, status] of Object.entries(providerStatus)) {
                 if (status && status.authenticated) {
-                  tokensAvailable.push(`KEYBOARD_PROVIDER_USER_TOKEN_FOR_${provider.id.toUpperCase()}`);
+                  tokensAvailable.push(`KEYBOARD_PROVIDER_USER_TOKEN_FOR_${providerId.toUpperCase()}`);
                 }
               }
               
