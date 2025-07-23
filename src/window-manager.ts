@@ -76,48 +76,31 @@ export class WindowManager {
       this.createMainWindow();
     }
 
-    if (this.mainWindow) {
-      if (bounds) {
-        this.positionWindowNearTray(bounds);
-      }
+    if (!this.mainWindow) return;
 
-      // Force window to appear on current desktop/space only when showing from tray
-      if (process.platform === 'darwin' && bounds) {
-        this.mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-        
-        // Show and focus
-        this.mainWindow.show();
-        this.mainWindow.focus();
-        
-        // Reset workspace visibility after showing
-        setTimeout(() => {
-          if (this.mainWindow) {
-            this.mainWindow.setVisibleOnAllWorkspaces(false);
-          }
-        }, 200);
-      } else {
-        // Normal show for other cases (like OAuth callbacks)
-        this.mainWindow.show();
-        this.mainWindow.focus();
-      }
+    if (bounds) {
+      this.positionWindowNearTray(bounds);
     }
+
+    this.mainWindow.show();
+    this.mainWindow.focus();
   }
 
   private positionWindowNearTray(trayBounds: Electron.Rectangle): void {
     if (!this.mainWindow) return;
 
     const windowBounds = this.mainWindow.getBounds();
-    
+
     let x = Math.round(trayBounds.x + (trayBounds.width / 2) - (windowBounds.width / 2));
     let y = Math.round(trayBounds.y + trayBounds.height + 5);
-    
+
     // Make sure window stays on screen
     const primaryDisplay = screen.getPrimaryDisplay();
     const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
-    
+
     x = Math.max(0, Math.min(x, screenWidth - windowBounds.width));
     y = Math.max(0, Math.min(y, screenHeight - windowBounds.height));
-    
+
     this.mainWindow.setPosition(x, y);
   }
 
@@ -181,4 +164,4 @@ export class WindowManager {
       this.mainWindow = null;
     }
   }
-} 
+}
