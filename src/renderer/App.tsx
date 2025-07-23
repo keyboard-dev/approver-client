@@ -12,6 +12,7 @@ import AuthComponent from './components/AuthComponent';
 import WebSocketKeyManager from './components/WebSocketKeyManager';
 import EncryptionKeyManager from './components/EncryptionKeyManager';
 import { OAuthProviderManager } from './components/OAuthProviderManager';
+import ServerProviderManager from './components/ServerProviderManager';
 import './App.css';
 import { extractJsonFromCodeApproval } from '../lib/utils/data.utils';
 
@@ -568,10 +569,11 @@ const App: React.FC = () => {
                   // Settings View
                   <div className="space-y-6">
                     <Tabs defaultValue="websocket" className="w-full">
-                      <TabsList className="grid w-full grid-cols-3">
+                      <TabsList className="grid w-full grid-cols-4">
                         <TabsTrigger value="websocket">WebSocket</TabsTrigger>
                         <TabsTrigger value="encryption">Encryption</TabsTrigger>
                         <TabsTrigger value="oauth">OAuth Providers</TabsTrigger>
+                        <TabsTrigger value="servers">Server Providers</TabsTrigger>
                       </TabsList>
                       <TabsContent value="websocket" className="mt-6">
                         <WebSocketKeyManager />
@@ -581,6 +583,9 @@ const App: React.FC = () => {
                       </TabsContent>
                       <TabsContent value="oauth" className="mt-6">
                         <OAuthProviderManager />
+                      </TabsContent>
+                      <TabsContent value="servers" className="mt-6">
+                        <ServerProviderManager />
                       </TabsContent>
                     </Tabs>
                   </div>

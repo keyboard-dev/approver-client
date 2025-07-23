@@ -93,6 +93,11 @@ export interface ElectronAPI {
   onProviderAuthSuccess: (callback: (event: IpcRendererEvent, data: any) => void) => void;
   onProviderAuthError: (callback: (event: IpcRendererEvent, error: any) => void) => void;
   onProviderAuthLogout: (callback: (event: IpcRendererEvent, data: any) => void) => void;
+  // Server Provider management
+  addServerProvider: (server: any) => Promise<void>;
+  removeServerProvider: (serverId: string) => Promise<void>;
+  getServerProviders: () => Promise<any[]>;
+  startServerProviderOAuth: (serverId: string, provider: string) => Promise<void>;
   // WebSocket key management
   getWSConnectionKey: () => Promise<string | null>;
   getWSConnectionUrl: () => Promise<string>;
@@ -165,6 +170,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onProviderAuthLogout: (callback: (event: IpcRendererEvent, data: any) => void): void => {
     ipcRenderer.on('provider-auth-logout', callback);
   },
+
+  // Server Provider management
+  addServerProvider: (server: any): Promise<void> => ipcRenderer.invoke('add-server-provider', server),
+  removeServerProvider: (serverId: string): Promise<void> => ipcRenderer.invoke('remove-server-provider', serverId),
+  getServerProviders: (): Promise<any[]> => ipcRenderer.invoke('get-server-providers'),
+  startServerProviderOAuth: (serverId: string, provider: string): Promise<void> => ipcRenderer.invoke('start-server-provider-oauth', serverId, provider),
 
   // WebSocket key management
   getWSConnectionKey: (): Promise<string | null> => ipcRenderer.invoke('get-ws-connection-key'),

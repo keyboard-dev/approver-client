@@ -39,6 +39,26 @@ export interface PKCEParams {
   codeChallenge: string;
   state: string;
   providerId: string;
+  sessionId?: string; // For server providers
+}
+
+// Simple interface for server providers
+export interface ServerProvider {
+  id: string;
+  name: string;
+  url: string; // e.g., "http://localhost:4000"
+}
+
+// Response from server authorize endpoint
+export interface ServerAuthorizeResponse {
+  success: boolean;
+  provider: string;
+  authorization_url: string;
+  session_id: string;
+  state: string;
+  redirect_uri: string;
+  use_pkce: boolean;
+  expires_in: number;
 }
 
 // Provider configurations
@@ -98,6 +118,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProvider> = {
 
 export class OAuthProviderManager {
   private customProtocol: string;
+  private serverProviders: Map<string, ServerProvider> = new Map();
 
   constructor(customProtocol: string = 'mcpauth') {
     this.customProtocol = customProtocol;
@@ -275,6 +296,159 @@ export class OAuthProviderManager {
       expires_at: Date.now() + ((tokenData.expires_in || 3600) * 1000),
       scope: tokenData.scope
     };
+  }
+
+  /**
+   * Add a server provider
+   */
+  addServerProvider(server: ServerProvider): void {
+    this.serverProviders.set(server.id, server);
+    console.log(`🔗 Added server provider: ${server.name} at ${server.url}`);
+  }
+
+  /**
+   * Remove a server provider
+   */
+  removeServerProvider(serverId: string): void {
+    const server = this.serverProviders.get(serverId);
+    if (server) {
+      this.serverProviders.delete(serverId);
+      console.log(`🗑️ Removed server provider: ${server.name}`);
+    }
+  }
+
+  /**
+   * Get all server providers
+   */
+  getServerProviders(): ServerProvider[] {
+    return Array.from(this.serverProviders.values());
+  }
+
+  /**
+   * Get a server provider by ID
+   */
+  getServerProvider(serverId: string): ServerProvider | null {
+    return this.serverProviders.get(serverId) || null;
+  }
+
+  /**
+   * Fetch authorization URL from a server provider
+   */
+  async fetchServerAuthorizationUrl(
+    serverId: string, 
+    provider: string, 
+    state?: string
+  ): Promise<{ authUrl: string; sessionId: string; state: string }> {
+    const server = this.serverProviders.get(serverId);
+    if (!server) {
+      throw new Error(`Server provider ${serverId} not found`);
+    }
+
+    const url = `${server.url}/api/oauth/authorize/${provider}`;
+    const params = new URLSearchParams();
+    
+    if (state) {
+      params.append('state', state);
+    }
+    
+    const fullUrl = `${url}?${params.toString()}`;
+    
+    console.log(`🔗 Fetching authorization URL from: ${fullUrl}`);
+
+    try {
+      const response = await fetch(fullUrl, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Server responded with status ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json() as ServerAuthorizeResponse;
+      
+      if (!data.success) {
+        throw new Error('Server returned unsuccessful response');
+      }
+
+      console.log(`✅ Got authorization URL from server: ${data.authorization_url.substring(0, 100)}...`);
+      
+      return {
+        authUrl: data.authorization_url,
+        sessionId: data.session_id,
+        state: data.state
+      };
+    } catch (error) {
+      console.error(`❌ Failed to fetch authorization URL from ${server.name}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Exchange code for tokens using server provider
+   */
+  async exchangeServerCodeForTokens(
+    serverId: string,
+    provider: string,
+    code: string,
+    state: string,
+    sessionId: string
+  ): Promise<ProviderTokens> {
+    const server = this.serverProviders.get(serverId);
+    if (!server) {
+      throw new Error(`Server provider ${serverId} not found`);
+    }
+
+    const url = `${server.url}/api/oauth/token/${provider}`;
+    
+    const body = {
+      code: code,
+      state: state,
+      session_id: sessionId,
+      grant_type: 'authorization_code'
+    };
+
+    console.log(`🔄 Exchanging code with server: ${url}`);
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(body)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Token exchange failed: ${response.status} ${errorText}`);
+      }
+
+      const tokenData = await response.json() as any;
+
+      if (!tokenData.success) {
+        throw new Error('Server token exchange was unsuccessful');
+      }
+
+      console.log(`✅ Successfully exchanged code for tokens via ${server.name}`);
+
+      return {
+        providerId: provider, // Use just the provider name (e.g., "google") instead of combined ID
+        access_token: tokenData.access_token,
+        refresh_token: tokenData.refresh_token,
+        token_type: tokenData.token_type || 'Bearer',
+        expires_in: tokenData.expires_in || 3600,
+        expires_at: Date.now() + ((tokenData.expires_in || 3600) * 1000),
+        scope: tokenData.scope,
+        user: tokenData.user
+      };
+    } catch (error) {
+      console.error(`❌ Token exchange failed with ${server.name}:`, error);
+      throw error;
+    }
   }
 
   /**
