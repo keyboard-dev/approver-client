@@ -20,47 +20,33 @@ export class WindowManager {
       width: 600,  // Larger for reading code
       height: 700, // Taller for explanations
       webPreferences: {
-        nodeIntegration: false,
-        contextIsolation: true,
         preload: path.join(__dirname, 'preload.js')
       },
-      show: false,
-      frame: false,
-      transparent: true,
-      resizable: true,
-      alwaysOnTop: true,
-      skipTaskbar: true,
-      hasShadow: true,
-      minimizable: false,
-      maximizable: false,
-      // macOS specific
       ...(process.platform === 'darwin' && {
-        vibrancy: 'under-window',
-        visualEffectState: 'active',
-        level: 'floating', // Use floating level instead of screen-saver
-        titleBarStyle: 'hidden'
-      })
+        titleBarStyle: 'hidden',
+        type: 'panel',
+        alwaysOnTop: true,
+      }),
     });
 
     this.mainWindow.loadFile(path.join(__dirname, '../public/index.html'));
 
     // Hide window when it loses focus
-    this.mainWindow.on('blur', () => {
-      if (this.mainWindow?.isVisible()) {
-        setTimeout(() => {
-          if (this.mainWindow?.isVisible() && !this.mainWindow?.isFocused()) {
-            this.mainWindow.hide();
-          }
-        }, 100);
-      }
-    });
+    // this.mainWindow.on('blur', () => {
+    //   if (this.mainWindow?.isVisible()) {
+    //     setTimeout(() => {
+    //       if (this.mainWindow?.isVisible() && !this.mainWindow?.isFocused()) {
+    //         this.mainWindow.hide();
+    //       }
+    //     }, 100);
+    //   }
+    // });
 
     this.mainWindow.on('closed', () => {
       this.mainWindow = null;
       this.options.onWindowClosed();
     });
 
-    this.setupWindowControls();
   }
 
   public toggleWindow(bounds?: Electron.Rectangle): void {
@@ -77,6 +63,15 @@ export class WindowManager {
     }
 
     if (!this.mainWindow) return;
+
+    // Force the window to be on the current screen before showing
+    const currentDisplay = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+    this.mainWindow.setBounds({
+      x: currentDisplay.bounds.x + 100,
+      y: currentDisplay.bounds.y + 100,
+      width: 600,
+      height: 700
+    });
 
     if (bounds) {
       this.positionWindowNearTray(bounds);

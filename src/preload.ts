@@ -99,8 +99,6 @@ export interface ElectronAPI {
   regenerateWSKey: () => Promise<{ key: string; createdAt: number }>;
   getWSKeyInfo: () => Promise<{ key: string | null; createdAt: number | null; keyFile: string }>;
   onWSKeyGenerated: (callback: (event: IpcRendererEvent, data: { key: string; createdAt: number }) => void) => void;
-  // Window control
-  closeWindow: () => Promise<void>;
   // Encryption key management
   getEncryptionKey: () => Promise<string | null>;
   regenerateEncryptionKey: () => Promise<{ key: string; createdAt: number; source: string }>;
