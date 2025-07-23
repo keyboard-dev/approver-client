@@ -148,6 +148,7 @@ export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ cl
           <h2 className="text-2xl font-bold">Server Providers</h2>
           <p className="text-muted-foreground">
             Add OAuth servers to fetch authorization URLs from custom endpoints.
+            All requests are authenticated using your main OAuth access token.
           </p>
         </div>
         <Button 
@@ -170,6 +171,7 @@ export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ cl
             <CardTitle>Add Server Provider</CardTitle>
             <CardDescription>
               Add a server that provides OAuth authorization URLs via API endpoints.
+              Server authentication uses your main OAuth access token automatically.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -197,6 +199,8 @@ export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ cl
                 Will be used to call: {newServer.url}/api/oauth/authorize/google
               </p>
             </div>
+
+
 
             <div className="flex gap-2 pt-4">
               <Button
@@ -303,6 +307,7 @@ export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ cl
                     <p><strong>Providers endpoint:</strong> {server.url}/api/oauth/providers</p>
                     <p><strong>Authorize endpoint:</strong> {server.url}/api/oauth/authorize/{`{provider}`}</p>
                     <p><strong>Callback URL:</strong> http://localhost:8082/callback</p>
+                    <p><strong>Authentication:</strong> Bearer token (main OAuth access token)</p>
                   </div>
                 </div>
               </CardContent>

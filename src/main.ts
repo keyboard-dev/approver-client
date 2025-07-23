@@ -498,10 +498,12 @@ class MenuBarNotificationApp {
       });
       
       // Fetch authorization URL from server
+      const accessToken = await this.getValidAccessToken();
       const { authUrl, sessionId } = await this.oauthProviderManager.fetchServerAuthorizationUrl(
         serverId, 
         provider, 
-        state
+        state,
+        accessToken || undefined
       );
       
       // Store session info for callback
@@ -565,12 +567,14 @@ class MenuBarNotificationApp {
       console.log('✅ State validation passed, exchanging code for tokens');
 
       // Exchange code for tokens using server
+      const accessToken = await this.getValidAccessToken();
       const tokens = await this.oauthProviderManager.exchangeServerCodeForTokens(
         serverId,
         provider,
         callbackData.code,
         callbackData.state,
-        this.currentProviderPKCE.sessionId!
+        this.currentProviderPKCE.sessionId!,
+        accessToken || undefined
       );
       
       // Store tokens securely
@@ -1268,7 +1272,8 @@ class MenuBarNotificationApp {
     });
 
     ipcMain.handle('fetch-server-providers', async (event, serverId: string): Promise<any[]> => {
-      return await this.oauthProviderManager.fetchServerProviders(serverId);
+      const accessToken = await this.getValidAccessToken();
+      return await this.oauthProviderManager.fetchServerProviders(serverId, accessToken || undefined);
     });
 
     // Handle requests for all messages

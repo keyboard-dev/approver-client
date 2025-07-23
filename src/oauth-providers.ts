@@ -341,7 +341,7 @@ export class OAuthProviderManager {
   /**
    * Fetch available OAuth providers from a server provider
    */
-  async fetchServerProviders(serverId: string): Promise<ServerProviderInfo[]> {
+  async fetchServerProviders(serverId: string, accessToken?: string): Promise<ServerProviderInfo[]> {
     const server = this.serverProviders.get(serverId);
     if (!server) {
       throw new Error(`Server provider ${serverId} not found`);
@@ -352,11 +352,18 @@ export class OAuthProviderManager {
     console.log(`🔍 Fetching providers from: ${url}`);
 
     try {
+      const headers: Record<string, string> = {
+        'Accept': 'application/json'
+      };
+
+      // Add JWT authentication if access token is provided
+      if (accessToken) {
+        headers['Authorization'] = `Bearer ${accessToken}`;
+      }
+
       const response = await fetch(url, {
         method: 'GET',
-        headers: {
-          'Accept': 'application/json'
-        }
+        headers
       });
 
       if (!response.ok) {
@@ -391,7 +398,8 @@ export class OAuthProviderManager {
   async fetchServerAuthorizationUrl(
     serverId: string, 
     provider: string, 
-    state?: string
+    state?: string,
+    accessToken?: string
   ): Promise<{ authUrl: string; sessionId: string; state: string }> {
     const server = this.serverProviders.get(serverId);
     if (!server) {
@@ -410,11 +418,18 @@ export class OAuthProviderManager {
     console.log(`🔗 Fetching authorization URL from: ${fullUrl}`);
 
     try {
+      const headers: Record<string, string> = {
+        'Accept': 'application/json'
+      };
+
+      // Add JWT authentication if access token is provided
+      if (accessToken) {
+        headers['Authorization'] = `Bearer ${accessToken}`;
+      }
+
       const response = await fetch(fullUrl, {
         method: 'GET',
-        headers: {
-          'Accept': 'application/json'
-        }
+        headers
       });
 
       if (!response.ok) {
@@ -448,7 +463,8 @@ export class OAuthProviderManager {
     provider: string,
     code: string,
     state: string,
-    sessionId: string
+    sessionId: string,
+    accessToken?: string
   ): Promise<ProviderTokens> {
     const server = this.serverProviders.get(serverId);
     if (!server) {
@@ -467,12 +483,19 @@ export class OAuthProviderManager {
     console.log(`🔄 Exchanging code with server: ${url}`);
 
     try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      };
+
+      // Add JWT authentication if access token is provided
+      if (accessToken) {
+        headers['Authorization'] = `Bearer ${accessToken}`;
+      }
+
       const response = await fetch(url, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
+        headers,
         body: JSON.stringify(body)
       });
 
