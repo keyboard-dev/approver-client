@@ -19,28 +19,30 @@ export class WindowManager {
     this.mainWindow = new BrowserWindow({
       width: 600,  // Larger for reading code
       height: 700, // Taller for explanations
+      show: false, // Don't show/focus the window when created
       webPreferences: {
         preload: path.join(__dirname, 'preload.js')
       },
       ...(process.platform === 'darwin' && {
         titleBarStyle: 'hidden',
         type: 'panel',
-        alwaysOnTop: true,
+        // alwaysOnTop: true,
       }),
     });
 
     this.mainWindow.loadFile(path.join(__dirname, '../public/index.html'));
 
     // Hide window when it loses focus
-    // this.mainWindow.on('blur', () => {
-    //   if (this.mainWindow?.isVisible()) {
-    //     setTimeout(() => {
-    //       if (this.mainWindow?.isVisible() && !this.mainWindow?.isFocused()) {
-    //         this.mainWindow.hide();
-    //       }
-    //     }, 100);
-    //   }
-    // });
+    this.mainWindow.on('blur', () => {
+      console.log('blur');
+      if (this.mainWindow?.isVisible()) {
+        setTimeout(() => {
+          if (this.mainWindow?.isVisible() && !this.mainWindow?.isFocused()) {
+            this.mainWindow.hide();
+          }
+        }, 100);
+      }
+    });
 
     this.mainWindow.on('closed', () => {
       this.mainWindow = null;
@@ -77,8 +79,11 @@ export class WindowManager {
       this.positionWindowNearTray(bounds);
     }
 
-    this.mainWindow.show();
-    this.mainWindow.focus();
+    this.mainWindow.setVisibleOnAllWorkspaces(true)
+
+    this.mainWindow.showInactive(); // Show without focusing
+    // this.mainWindow.show();
+    // this.mainWindow.focus();
   }
 
   private positionWindowNearTray(trayBounds: Electron.Rectangle): void {
