@@ -484,7 +484,7 @@ class MenuBarNotificationApp {
   // Server provider OAuth flow
   private async startServerProviderOAuthFlow(serverId: string, provider: string): Promise<void> {
     try {
-      const server = this.oauthProviderManager.getServerProvider(serverId);
+      const server = await this.oauthProviderManager.getServerProvider(serverId);
       if (!server) {
         throw new Error(`Server provider ${serverId} not found`);
       }
@@ -1255,16 +1255,16 @@ class MenuBarNotificationApp {
     });
 
     // Server Provider IPC handlers
-    ipcMain.handle('add-server-provider', (event, server: ServerProvider): void => {
-      this.oauthProviderManager.addServerProvider(server);
+    ipcMain.handle('add-server-provider', async (event, server: ServerProvider): Promise<void> => {
+      await this.oauthProviderManager.addServerProvider(server);
     });
 
-    ipcMain.handle('remove-server-provider', (event, serverId: string): void => {
-      this.oauthProviderManager.removeServerProvider(serverId);
+    ipcMain.handle('remove-server-provider', async (event, serverId: string): Promise<void> => {
+      await this.oauthProviderManager.removeServerProvider(serverId);
     });
 
-    ipcMain.handle('get-server-providers', (): ServerProvider[] => {
-      return this.oauthProviderManager.getServerProviders();
+    ipcMain.handle('get-server-providers', async (): Promise<ServerProvider[]> => {
+      return await this.oauthProviderManager.getServerProviders();
     });
 
     ipcMain.handle('start-server-provider-oauth', async (event, serverId: string, provider: string): Promise<void> => {

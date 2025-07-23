@@ -1,4 +1,8 @@
 import * as crypto from 'crypto';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
+import { encrypt, decrypt } from './encryption';
 
 export interface OAuthProvider {
   id: string;
@@ -133,9 +137,84 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProvider> = {
 export class OAuthProviderManager {
   private customProtocol: string;
   private serverProviders: Map<string, ServerProvider> = new Map();
+  private readonly SERVER_PROVIDERS_FILE: string;
+  private isLoaded: boolean = false;
 
   constructor(customProtocol: string = 'mcpauth') {
     this.customProtocol = customProtocol;
+    
+    // Set up encrypted storage file path
+    const storageDir = path.join(os.homedir(), '.keyboard-mcp');
+    this.SERVER_PROVIDERS_FILE = path.join(storageDir, 'server-providers.encrypted');
+    
+    // Ensure storage directory exists
+    if (!fs.existsSync(storageDir)) {
+      fs.mkdirSync(storageDir, { recursive: true, mode: 0o700 });
+    }
+    
+    // Load server providers on initialization
+    this.loadServerProviders().catch((error: any) => {
+      console.error('❌ Failed to load server providers on initialization:', error);
+    });
+  }
+
+  /**
+   * Load server providers from encrypted file
+   */
+  private async loadServerProviders(): Promise<void> {
+    try {
+      if (!fs.existsSync(this.SERVER_PROVIDERS_FILE)) {
+        this.serverProviders.clear();
+        this.isLoaded = true;
+        return;
+      }
+
+      const encryptedData = fs.readFileSync(this.SERVER_PROVIDERS_FILE, 'utf8');
+      const decryptedData = decrypt(encryptedData);
+      const providersArray = JSON.parse(decryptedData) as ServerProvider[];
+      
+      // Clear existing providers and load from file
+      this.serverProviders.clear();
+      providersArray.forEach(provider => {
+        this.serverProviders.set(provider.id, provider);
+      });
+      
+      this.isLoaded = true;
+      console.log(`📱 Loaded ${this.serverProviders.size} server providers from encrypted storage`);
+    } catch (error) {
+      console.error('❌ Error loading server providers:', error);
+      // If decryption fails, start fresh (could be due to key rotation)
+      this.serverProviders.clear();
+      this.isLoaded = true;
+    }
+  }
+
+  /**
+   * Save server providers to encrypted file
+   */
+  private async saveServerProviders(): Promise<void> {
+    try {
+      const providersArray = Array.from(this.serverProviders.values());
+      const dataToEncrypt = JSON.stringify(providersArray, null, 2);
+      const encryptedData = encrypt(dataToEncrypt);
+      
+      // Write with restricted permissions
+      fs.writeFileSync(this.SERVER_PROVIDERS_FILE, encryptedData, { mode: 0o600 });
+      
+      console.log(`💾 Saved ${this.serverProviders.size} server providers to encrypted storage`);
+    } catch (error) {
+      console.error('❌ Error saving server providers:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Ensure server providers are loaded
+   */
+  private async ensureLoaded(): Promise<void> {
+    if (!this.isLoaded) {
+      await this.loadServerProviders();
+    }
   }
 
   /**
@@ -315,18 +394,22 @@ export class OAuthProviderManager {
   /**
    * Add a server provider
    */
-  addServerProvider(server: ServerProvider): void {
+  async addServerProvider(server: ServerProvider): Promise<void> {
+    await this.ensureLoaded();
     this.serverProviders.set(server.id, server);
+    await this.saveServerProviders();
     console.log(`🔗 Added server provider: ${server.name} at ${server.url}`);
   }
 
   /**
    * Remove a server provider
    */
-  removeServerProvider(serverId: string): void {
+  async removeServerProvider(serverId: string): Promise<void> {
+    await this.ensureLoaded();
     const server = this.serverProviders.get(serverId);
     if (server) {
       this.serverProviders.delete(serverId);
+      await this.saveServerProviders();
       console.log(`🗑️ Removed server provider: ${server.name}`);
     }
   }
@@ -334,7 +417,8 @@ export class OAuthProviderManager {
   /**
    * Get all server providers
    */
-  getServerProviders(): ServerProvider[] {
+  async getServerProviders(): Promise<ServerProvider[]> {
+    await this.ensureLoaded();
     return Array.from(this.serverProviders.values());
   }
 
@@ -342,6 +426,7 @@ export class OAuthProviderManager {
    * Fetch available OAuth providers from a server provider
    */
   async fetchServerProviders(serverId: string, accessToken?: string): Promise<ServerProviderInfo[]> {
+    await this.ensureLoaded();
     const server = this.serverProviders.get(serverId);
     if (!server) {
       throw new Error(`Server provider ${serverId} not found`);
@@ -388,8 +473,42 @@ export class OAuthProviderManager {
   /**
    * Get a server provider by ID
    */
-  getServerProvider(serverId: string): ServerProvider | null {
+  async getServerProvider(serverId: string): Promise<ServerProvider | null> {
+    await this.ensureLoaded();
     return this.serverProviders.get(serverId) || null;
+  }
+
+  /**
+   * Get storage file info for debugging
+   */
+  getServerProviderStorageInfo(): { 
+    filePath: string; 
+    exists: boolean; 
+    size?: number; 
+    permissions?: string;
+    providersCount: number;
+  } {
+    const exists = fs.existsSync(this.SERVER_PROVIDERS_FILE);
+    let size: number | undefined;
+    let permissions: string | undefined;
+
+    if (exists) {
+      try {
+        const stats = fs.statSync(this.SERVER_PROVIDERS_FILE);
+        size = stats.size;
+        permissions = '0' + (stats.mode & parseInt('777', 8)).toString(8);
+      } catch (error) {
+        console.error('Error getting server provider storage file stats:', error);
+      }
+    }
+
+    return {
+      filePath: this.SERVER_PROVIDERS_FILE,
+      exists,
+      size,
+      permissions,
+      providersCount: this.serverProviders.size
+    };
   }
 
   /**
@@ -401,6 +520,7 @@ export class OAuthProviderManager {
     state?: string,
     accessToken?: string
   ): Promise<{ authUrl: string; sessionId: string; state: string }> {
+    await this.ensureLoaded();
     const server = this.serverProviders.get(serverId);
     if (!server) {
       throw new Error(`Server provider ${serverId} not found`);
@@ -466,6 +586,7 @@ export class OAuthProviderManager {
     sessionId: string,
     accessToken?: string
   ): Promise<ProviderTokens> {
+    await this.ensureLoaded();
     const server = this.serverProviders.get(serverId);
     if (!server) {
       throw new Error(`Server provider ${serverId} not found`);
