@@ -12,6 +12,7 @@ import AuthComponent from './components/AuthComponent';
 import WebSocketKeyManager from './components/WebSocketKeyManager';
 import EncryptionKeyManager from './components/EncryptionKeyManager';
 import { OAuthProviderManager } from './components/OAuthProviderManager';
+import ServerProviderManager from './components/ServerProviderManager';
 import './App.css';
 import { extractJsonFromCodeApproval } from '../lib/utils/data.utils';
 
@@ -374,23 +375,23 @@ const App: React.FC = () => {
       <div className="p-4">
               {/* Dismissible Connection Alert - Only show when disconnected and not dismissed */}
         {connectionStatus === 'disconnected' && !isAlertDismissed && authStatus.authenticated && (
-          <div className="fixed top-4 right-4 z-40">
-            <Alert className="w-72 border-red-200 bg-red-50 relative">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription>
-                WebSocket disconnected. Some features may not work properly.
-              </AlertDescription>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="absolute top-2 right-2 h-6 w-6 p-0 hover:bg-red-100"
-                onClick={() => setIsAlertDismissed(true)}
-              >
-                <X className="h-3 w-3" />
-              </Button>
-            </Alert>
-          </div>
-        )}
+        <div className="fixed top-4 right-4 z-40">
+          <Alert className="w-72 border-red-200 bg-red-50 relative">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              WebSocket disconnected. Some features may not work properly.
+            </AlertDescription>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="absolute top-2 right-2 h-6 w-6 p-0 hover:bg-red-100"
+              onClick={() => setIsAlertDismissed(true)}
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          </Alert>
+        </div>
+      )}
 
         <div className="max-w-4xl mx-auto">
           {/* Authentication Component */}
@@ -576,10 +577,11 @@ const App: React.FC = () => {
                     // Settings View
                     <div className="space-y-6">
                       <Tabs defaultValue="websocket" className="w-full">
-                        <TabsList className="grid w-full grid-cols-3">
+                        <TabsList className="grid w-full grid-cols-4">
                           <TabsTrigger value="websocket">WebSocket</TabsTrigger>
                           <TabsTrigger value="encryption">Encryption</TabsTrigger>
                           <TabsTrigger value="oauth">OAuth Providers</TabsTrigger>
+                          <TabsTrigger value="servers">Server Providers</TabsTrigger>
                         </TabsList>
                         <TabsContent value="websocket" className="mt-6">
                           <WebSocketKeyManager />
@@ -589,6 +591,9 @@ const App: React.FC = () => {
                         </TabsContent>
                         <TabsContent value="oauth" className="mt-6">
                           <OAuthProviderManager />
+                        </TabsContent>
+                        <TabsContent value="servers" className="mt-6">
+                          <ServerProviderManager />
                         </TabsContent>
                       </Tabs>
                     </div>

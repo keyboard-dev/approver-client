@@ -1,4 +1,8 @@
 import * as crypto from 'crypto';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
+import { encrypt, decrypt } from './encryption';
 
 export interface OAuthProvider {
   id: string;
@@ -39,6 +43,40 @@ export interface PKCEParams {
   codeChallenge: string;
   state: string;
   providerId: string;
+  sessionId?: string; // For server providers
+}
+
+// Simple interface for server providers
+export interface ServerProvider {
+  id: string;
+  name: string;
+  url: string; // e.g., "http://localhost:4000"
+}
+
+// Response from server authorize endpoint
+export interface ServerAuthorizeResponse {
+  success: boolean;
+  provider: string;
+  authorization_url: string;
+  session_id: string;
+  state: string;
+  redirect_uri: string;
+  use_pkce: boolean;
+  expires_in: number;
+}
+
+// Response from server providers endpoint
+export interface ServerProviderInfo {
+  name: string;
+  scopes: string[];
+  configured: boolean;
+}
+
+export interface ServerProvidersResponse {
+  success: boolean;
+  count: number;
+  providers: ServerProviderInfo[];
+  redirect_uri: string;
 }
 
 // Provider configurations
@@ -98,9 +136,85 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProvider> = {
 
 export class OAuthProviderManager {
   private customProtocol: string;
+  private serverProviders: Map<string, ServerProvider> = new Map();
+  private readonly SERVER_PROVIDERS_FILE: string;
+  private isLoaded: boolean = false;
 
   constructor(customProtocol: string = 'mcpauth') {
     this.customProtocol = customProtocol;
+    
+    // Set up encrypted storage file path
+    const storageDir = path.join(os.homedir(), '.keyboard-mcp');
+    this.SERVER_PROVIDERS_FILE = path.join(storageDir, 'server-providers.encrypted');
+    
+    // Ensure storage directory exists
+    if (!fs.existsSync(storageDir)) {
+      fs.mkdirSync(storageDir, { recursive: true, mode: 0o700 });
+    }
+    
+    // Load server providers on initialization
+    this.loadServerProviders().catch((error: any) => {
+      console.error('❌ Failed to load server providers on initialization:', error);
+    });
+  }
+
+  /**
+   * Load server providers from encrypted file
+   */
+  private async loadServerProviders(): Promise<void> {
+    try {
+      if (!fs.existsSync(this.SERVER_PROVIDERS_FILE)) {
+        this.serverProviders.clear();
+        this.isLoaded = true;
+        return;
+      }
+
+      const encryptedData = fs.readFileSync(this.SERVER_PROVIDERS_FILE, 'utf8');
+      const decryptedData = decrypt(encryptedData);
+      const providersArray = JSON.parse(decryptedData) as ServerProvider[];
+      
+      // Clear existing providers and load from file
+      this.serverProviders.clear();
+      providersArray.forEach(provider => {
+        this.serverProviders.set(provider.id, provider);
+      });
+      
+      this.isLoaded = true;
+      console.log(`📱 Loaded ${this.serverProviders.size} server providers from encrypted storage`);
+    } catch (error) {
+      console.error('❌ Error loading server providers:', error);
+      // If decryption fails, start fresh (could be due to key rotation)
+      this.serverProviders.clear();
+      this.isLoaded = true;
+    }
+  }
+
+  /**
+   * Save server providers to encrypted file
+   */
+  private async saveServerProviders(): Promise<void> {
+    try {
+      const providersArray = Array.from(this.serverProviders.values());
+      const dataToEncrypt = JSON.stringify(providersArray, null, 2);
+      const encryptedData = encrypt(dataToEncrypt);
+      
+      // Write with restricted permissions
+      fs.writeFileSync(this.SERVER_PROVIDERS_FILE, encryptedData, { mode: 0o600 });
+      
+      console.log(`💾 Saved ${this.serverProviders.size} server providers to encrypted storage`);
+    } catch (error) {
+      console.error('❌ Error saving server providers:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Ensure server providers are loaded
+   */
+  private async ensureLoaded(): Promise<void> {
+    if (!this.isLoaded) {
+      await this.loadServerProviders();
+    }
   }
 
   /**
@@ -275,6 +389,264 @@ export class OAuthProviderManager {
       expires_at: Date.now() + ((tokenData.expires_in || 3600) * 1000),
       scope: tokenData.scope
     };
+  }
+
+  /**
+   * Add a server provider
+   */
+  async addServerProvider(server: ServerProvider): Promise<void> {
+    await this.ensureLoaded();
+    this.serverProviders.set(server.id, server);
+    await this.saveServerProviders();
+    console.log(`🔗 Added server provider: ${server.name} at ${server.url}`);
+  }
+
+  /**
+   * Remove a server provider
+   */
+  async removeServerProvider(serverId: string): Promise<void> {
+    await this.ensureLoaded();
+    const server = this.serverProviders.get(serverId);
+    if (server) {
+      this.serverProviders.delete(serverId);
+      await this.saveServerProviders();
+      console.log(`🗑️ Removed server provider: ${server.name}`);
+    }
+  }
+
+  /**
+   * Get all server providers
+   */
+  async getServerProviders(): Promise<ServerProvider[]> {
+    await this.ensureLoaded();
+    return Array.from(this.serverProviders.values());
+  }
+
+  /**
+   * Fetch available OAuth providers from a server provider
+   */
+  async fetchServerProviders(serverId: string, accessToken?: string): Promise<ServerProviderInfo[]> {
+    await this.ensureLoaded();
+    const server = this.serverProviders.get(serverId);
+    if (!server) {
+      throw new Error(`Server provider ${serverId} not found`);
+    }
+
+    const url = `${server.url}/api/oauth/providers`;
+    
+    console.log(`🔍 Fetching providers from: ${url}`);
+
+    try {
+      const headers: Record<string, string> = {
+        'Accept': 'application/json'
+      };
+
+      // Add JWT authentication if access token is provided
+      if (accessToken) {
+        headers['Authorization'] = `Bearer ${accessToken}`;
+      }
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers
+      });
+
+      if (!response.ok) {
+        throw new Error(`Server responded with status ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json() as ServerProvidersResponse;
+      
+      if (!data.success) {
+        throw new Error('Server returned unsuccessful response');
+      }
+
+      console.log(`✅ Found ${data.count} providers from ${server.name}:`, data.providers.map(p => p.name));
+      
+      return data.providers;
+    } catch (error) {
+      console.error(`❌ Failed to fetch providers from ${server.name}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get a server provider by ID
+   */
+  async getServerProvider(serverId: string): Promise<ServerProvider | null> {
+    await this.ensureLoaded();
+    return this.serverProviders.get(serverId) || null;
+  }
+
+  /**
+   * Get storage file info for debugging
+   */
+  getServerProviderStorageInfo(): { 
+    filePath: string; 
+    exists: boolean; 
+    size?: number; 
+    permissions?: string;
+    providersCount: number;
+  } {
+    const exists = fs.existsSync(this.SERVER_PROVIDERS_FILE);
+    let size: number | undefined;
+    let permissions: string | undefined;
+
+    if (exists) {
+      try {
+        const stats = fs.statSync(this.SERVER_PROVIDERS_FILE);
+        size = stats.size;
+        permissions = '0' + (stats.mode & parseInt('777', 8)).toString(8);
+      } catch (error) {
+        console.error('Error getting server provider storage file stats:', error);
+      }
+    }
+
+    return {
+      filePath: this.SERVER_PROVIDERS_FILE,
+      exists,
+      size,
+      permissions,
+      providersCount: this.serverProviders.size
+    };
+  }
+
+  /**
+   * Fetch authorization URL from a server provider
+   */
+  async fetchServerAuthorizationUrl(
+    serverId: string, 
+    provider: string, 
+    state?: string,
+    accessToken?: string
+  ): Promise<{ authUrl: string; sessionId: string; state: string }> {
+    await this.ensureLoaded();
+    const server = this.serverProviders.get(serverId);
+    if (!server) {
+      throw new Error(`Server provider ${serverId} not found`);
+    }
+
+    const url = `${server.url}/api/oauth/authorize/${provider}`;
+    const params = new URLSearchParams();
+    
+    if (state) {
+      params.append('state', state);
+    }
+    
+    const fullUrl = `${url}?${params.toString()}`;
+    
+    console.log(`🔗 Fetching authorization URL from: ${fullUrl}`);
+
+    try {
+      const headers: Record<string, string> = {
+        'Accept': 'application/json'
+      };
+
+      // Add JWT authentication if access token is provided
+      if (accessToken) {
+        headers['Authorization'] = `Bearer ${accessToken}`;
+      }
+
+      const response = await fetch(fullUrl, {
+        method: 'GET',
+        headers
+      });
+
+      if (!response.ok) {
+        throw new Error(`Server responded with status ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json() as ServerAuthorizeResponse;
+      
+      if (!data.success) {
+        throw new Error('Server returned unsuccessful response');
+      }
+
+      console.log(`✅ Got authorization URL from server: ${data.authorization_url.substring(0, 100)}...`);
+      
+      return {
+        authUrl: data.authorization_url,
+        sessionId: data.session_id,
+        state: data.state
+      };
+    } catch (error) {
+      console.error(`❌ Failed to fetch authorization URL from ${server.name}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Exchange code for tokens using server provider
+   */
+  async exchangeServerCodeForTokens(
+    serverId: string,
+    provider: string,
+    code: string,
+    state: string,
+    sessionId: string,
+    accessToken?: string
+  ): Promise<ProviderTokens> {
+    await this.ensureLoaded();
+    const server = this.serverProviders.get(serverId);
+    if (!server) {
+      throw new Error(`Server provider ${serverId} not found`);
+    }
+
+    const url = `${server.url}/api/oauth/token/${provider}`;
+    
+    const body = {
+      code: code,
+      state: state,
+      session_id: sessionId,
+      grant_type: 'authorization_code'
+    };
+
+    console.log(`🔄 Exchanging code with server: ${url}`);
+
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      };
+
+      // Add JWT authentication if access token is provided
+      if (accessToken) {
+        headers['Authorization'] = `Bearer ${accessToken}`;
+      }
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Token exchange failed: ${response.status} ${errorText}`);
+      }
+
+      const tokenData = await response.json() as any;
+
+      if (!tokenData.success) {
+        throw new Error('Server token exchange was unsuccessful');
+      }
+
+      console.log(`✅ Successfully exchanged code for tokens via ${server.name}`);
+
+      return {
+        providerId: provider, // Use just the provider name (e.g., "google") instead of combined ID
+        access_token: tokenData.access_token,
+        refresh_token: tokenData.refresh_token,
+        token_type: tokenData.token_type || 'Bearer',
+        expires_in: tokenData.expires_in || 3600,
+        expires_at: Date.now() + ((tokenData.expires_in || 3600) * 1000),
+        scope: tokenData.scope,
+        user: tokenData.user
+      };
+    } catch (error) {
+      console.error(`❌ Token exchange failed with ${server.name}:`, error);
+      throw error;
+    }
   }
 
   /**

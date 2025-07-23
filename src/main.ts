@@ -9,7 +9,7 @@ import { Message, AuthTokens, PKCEParams, AuthorizeResponse, TokenResponse, Erro
 import { TrayManager, TrayManagerOptions } from './tray-manager';
 import { WindowManager, WindowManagerOptions } from './window-manager';
 import { setEncryptionKeyProvider } from './encryption';
-import { OAuthProviderManager, OAuthProvider, ProviderTokens, PKCEParams as NewPKCEParams } from './oauth-providers';
+import { OAuthProviderManager, OAuthProvider, ProviderTokens, PKCEParams as NewPKCEParams, ServerProvider } from './oauth-providers';
 import { OAuthTokenStorage, StoredProviderTokens } from './oauth-token-storage';
 import { OAuthHttpServer, OAuthCallbackData } from './oauth-http-server';
 
@@ -479,6 +479,137 @@ class MenuBarNotificationApp {
     }
   }
 
+  // Server provider OAuth flow
+  private async startServerProviderOAuthFlow(serverId: string, provider: string): Promise<void> {
+    try {
+      const server = await this.oauthProviderManager.getServerProvider(serverId);
+      if (!server) {
+        throw new Error(`Server provider ${serverId} not found`);
+      }
+
+      // Generate state for the flow
+      const state = crypto.randomBytes(16).toString('hex');
+      
+      // Start HTTP server to handle OAuth callback
+      await this.oauthHttpServer.startServer((callbackData: OAuthCallbackData) => {
+        this.handleServerOAuthHttpCallback(callbackData, serverId, provider);
+      });
+      
+      // Fetch authorization URL from server
+      const accessToken = await this.getValidAccessToken();
+      const { authUrl, sessionId } = await this.oauthProviderManager.fetchServerAuthorizationUrl(
+        serverId, 
+        provider, 
+        state,
+        accessToken || undefined
+      );
+      
+      // Store session info for callback
+      this.currentProviderPKCE = {
+        codeVerifier: '',
+        codeChallenge: '',
+        state: state,
+        providerId: provider, // Use just the provider name (e.g., "google")
+        sessionId: sessionId
+      };
+      
+      console.log(`🔗 Server authorization URL: ${authUrl.substring(0, 100)}...`);
+      
+      // Open browser for user authentication
+      await shell.openExternal(authUrl);
+      
+      console.log(`🔐 Started server OAuth flow: ${server.name} → ${provider}`);
+      console.log(`🌐 OAuth callback server listening on http://localhost:${this.OAUTH_PORT}/callback`);
+      
+    } catch (error) {
+      console.error(`❌ Server OAuth flow error for ${serverId}/${provider}:`, error);
+      this.notifyProviderAuthError(provider, 'Failed to start authentication');
+      this.oauthHttpServer.stopServer(); // Clean up on error
+    }
+  }
+
+  private async handleServerOAuthHttpCallback(
+    callbackData: OAuthCallbackData, 
+    serverId: string, 
+    provider: string
+  ): Promise<void> {
+    try {
+      console.log('🌐 Server OAuth callback received:', {
+        hasError: !!callbackData.error,
+        hasCode: !!callbackData.code,
+        hasState: !!callbackData.state,
+        serverId,
+        provider
+      });
+
+      if (callbackData.error) {
+        throw new Error(`OAuth error: ${callbackData.error} - ${callbackData.error_description || ''}`);
+      }
+
+      if (!callbackData.code || !callbackData.state) {
+        throw new Error('Missing authorization code or state');
+      }
+
+      if (!this.currentProviderPKCE) {
+        throw new Error('No session data stored - possible callback timeout');
+      }
+
+      if (callbackData.state !== this.currentProviderPKCE.state) {
+        console.error('❌ State mismatch:', {
+          received: callbackData.state,
+          expected: this.currentProviderPKCE.state
+        });
+        throw new Error('State mismatch - potential security issue');
+      }
+
+      console.log('✅ State validation passed, exchanging code for tokens');
+
+      // Exchange code for tokens using server
+      const accessToken = await this.getValidAccessToken();
+      const tokens = await this.oauthProviderManager.exchangeServerCodeForTokens(
+        serverId,
+        provider,
+        callbackData.code,
+        callbackData.state,
+        this.currentProviderPKCE.sessionId!,
+        accessToken || undefined
+      );
+      
+      // Store tokens securely
+      await this.oauthTokenStorage.storeTokens(tokens);
+      
+      console.log('🧹 Clearing session data after successful token exchange');
+      this.currentProviderPKCE = null;
+      
+      // Notify the renderer process
+      const providerConfig = this.oauthProviderManager.getProvider(provider);
+      this.windowManager.sendMessage('provider-auth-success', {
+        providerId: tokens.providerId,
+        providerName: providerConfig?.name || provider,
+        user: tokens.user,
+        authenticated: true
+      });
+
+      // Show the window after successful authentication
+      this.windowManager.showWindow();
+
+      // Show success notification
+      this.showNotification({
+        id: `auth-success-${tokens.providerId}`,
+        title: `Server OAuth Authentication Successful`,
+        body: `Successfully connected to ${serverId} (${provider})${tokens.user ? ` as ${tokens.user.name || tokens.user.email}` : ''}`,
+        timestamp: Date.now(),
+        priority: 'normal'
+      });
+
+      console.log(`✅ Successfully authenticated with ${serverId} (${provider})`);
+
+    } catch (error) {
+      console.error(`❌ Server OAuth callback error for ${serverId}/${provider}:`, error);
+      this.notifyProviderAuthError(provider, `Authentication failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
   private async handleOAuthHttpCallback(callbackData: OAuthCallbackData): Promise<void> {
     try {
       console.log('🌐 HTTP OAuth callback received:', {
@@ -920,15 +1051,14 @@ class MenuBarNotificationApp {
           // Handle provider status request
           if (message.type === 'request-provider-status') {
             try {
-              const availableProviders = this.oauthProviderManager.getAvailableProviders();
               const providerStatus = await this.oauthTokenStorage.getProviderStatus();
 
               const tokensAvailable: string[] = [];
-
-              for (const provider of availableProviders) {
-                const status = providerStatus[provider.id];
+              
+              // Check ALL stored provider tokens (both direct and server provider tokens)
+              for (const [providerId, status] of Object.entries(providerStatus)) {
                 if (status && status.authenticated) {
-                  tokensAvailable.push(`KEYBOARD_PROVIDER_USER_TOKEN_FOR_${provider.id.toUpperCase()}`);
+                  tokensAvailable.push(`KEYBOARD_PROVIDER_USER_TOKEN_FOR_${providerId.toUpperCase()}`);
                 }
               }
 
@@ -1119,6 +1249,28 @@ class MenuBarNotificationApp {
 
     ipcMain.handle('get-oauth-storage-info', (): any => {
       return this.oauthTokenStorage.getStorageInfo();
+    });
+
+    // Server Provider IPC handlers
+    ipcMain.handle('add-server-provider', async (event, server: ServerProvider): Promise<void> => {
+      await this.oauthProviderManager.addServerProvider(server);
+    });
+
+    ipcMain.handle('remove-server-provider', async (event, serverId: string): Promise<void> => {
+      await this.oauthProviderManager.removeServerProvider(serverId);
+    });
+
+    ipcMain.handle('get-server-providers', async (): Promise<ServerProvider[]> => {
+      return await this.oauthProviderManager.getServerProviders();
+    });
+
+    ipcMain.handle('start-server-provider-oauth', async (event, serverId: string, provider: string): Promise<void> => {
+      await this.startServerProviderOAuthFlow(serverId, provider);
+    });
+
+    ipcMain.handle('fetch-server-providers', async (event, serverId: string): Promise<any[]> => {
+      const accessToken = await this.getValidAccessToken();
+      return await this.oauthProviderManager.fetchServerProviders(serverId, accessToken || undefined);
     });
 
     // Handle requests for all messages
