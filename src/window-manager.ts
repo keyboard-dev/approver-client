@@ -76,31 +76,14 @@ export class WindowManager {
       this.createMainWindow();
     }
 
-    if (this.mainWindow) {
-      if (bounds) {
-        this.positionWindowNearTray(bounds);
-      }
+    if (!this.mainWindow) return;
 
-      // Force window to appear on current desktop/space only when showing from tray
-      if (process.platform === 'darwin' && bounds) {
-        this.mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-
-        // Show and focus
-        this.mainWindow.show();
-        this.mainWindow.focus();
-
-        // Reset workspace visibility after showing
-        setTimeout(() => {
-          if (this.mainWindow) {
-            this.mainWindow.setVisibleOnAllWorkspaces(false);
-          }
-        }, 200);
-      } else {
-        // Normal show for other cases (like OAuth callbacks)
-        this.mainWindow.show();
-        this.mainWindow.focus();
-      }
+    if (bounds) {
+      this.positionWindowNearTray(bounds);
     }
+
+    this.mainWindow.show();
+    this.mainWindow.focus();
   }
 
   private positionWindowNearTray(trayBounds: Electron.Rectangle): void {
