@@ -12,26 +12,21 @@ interface ServerProviderManagerProps {
   className?: string;
 }
 
-declare global {
-  interface Window {
-    electronAPI: {
-      addServerProvider: (server: any) => Promise<void>;
-      removeServerProvider: (serverId: string) => Promise<void>;
-      getServerProviders: () => Promise<ServerProvider[]>;
-      startServerProviderOAuth: (serverId: string, provider: string) => Promise<void>;
-    };
-  }
+interface ServerProviderInfo {
+  name: string;
+  scopes: string[];
+  configured: boolean;
 }
 
 export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ className }) => {
   const [servers, setServers] = useState<ServerProvider[]>([]);
+  const [serverProviders, setServerProviders] = useState<Record<string, ServerProviderInfo[]>>({});
   const [isLoading, setIsLoading] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newServer, setNewServer] = useState({
     name: '',
-    url: '',
-    provider: 'google' // Default provider
+    url: ''
   });
 
   useEffect(() => {
@@ -42,9 +37,37 @@ export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ cl
     try {
       const serverProviders = await window.electronAPI.getServerProviders();
       setServers(serverProviders);
+      
+      // Fetch providers for each server
+      for (const server of serverProviders) {
+        await fetchProvidersForServer(server.id);
+      }
     } catch (error) {
       console.error('Failed to load server providers:', error);
       setError('Failed to load server providers');
+    }
+  };
+
+  const fetchProvidersForServer = async (serverId: string) => {
+    const loadingKey = `fetch-${serverId}`;
+    setIsLoading(prev => ({ ...prev, [loadingKey]: true }));
+
+    try {
+      const providers = await window.electronAPI.fetchServerProviders(serverId);
+      setServerProviders(prev => ({
+        ...prev,
+        [serverId]: providers
+      }));
+      console.log(`✅ Fetched ${providers.length} providers for server ${serverId}`);
+    } catch (error) {
+      console.error(`Failed to fetch providers for server ${serverId}:`, error);
+      // Set empty array on error so UI doesn't break
+      setServerProviders(prev => ({
+        ...prev,
+        [serverId]: []
+      }));
+    } finally {
+      setIsLoading(prev => ({ ...prev, [loadingKey]: false }));
     }
   };
 
@@ -65,11 +88,12 @@ export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ cl
       console.log(`✅ Successfully added server provider: ${newServer.name}`);
       
       await loadServerProviders();
+      // Fetch providers for the newly added server
+      await fetchProvidersForServer(serverId);
       setShowAddForm(false);
       setNewServer({
         name: '',
-        url: '',
-        provider: 'google'
+        url: ''
       });
     } catch (error) {
       console.error('Failed to add server provider:', error);
@@ -226,29 +250,58 @@ export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ cl
               <CardContent>
                 <div className="space-y-3">
                   <div>
-                    <p className="text-sm font-medium text-gray-700 mb-2">Available OAuth Providers:</p>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-sm font-medium text-gray-700">Available OAuth Providers:</p>
+                      <Button
+                        onClick={() => fetchProvidersForServer(server.id)}
+                        disabled={isLoading[`fetch-${server.id}`]}
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs"
+                      >
+                        {isLoading[`fetch-${server.id}`] ? 'Refreshing...' : 'Refresh'}
+                      </Button>
+                    </div>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                      {['google', 'github', 'microsoft'].map((provider) => (
-                        <Button
-                          key={provider}
-                          onClick={() => handleStartOAuth(server.id, provider)}
-                          disabled={isLoading[`${server.id}-${provider}`]}
-                          variant="outline"
-                          size="sm"
-                          className="justify-start"
-                        >
-                          {isLoading[`${server.id}-${provider}`] ? (
-                            'Starting...'
-                          ) : (
-                            `Connect ${provider.charAt(0).toUpperCase() + provider.slice(1)}`
-                          )}
-                        </Button>
-                      ))}
+                      {isLoading[`fetch-${server.id}`] ? (
+                        <div className="col-span-3 text-center text-gray-500 py-4">
+                          <p>Loading providers...</p>
+                        </div>
+                      ) : serverProviders[server.id]?.length > 0 ? (
+                        serverProviders[server.id].map((provider) => (
+                          <Button
+                            key={provider.name}
+                            onClick={() => handleStartOAuth(server.id, provider.name)}
+                            disabled={!provider.configured || isLoading[`${server.id}-${provider.name}`]}
+                            variant="outline"
+                            size="sm"
+                            className={`justify-start ${!provider.configured ? 'opacity-50' : ''}`}
+                            title={provider.configured ? 
+                              `Scopes: ${provider.scopes.join(', ')}` : 
+                              'Not configured on server'
+                            }
+                          >
+                            {isLoading[`${server.id}-${provider.name}`] ? (
+                              'Starting...'
+                            ) : (
+                              <>
+                                {provider.configured ? '🟢' : '🔴'} {provider.name.charAt(0).toUpperCase() + provider.name.slice(1)}
+                              </>
+                            )}
+                          </Button>
+                        ))
+                      ) : (
+                        <div className="col-span-3 text-center text-gray-500 py-4">
+                          <p>No providers available</p>
+                          <p className="text-xs">Check server configuration</p>
+                        </div>
+                      )}
                     </div>
                   </div>
                   
                   <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded">
-                    <p><strong>Endpoint example:</strong> {server.url}/api/oauth/authorize/google</p>
+                    <p><strong>Providers endpoint:</strong> {server.url}/api/oauth/providers</p>
+                    <p><strong>Authorize endpoint:</strong> {server.url}/api/oauth/authorize/{`{provider}`}</p>
                     <p><strong>Callback URL:</strong> http://localhost:8082/callback</p>
                   </div>
                 </div>

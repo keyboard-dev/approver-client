@@ -1267,6 +1267,10 @@ class MenuBarNotificationApp {
       await this.startServerProviderOAuthFlow(serverId, provider);
     });
 
+    ipcMain.handle('fetch-server-providers', async (event, serverId: string): Promise<any[]> => {
+      return await this.oauthProviderManager.fetchServerProviders(serverId);
+    });
+
     // Handle requests for all messages
     ipcMain.handle('get-messages', (): Message[] => {
       return this.messages;

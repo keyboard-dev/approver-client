@@ -61,6 +61,20 @@ export interface ServerAuthorizeResponse {
   expires_in: number;
 }
 
+// Response from server providers endpoint
+export interface ServerProviderInfo {
+  name: string;
+  scopes: string[];
+  configured: boolean;
+}
+
+export interface ServerProvidersResponse {
+  success: boolean;
+  count: number;
+  providers: ServerProviderInfo[];
+  redirect_uri: string;
+}
+
 // Provider configurations
 export const OAUTH_PROVIDERS: Record<string, OAuthProvider> = {
   google: {
@@ -322,6 +336,46 @@ export class OAuthProviderManager {
    */
   getServerProviders(): ServerProvider[] {
     return Array.from(this.serverProviders.values());
+  }
+
+  /**
+   * Fetch available OAuth providers from a server provider
+   */
+  async fetchServerProviders(serverId: string): Promise<ServerProviderInfo[]> {
+    const server = this.serverProviders.get(serverId);
+    if (!server) {
+      throw new Error(`Server provider ${serverId} not found`);
+    }
+
+    const url = `${server.url}/api/oauth/providers`;
+    
+    console.log(`🔍 Fetching providers from: ${url}`);
+
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Server responded with status ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json() as ServerProvidersResponse;
+      
+      if (!data.success) {
+        throw new Error('Server returned unsuccessful response');
+      }
+
+      console.log(`✅ Found ${data.count} providers from ${server.name}:`, data.providers.map(p => p.name));
+      
+      return data.providers;
+    } catch (error) {
+      console.error(`❌ Failed to fetch providers from ${server.name}:`, error);
+      throw error;
+    }
   }
 
   /**

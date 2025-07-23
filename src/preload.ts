@@ -97,6 +97,7 @@ export interface ElectronAPI {
   addServerProvider: (server: any) => Promise<void>;
   removeServerProvider: (serverId: string) => Promise<void>;
   getServerProviders: () => Promise<any[]>;
+  fetchServerProviders: (serverId: string) => Promise<any[]>;
   startServerProviderOAuth: (serverId: string, provider: string) => Promise<void>;
   // WebSocket key management
   getWSConnectionKey: () => Promise<string | null>;
@@ -175,6 +176,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   addServerProvider: (server: any): Promise<void> => ipcRenderer.invoke('add-server-provider', server),
   removeServerProvider: (serverId: string): Promise<void> => ipcRenderer.invoke('remove-server-provider', serverId),
   getServerProviders: (): Promise<any[]> => ipcRenderer.invoke('get-server-providers'),
+  fetchServerProviders: (serverId: string): Promise<any[]> => ipcRenderer.invoke('fetch-server-providers', serverId),
   startServerProviderOAuth: (serverId: string, provider: string): Promise<void> => ipcRenderer.invoke('start-server-provider-oauth', serverId, provider),
 
   // WebSocket key management
