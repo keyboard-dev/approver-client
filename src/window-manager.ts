@@ -34,7 +34,6 @@ export class WindowManager {
 
     // Hide window when it loses focus
     this.mainWindow.on('blur', () => {
-      console.log('blur')
       if (this.mainWindow?.isVisible()) {
         setTimeout(() => {
           if (this.mainWindow?.isVisible() && !this.mainWindow?.isFocused()) {
@@ -66,17 +65,17 @@ export class WindowManager {
 
     if (!this.mainWindow) return
 
-    // Force the window to be on the current screen before showing
-    const currentDisplay = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
-    this.mainWindow.setBounds({
-      x: currentDisplay.bounds.x + 100,
-      y: currentDisplay.bounds.y + 100,
-      width: 600,
-      height: 700,
-    })
-
     if (bounds) {
-      this.positionWindowNearTray(bounds)
+      this.positionWindowNearTray(bounds);
+    } else {
+      // Force the window to be on the current screen before showing
+      const currentDisplay = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+      this.mainWindow.setBounds({
+        x: currentDisplay.bounds.x + 100,
+        y: currentDisplay.bounds.y + 100,
+        width: 600,
+        height: 700
+      });
     }
 
     this.mainWindow.setVisibleOnAllWorkspaces(true)
@@ -91,15 +90,23 @@ export class WindowManager {
 
     const windowBounds = this.mainWindow.getBounds()
 
-    let x = Math.round(trayBounds.x + (trayBounds.width / 2) - (windowBounds.width / 2))
-    let y = Math.round(trayBounds.y + trayBounds.height + 5)
+    // Find the display that contains the tray icon
+    const trayCenter = {
+      x: trayBounds.x + trayBounds.width / 2,
+      y: trayBounds.y + trayBounds.height / 2
+    };
+    const targetDisplay = screen.getDisplayNearestPoint(trayCenter);
 
-    // Make sure window stays on screen
-    const primaryDisplay = screen.getPrimaryDisplay()
-    const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize
+    let x = Math.round(trayBounds.x + (trayBounds.width / 2) - (windowBounds.width / 2));
+    let y = Math.round(trayBounds.y + trayBounds.height + 5);
 
-    x = Math.max(0, Math.min(x, screenWidth - windowBounds.width))
-    y = Math.max(0, Math.min(y, screenHeight - windowBounds.height))
+    // Make sure window stays on the correct screen
+    const { width: screenWidth, height: screenHeight } = targetDisplay.workAreaSize;
+    const { x: screenX, y: screenY } = targetDisplay.workArea;
+
+    // Constrain to the target display's work area
+    x = Math.max(screenX, Math.min(x, screenX + screenWidth - windowBounds.width));
+    y = Math.max(screenY, Math.min(y, screenY + screenHeight - windowBounds.height));
 
     this.mainWindow.setPosition(x, y)
   }

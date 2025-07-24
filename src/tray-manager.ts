@@ -86,7 +86,6 @@ export class TrayManager {
 
         // Apply visual modifications based on pending state
         const pendingCount = this.options.getPendingCount()
-        console.log('this is the path', logoPath)
         if (pendingCount > 0) {
           // Add a red notification badge for pending messages
           return this.addNotificationBadge(resizedLogo, pendingCount)
