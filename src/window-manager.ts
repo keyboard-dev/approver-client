@@ -63,7 +63,7 @@ export class WindowManager {
       this.createMainWindow()
     }
 
-    if (!this.mainWindow) return
+    if (!this.mainWindow) return;
 
     if (bounds) {
       this.positionWindowNearTray(bounds);
