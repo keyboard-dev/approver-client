@@ -172,6 +172,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('provider-auth-logout', callback);
   },
 
+  // Manual Provider Management
+  getAllProviderConfigs: (): Promise<any[]> => ipcRenderer.invoke('get-all-provider-configs'),
+  saveProviderConfig: (config: any): Promise<void> => ipcRenderer.invoke('save-provider-config', config),
+  removeProviderConfig: (providerId: string): Promise<void> => ipcRenderer.invoke('remove-provider-config', providerId),
+  getProviderConfig: (providerId: string): Promise<any> => ipcRenderer.invoke('get-provider-config', providerId),
+
   // Server Provider management
   addServerProvider: (server: any): Promise<void> => ipcRenderer.invoke('add-server-provider', server),
   removeServerProvider: (serverId: string): Promise<void> => ipcRenderer.invoke('remove-server-provider', serverId),

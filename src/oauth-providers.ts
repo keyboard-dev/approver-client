@@ -3,7 +3,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { encrypt, decrypt } from './encryption';
+import { ProviderStorage, OAuthProviderConfig } from './provider-storage';
 
+// Legacy interface for backward compatibility
 export interface OAuthProvider {
   id: string;
   name: string;
@@ -79,66 +81,12 @@ export interface ServerProvidersResponse {
   redirect_uri: string;
 }
 
-// Provider configurations
-export const OAUTH_PROVIDERS: Record<string, OAuthProvider> = {
-  google: {
-    id: 'google',
-    name: 'Google',
-    icon: '🔍',
-    clientId: process.env.GOOGLE_CLIENT_ID || '',
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
-    authorizationUrl: 'https://accounts.google.com/o/oauth2/auth',
-    tokenUrl: 'https://oauth2.googleapis.com/token',
-    userInfoUrl: 'https://www.googleapis.com/oauth2/v1/userinfo',
-    scopes: [
-      'openid',
-      'email',
-      'profile',
-      'https://www.googleapis.com/auth/drive.readonly',
-      'https://www.googleapis.com/auth/gmail.readonly',
-      'https://www.googleapis.com/auth/spreadsheets',
-      'https://www.googleapis.com/auth/presentations',
-      'https://www.googleapis.com/auth/drive.file'
-    ],
-    usePKCE: true,
-    redirectUri: 'http://localhost:8082/callback',
-    additionalParams: {
-      access_type: 'offline',
-      prompt: 'consent'
-    }
-  },
-  github: {
-    id: 'github',
-    name: 'GitHub',
-    icon: '🐙',
-    clientId: process.env.GITHUB_CLIENT_ID || '',
-    clientSecret: process.env.GITHUB_CLIENT_SECRET || '',
-    authorizationUrl: 'https://github.com/login/oauth/authorize',
-    tokenUrl: 'https://github.com/login/oauth/access_token',
-    userInfoUrl: 'https://api.github.com/user',
-    scopes: ['user:email', 'repo'],
-    usePKCE: false, // GitHub doesn't support PKCE yet
-    redirectUri: 'http://localhost:8082/callback'
-  },
-  microsoft: {
-    id: 'microsoft',
-    name: 'Microsoft',
-    icon: '🪟',
-    clientId: process.env.MICROSOFT_CLIENT_ID || '',
-    authorizationUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
-    tokenUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
-    userInfoUrl: 'https://graph.microsoft.com/v1.0/me',
-    scopes: ['openid', 'profile', 'email', 'User.Read'],
-    usePKCE: true,
-    redirectUri: 'http://localhost:8082/callback'
-  }
-};
-
 export class OAuthProviderManager {
   private customProtocol: string;
   private serverProviders: Map<string, ServerProvider> = new Map();
   private readonly SERVER_PROVIDERS_FILE: string;
   private isLoaded: boolean = false;
+  private providerStorage: ProviderStorage;
 
   constructor(customProtocol: string = 'mcpauth') {
     this.customProtocol = customProtocol;
@@ -152,10 +100,21 @@ export class OAuthProviderManager {
       fs.mkdirSync(storageDir, { recursive: true, mode: 0o700 });
     }
     
-    // Load server providers on initialization
-    this.loadServerProviders().catch((error: any) => {
-      console.error('❌ Failed to load server providers on initialization:', error);
+    // Initialize provider storage
+    this.providerStorage = new ProviderStorage();
+    
+    // Load server providers and initialize built-in providers
+    this.initialize().catch((error: any) => {
+      console.error('❌ Failed to initialize OAuth provider manager:', error);
     });
+  }
+
+  /**
+   * Initialize the provider manager
+   */
+  private async initialize(): Promise<void> {
+    await this.loadServerProviders();
+    await this.providerStorage.initializeBuiltInProviders();
   }
 
   /**
@@ -220,15 +179,68 @@ export class OAuthProviderManager {
   /**
    * Get a provider configuration by ID
    */
-  getProvider(providerId: string): OAuthProvider | null {
-    return OAUTH_PROVIDERS[providerId] || null;
+  async getProvider(providerId: string): Promise<OAuthProvider | null> {
+    const config = await this.providerStorage.getProviderConfig(providerId);
+    if (!config) return null;
+    
+    // Convert to legacy format for backward compatibility
+    return this.configToProvider(config);
+  }
+
+  /**
+   * Convert OAuthProviderConfig to legacy OAuthProvider format
+   */
+  private configToProvider(config: OAuthProviderConfig): OAuthProvider {
+    return {
+      id: config.id,
+      name: config.name,
+      icon: config.icon,
+      clientId: config.clientId,
+      clientSecret: config.clientSecret,
+      authorizationUrl: config.authorizationUrl,
+      tokenUrl: config.tokenUrl,
+      userInfoUrl: config.userInfoUrl,
+      scopes: config.scopes,
+      usePKCE: config.usePKCE,
+      redirectUri: config.redirectUri,
+      additionalParams: config.additionalParams
+    };
   }
 
   /**
    * Get all available providers that have client IDs configured
    */
-  getAvailableProviders(): OAuthProvider[] {
-    return Object.values(OAUTH_PROVIDERS).filter(provider => provider.clientId);
+  async getAvailableProviders(): Promise<OAuthProvider[]> {
+    const configs = await this.providerStorage.getAvailableProviders();
+    return configs.map(config => this.configToProvider(config));
+  }
+
+  /**
+   * Get all provider configurations (including those without client IDs)
+   */
+  async getAllProviderConfigs(): Promise<OAuthProviderConfig[]> {
+    return await this.providerStorage.getAllProviderConfigs();
+  }
+
+  /**
+   * Add or update a provider configuration
+   */
+  async saveProviderConfig(config: Omit<OAuthProviderConfig, 'createdAt' | 'updatedAt'>): Promise<void> {
+    await this.providerStorage.saveProviderConfig(config);
+  }
+
+  /**
+   * Remove a provider configuration
+   */
+  async removeProviderConfig(providerId: string): Promise<void> {
+    await this.providerStorage.removeProviderConfig(providerId);
+  }
+
+  /**
+   * Check if a provider exists
+   */
+  async hasProvider(providerId: string): Promise<boolean> {
+    return await this.providerStorage.hasProvider(providerId);
   }
 
   /**
@@ -253,7 +265,12 @@ export class OAuthProviderManager {
   /**
    * Build authorization URL for a provider
    */
-  buildAuthorizationUrl(provider: OAuthProvider, pkceParams?: PKCEParams): string {
+  async buildAuthorizationUrl(providerId: string, pkceParams?: PKCEParams): Promise<string> {
+    const provider = await this.getProvider(providerId);
+    if (!provider) {
+      throw new Error(`Provider ${providerId} not found`);
+    }
+
     const params = new URLSearchParams({
       client_id: provider.clientId,
       redirect_uri: provider.redirectUri,
@@ -282,10 +299,15 @@ export class OAuthProviderManager {
    * Exchange authorization code for tokens
    */
   async exchangeCodeForTokens(
-    provider: OAuthProvider, 
+    providerId: string, 
     code: string, 
     pkceParams?: PKCEParams
   ): Promise<ProviderTokens> {
+    const provider = await this.getProvider(providerId);
+    if (!provider) {
+      throw new Error(`Provider ${providerId} not found`);
+    }
+
     const body: Record<string, string> = {
       client_id: provider.clientId,
       redirect_uri: provider.redirectUri,
@@ -353,7 +375,12 @@ export class OAuthProviderManager {
   /**
    * Refresh tokens for a provider
    */
-  async refreshTokens(provider: OAuthProvider, refreshToken: string): Promise<ProviderTokens> {
+  async refreshTokens(providerId: string, refreshToken: string): Promise<ProviderTokens> {
+    const provider = await this.getProvider(providerId);
+    if (!provider) {
+      throw new Error(`Provider ${providerId} not found`);
+    }
+
     const body: Record<string, string> = {
       client_id: provider.clientId,
       refresh_token: refreshToken,
@@ -509,6 +536,13 @@ export class OAuthProviderManager {
       permissions,
       providersCount: this.serverProviders.size
     };
+  }
+
+  /**
+   * Get provider storage info
+   */
+  getProviderStorageInfo(): any {
+    return this.providerStorage.getStorageInfo();
   }
 
   /**

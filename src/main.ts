@@ -11,6 +11,8 @@ import { WindowManager, WindowManagerOptions } from './window-manager';
 import { setEncryptionKeyProvider } from './encryption';
 import { OAuthProviderManager, OAuthProvider, ProviderTokens, PKCEParams as NewPKCEParams, ServerProvider } from './oauth-providers';
 import { OAuthTokenStorage, StoredProviderTokens } from './oauth-token-storage';
+import { PerProviderTokenStorage } from './per-provider-token-storage';
+import { OAuthProviderConfig } from './provider-storage';
 import { OAuthHttpServer, OAuthCallbackData } from './oauth-http-server';
 
 // Helper function to find assets directory reliably
@@ -60,6 +62,7 @@ class MenuBarNotificationApp {
   // New OAuth provider system
   private oauthProviderManager: OAuthProviderManager;
   private oauthTokenStorage: OAuthTokenStorage;
+  private perProviderTokenStorage: PerProviderTokenStorage;
   private currentProviderPKCE: NewPKCEParams | null = null;
   private oauthHttpServer: OAuthHttpServer;
   // WebSocket security
@@ -74,8 +77,14 @@ class MenuBarNotificationApp {
   constructor() {
     // Initialize OAuth provider system
     this.oauthProviderManager = new OAuthProviderManager(this.CUSTOM_PROTOCOL);
-    this.oauthTokenStorage = new OAuthTokenStorage();
+    this.oauthTokenStorage = new OAuthTokenStorage(); // Keep for migration
+    this.perProviderTokenStorage = new PerProviderTokenStorage();
     this.oauthHttpServer = new OAuthHttpServer(this.OAUTH_PORT);
+    
+    // Migrate from old storage format
+    this.migrateTokenStorage().catch(error => {
+      console.error('❌ Failed to migrate token storage:', error);
+    });
 
     // Initialize managers
     this.windowManager = new WindowManager({
@@ -214,6 +223,25 @@ class MenuBarNotificationApp {
   }
 
   // WebSocket Security Methods
+  /**
+   * Migrate tokens from old single-file storage to new per-provider storage
+   */
+  private async migrateTokenStorage(): Promise<void> {
+    try {
+      const oldTokens = await this.oauthTokenStorage.getAllTokens();
+      if (Object.keys(oldTokens).length > 0) {
+        console.log(`🔄 Migrating ${Object.keys(oldTokens).length} providers to new storage format`);
+        await this.perProviderTokenStorage.migrateFromOldStorage(oldTokens);
+        
+        // After successful migration, optionally clear old storage
+        // Uncomment the next line if you want to remove the old file after migration
+        // await this.oauthTokenStorage.clearAllTokens();
+      }
+    } catch (error) {
+      console.error('❌ Error during token storage migration:', error);
+    }
+  }
+
   private async initializeWebSocketKey(): Promise<void> {
     try {
       // Try to load existing key
@@ -404,7 +432,7 @@ class MenuBarNotificationApp {
   // New OAuth provider methods
   private async startProviderOAuthFlow(providerId: string): Promise<void> {
     try {
-      const provider = this.oauthProviderManager.getProvider(providerId);
+      const provider = await this.oauthProviderManager.getProvider(providerId);
       if (!provider) {
         throw new Error(`Provider ${providerId} not found`);
       }
@@ -428,7 +456,7 @@ class MenuBarNotificationApp {
       });
 
       // Build authorization URL
-      const authUrl = this.oauthProviderManager.buildAuthorizationUrl(provider, this.currentProviderPKCE);
+      const authUrl = await this.oauthProviderManager.buildAuthorizationUrl(providerId, this.currentProviderPKCE);
       console.log('🔗 Authorization URL created:', authUrl.substring(0, 100) + '...');
 
       // Open browser for user authentication
@@ -439,7 +467,7 @@ class MenuBarNotificationApp {
 
     } catch (error) {
       console.error(`❌ OAuth flow error for ${providerId}:`, error);
-      this.notifyProviderAuthError(providerId, 'Failed to start authentication');
+      await this.notifyProviderAuthError(providerId, 'Failed to start authentication');
       this.oauthHttpServer.stopServer(); // Clean up on error
     }
   }
@@ -463,19 +491,13 @@ class MenuBarNotificationApp {
         throw new Error('State mismatch - potential CSRF attack');
       }
 
-      // Get provider configuration
-      const provider = this.oauthProviderManager.getProvider(this.currentProviderPKCE.providerId);
-      if (!provider) {
-        throw new Error(`Provider ${this.currentProviderPKCE.providerId} not found`);
-      }
-
       // Exchange code for tokens
-      await this.exchangeProviderCodeForTokens(provider, code, this.currentProviderPKCE);
+      await this.exchangeProviderCodeForTokens(this.currentProviderPKCE.providerId, code, this.currentProviderPKCE);
 
     } catch (error) {
       console.error('❌ Provider OAuth callback error:', error);
       const providerId = this.currentProviderPKCE?.providerId || 'unknown';
-      this.notifyProviderAuthError(providerId, `Authentication failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      await this.notifyProviderAuthError(providerId, `Authentication failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -576,13 +598,13 @@ class MenuBarNotificationApp {
       );
       
       // Store tokens securely
-      await this.oauthTokenStorage.storeTokens(tokens);
+      await this.perProviderTokenStorage.storeTokens(tokens);
       
       console.log('🧹 Clearing session data after successful token exchange');
       this.currentProviderPKCE = null;
       
       // Notify the renderer process
-      const providerConfig = this.oauthProviderManager.getProvider(provider);
+      const providerConfig = await this.oauthProviderManager.getProvider(provider);
       this.windowManager.sendMessage('provider-auth-success', {
         providerId: tokens.providerId,
         providerName: providerConfig?.name || provider,
@@ -644,14 +666,8 @@ class MenuBarNotificationApp {
 
       console.log('✅ State validation passed, proceeding with token exchange');
 
-      // Get provider configuration
-      const provider = this.oauthProviderManager.getProvider(this.currentProviderPKCE.providerId);
-      if (!provider) {
-        throw new Error(`Provider ${this.currentProviderPKCE.providerId} not found`);
-      }
-
       // Exchange code for tokens
-      await this.exchangeProviderCodeForTokens(provider, callbackData.code, this.currentProviderPKCE);
+      await this.exchangeProviderCodeForTokens(this.currentProviderPKCE.providerId, callbackData.code, this.currentProviderPKCE);
 
     } catch (error) {
       console.error('❌ OAuth HTTP callback error:', error);
@@ -660,24 +676,28 @@ class MenuBarNotificationApp {
     }
   }
 
-  private async exchangeProviderCodeForTokens(provider: OAuthProvider, code: string, pkceParams: NewPKCEParams): Promise<void> {
+  private async exchangeProviderCodeForTokens(providerId: string, code: string, pkceParams: NewPKCEParams): Promise<void> {
     try {
-      console.log('🔄 Starting token exchange for provider:', provider.id);
+      console.log('🔄 Starting token exchange for provider:', providerId);
 
       // Exchange code for tokens using provider manager
-      const tokens = await this.oauthProviderManager.exchangeCodeForTokens(provider, code, pkceParams);
+      const tokens = await this.oauthProviderManager.exchangeCodeForTokens(providerId, code, pkceParams);
 
       // Store tokens securely
-      await this.oauthTokenStorage.storeTokens(tokens);
+      await this.perProviderTokenStorage.storeTokens(tokens);
 
       console.log('🧹 Clearing PKCE data after successful token exchange');
       // Clear PKCE data
       this.currentProviderPKCE = null;
 
+      // Get provider info for notifications
+      const provider = await this.oauthProviderManager.getProvider(providerId);
+      const providerName = provider?.name || providerId;
+
       // Notify the renderer process
       this.windowManager.sendMessage('provider-auth-success', {
-        providerId: provider.id,
-        providerName: provider.name,
+        providerId: providerId,
+        providerName: providerName,
         user: tokens.user,
         authenticated: true
       });
@@ -687,38 +707,33 @@ class MenuBarNotificationApp {
 
       // Show success notification
       this.showNotification({
-        id: `auth-success-${provider.id}`,
-        title: `${provider.name} Authentication Successful`,
-        body: `Successfully connected to ${provider.name}${tokens.user ? ` as ${tokens.user.name || tokens.user.email}` : ''}`,
+        id: `auth-success-${providerId}`,
+        title: `${providerName} Authentication Successful`,
+        body: `Successfully connected to ${providerName}${tokens.user ? ` as ${tokens.user.name || tokens.user.email}` : ''}`,
         timestamp: Date.now(),
         priority: 'normal'
       });
 
-      console.log(`✅ Successfully authenticated with ${provider.name}`);
+      console.log(`✅ Successfully authenticated with ${providerName}`);
 
     } catch (error) {
-      console.error(`❌ Token exchange error for ${provider.id}:`, error);
-      this.notifyProviderAuthError(provider.id, `Token exchange failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error(`❌ Token exchange error for ${providerId}:`, error);
+      await this.notifyProviderAuthError(providerId, `Token exchange failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
   private async refreshProviderTokens(providerId: string, refreshToken: string): Promise<ProviderTokens> {
-    const provider = this.oauthProviderManager.getProvider(providerId);
-    if (!provider) {
-      throw new Error(`Provider ${providerId} not found`);
-    }
-
-    return await this.oauthProviderManager.refreshTokens(provider, refreshToken);
+    return await this.oauthProviderManager.refreshTokens(providerId, refreshToken);
   }
 
   private async getValidProviderAccessToken(providerId: string): Promise<string | null> {
-    return await this.oauthTokenStorage.getValidAccessToken(
+    return await this.perProviderTokenStorage.getValidAccessToken(
       providerId,
       this.refreshProviderTokens.bind(this)
     );
   }
 
-  private notifyProviderAuthError(providerId: string, message: string): void {
+  private async notifyProviderAuthError(providerId: string, message: string): Promise<void> {
     console.error(`🔐 Auth Error for ${providerId}:`, message);
 
     this.windowManager.sendMessage('provider-auth-error', {
@@ -726,7 +741,7 @@ class MenuBarNotificationApp {
       message
     });
 
-    const provider = this.oauthProviderManager.getProvider(providerId);
+    const provider = await this.oauthProviderManager.getProvider(providerId);
     const providerName = provider?.name || providerId;
 
     this.showNotification({
@@ -739,10 +754,10 @@ class MenuBarNotificationApp {
   }
 
   private async logoutProvider(providerId: string): Promise<void> {
-    await this.oauthTokenStorage.removeTokens(providerId);
+    await this.perProviderTokenStorage.removeTokens(providerId);
     this.windowManager.sendMessage('provider-auth-logout', { providerId });
 
-    const provider = this.oauthProviderManager.getProvider(providerId);
+    const provider = await this.oauthProviderManager.getProvider(providerId);
     const providerName = provider?.name || providerId;
 
     console.log(`👋 Logged out from ${providerName}`);
@@ -1021,8 +1036,9 @@ class MenuBarNotificationApp {
 
             try {
               const token = await this.getValidProviderAccessToken(providerId.toLowerCase());
-              const providerStatus = await this.oauthTokenStorage.getProviderStatus();
+              const providerStatus = await this.perProviderTokenStorage.getProviderStatus();
               const providerInfo = providerStatus[providerId];
+              const provider = await this.oauthProviderManager.getProvider(providerId);
 
               const tokenResponse = {
                 type: 'provider-auth-token',
@@ -1032,7 +1048,7 @@ class MenuBarNotificationApp {
                 requestId: message.requestId,
                 authenticated: !!token || this.SKIP_AUTH,
                 user: providerInfo?.user || (this.SKIP_AUTH ? { email: 'test@example.com', firstName: 'Test Provider' } : null),
-                providerName: this.oauthProviderManager.getProvider(providerId)?.name || providerId
+                providerName: provider?.name || providerId
               };
 
               ws.send(JSON.stringify(tokenResponse));
@@ -1051,7 +1067,7 @@ class MenuBarNotificationApp {
           // Handle provider status request
           if (message.type === 'request-provider-status') {
             try {
-              const providerStatus = await this.oauthTokenStorage.getProviderStatus();
+              const providerStatus = await this.perProviderTokenStorage.getProviderStatus();
 
               const tokensAvailable: string[] = [];
               
@@ -1203,8 +1219,8 @@ class MenuBarNotificationApp {
     });
 
     // New OAuth Provider IPC handlers
-    ipcMain.handle('get-available-providers', (): OAuthProvider[] => {
-      return this.oauthProviderManager.getAvailableProviders();
+    ipcMain.handle('get-available-providers', async (): Promise<OAuthProvider[]> => {
+      return await this.oauthProviderManager.getAvailableProviders();
     });
 
     ipcMain.handle('start-provider-oauth', async (event, providerId: string): Promise<void> => {
@@ -1212,7 +1228,7 @@ class MenuBarNotificationApp {
     });
 
     ipcMain.handle('get-provider-auth-status', async (): Promise<Record<string, any>> => {
-      return await this.oauthTokenStorage.getProviderStatus();
+      return await this.perProviderTokenStorage.getProviderStatus();
     });
 
     ipcMain.handle('get-provider-access-token', async (event, providerId: string): Promise<string | null> => {
@@ -1224,18 +1240,18 @@ class MenuBarNotificationApp {
     });
 
     ipcMain.handle('get-provider-tokens', async (event, providerId: string): Promise<StoredProviderTokens | null> => {
-      return await this.oauthTokenStorage.getTokens(providerId);
+      return await this.perProviderTokenStorage.getTokens(providerId);
     });
 
     ipcMain.handle('refresh-provider-tokens', async (event, providerId: string): Promise<boolean> => {
       try {
-        const tokens = await this.oauthTokenStorage.getTokens(providerId);
+        const tokens = await this.perProviderTokenStorage.getTokens(providerId);
         if (!tokens?.refresh_token) {
           return false;
         }
 
         const refreshedTokens = await this.refreshProviderTokens(providerId, tokens.refresh_token);
-        await this.oauthTokenStorage.storeTokens(refreshedTokens);
+        await this.perProviderTokenStorage.storeTokens(refreshedTokens);
         return true;
       } catch (error) {
         console.error(`Failed to refresh tokens for ${providerId}:`, error);
@@ -1244,11 +1260,36 @@ class MenuBarNotificationApp {
     });
 
     ipcMain.handle('clear-all-provider-tokens', async (): Promise<void> => {
-      await this.oauthTokenStorage.clearAllTokens();
+      await this.perProviderTokenStorage.clearAllTokens();
     });
 
     ipcMain.handle('get-oauth-storage-info', (): any => {
-      return this.oauthTokenStorage.getStorageInfo();
+      return {
+        ...this.perProviderTokenStorage.getStorageInfo(),
+        providerStorage: this.oauthProviderManager.getProviderStorageInfo()
+      };
+    });
+
+    // Manual Provider Management IPC handlers
+    ipcMain.handle('get-all-provider-configs', async (): Promise<OAuthProviderConfig[]> => {
+      return await this.oauthProviderManager.getAllProviderConfigs();
+    });
+
+    ipcMain.handle('save-provider-config', async (event, config: Omit<OAuthProviderConfig, 'createdAt' | 'updatedAt'>): Promise<void> => {
+      await this.oauthProviderManager.saveProviderConfig(config);
+    });
+
+    ipcMain.handle('remove-provider-config', async (event, providerId: string): Promise<void> => {
+      await this.oauthProviderManager.removeProviderConfig(providerId);
+    });
+
+    ipcMain.handle('get-provider-config', async (event, providerId: string): Promise<OAuthProviderConfig | null> => {
+      const provider = await this.oauthProviderManager.getProvider(providerId);
+      if (!provider) return null;
+      
+      // Get full config including metadata
+      const configs = await this.oauthProviderManager.getAllProviderConfigs();
+      return configs.find(c => c.id === providerId) || null;
     });
 
     // Server Provider IPC handlers

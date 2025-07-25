@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
+import { ManualProviderForm } from './ManualProviderForm';
 
 interface OAuthProvider {
   id: string;
@@ -49,19 +50,27 @@ declare global {
       refreshProviderTokens: (providerId: string) => Promise<boolean>;
       clearAllProviderTokens: () => Promise<void>;
       getOAuthStorageInfo: () => Promise<any>;
+      getAllProviderConfigs: () => Promise<any[]>;
+      saveProviderConfig: (config: any) => Promise<void>;
+      removeProviderConfig: (providerId: string) => Promise<void>;
+      getProviderConfig: (providerId: string) => Promise<any>;
     };
   }
 }
 
 export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ className }) => {
   const [providers, setProviders] = useState<OAuthProvider[]>([]);
+  const [allProviderConfigs, setAllProviderConfigs] = useState<any[]>([]);
   const [providerStatus, setProviderStatus] = useState<Record<string, ProviderStatus>>({});
   const [isLoading, setIsLoading] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
   const [storageInfo, setStorageInfo] = useState<any>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [editingProvider, setEditingProvider] = useState<any>(null);
 
   useEffect(() => {
     loadProviders();
+    loadAllProviderConfigs();
     loadProviderStatus();
     loadStorageInfo();
 
@@ -104,6 +113,15 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
     } catch (error) {
       console.error('Failed to load providers:', error);
       setError('Failed to load available providers');
+    }
+  };
+
+  const loadAllProviderConfigs = async () => {
+    try {
+      const allConfigs = await window.electronAPI.getAllProviderConfigs();
+      setAllProviderConfigs(allConfigs);
+    } catch (error) {
+      console.error('Failed to load all provider configs:', error);
     }
   };
 
@@ -205,6 +223,50 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
     }
   };
 
+  const handleSaveProvider = async (config: any) => {
+    try {
+      await window.electronAPI.saveProviderConfig(config);
+      await loadProviders();
+      await loadAllProviderConfigs();
+      setShowAddForm(false);
+      setEditingProvider(null);
+      setError(null);
+    } catch (error) {
+      console.error('Failed to save provider:', error);
+      setError('Failed to save provider configuration');
+      throw error; // Re-throw to let the form handle it
+    }
+  };
+
+  const handleDeleteProvider = async (providerId: string) => {
+    if (!confirm(`Are you sure you want to delete the provider "${providerId}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      await window.electronAPI.removeProviderConfig(providerId);
+      await loadProviders();
+      await loadAllProviderConfigs();
+      setError(null);
+    } catch (error) {
+      console.error(`Failed to delete provider ${providerId}:`, error);
+      setError(`Failed to delete provider ${providerId}`);
+    }
+  };
+
+  const handleEditProvider = async (providerId: string) => {
+    try {
+      const config = await window.electronAPI.getProviderConfig(providerId);
+      if (config) {
+        setEditingProvider(config);
+        setShowAddForm(true);
+      }
+    } catch (error) {
+      console.error(`Failed to load provider config ${providerId}:`, error);
+      setError(`Failed to load provider configuration`);
+    }
+  };
+
   const formatDate = (timestamp?: number) => {
     if (!timestamp) return 'N/A';
     return new Date(timestamp).toLocaleString();
@@ -222,14 +284,22 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
 
   return (
     <div className={`space-y-6 ${className}`}>
-      <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">OAuth Providers</h2>
         <div className="flex gap-2">
           <Button
             variant="outline"
             size="sm"
+            onClick={() => setShowAddForm(true)}
+          >
+            ➕ Add Provider
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => {
               loadProviders();
+              loadAllProviderConfigs();
               loadProviderStatus();
               loadStorageInfo();
             }}
@@ -254,7 +324,19 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
         </div>
       )}
 
-      {providers.length === 0 ? (
+      {showAddForm && (
+        <ManualProviderForm
+          onSave={handleSaveProvider}
+          onCancel={() => {
+            setShowAddForm(false);
+            setEditingProvider(null);
+          }}
+          initialConfig={editingProvider}
+          isEditing={!!editingProvider}
+        />
+      )}
+
+      {allProviderConfigs.length === 0 ? (
         <Card className="p-6">
           <div className="text-center text-gray-500">
             <p>No OAuth providers configured.</p>
@@ -265,19 +347,28 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
         </Card>
       ) : (
         <div className="grid gap-4">
-          {providers.map((provider) => {
-            const status = providerStatus[provider.id];
-            const loading = isLoading[provider.id];
+          {allProviderConfigs.map((config) => {
+            const status = providerStatus[config.id];
+            const loading = isLoading[config.id];
+            const isAvailable = config.clientId && config.clientId.trim() !== '';
 
             return (
-              <Card key={provider.id} className="p-6">
+              <Card key={config.id} className="p-6">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="text-2xl">{provider.icon || '🔗'}</div>
+                    <div className="text-2xl">{config.icon || '🔗'}</div>
                     <div>
-                      <h3 className="text-lg font-semibold">{provider.name}</h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-lg font-semibold">{config.name}</h3>
+                        {config.isCustom && (
+                          <Badge variant="outline" className="text-xs">Custom</Badge>
+                        )}
+                        {!isAvailable && (
+                          <Badge variant="secondary" className="text-xs">No Client ID</Badge>
+                        )}
+                      </div>
                       <p className="text-sm text-gray-500">
-                        Scopes: {provider.scopes.join(', ')}
+                        Scopes: {config.scopes?.join(', ') || 'None specified'}
                       </p>
                       {status?.user && (
                         <div className="text-sm text-gray-600 mt-1">
@@ -291,48 +382,77 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
                   </div>
                   <div className="flex items-center gap-2">
                     {getStatusBadge(status || { authenticated: false, expired: false })}
+                    {config.isCustom && (
+                      <div className="flex gap-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEditProvider(config.id)}
+                        >
+                          ✏️ Edit
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDeleteProvider(config.id)}
+                        >
+                          🗑️ Delete
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {!status?.authenticated ? (
-                    <Button
-                      onClick={() => handleConnect(provider.id)}
-                      disabled={loading}
-                      size="sm"
-                    >
-                      {loading ? '⏳ Connecting...' : '🔗 Connect'}
-                    </Button>
-                  ) : (
-                    <>
+                {isAvailable && (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {!status?.authenticated ? (
                       <Button
-                        onClick={() => handleGetToken(provider.id)}
-                        variant="outline"
+                        onClick={() => handleConnect(config.id)}
+                        disabled={loading}
                         size="sm"
                       >
-                        📋 Copy Token
+                        {loading ? '⏳ Connecting...' : '🔗 Connect'}
                       </Button>
-                      {status.expired && (
+                    ) : (
+                      <>
                         <Button
-                          onClick={() => handleRefresh(provider.id)}
-                          disabled={loading}
+                          onClick={() => handleGetToken(config.id)}
                           variant="outline"
                           size="sm"
                         >
-                          {loading ? '⏳ Refreshing...' : '🔄 Refresh'}
+                          📋 Copy Token
                         </Button>
-                      )}
-                      <Button
-                        onClick={() => handleDisconnect(provider.id)}
-                        disabled={loading}
-                        variant="destructive"
-                        size="sm"
-                      >
-                        {loading ? '⏳ Disconnecting...' : '❌ Disconnect'}
-                      </Button>
-                    </>
-                  )}
-                </div>
+                        {status.expired && (
+                          <Button
+                            onClick={() => handleRefresh(config.id)}
+                            disabled={loading}
+                            variant="outline"
+                            size="sm"
+                          >
+                            {loading ? '⏳ Refreshing...' : '🔄 Refresh'}
+                          </Button>
+                        )}
+                        <Button
+                          onClick={() => handleDisconnect(config.id)}
+                          disabled={loading}
+                          variant="destructive"
+                          size="sm"
+                        >
+                          {loading ? '⏳ Disconnecting...' : '❌ Disconnect'}
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {!isAvailable && (
+                  <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <p className="text-sm text-yellow-700">
+                      ⚠️ This provider needs a Client ID to be configured before it can be used.
+                      {config.isCustom && ' Click "Edit" to add your Client ID.'}
+                    </p>
+                  </div>
+                )}
               </Card>
             );
           })}
