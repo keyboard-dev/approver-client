@@ -11,7 +11,7 @@ export interface Message {
   requiresResponse?: boolean
   codeEval?: boolean
   code?: string
-  explaination?: string
+  explanation?: string
   type?: string
 }
 

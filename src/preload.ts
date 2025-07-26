@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron'
+import { ServerProviderInfo } from './oauth-providers'
 
 export interface Message {
   id: string
@@ -13,7 +14,7 @@ export interface Message {
   requiresResponse?: boolean
   codeEval?: boolean
   code?: string
-  explaination?: string
+  explanation?: string
 }
 
 export interface AuthStatus {
@@ -46,20 +47,51 @@ export interface OAuthProvider {
   additionalParams?: Record<string, string>
 }
 
+export interface UserInfo {
+  id: string
+  email: string
+  name: string
+  firstName?: string
+  lastName?: string
+  picture?: string
+  [key: string]: unknown
+}
+
 export interface ProviderStatus {
   authenticated: boolean
   expired: boolean
-  user?: {
-    id: string
-    email: string
-    name: string
-    firstName?: string
-    lastName?: string
-    picture?: string
-    [key: string]: any
-  }
+  user?: UserInfo
   storedAt?: number
   updatedAt?: number
+}
+
+export interface TokenInfo {
+  access_token: string
+  refresh_token?: string
+  token_type?: string
+  expires_in?: number
+  scope?: string
+  [key: string]: unknown
+}
+
+export interface ServerProvider {
+  id: string
+  name: string
+  url: string
+  providers?: OAuthProvider[]
+  [key: string]: unknown
+}
+
+export interface OAuthStorageInfo {
+  providers: Record<string, ProviderStatus>
+  storageLocation: string
+  [key: string]: unknown
+}
+
+export interface ProviderAuthData {
+  providerId: string
+  status: ProviderStatus
+  tokens?: TokenInfo
 }
 
 export interface ElectronAPI {
@@ -86,18 +118,18 @@ export interface ElectronAPI {
   getProviderAuthStatus: () => Promise<Record<string, ProviderStatus>>
   getProviderAccessToken: (providerId: string) => Promise<string | null>
   logoutProvider: (providerId: string) => Promise<void>
-  getProviderTokens: (providerId: string) => Promise<any>
+  getProviderTokens: (providerId: string) => Promise<TokenInfo>
   refreshProviderTokens: (providerId: string) => Promise<boolean>
   clearAllProviderTokens: () => Promise<void>
-  getOAuthStorageInfo: () => Promise<any>
-  onProviderAuthSuccess: (callback: (event: IpcRendererEvent, data: any) => void) => void
-  onProviderAuthError: (callback: (event: IpcRendererEvent, error: any) => void) => void
-  onProviderAuthLogout: (callback: (event: IpcRendererEvent, data: any) => void) => void
+  getOAuthStorageInfo: () => Promise<OAuthStorageInfo>
+  onProviderAuthSuccess: (callback: (event: IpcRendererEvent, data: ProviderAuthData) => void) => void
+  onProviderAuthError: (callback: (event: IpcRendererEvent, error: AuthError) => void) => void
+  onProviderAuthLogout: (callback: (event: IpcRendererEvent, data: ProviderAuthData) => void) => void
   // Server Provider management
-  addServerProvider: (server: any) => Promise<void>
+  addServerProvider: (server: ServerProvider) => Promise<void>
   removeServerProvider: (serverId: string) => Promise<void>
-  getServerProviders: () => Promise<any[]>
-  fetchServerProviders: (serverId: string) => Promise<any[]>
+  getServerProviders: () => Promise<ServerProvider[]>
+  fetchServerProviders: (serverId: string) => Promise<ServerProviderInfo[]>
   startServerProviderOAuth: (serverId: string, provider: string) => Promise<void>
   // WebSocket key management
   getWSConnectionKey: () => Promise<string | null>
@@ -110,6 +142,8 @@ export interface ElectronAPI {
   regenerateEncryptionKey: () => Promise<{ key: string, createdAt: number, source: string }>
   getEncryptionKeyInfo: () => Promise<{ key: string | null, createdAt: number | null, keyFile: string, source: 'environment' | 'generated' | null }>
   onEncryptionKeyGenerated: (callback: (event: IpcRendererEvent, data: { key: string, createdAt: number, source: string }) => void) => void
+  // Window control
+  closeWindow: () => Promise<void>
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -156,27 +190,27 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getProviderAuthStatus: (): Promise<Record<string, ProviderStatus>> => ipcRenderer.invoke('get-provider-auth-status'),
   getProviderAccessToken: (providerId: string): Promise<string | null> => ipcRenderer.invoke('get-provider-access-token', providerId),
   logoutProvider: (providerId: string): Promise<void> => ipcRenderer.invoke('logout-provider', providerId),
-  getProviderTokens: (providerId: string): Promise<any> => ipcRenderer.invoke('get-provider-tokens', providerId),
+  getProviderTokens: (providerId: string): Promise<TokenInfo> => ipcRenderer.invoke('get-provider-tokens', providerId),
   refreshProviderTokens: (providerId: string): Promise<boolean> => ipcRenderer.invoke('refresh-provider-tokens', providerId),
   clearAllProviderTokens: (): Promise<void> => ipcRenderer.invoke('clear-all-provider-tokens'),
-  getOAuthStorageInfo: (): Promise<any> => ipcRenderer.invoke('get-oauth-storage-info'),
+  getOAuthStorageInfo: (): Promise<OAuthStorageInfo> => ipcRenderer.invoke('get-oauth-storage-info'),
 
   // OAuth Provider event listeners
-  onProviderAuthSuccess: (callback: (event: IpcRendererEvent, data: any) => void): void => {
+  onProviderAuthSuccess: (callback: (event: IpcRendererEvent, data: ProviderAuthData) => void): void => {
     ipcRenderer.on('provider-auth-success', callback)
   },
-  onProviderAuthError: (callback: (event: IpcRendererEvent, error: any) => void): void => {
+  onProviderAuthError: (callback: (event: IpcRendererEvent, error: AuthError) => void): void => {
     ipcRenderer.on('provider-auth-error', callback)
   },
-  onProviderAuthLogout: (callback: (event: IpcRendererEvent, data: any) => void): void => {
+  onProviderAuthLogout: (callback: (event: IpcRendererEvent, data: ProviderAuthData) => void): void => {
     ipcRenderer.on('provider-auth-logout', callback)
   },
 
   // Server Provider management
-  addServerProvider: (server: any): Promise<void> => ipcRenderer.invoke('add-server-provider', server),
+  addServerProvider: (server: ServerProvider): Promise<void> => ipcRenderer.invoke('add-server-provider', server),
   removeServerProvider: (serverId: string): Promise<void> => ipcRenderer.invoke('remove-server-provider', serverId),
-  getServerProviders: (): Promise<any[]> => ipcRenderer.invoke('get-server-providers'),
-  fetchServerProviders: (serverId: string): Promise<any[]> => ipcRenderer.invoke('fetch-server-providers', serverId),
+  getServerProviders: (): Promise<ServerProvider[]> => ipcRenderer.invoke('get-server-providers'),
+  fetchServerProviders: (serverId: string): Promise<ServerProviderInfo[]> => ipcRenderer.invoke('fetch-server-providers', serverId),
   startServerProviderOAuth: (serverId: string, provider: string): Promise<void> => ipcRenderer.invoke('start-server-provider-oauth', serverId, provider),
 
   // WebSocket key management

@@ -63,19 +63,20 @@ export class WindowManager {
       this.createMainWindow()
     }
 
-    if (!this.mainWindow) return;
+    if (!this.mainWindow) return
 
     if (bounds) {
-      this.positionWindowNearTray(bounds);
-    } else {
+      this.positionWindowNearTray(bounds)
+    }
+    else {
       // Force the window to be on the current screen before showing
-      const currentDisplay = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+      const currentDisplay = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
       this.mainWindow.setBounds({
         x: currentDisplay.bounds.x + 100,
         y: currentDisplay.bounds.y + 100,
         width: 600,
-        height: 700
-      });
+        height: 700,
+      })
     }
 
     this.mainWindow.setVisibleOnAllWorkspaces(true)
@@ -93,20 +94,20 @@ export class WindowManager {
     // Find the display that contains the tray icon
     const trayCenter = {
       x: trayBounds.x + trayBounds.width / 2,
-      y: trayBounds.y + trayBounds.height / 2
-    };
-    const targetDisplay = screen.getDisplayNearestPoint(trayCenter);
+      y: trayBounds.y + trayBounds.height / 2,
+    }
+    const targetDisplay = screen.getDisplayNearestPoint(trayCenter)
 
-    let x = Math.round(trayBounds.x + (trayBounds.width / 2) - (windowBounds.width / 2));
-    let y = Math.round(trayBounds.y + trayBounds.height + 5);
+    let x = Math.round(trayBounds.x + (trayBounds.width / 2) - (windowBounds.width / 2))
+    let y = Math.round(trayBounds.y + trayBounds.height + 5)
 
     // Make sure window stays on the correct screen
-    const { width: screenWidth, height: screenHeight } = targetDisplay.workAreaSize;
-    const { x: screenX, y: screenY } = targetDisplay.workArea;
+    const { width: screenWidth, height: screenHeight } = targetDisplay.workAreaSize
+    const { x: screenX, y: screenY } = targetDisplay.workArea
 
     // Constrain to the target display's work area
-    x = Math.max(screenX, Math.min(x, screenX + screenWidth - windowBounds.width));
-    y = Math.max(screenY, Math.min(y, screenY + screenHeight - windowBounds.height));
+    x = Math.max(screenX, Math.min(x, screenX + screenWidth - windowBounds.width))
+    y = Math.max(screenY, Math.min(y, screenY + screenHeight - windowBounds.height))
 
     this.mainWindow.setPosition(x, y)
   }
@@ -121,7 +122,7 @@ export class WindowManager {
     return this.mainWindow?.isVisible() ?? false
   }
 
-  public sendMessage(channel: string, ...args: any[]): void {
+  public sendMessage(channel: string, ...args: unknown[]): void {
     if (this.mainWindow) {
       this.mainWindow.webContents.send(channel, ...args)
     }

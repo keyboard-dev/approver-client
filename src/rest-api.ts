@@ -10,13 +10,11 @@ import {
   searchScriptTemplates,
   interpolateScript,
   validateInputs,
-  ScriptTemplate,
-  ScriptInputSchema,
 } from './keyboard-shortcuts'
 import { encryptWithCustomKey, decryptWithCustomKey } from './encryption'
 
 interface AuthenticatedRequest extends Request {
-  user?: any
+  user?: { id?: string, sub?: string, [key: string]: unknown }
   token?: string
 }
 
@@ -294,7 +292,7 @@ const createStatsHandler = (getMessages: () => Message[]) => {
 
 // Error handling middleware
 const createErrorHandler = () => {
-  return (err: Error, req: Request, res: Response, next: NextFunction) => {
+  return (err: Error, req: Request, res: Response) => {
     console.error('REST API Error:', err)
     res.status(500).json({
       error: 'Internal server error',
@@ -348,7 +346,6 @@ const setupExpressApp = (deps: RestAPIServerDeps): Application => {
   app.post('/api/scripts', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { name, description, schema, script, tags } = req.body
-      const userId = req.user?.id || req.user?.sub || 'unknown'
       const token = req.token || ''
 
       if (!name || !description || !script) {
@@ -371,7 +368,7 @@ const setupExpressApp = (deps: RestAPIServerDeps): Application => {
         res.status(500).json({ error: result.error })
       }
     }
-    catch (error) {
+    catch {
       res.status(500).json({ error: 'Internal server error' })
     }
   })
@@ -390,7 +387,7 @@ const setupExpressApp = (deps: RestAPIServerDeps): Application => {
         res.status(404).json({ error: result.error })
       }
     }
-    catch (error) {
+    catch {
       res.status(500).json({ error: 'Internal server error' })
     }
   })
@@ -409,7 +406,7 @@ const setupExpressApp = (deps: RestAPIServerDeps): Application => {
         res.status(500).json({ error: result.error })
       }
     }
-    catch (error) {
+    catch {
       res.status(500).json({ error: 'Internal server error' })
     }
   })
@@ -429,7 +426,7 @@ const setupExpressApp = (deps: RestAPIServerDeps): Application => {
         res.status(404).json({ error: result.error })
       }
     }
-    catch (error) {
+    catch {
       res.status(500).json({ error: 'Internal server error' })
     }
   })
@@ -448,7 +445,7 @@ const setupExpressApp = (deps: RestAPIServerDeps): Application => {
         res.status(404).json({ error: result.error })
       }
     }
-    catch (error) {
+    catch {
       res.status(500).json({ error: 'Internal server error' })
     }
   })
@@ -472,7 +469,7 @@ const setupExpressApp = (deps: RestAPIServerDeps): Application => {
         res.status(500).json({ error: result.error })
       }
     }
-    catch (error) {
+    catch {
       res.status(500).json({ error: 'Internal server error' })
     }
   })
@@ -519,7 +516,7 @@ const setupExpressApp = (deps: RestAPIServerDeps): Application => {
         tags: script.tags,
       })
     }
-    catch (error) {
+    catch {
       res.status(500).json({ error: 'Internal server error' })
     }
   })
@@ -530,7 +527,7 @@ const setupExpressApp = (deps: RestAPIServerDeps): Application => {
       const encryptedCode = encryptWithCustomKey(codeToEncrypt)
       res.json({ success: true, encryptedCode })
     }
-    catch (error) {
+    catch {
       res.status(500).json({ error: 'Internal server error' })
     }
   })
@@ -542,7 +539,7 @@ const setupExpressApp = (deps: RestAPIServerDeps): Application => {
       const decryptedCode = decryptWithCustomKey(codeToDecrypt)
       res.json({ success: true, decryptedCode })
     }
-    catch (error) {
+    catch {
       res.status(500).json({ error: 'Internal server error' })
     }
   })

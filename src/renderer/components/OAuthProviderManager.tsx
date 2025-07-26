@@ -28,7 +28,7 @@ interface ProviderStatus {
     firstName?: string
     lastName?: string
     picture?: string
-    [key: string]: any
+    [key: string]: unknown
   }
   storedAt?: number
   updatedAt?: number
@@ -38,19 +38,12 @@ interface OAuthProviderManagerProps {
   className?: string
 }
 
-declare global {
-  interface Window {
-    electronAPI: {
-      getAvailableProviders: () => Promise<OAuthProvider[]>
-      startProviderOAuth: (providerId: string) => Promise<void>
-      getProviderAuthStatus: () => Promise<Record<string, ProviderStatus>>
-      getProviderAccessToken: (providerId: string) => Promise<string | null>
-      logoutProvider: (providerId: string) => Promise<void>
-      refreshProviderTokens: (providerId: string) => Promise<boolean>
-      clearAllProviderTokens: () => Promise<void>
-      getOAuthStorageInfo: () => Promise<any>
-    }
-  }
+interface StorageInfo {
+  filePath?: string
+  providersCount?: number
+  size?: number
+  permissions?: string
+  [key: string]: unknown
 }
 
 export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ className }) => {
@@ -58,31 +51,32 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
   const [providerStatus, setProviderStatus] = useState<Record<string, ProviderStatus>>({})
   const [isLoading, setIsLoading] = useState<Record<string, boolean>>({})
   const [error, setError] = useState<string | null>(null)
-  const [storageInfo, setStorageInfo] = useState<any>(null)
+  const [storageInfo, setStorageInfo] = useState<StorageInfo | null>(null)
 
   useEffect(() => {
     loadProviders()
     loadProviderStatus()
     loadStorageInfo()
 
-    // Listen for OAuth events
-    const handleProviderAuthSuccess = (event: any, data: any) => {
-      console.log('Provider auth success:', data)
-      loadProviderStatus()
-      setIsLoading(prev => ({ ...prev, [data.providerId]: false }))
-      setError(null)
-    }
+    // Note: Event handlers commented out as they are not currently implemented in preload
+    // and the electron IPC events would need to be set up properly first
+    // const handleProviderAuthSuccess = (event: unknown, data: { providerId: string }) => {
+    //   console.log('Provider auth success:', data)
+    //   loadProviderStatus()
+    //   setIsLoading(prev => ({ ...prev, [data.providerId]: false }))
+    //   setError(null)
+    // }
 
-    const handleProviderAuthError = (event: any, data: any) => {
-      console.error('Provider auth error:', data)
-      setError(`${data.providerId}: ${data.message}`)
-      setIsLoading(prev => ({ ...prev, [data.providerId]: false }))
-    }
+    // const handleProviderAuthError = (event: unknown, data: { providerId: string; message: string }) => {
+    //   console.error('Provider auth error:', data)
+    //   setError(`${data.providerId}: ${data.message}`)
+    //   setIsLoading(prev => ({ ...prev, [data.providerId]: false }))
+    // }
 
-    const handleProviderAuthLogout = (event: any, data: any) => {
-      console.log('Provider auth logout:', data)
-      loadProviderStatus()
-    }
+    // const handleProviderAuthLogout = (event: unknown, data: { providerId: string }) => {
+    //   console.log('Provider auth logout:', data)
+    //   loadProviderStatus()
+    // }
 
     // Add event listeners if available
     if (window.electronAPI) {

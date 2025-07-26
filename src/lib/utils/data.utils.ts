@@ -1,9 +1,17 @@
-export const extractJsonFromCodeApproval = (messageBody: string): any => {
+interface ParsedJsonResult {
+  stdout?: string
+  stderr?: string
+  success?: boolean
+  raw?: boolean
+  [key: string]: unknown
+}
+
+export const extractJsonFromCodeApproval = (messageBody: string): ParsedJsonResult => {
   try {
     // First, try to parse the entire body as JSON (in case it's already clean JSON)
-    return JSON.parse(messageBody)
+    return JSON.parse(messageBody) as ParsedJsonResult
   }
-  catch (error) {
+  catch {
     // If that fails, try to extract JSON from the text
     try {
       // Look for JSON patterns - find text that starts with { and ends with }
@@ -11,7 +19,7 @@ export const extractJsonFromCodeApproval = (messageBody: string): any => {
       const jsonMatch = messageBody.match(/\{[\s\S]*\}/)
       if (jsonMatch) {
         const jsonStr = jsonMatch[0]
-        return JSON.parse(jsonStr)
+        return JSON.parse(jsonStr) as ParsedJsonResult
       }
 
       // Alternative: look for patterns like "response:" or "result:" followed by JSON
@@ -19,7 +27,7 @@ export const extractJsonFromCodeApproval = (messageBody: string): any => {
       // This regex will match "response:", "result:", "data:", or "codespace:" followed by a JSON object.
       const colonMatch = messageBody.match(/(?:response|result|data|codespace):\s*(\{[\s\S]*\})/i)
       if (colonMatch) {
-        return JSON.parse(colonMatch[1])
+        return JSON.parse(colonMatch[1]) as ParsedJsonResult
       }
 
       // If no JSON found, return a fallback structure
@@ -30,7 +38,7 @@ export const extractJsonFromCodeApproval = (messageBody: string): any => {
         raw: true,
       }
     }
-    catch (parseError) {
+    catch {
       // If all parsing attempts fail, return the original text
       return {
         stdout: messageBody,

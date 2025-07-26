@@ -313,7 +313,7 @@ const App: React.FC = () => {
             </TabsContent>
             <TabsContent value="explanation" className="mt-2">
               <div className="bg-gray-100 p-4 rounded-lg">
-                <pre className="whitespace-pre-wrap text-sm">{message.explaination || 'No explanation provided'}</pre>
+                <pre className="whitespace-pre-wrap text-sm">{message.explanation || 'No explanation provided'}</pre>
               </div>
             </TabsContent>
           </Tabs>
@@ -321,12 +321,15 @@ const App: React.FC = () => {
       case 'code response approval': {
         const parsedBody = extractJsonFromCodeApproval(message.body)
         const { data } = parsedBody
-        let stdout, stderr
+        let stdout: string | undefined, stderr: string | undefined
         if (data) {
-          ({ stdout, stderr } = data)
+          const typedData = data as { stdout?: string, stderr?: string }
+          stdout = typedData.stdout
+          stderr = typedData.stderr
         }
         else {
-          ({ stdout, stderr } = parsedBody)
+          stdout = parsedBody.stdout
+          stderr = parsedBody.stderr
         }
         return (
           <div className="bg-gray-100 p-4 rounded-lg">
@@ -358,7 +361,7 @@ const App: React.FC = () => {
         const { data } = parsedBody
         let stdout, stderr
         if (data) {
-          ({ stdout, stderr } = data)
+          ({ stdout, stderr } = data as { stdout?: string, stderr?: string })
         }
         else {
           ({ stdout, stderr } = parsedBody)

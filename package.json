@@ -78,6 +78,7 @@
     "electron": "^27.1.2",
     "electron-builder": "^26.0.12",
     "eslint": "^9.31.0",
+    "eslint-config-flat-gitignore": "^2.1.0",
     "eslint-plugin-react": "^7.37.5",
     "globals": "^16.3.0",
     "postcss": "^8.5.5",

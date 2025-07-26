@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* eslint-disable @typescript-eslint/no-require-imports */
 require('@dotenvx/dotenvx').config()
 const { execSync } = require('child_process')
 

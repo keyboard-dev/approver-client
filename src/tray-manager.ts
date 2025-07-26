@@ -1,4 +1,4 @@
-import { Tray, Menu, nativeImage, BrowserWindow, screen, app } from 'electron'
+import { Tray, Menu, nativeImage, app } from 'electron'
 import { Message } from './types'
 import * as path from 'path'
 import * as fs from 'fs'
@@ -88,7 +88,7 @@ export class TrayManager {
         const pendingCount = this.options.getPendingCount()
         if (pendingCount > 0) {
           // Add a red notification badge for pending messages
-          return this.addNotificationBadge(resizedLogo, pendingCount)
+          return this.addNotificationBadge(resizedLogo)
         }
 
         // On macOS, set as template image for automatic theme adaptation
@@ -108,13 +108,10 @@ export class TrayManager {
     return this.createFallbackIcon()
   }
 
-  private addNotificationBadge(baseIcon: Electron.NativeImage, count: number): Electron.NativeImage {
+  private addNotificationBadge(baseIcon: Electron.NativeImage): Electron.NativeImage {
     // For now, we'll create a simple overlay effect
     // In a more advanced implementation, you could draw a red badge with the count
-    const size = baseIcon.getSize()
-
     // Create a copy of the base icon
-    const canvas = Buffer.alloc(size.width * size.height * 4)
     const iconBuffer = baseIcon.toPNG()
 
     // For simplicity, we'll just add a red tint to indicate pending messages

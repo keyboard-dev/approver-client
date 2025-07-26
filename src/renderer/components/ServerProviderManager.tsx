@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
 import { Button } from './ui/button'
+import type { ServerProviderInfo } from '../../oauth-providers'
 
 interface ServerProvider {
   id: string
@@ -10,12 +11,6 @@ interface ServerProvider {
 
 interface ServerProviderManagerProps {
   className?: string
-}
-
-interface ServerProviderInfo {
-  name: string
-  scopes: string[]
-  configured: boolean
 }
 
 export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ className }) => {

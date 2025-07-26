@@ -3,6 +3,7 @@ import * as path from 'path'
 import * as os from 'os'
 import { encrypt, decrypt } from './encryption'
 import { ProviderTokens } from './oauth-providers'
+import { UserInfo, ProviderStatus } from './preload'
 
 export interface StoredProviderTokens extends ProviderTokens {
   storedAt: number
@@ -195,16 +196,10 @@ export class OAuthTokenStorage {
   /**
    * Get provider list with authentication status
    */
-  async getProviderStatus(): Promise<Record<string, {
-    authenticated: boolean
-    expired: boolean
-    user?: any
-    storedAt?: number
-    updatedAt?: number
-  }>> {
+  async getProviderStatus(): Promise<Record<string, ProviderStatus>> {
     await this.ensureLoaded()
 
-    const status: Record<string, any> = {}
+    const status: Record<string, ProviderStatus> = {}
 
     for (const [providerId, tokens] of Object.entries(this.tokensCache)) {
       const expired = await this.areTokensExpired(providerId)
@@ -223,7 +218,7 @@ export class OAuthTokenStorage {
   /**
    * Update user info for a provider
    */
-  async updateUserInfo(providerId: string, user: any): Promise<void> {
+  async updateUserInfo(providerId: string, user: UserInfo): Promise<void> {
     await this.ensureLoaded()
 
     if (this.tokensCache[providerId]) {

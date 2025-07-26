@@ -24,7 +24,7 @@ const WebSocketKeyManager: React.FC<WebSocketKeyManagerProps> = ({ className = '
     loadKeyInfo()
 
     // Listen for key generation events
-    const handleKeyGenerated = (event: any, data: { key: string, createdAt: number }) => {
+    const handleKeyGenerated = (_event: unknown, data: { key: string, createdAt: number }) => {
       setKeyInfo(prev => ({
         ...prev,
         key: data.key,

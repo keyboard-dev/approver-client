@@ -4,6 +4,29 @@ import * as path from 'path'
 import * as os from 'os'
 import { encrypt, decrypt } from './encryption'
 
+// Add interfaces for OAuth token responses
+interface OAuthTokenResponse {
+  access_token: string
+  refresh_token?: string
+  token_type?: string
+  expires_in?: number
+  scope?: string
+}
+
+interface ServerTokenResponse {
+  success: boolean
+  access_token: string
+  refresh_token?: string
+  token_type?: string
+  expires_in?: number
+  scope?: string
+  user?: Record<string, unknown>
+}
+
+interface UserData {
+  [key: string]: unknown
+}
+
 export interface OAuthProvider {
   id: string
   name: string
@@ -34,7 +57,7 @@ export interface ProviderTokens {
     firstName?: string
     lastName?: string
     picture?: string
-    [key: string]: any // Allow provider-specific user data
+    [key: string]: unknown // Allow provider-specific user data
   }
 }
 
@@ -153,7 +176,7 @@ export class OAuthProviderManager {
     }
 
     // Load server providers on initialization
-    this.loadServerProviders().catch((error: any) => {
+    this.loadServerProviders().catch((error: unknown) => {
       console.error('❌ Failed to load server providers on initialization:', error)
     })
   }
@@ -319,10 +342,10 @@ export class OAuthProviderManager {
       throw new Error(`Token exchange failed: ${response.status} ${errorText}`)
     }
 
-    const tokenData = await response.json() as any
+    const tokenData = await response.json() as OAuthTokenResponse
 
     // Fetch user info if userInfoUrl is provided
-    let userData = null
+    let userData: ProviderTokens['user'] | null = null
     if (provider.userInfoUrl && tokenData.access_token) {
       try {
         const userResponse = await fetch(provider.userInfoUrl, {
@@ -332,8 +355,8 @@ export class OAuthProviderManager {
         })
 
         if (userResponse.ok) {
-          userData = await userResponse.json()
-          userData = this.normalizeUserData(provider.id, userData)
+          const rawUserData = await userResponse.json() as UserData
+          userData = this.normalizeUserData(provider.id, rawUserData)
         }
       }
       catch (error) {
@@ -349,7 +372,7 @@ export class OAuthProviderManager {
       expires_in: tokenData.expires_in || 3600,
       expires_at: Date.now() + ((tokenData.expires_in || 3600) * 1000),
       scope: tokenData.scope,
-      user: userData,
+      user: userData || undefined,
     }
   }
 
@@ -381,7 +404,7 @@ export class OAuthProviderManager {
       throw new Error(`Token refresh failed: ${response.status} ${errorText}`)
     }
 
-    const tokenData = await response.json() as any
+    const tokenData = await response.json() as OAuthTokenResponse
 
     return {
       providerId: provider.id,
@@ -631,7 +654,7 @@ export class OAuthProviderManager {
         throw new Error(`Token exchange failed: ${response.status} ${errorText}`)
       }
 
-      const tokenData = await response.json() as any
+      const tokenData = await response.json() as ServerTokenResponse
 
       if (!tokenData.success) {
         throw new Error('Server token exchange was unsuccessful')
@@ -647,7 +670,7 @@ export class OAuthProviderManager {
         expires_in: tokenData.expires_in || 3600,
         expires_at: Date.now() + ((tokenData.expires_in || 3600) * 1000),
         scope: tokenData.scope,
-        user: tokenData.user,
+        user: tokenData.user as ProviderTokens['user'],
       }
     }
     catch (error) {
@@ -659,47 +682,59 @@ export class OAuthProviderManager {
   /**
    * Normalize user data from different providers to a common format
    */
-  private normalizeUserData(providerId: string, userData: any): any {
+  private normalizeUserData(providerId: string, userData: UserData): ProviderTokens['user'] {
+    const getString = (value: unknown): string => String(value || '')
+    const getStringOrUndefined = (value: unknown): string | undefined =>
+      value != null ? String(value) : undefined
+
     switch (providerId) {
       case 'google':
         return {
-          id: userData.id,
-          email: userData.email,
-          name: userData.name,
-          firstName: userData.given_name,
-          lastName: userData.family_name,
-          picture: userData.picture,
+          id: getString(userData.id),
+          email: getString(userData.email),
+          name: getString(userData.name),
+          firstName: getStringOrUndefined(userData.given_name),
+          lastName: getStringOrUndefined(userData.family_name),
+          picture: getStringOrUndefined(userData.picture),
           verified_email: userData.verified_email,
           locale: userData.locale,
         }
 
-      case 'github':
+      case 'github': {
+        const nameStr = getStringOrUndefined(userData.name)
+        const nameParts = nameStr?.split(' ') || []
         return {
-          id: userData.id?.toString(),
-          email: userData.email,
-          name: userData.name || userData.login,
-          firstName: userData.name?.split(' ')[0],
-          lastName: userData.name?.split(' ').slice(1).join(' '),
-          picture: userData.avatar_url,
+          id: getString(userData.id),
+          email: getString(userData.email),
+          name: getString(userData.name || userData.login),
+          firstName: nameParts[0],
+          lastName: nameParts.slice(1).join(' ') || undefined,
+          picture: getStringOrUndefined(userData.avatar_url),
           login: userData.login,
           company: userData.company,
           location: userData.location,
         }
+      }
 
       case 'microsoft':
         return {
-          id: userData.id,
-          email: userData.mail || userData.userPrincipalName,
-          name: userData.displayName,
-          firstName: userData.givenName,
-          lastName: userData.surname,
-          picture: userData.photo,
+          id: getString(userData.id),
+          email: getString(userData.mail || userData.userPrincipalName),
+          name: getString(userData.displayName),
+          firstName: getStringOrUndefined(userData.givenName),
+          lastName: getStringOrUndefined(userData.surname),
+          picture: getStringOrUndefined(userData.photo),
           jobTitle: userData.jobTitle,
           department: userData.department,
         }
 
       default:
-        return userData
+        return {
+          id: getString(userData.id),
+          email: getString(userData.email),
+          name: getString(userData.name),
+          ...userData,
+        }
     }
   }
 }
