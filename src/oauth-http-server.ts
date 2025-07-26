@@ -1,21 +1,21 @@
-import * as http from 'http';
-import * as url from 'url';
+import * as http from 'http'
+import * as url from 'url'
 
 export interface OAuthCallbackData {
-  code?: string;
-  state?: string;
-  error?: string;
-  error_description?: string;
+  code?: string
+  state?: string
+  error?: string
+  error_description?: string
 }
 
 export class OAuthHttpServer {
-  private server: http.Server | null = null;
-  private port: number = 8080;
-  private isRunning: boolean = false;
+  private server: http.Server | null = null
+  private port: number = 8080
+  private isRunning: boolean = false
 
   constructor(port?: number) {
     if (port) {
-      this.port = port;
+      this.port = port
     }
   }
 
@@ -25,20 +25,20 @@ export class OAuthHttpServer {
   startServer(onCallback: (data: OAuthCallbackData) => void): Promise<void> {
     return new Promise((resolve, reject) => {
       if (this.isRunning) {
-        resolve();
-        return;
+        resolve()
+        return
       }
 
       this.server = http.createServer((req, res) => {
         try {
-          const parsedUrl = url.parse(req.url || '', true);
-          
+          const parsedUrl = url.parse(req.url || '', true)
+
           if (parsedUrl.pathname === '/callback') {
-            const { code, state, error, error_description } = parsedUrl.query;
-            
+            const { code, state, error, error_description } = parsedUrl.query
+
             // Send success/error page
             if (error) {
-              res.writeHead(400, { 'Content-Type': 'text/html' });
+              res.writeHead(400, { 'Content-Type': 'text/html' })
               res.end(`
                 <html>
                   <head><title>OAuth Error</title></head>
@@ -57,9 +57,10 @@ export class OAuthHttpServer {
                     </script>
                   </body>
                 </html>
-              `);
-            } else {
-              res.writeHead(200, { 'Content-Type': 'text/html' });
+              `)
+            }
+            else {
+              res.writeHead(200, { 'Content-Type': 'text/html' })
               res.end(`
                 <html>
                   <head><title>OAuth Success</title></head>
@@ -77,26 +78,26 @@ export class OAuthHttpServer {
                     </script>
                   </body>
                 </html>
-              `);
+              `)
             }
-            
+
             // Trigger callback with data
             const callbackData: OAuthCallbackData = {
               code: code as string,
               state: state as string,
               error: error as string,
-              error_description: error_description as string
-            };
-            
+              error_description: error_description as string,
+            }
+
             // Use setTimeout to ensure response is sent before processing
             setTimeout(() => {
-              onCallback(callbackData);
-              this.stopServer();
-            }, 100);
-            
-          } else {
+              onCallback(callbackData)
+              this.stopServer()
+            }, 100)
+          }
+          else {
             // Handle other paths
-            res.writeHead(404, { 'Content-Type': 'text/html' });
+            res.writeHead(404, { 'Content-Type': 'text/html' })
             res.end(`
               <html>
                 <head><title>Not Found</title></head>
@@ -105,27 +106,28 @@ export class OAuthHttpServer {
                   <p>This OAuth callback server only handles /callback requests.</p>
                 </body>
               </html>
-            `);
+            `)
           }
-        } catch (error) {
-          console.error('Error handling OAuth callback:', error);
-          res.writeHead(500, { 'Content-Type': 'text/plain' });
-          res.end('Internal Server Error');
         }
-      });
+        catch (error) {
+          console.error('Error handling OAuth callback:', error)
+          res.writeHead(500, { 'Content-Type': 'text/plain' })
+          res.end('Internal Server Error')
+        }
+      })
 
       this.server.listen(this.port, 'localhost', () => {
-        this.isRunning = true;
-        console.log(`🌐 OAuth callback server started on http://localhost:${this.port}`);
-        resolve();
-      });
+        this.isRunning = true
+        console.log(`🌐 OAuth callback server started on http://localhost:${this.port}`)
+        resolve()
+      })
 
       this.server.on('error', (error) => {
-        console.error('OAuth server error:', error);
-        this.isRunning = false;
-        reject(error);
-      });
-    });
+        console.error('OAuth server error:', error)
+        this.isRunning = false
+        reject(error)
+      })
+    })
   }
 
   /**
@@ -134,10 +136,10 @@ export class OAuthHttpServer {
   stopServer(): void {
     if (this.server && this.isRunning) {
       this.server.close(() => {
-        console.log('🛑 OAuth callback server stopped');
-      });
-      this.server = null;
-      this.isRunning = false;
+        console.log('🛑 OAuth callback server stopped')
+      })
+      this.server = null
+      this.isRunning = false
     }
   }
 
@@ -145,20 +147,20 @@ export class OAuthHttpServer {
    * Check if server is running
    */
   isServerRunning(): boolean {
-    return this.isRunning;
+    return this.isRunning
   }
 
   /**
    * Get the callback URL for this server
    */
   getCallbackUrl(): string {
-    return `http://localhost:${this.port}/callback`;
+    return `http://localhost:${this.port}/callback`
   }
 
   /**
    * Get the port number
    */
   getPort(): number {
-    return this.port;
+    return this.port
   }
-} 
+}
