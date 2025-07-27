@@ -77,7 +77,11 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
     // Listen for OAuth events
     const handleProviderAuthSuccess = (event: any, data: any) => {
       console.log('Provider auth success:', data);
+      // Refresh all provider data to show the new authentication status
+      loadProviders();
+      loadAllProviderConfigs();
       loadProviderStatus();
+      loadStorageInfo();
       setIsLoading(prev => ({ ...prev, [data.providerId]: false }));
       setError(null);
     };
@@ -95,14 +99,14 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
 
     // Add event listeners if available
     if (window.electronAPI) {
-      // Note: These would need to be implemented in the preload script
-      // window.electronAPI.on?.('provider-auth-success', handleProviderAuthSuccess);
-      // window.electronAPI.on?.('provider-auth-error', handleProviderAuthError);
-      // window.electronAPI.on?.('provider-auth-logout', handleProviderAuthLogout);
+      window.electronAPI.onProviderAuthSuccess?.(handleProviderAuthSuccess);
+      window.electronAPI.onProviderAuthError?.(handleProviderAuthError);
+      window.electronAPI.onProviderAuthLogout?.(handleProviderAuthLogout);
     }
 
     return () => {
-      // Cleanup listeners
+      // Cleanup listeners - Note: Electron IPC doesn't require manual cleanup
+      // but we could add removeListener calls here if needed
     };
   }, []);
 
@@ -351,6 +355,7 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
             const status = providerStatus[config.id];
             const loading = isLoading[config.id];
             const isAvailable = config.clientId && config.clientId.trim() !== '';
+            const hasTokens = status?.authenticated;
 
             return (
               <Card key={config.id} className="p-6">
@@ -363,8 +368,13 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
                         {config.isCustom && (
                           <Badge variant="outline" className="text-xs">Custom</Badge>
                         )}
-                        {!isAvailable && (
+                        {!isAvailable && !hasTokens && (
                           <Badge variant="secondary" className="text-xs">No Client ID</Badge>
+                        )}
+                        {hasTokens && (
+                          <Badge variant="outline" className="text-xs">
+                            {isAvailable ? 'Local Config' : 'Server Auth'}
+                          </Badge>
                         )}
                       </div>
                       <p className="text-sm text-gray-500">
@@ -403,16 +413,19 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
                   </div>
                 </div>
 
-                {isAvailable && (
+                {/* Show token management buttons if authenticated OR if provider is available for direct connect */}
+                {(hasTokens || isAvailable) && (
                   <div className="mt-4 flex flex-wrap gap-2">
                     {!status?.authenticated ? (
-                      <Button
-                        onClick={() => handleConnect(config.id)}
-                        disabled={loading}
-                        size="sm"
-                      >
-                        {loading ? '⏳ Connecting...' : '🔗 Connect'}
-                      </Button>
+                      isAvailable && (
+                        <Button
+                          onClick={() => handleConnect(config.id)}
+                          disabled={loading}
+                          size="sm"
+                        >
+                          {loading ? '⏳ Connecting...' : '🔗 Connect'}
+                        </Button>
+                      )
                     ) : (
                       <>
                         <Button
@@ -445,11 +458,12 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
                   </div>
                 )}
 
-                {!isAvailable && (
+                {/* Only show the warning if no tokens exist AND no client ID is configured */}
+                {!hasTokens && !isAvailable && (
                   <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                     <p className="text-sm text-yellow-700">
-                      ⚠️ This provider needs a Client ID to be configured before it can be used.
-                      {config.isCustom && ' Click "Edit" to add your Client ID.'}
+                      ⚠️ This provider needs a Client ID to be configured before it can be used for direct authentication.
+                      {config.isCustom && ' Click "Edit" to add your Client ID.'} Alternatively, you can authenticate via Server Providers.
                     </p>
                   </div>
                 )}
