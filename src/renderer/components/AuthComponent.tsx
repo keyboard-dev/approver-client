@@ -1,16 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { Button } from './ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { Alert, AlertDescription } from '../../components/ui/alert';
-import { Badge } from './ui/badge';
-import { User, LogIn, LogOut, Shield, AlertCircle, CheckCircle } from 'lucide-react';
-import { AuthStatus, AuthError } from '../../preload';
-import { SKIP_AUTH_USER_EMAIL, SKIP_AUTH_USER_FIRST_NAME, SKIP_AUTH_USER_ID, SKIP_AUTH_USER_LAST_NAME } from '../../lib/constants/auth.constants';
+import React, { useState, useEffect } from 'react'
+import { Button } from './ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
+import { Alert, AlertDescription } from '../../components/ui/alert'
+import { Badge } from './ui/badge'
+import { User, LogIn, LogOut, Shield, AlertCircle, CheckCircle } from 'lucide-react'
+import { AuthStatus, AuthError } from '../../preload'
+import { SKIP_AUTH_USER_EMAIL, SKIP_AUTH_USER_FIRST_NAME, SKIP_AUTH_USER_ID, SKIP_AUTH_USER_LAST_NAME } from '../../lib/constants/auth.constants'
 
 interface AuthComponentProps {
-  isSkippingAuth: boolean;
-  onAuthChange: (authStatus: AuthStatus) => void;
-  setIsSkippingAuth: (isSkippingAuth: boolean) => void;
+  isSkippingAuth: boolean
+  onAuthChange: (authStatus: AuthStatus) => void
+  setIsSkippingAuth: (isSkippingAuth: boolean) => void
 }
 
 const AuthComponent: React.FC<AuthComponentProps> = ({
@@ -18,24 +18,24 @@ const AuthComponent: React.FC<AuthComponentProps> = ({
   onAuthChange,
   setIsSkippingAuth,
 }) => {
-  const [authStatus, setAuthStatus] = useState<AuthStatus>({ authenticated: false });
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [showAuthDetails, setShowAuthDetails] = useState(false);
+  const [authStatus, setAuthStatus] = useState<AuthStatus>({ authenticated: false })
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [showAuthDetails, setShowAuthDetails] = useState(false)
 
   const handleAuthSuccess = (
     _event: Electron.CrossProcessExports.IpcRendererEvent | null,
-    data: AuthStatus
+    data: AuthStatus,
   ) => {
-    onAuthChange(data);
-    setAuthStatus(data);
-    setError(null);
-    setIsLoading(false);
-  };
+    onAuthChange(data)
+    setAuthStatus(data)
+    setError(null)
+    setIsLoading(false)
+  }
 
   // Load initial auth status
   useEffect(() => {
-    loadAuthStatus();
+    loadAuthStatus()
 
     // Listen for auth events
     // const handleAuthSuccess = (event: any, data: AuthStatus) => {
@@ -46,62 +46,64 @@ const AuthComponent: React.FC<AuthComponentProps> = ({
     // };
 
     const handleAuthError = (event: any, errorData: AuthError) => {
-      console.error('Auth error:', errorData);
-      setError(errorData.message);
-      setIsLoading(false);
-    };
+      console.error('Auth error:', errorData)
+      setError(errorData.message)
+      setIsLoading(false)
+    }
 
     const handleAuthLogout = () => {
-      setAuthStatus({ authenticated: false });
-      setError(null);
-      onAuthChange({ authenticated: false });
-    };
+      setAuthStatus({ authenticated: false })
+      setError(null)
+      onAuthChange({ authenticated: false })
+    }
 
-    window.electronAPI.onAuthSuccess(handleAuthSuccess);
-    window.electronAPI.onAuthError(handleAuthError);
-    window.electronAPI.onAuthLogout(handleAuthLogout);
+    window.electronAPI.onAuthSuccess(handleAuthSuccess)
+    window.electronAPI.onAuthError(handleAuthError)
+    window.electronAPI.onAuthLogout(handleAuthLogout)
 
     return () => {
-      window.electronAPI.removeAllListeners('auth-success');
-      window.electronAPI.removeAllListeners('auth-error');
-      window.electronAPI.removeAllListeners('auth-logout');
-    };
-  }, [onAuthChange]);
+      window.electronAPI.removeAllListeners('auth-success')
+      window.electronAPI.removeAllListeners('auth-error')
+      window.electronAPI.removeAllListeners('auth-logout')
+    }
+  }, [onAuthChange])
 
   const loadAuthStatus = async () => {
     try {
       if (isSkippingAuth) {
-        setAuthStatus({ authenticated: true, user: { id: SKIP_AUTH_USER_ID, email: SKIP_AUTH_USER_EMAIL, firstName: SKIP_AUTH_USER_FIRST_NAME, lastName: SKIP_AUTH_USER_LAST_NAME} });
-        onAuthChange({ authenticated: true, user: { id: SKIP_AUTH_USER_ID, email: SKIP_AUTH_USER_EMAIL, firstName: SKIP_AUTH_USER_FIRST_NAME, lastName: SKIP_AUTH_USER_LAST_NAME } });
-        return;
+        setAuthStatus({ authenticated: true, user: { id: SKIP_AUTH_USER_ID, email: SKIP_AUTH_USER_EMAIL, firstName: SKIP_AUTH_USER_FIRST_NAME, lastName: SKIP_AUTH_USER_LAST_NAME } })
+        onAuthChange({ authenticated: true, user: { id: SKIP_AUTH_USER_ID, email: SKIP_AUTH_USER_EMAIL, firstName: SKIP_AUTH_USER_FIRST_NAME, lastName: SKIP_AUTH_USER_LAST_NAME } })
+        return
       }
 
-      const status = await window.electronAPI.getAuthStatus();
-      setAuthStatus(status);
-      onAuthChange(status);
-    } catch (error) {
-      console.error('Error loading auth status:', error);
+      const status = await window.electronAPI.getAuthStatus()
+      setAuthStatus(status)
+      onAuthChange(status)
     }
-  };
+    catch (error) {
+      console.error('Error loading auth status:', error)
+    }
+  }
 
   const handleLogin = async () => {
-    setIsLoading(true);
-    setError(null);
+    setIsLoading(true)
+    setError(null)
 
     try {
-      await window.electronAPI.startOAuth();
+      await window.electronAPI.startOAuth()
       // The actual authentication will be handled by the OAuth flow
       // and the auth-success event will be triggered
-    } catch (error) {
-      console.error('Error starting OAuth:', error);
-      setError('Failed to start authentication');
-      setIsLoading(false);
     }
-  };
+    catch (error) {
+      console.error('Error starting OAuth:', error)
+      setError('Failed to start authentication')
+      setIsLoading(false)
+    }
+  }
 
   const handleSkipAuth = () => {
-    setIsSkippingAuth(true);
-    setError(null);
+    setIsSkippingAuth(true)
+    setError(null)
 
     handleAuthSuccess(
       null,
@@ -113,23 +115,24 @@ const AuthComponent: React.FC<AuthComponentProps> = ({
           firstName: SKIP_AUTH_USER_FIRST_NAME,
           lastName: SKIP_AUTH_USER_LAST_NAME,
         },
-      }
-    );
-  };
+      },
+    )
+  }
 
   const handleLogout = async () => {
     if (isSkippingAuth) {
-      setIsSkippingAuth(false);
+      setIsSkippingAuth(false)
     }
 
     try {
-      await window.electronAPI.logout();
+      await window.electronAPI.logout()
       // The auth-logout event will be triggered
-    } catch (error) {
-      console.error('Error logging out:', error);
-      setError('Failed to logout');
     }
-  };
+    catch (error) {
+      console.error('Error logging out:', error)
+      setError('Failed to logout')
+    }
+  }
 
   if (authStatus.authenticated || isSkippingAuth) {
     return (
@@ -150,7 +153,9 @@ const AuthComponent: React.FC<AuthComponentProps> = ({
                 size="sm"
                 onClick={() => setShowAuthDetails(!showAuthDetails)}
               >
-                {showAuthDetails ? 'Hide' : 'Show'} Details
+                {showAuthDetails ? 'Hide' : 'Show'}
+                {' '}
+                Details
               </Button>
             </div>
           </div>
@@ -163,10 +168,15 @@ const AuthComponent: React.FC<AuthComponentProps> = ({
                   <User className="h-8 w-8 text-gray-600" />
                   <div>
                     <p className="font-medium text-sm">
-                      {authStatus.user.firstName} {authStatus.user.lastName}
+                      {authStatus.user.firstName}
+                      {' '}
+                      {authStatus.user.lastName}
                     </p>
                     <p className="text-xs text-gray-500">{authStatus.user.email}</p>
-                    <p className="text-xs text-gray-400">ID: {authStatus.user.id}</p>
+                    <p className="text-xs text-gray-400">
+                      ID:
+                      {authStatus.user.id}
+                    </p>
                   </div>
                 </div>
               )}
@@ -185,7 +195,7 @@ const AuthComponent: React.FC<AuthComponentProps> = ({
           )}
         </CardContent>
       </Card>
-    );
+    )
   }
 
   return (
@@ -235,7 +245,7 @@ const AuthComponent: React.FC<AuthComponentProps> = ({
         </div>
       </CardContent>
     </Card>
-  );
-};
+  )
+}
 
-export default AuthComponent;
+export default AuthComponent

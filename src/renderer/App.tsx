@@ -1,315 +1,322 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Message, AuthStatus } from '../preload';
-import { Button } from './components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
-import { Textarea } from '../components/ui/textarea';
-import { Alert, AlertDescription } from '../components/ui/alert';
-import { Separator } from '../components/ui/separator';
-import { Badge } from './components/ui/badge';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from './components/ui/tabs';
-import { CheckCircle, XCircle, Clock, AlertTriangle, X, Wifi, WifiOff } from 'lucide-react';
-import AuthComponent from './components/AuthComponent';
-import WebSocketKeyManager from './components/WebSocketKeyManager';
-import EncryptionKeyManager from './components/EncryptionKeyManager';
-import { OAuthProviderManager } from './components/OAuthProviderManager';
-import ServerProviderManager from './components/ServerProviderManager';
-import './App.css';
-import { extractJsonFromCodeApproval } from '../lib/utils/data.utils';
+import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { Message, AuthStatus } from '../preload'
+import { Button } from './components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card'
+import { Textarea } from '../components/ui/textarea'
+import { Alert, AlertDescription } from '../components/ui/alert'
+import { Separator } from '../components/ui/separator'
+import { Badge } from './components/ui/badge'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from './components/ui/tabs'
+import { CheckCircle, XCircle, Clock, AlertTriangle, X, Wifi, WifiOff } from 'lucide-react'
+import AuthComponent from './components/AuthComponent'
+import WebSocketKeyManager from './components/WebSocketKeyManager'
+import EncryptionKeyManager from './components/EncryptionKeyManager'
+import { OAuthProviderManager } from './components/OAuthProviderManager'
+import ServerProviderManager from './components/ServerProviderManager'
+import './App.css'
+import { extractJsonFromCodeApproval } from '../lib/utils/data.utils'
 
 const App: React.FC = () => {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [currentMessage, setCurrentMessage] = useState<Message | null>(null);
-  const [feedback, setFeedback] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [showFeedback, setShowFeedback] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'connecting'>('disconnected');
-  const [isAlertDismissed, setIsAlertDismissed] = useState(false);
-  const [authStatus, setAuthStatus] = useState<AuthStatus>({ authenticated: false });
-  const [isInitialized, setIsInitialized] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-  const [isSkippingAuth, setIsSkippingAuth] = useState(false);
+  const [messages, setMessages] = useState<Message[]>([])
+  const [currentMessage, setCurrentMessage] = useState<Message | null>(null)
+  const [feedback, setFeedback] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+  const [showFeedback, setShowFeedback] = useState(false)
+  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'connecting'>('disconnected')
+  const [isAlertDismissed, setIsAlertDismissed] = useState(false)
+  const [authStatus, setAuthStatus] = useState<AuthStatus>({ authenticated: false })
+  const [isInitialized, setIsInitialized] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
+  const [isSkippingAuth, setIsSkippingAuth] = useState(false)
 
   // Use refs to track state without causing re-renders
-  const authStatusRef = useRef<AuthStatus>({ authenticated: false });
-  const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const authStatusRef = useRef<AuthStatus>({ authenticated: false })
+  const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Debounced connection status update
   const updateConnectionStatus = useCallback((status: 'connected' | 'disconnected' | 'connecting') => {
     if (connectionTimeoutRef.current) {
-      clearTimeout(connectionTimeoutRef.current);
+      clearTimeout(connectionTimeoutRef.current)
     }
 
     connectionTimeoutRef.current = setTimeout(() => {
-      setConnectionStatus(status);
+      setConnectionStatus(status)
       if (status === 'connected') {
-        setIsAlertDismissed(false);
+        setIsAlertDismissed(false)
       }
-    }, 100); // Small debounce to prevent rapid flickering
-  }, []);
+    }, 100) // Small debounce to prevent rapid flickering
+  }, [])
 
   // Debounced loading state update
   const updateLoadingState = useCallback((loading: boolean) => {
     if (loadingTimeoutRef.current) {
-      clearTimeout(loadingTimeoutRef.current);
+      clearTimeout(loadingTimeoutRef.current)
     }
 
     if (loading) {
       // Show loading immediately
-      setIsLoading(true);
-    } else {
+      setIsLoading(true)
+    }
+    else {
       // Delay hiding loading to prevent flicker
       loadingTimeoutRef.current = setTimeout(() => {
-        setIsLoading(false);
-      }, 200);
+        setIsLoading(false)
+      }, 200)
     }
-  }, []);
+  }, [])
 
   // Handle authentication state changes
   const handleAuthChange = useCallback((newAuthStatus: AuthStatus) => {
-    authStatusRef.current = newAuthStatus;
-    setAuthStatus(newAuthStatus);
+    authStatusRef.current = newAuthStatus
+    setAuthStatus(newAuthStatus)
 
     // If user logged out, clear messages for security
     if (!newAuthStatus.authenticated) {
-      setMessages([]);
-      setCurrentMessage(null);
-      setFeedback('');
-      setShowFeedback(false);
-      setIsInitialized(false);
-    } else if (!isInitialized) {
+      setMessages([])
+      setCurrentMessage(null)
+      setFeedback('')
+      setShowFeedback(false)
+      setIsInitialized(false)
+    }
+    else if (!isInitialized) {
       // Only load messages on first authentication, not on every auth change
       setIsInitialized(true);
       // Load messages directly without dependency
       (async () => {
         if (newAuthStatus.authenticated) {
-          updateLoadingState(true);
+          updateLoadingState(true)
           try {
-            const id = newAuthStatus.user?.id;
-            const loadedMessages = await window.electronAPI.getMessages();
-            setMessages(loadedMessages);
-          } catch (error) {
-            console.error('Error loading messages:', error);
-          } finally {
-            updateLoadingState(false);
+            const id = newAuthStatus.user?.id
+            const loadedMessages = await window.electronAPI.getMessages()
+            setMessages(loadedMessages)
+          }
+          catch (error) {
+            console.error('Error loading messages:', error)
+          }
+          finally {
+            updateLoadingState(false)
           }
         }
-      })();
+      })()
     }
-  }, [isInitialized, updateLoadingState]);
+  }, [isInitialized, updateLoadingState])
 
   // Load messages from Electron API
   const loadMessages = useCallback(async () => {
     // Only load messages if authenticated
     if (!authStatusRef.current.authenticated) {
-      return;
+      return
     }
 
-    updateLoadingState(true);
+    updateLoadingState(true)
     try {
-      const loadedMessages = await window.electronAPI.getMessages();
-      setMessages(loadedMessages);
-    } catch (error) {
-      console.error('Error loading messages:', error);
-    } finally {
-      updateLoadingState(false);
+      const loadedMessages = await window.electronAPI.getMessages()
+      setMessages(loadedMessages)
     }
-  }, [updateLoadingState]);
+    catch (error) {
+      console.error('Error loading messages:', error)
+    }
+    finally {
+      updateLoadingState(false)
+    }
+  }, [updateLoadingState])
 
   // Refresh messages without showing loading state for better UX
   const refreshMessages = useCallback(async () => {
     if (!authStatusRef.current.authenticated) {
-      return;
+      return
     }
 
     try {
-      const loadedMessages = await window.electronAPI.getMessages();
-      setMessages(loadedMessages);
-    } catch (error) {
-      console.error('Error refreshing messages:', error);
+      const loadedMessages = await window.electronAPI.getMessages()
+      setMessages(loadedMessages)
     }
-  }, []);
+    catch (error) {
+      console.error('Error refreshing messages:', error)
+    }
+  }, [])
 
   // Initialize event listeners only once
   useEffect(() => {
-
     // Listen for regular messages from main process
     const handleShowMessage = (event: any, message: Message) => {
       // Only handle messages if authenticated
       if (!authStatusRef.current.authenticated) {
-        return;
+        return
       }
 
-      setCurrentMessage(message);
-      setMessages(prev => {
-        const existing = prev.find(m => m.id === message.id);
+      setCurrentMessage(message)
+      setMessages((prev) => {
+        const existing = prev.find(m => m.id === message.id)
         if (existing) {
-          return prev.map(m => m.id === message.id ? message : m);
+          return prev.map(m => m.id === message.id ? message : m)
         }
-        return [message, ...prev];
-      });
-    };
+        return [message, ...prev]
+      })
+    }
 
     // Listen for websocket messages
     const handleWebSocketMessage = (event: any, message: Message) => {
       // Only handle messages if authenticated
       if (!authStatusRef.current.authenticated) {
-        return;
+        return
       }
 
-      setCurrentMessage(message);
-      setMessages(prev => {
-        const existing = prev.find(m => m.id === message.id);
+      setCurrentMessage(message)
+      setMessages((prev) => {
+        const existing = prev.find(m => m.id === message.id)
         if (existing) {
-          return prev.map(m => m.id === message.id ? message : m);
+          return prev.map(m => m.id === message.id ? message : m)
         }
-        return [message, ...prev];
-      });
-      updateConnectionStatus('connected');
-    };
+        return [message, ...prev]
+      })
+      updateConnectionStatus('connected')
+    }
 
     // Listen for connection status changes
     const handleConnectionStatusChange = (event: any, status: 'connected' | 'disconnected' | 'connecting') => {
-      updateConnectionStatus(status);
-    };
+      updateConnectionStatus(status)
+    }
 
-    window.electronAPI.onShowMessage(handleShowMessage);
-    window.electronAPI.onWebSocketMessage(handleWebSocketMessage);
+    window.electronAPI.onShowMessage(handleShowMessage)
+    window.electronAPI.onWebSocketMessage(handleWebSocketMessage)
 
     // Listen for connection status if available
     if ((window.electronAPI as any).onConnectionStatusChange) {
-      (window.electronAPI as any).onConnectionStatusChange(handleConnectionStatusChange);
+      (window.electronAPI as any).onConnectionStatusChange(handleConnectionStatusChange)
     }
 
     // Cleanup listeners on unmount
     return () => {
-      window.electronAPI.removeAllListeners('show-message');
-      window.electronAPI.removeAllListeners('websocket-message');
+      window.electronAPI.removeAllListeners('show-message')
+      window.electronAPI.removeAllListeners('websocket-message')
 
       if ((window.electronAPI as any).removeAllListeners) {
-        (window.electronAPI as any).removeAllListeners('connection-status-change');
+        (window.electronAPI as any).removeAllListeners('connection-status-change')
       }
 
       // Clean up timeouts
       if (connectionTimeoutRef.current) {
-        clearTimeout(connectionTimeoutRef.current);
+        clearTimeout(connectionTimeoutRef.current)
       }
       if (loadingTimeoutRef.current) {
-        clearTimeout(loadingTimeoutRef.current);
+        clearTimeout(loadingTimeoutRef.current)
       }
-    };
-  }, [updateConnectionStatus]); // Only depend on the stable callback
+    }
+  }, [updateConnectionStatus]) // Only depend on the stable callback
 
   // Approve message
   const approveMessage = async () => {
-    if (!currentMessage || !authStatusRef.current.authenticated) return;
+    if (!currentMessage || !authStatusRef.current.authenticated) return
 
     try {
-      await window.electronAPI.approveMessage(currentMessage.id, showFeedback ? feedback : undefined, currentMessage.body);
+      await window.electronAPI.approveMessage(currentMessage.id, showFeedback ? feedback : undefined, currentMessage.body)
 
       const updatedMessage = {
         ...currentMessage,
         status: 'approved' as const,
-        feedback: showFeedback ? feedback : undefined
-      };
+        feedback: showFeedback ? feedback : undefined,
+      }
 
-      setCurrentMessage(updatedMessage);
-      setMessages(prev => prev.map(m => m.id === currentMessage.id ? updatedMessage : m));
-      setFeedback('');
-      setShowFeedback(false);
-    } catch (error) {
-      console.error('Error approving message:', error);
+      setCurrentMessage(updatedMessage)
+      setMessages(prev => prev.map(m => m.id === currentMessage.id ? updatedMessage : m))
+      setFeedback('')
+      setShowFeedback(false)
     }
-  };
+    catch (error) {
+      console.error('Error approving message:', error)
+    }
+  }
 
   // Reject message
   const rejectMessage = async () => {
-    if (!currentMessage || !authStatusRef.current.authenticated) return;
+    if (!currentMessage || !authStatusRef.current.authenticated) return
 
     try {
-      await window.electronAPI.rejectMessage(currentMessage.id, showFeedback ? feedback : undefined);
+      await window.electronAPI.rejectMessage(currentMessage.id, showFeedback ? feedback : undefined)
 
       const updatedMessage = {
         ...currentMessage,
         status: 'rejected' as const,
-        feedback: showFeedback ? feedback : undefined
-      };
+        feedback: showFeedback ? feedback : undefined,
+      }
 
-      setCurrentMessage(updatedMessage);
-      setMessages(prev => prev.map(m => m.id === currentMessage.id ? updatedMessage : m));
-      setFeedback('');
-      setShowFeedback(false);
-    } catch (error) {
-      console.error('Error rejecting message:', error);
+      setCurrentMessage(updatedMessage)
+      setMessages(prev => prev.map(m => m.id === currentMessage.id ? updatedMessage : m))
+      setFeedback('')
+      setShowFeedback(false)
     }
-  };
+    catch (error) {
+      console.error('Error rejecting message:', error)
+    }
+  }
 
   // Show message detail
   const showMessageDetail = (message: Message) => {
-    if (!authStatusRef.current.authenticated) return;
+    if (!authStatusRef.current.authenticated) return
 
-    console.log('message', message);
+    console.log('message', message)
 
-
-    setCurrentMessage(message);
-    setFeedback(message.feedback || '');
-    setShowFeedback(false);
-  };
+    setCurrentMessage(message)
+    setFeedback(message.feedback || '')
+    setShowFeedback(false)
+  }
 
   // Go back to message list
   const showMessageList = () => {
-    setCurrentMessage(null);
-    setFeedback('');
-    setShowFeedback(false);
-    setShowSettings(false);
-    refreshMessages(); // Refresh to show updated status without loading state
-  };
+    setCurrentMessage(null)
+    setFeedback('')
+    setShowFeedback(false)
+    setShowSettings(false)
+    refreshMessages() // Refresh to show updated status without loading state
+  }
 
   const toggleSettings = () => {
-    setShowSettings(!showSettings);
-    setCurrentMessage(null);
-    setFeedback('');
-    setShowFeedback(false);
-  };
+    setShowSettings(!showSettings)
+    setCurrentMessage(null)
+    setFeedback('')
+    setShowFeedback(false)
+  }
 
   const getStatusIcon = (status?: string) => {
     switch (status) {
       case 'approved':
-        return <CheckCircle className="h-4 w-4 text-green-500" />;
+        return <CheckCircle className="h-4 w-4 text-green-500" />
       case 'rejected':
-        return <XCircle className="h-4 w-4 text-red-500" />;
+        return <XCircle className="h-4 w-4 text-red-500" />
       case 'pending':
-        return <Clock className="h-4 w-4 text-yellow-500" />;
+        return <Clock className="h-4 w-4 text-yellow-500" />
       default:
-        return <AlertTriangle className="h-4 w-4 text-gray-500" />;
+        return <AlertTriangle className="h-4 w-4 text-gray-500" />
     }
-  };
+  }
 
   const getStatusBadge = (status?: string) => {
     switch (status) {
       case 'approved':
-        return <Badge variant="default" className="bg-green-100 text-green-800 hover:bg-green-100">Approved</Badge>;
+        return <Badge variant="default" className="bg-green-100 text-green-800 hover:bg-green-100">Approved</Badge>
       case 'rejected':
-        return <Badge variant="destructive">Rejected</Badge>;
+        return <Badge variant="destructive">Rejected</Badge>
       case 'pending':
-        return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">Pending</Badge>;
+        return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">Pending</Badge>
       default:
-        return <Badge variant="outline">New</Badge>;
+        return <Badge variant="outline">New</Badge>
     }
-  };
+  }
 
   const getPriorityBadge = (priority?: string) => {
     switch (priority) {
       case 'high':
-        return <Badge variant="destructive">High Priority</Badge>;
+        return <Badge variant="destructive">High Priority</Badge>
       case 'normal':
-        return <Badge variant="secondary">Normal</Badge>;
+        return <Badge variant="secondary">Normal</Badge>
       case 'low':
-        return <Badge variant="outline">Low Priority</Badge>;
+        return <Badge variant="outline">Low Priority</Badge>
       default:
-        return null;
+        return null
     }
-  };
+  }
 
   const getCodeBlock = (message: Message) => {
     switch (message.title) {
@@ -331,15 +338,16 @@ const App: React.FC = () => {
               </div>
             </TabsContent>
           </Tabs>
-        );
-      case "code response approval":
-        const parsedBody = extractJsonFromCodeApproval(message.body);
-        const { data } = parsedBody;
-        let stdout, stderr;
+        )
+      case 'code response approval':
+        const parsedBody = extractJsonFromCodeApproval(message.body)
+        const { data } = parsedBody
+        let stdout, stderr
         if (data) {
-          ({ stdout, stderr } = data);
-        } else {
-          ({ stdout, stderr } = parsedBody);
+          ({ stdout, stderr } = data)
+        }
+        else {
+          ({ stdout, stderr } = parsedBody)
         }
         return (
           <div className="bg-gray-100 p-4 rounded-lg">
@@ -351,7 +359,7 @@ const App: React.FC = () => {
               </div>
             )}
           </div>
-        );
+        )
       default:
         return (
           <div className="bg-gray-100 p-4 rounded-lg">
@@ -359,34 +367,39 @@ const App: React.FC = () => {
               {message.body}
             </pre>
           </div>
-        );
+        )
     }
-  };
+  }
 
   const getMessageSummary = (message: Message) => {
     switch (message.title) {
-      case "code response approval":
-        const parsedBody = extractJsonFromCodeApproval(message.body);
-        const { data } = parsedBody;
-        let stdout, stderr;
+      case 'code response approval':
+        const parsedBody = extractJsonFromCodeApproval(message.body)
+        const { data } = parsedBody
+        let stdout, stderr
         if (data) {
-          ({ stdout, stderr } = data);
-        } else {
-          ({ stdout, stderr } = parsedBody);
+          ({ stdout, stderr } = data)
         }
-        return <>
-          {stderr && (
-            <span className="text-red-500">
-              Error: {stderr}
-            </span>
-          )}
-          {stdout}
-        </>;
+        else {
+          ({ stdout, stderr } = parsedBody)
+        }
+        return (
+          <>
+            {stderr && (
+              <span className="text-red-500">
+                Error:
+                {' '}
+                {stderr}
+              </span>
+            )}
+            {stdout}
+          </>
+        )
       case 'Security Evaluation Request':
       default:
-        return message.body;
+        return message.body
     }
-  };
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -398,25 +411,25 @@ const App: React.FC = () => {
       </div>
 
       <div className="p-4">
-              {/* Dismissible Connection Alert - Only show when disconnected and not dismissed */}
+        {/* Dismissible Connection Alert - Only show when disconnected and not dismissed */}
         {connectionStatus === 'disconnected' && !isAlertDismissed && authStatus.authenticated && (
-        <div className="fixed top-4 right-4 z-40">
-          <Alert className="w-72 border-red-200 bg-red-50 relative">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>
-              WebSocket disconnected. Some features may not work properly.
-            </AlertDescription>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="absolute top-2 right-2 h-6 w-6 p-0 hover:bg-red-100"
-              onClick={() => setIsAlertDismissed(true)}
-            >
-              <X className="h-3 w-3" />
-            </Button>
-          </Alert>
-        </div>
-      )}
+          <div className="fixed top-4 right-4 z-40">
+            <Alert className="w-72 border-red-200 bg-red-50 relative">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                WebSocket disconnected. Some features may not work properly.
+              </AlertDescription>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="absolute top-2 right-2 h-6 w-6 p-0 hover:bg-red-100"
+                onClick={() => setIsAlertDismissed(true)}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </Alert>
+          </div>
+        )}
 
         <div className="max-w-4xl mx-auto">
           {/* Authentication Component */}
@@ -447,11 +460,13 @@ const App: React.FC = () => {
                               : 'bg-red-100 text-red-800 border-red-200 hover:bg-red-100'
                           }`}
                         >
-                          {connectionStatus === 'connected' ? (
-                            <Wifi className="h-3 w-3" />
-                          ) : (
-                            <WifiOff className="h-3 w-3" />
-                          )}
+                          {connectionStatus === 'connected'
+                            ? (
+                                <Wifi className="h-3 w-3" />
+                              )
+                            : (
+                                <WifiOff className="h-3 w-3" />
+                              )}
                           <span className="text-xs font-medium">
                             {connectionStatus === 'connected' ? 'Connected' : 'Disconnected'}
                           </span>
@@ -466,7 +481,10 @@ const App: React.FC = () => {
                       {currentMessage.title}
                     </CardTitle>
                     <div className="flex items-center space-x-4 text-sm text-gray-500">
-                      <span>From: {currentMessage.sender || 'Unknown'}</span>
+                      <span>
+                        From:
+                        {currentMessage.sender || 'Unknown'}
+                      </span>
                       <span>•</span>
                       <span>{new Date(currentMessage.timestamp).toLocaleString()}</span>
                       {currentMessage.priority && (
@@ -534,7 +552,7 @@ const App: React.FC = () => {
                             <Textarea
                               placeholder="Enter your feedback or comments..."
                               value={feedback}
-                              onChange={(e) => setFeedback(e.target.value)}
+                              onChange={e => setFeedback(e.target.value)}
                               className="min-h-[100px]"
                             />
                           </div>
@@ -564,7 +582,9 @@ const App: React.FC = () => {
                         <div className="flex items-center space-x-2">
                           {getStatusIcon(currentMessage.status)}
                           <span className="text-sm">
-                            This request has been {currentMessage.status}
+                            This request has been
+                            {' '}
+                            {currentMessage.status}
                           </span>
                         </div>
 
@@ -598,7 +618,7 @@ const App: React.FC = () => {
                     </div>
                   </div>
 
-                {showSettings ? (
+                  {showSettings ? (
                     // Settings View
                     <div className="space-y-6">
                       <Tabs defaultValue="websocket" className="w-full">
@@ -624,48 +644,53 @@ const App: React.FC = () => {
                     </div>
                   ) : (
                     // Message List View
-                    messages.length === 0 ? (
-                      <Card>
-                        <CardContent className="p-8 text-center">
-                          <Clock className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                          <p className="text-gray-500">
-                            {isLoading ? 'Loading messages...' : 'No messages to approve. Waiting for WebSocket messages...'}
-                          </p>
-                        </CardContent>
-                      </Card>
-                    ) : (
-                      <div className={`grid gap-4 ${isLoading ? 'loading-fade' : ''}`}>
-                        {messages.map((message) => (
-                          <Card
-                            key={message.id}
-                            className="cursor-pointer hover:shadow-md transition-shadow"
-                            onClick={() => showMessageDetail(message)}
-                          >
-                            <CardContent className="p-4">
-                              <div className="flex items-center justify-between mb-2">
-                                <h3 className="text-lg font-semibold truncate">{message.title}</h3>
-                                <div className="flex items-center space-x-2">
-                                  {getStatusIcon(message.status)}
-                                  {getStatusBadge(message.status)}
-                                </div>
-                              </div>
-                              <p className="text-gray-600 text-sm mb-2 line-clamp-2">
-                                {getMessageSummary(message)}
+                    messages.length === 0
+                      ? (
+                          <Card>
+                            <CardContent className="p-8 text-center">
+                              <Clock className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                              <p className="text-gray-500">
+                                {isLoading ? 'Loading messages...' : 'No messages to approve. Waiting for WebSocket messages...'}
                               </p>
-                              <div className="flex items-center justify-between text-xs text-gray-500">
-                                <span>From: {message.sender || 'Unknown'}</span>
-                                <span>{new Date(message.timestamp).toLocaleString()}</span>
-                              </div>
-                              {message.priority && (
-                                <div className="mt-2">
-                                  {getPriorityBadge(message.priority)}
-                                </div>
-                              )}
                             </CardContent>
                           </Card>
-                        ))}
-                      </div>
-                    )
+                        )
+                      : (
+                          <div className={`grid gap-4 ${isLoading ? 'loading-fade' : ''}`}>
+                            {messages.map(message => (
+                              <Card
+                                key={message.id}
+                                className="cursor-pointer hover:shadow-md transition-shadow"
+                                onClick={() => showMessageDetail(message)}
+                              >
+                                <CardContent className="p-4">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <h3 className="text-lg font-semibold truncate">{message.title}</h3>
+                                    <div className="flex items-center space-x-2">
+                                      {getStatusIcon(message.status)}
+                                      {getStatusBadge(message.status)}
+                                    </div>
+                                  </div>
+                                  <p className="text-gray-600 text-sm mb-2 line-clamp-2">
+                                    {getMessageSummary(message)}
+                                  </p>
+                                  <div className="flex items-center justify-between text-xs text-gray-500">
+                                    <span>
+                                      From:
+                                      {message.sender || 'Unknown'}
+                                    </span>
+                                    <span>{new Date(message.timestamp).toLocaleString()}</span>
+                                  </div>
+                                  {message.priority && (
+                                    <div className="mt-2">
+                                      {getPriorityBadge(message.priority)}
+                                    </div>
+                                  )}
+                                </CardContent>
+                              </Card>
+                            ))}
+                          </div>
+                        )
                   )}
                 </div>
               )}
@@ -674,7 +699,7 @@ const App: React.FC = () => {
         </div>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default App;
+export default App

@@ -1,37 +1,37 @@
-import * as fs from 'fs';
-import * as path from 'path';
-import * as os from 'os';
-import { encrypt, decrypt } from './encryption';
+import * as fs from 'fs'
+import * as path from 'path'
+import * as os from 'os'
+import { encrypt, decrypt } from './encryption'
 
 export interface OAuthProviderConfig {
-  id: string;
-  name: string;
-  icon?: string;
-  clientId: string;
-  clientSecret?: string;
-  authorizationUrl: string;
-  tokenUrl: string;
-  userInfoUrl?: string;
-  scopes: string[];
-  usePKCE: boolean;
-  redirectUri: string;
-  additionalParams?: Record<string, string>;
-  createdAt: number;
-  updatedAt: number;
-  isCustom: boolean; // true for manually added, false for built-in
+  id: string
+  name: string
+  icon?: string
+  clientId: string
+  clientSecret?: string
+  authorizationUrl: string
+  tokenUrl: string
+  userInfoUrl?: string
+  scopes: string[]
+  usePKCE: boolean
+  redirectUri: string
+  additionalParams?: Record<string, string>
+  createdAt: number
+  updatedAt: number
+  isCustom: boolean // true for manually added, false for built-in
 }
 
 export class ProviderStorage {
-  private readonly storageDir: string;
-  private providersCache: Map<string, OAuthProviderConfig> = new Map();
-  private isLoaded: boolean = false;
+  private readonly storageDir: string
+  private providersCache: Map<string, OAuthProviderConfig> = new Map()
+  private isLoaded: boolean = false
 
   constructor(customDir?: string) {
-    this.storageDir = customDir || path.join(os.homedir(), '.keyboard-mcp');
-    
+    this.storageDir = customDir || path.join(os.homedir(), '.keyboard-mcp')
+
     // Ensure storage directory exists
     if (!fs.existsSync(this.storageDir)) {
-      fs.mkdirSync(this.storageDir, { recursive: true, mode: 0o700 });
+      fs.mkdirSync(this.storageDir, { recursive: true, mode: 0o700 })
     }
   }
 
@@ -39,7 +39,7 @@ export class ProviderStorage {
    * Get provider config file path
    */
   private getProviderFilePath(providerId: string): string {
-    return path.join(this.storageDir, `provider.${providerId}.encrypted`);
+    return path.join(this.storageDir, `provider.${providerId}.encrypted`)
   }
 
   /**
@@ -47,19 +47,20 @@ export class ProviderStorage {
    */
   private async loadProvider(providerId: string): Promise<OAuthProviderConfig | null> {
     try {
-      const filePath = this.getProviderFilePath(providerId);
+      const filePath = this.getProviderFilePath(providerId)
       if (!fs.existsSync(filePath)) {
-        return null;
+        return null
       }
 
-      const encryptedData = fs.readFileSync(filePath, 'utf8');
-      const decryptedData = decrypt(encryptedData);
-      const provider = JSON.parse(decryptedData) as OAuthProviderConfig;
-      
-      return provider;
-    } catch (error) {
-      console.error(`❌ Error loading provider ${providerId}:`, error);
-      return null;
+      const encryptedData = fs.readFileSync(filePath, 'utf8')
+      const decryptedData = decrypt(encryptedData)
+      const provider = JSON.parse(decryptedData) as OAuthProviderConfig
+
+      return provider
+    }
+    catch (error) {
+      console.error(`❌ Error loading provider ${providerId}:`, error)
+      return null
     }
   }
 
@@ -68,17 +69,18 @@ export class ProviderStorage {
    */
   private async saveProvider(provider: OAuthProviderConfig): Promise<void> {
     try {
-      const filePath = this.getProviderFilePath(provider.id);
-      const dataToEncrypt = JSON.stringify(provider, null, 2);
-      const encryptedData = encrypt(dataToEncrypt);
-      
+      const filePath = this.getProviderFilePath(provider.id)
+      const dataToEncrypt = JSON.stringify(provider, null, 2)
+      const encryptedData = encrypt(dataToEncrypt)
+
       // Write with restricted permissions
-      fs.writeFileSync(filePath, encryptedData, { mode: 0o600 });
-      
-      console.log(`💾 Saved provider configuration: ${provider.name} (${provider.id})`);
-    } catch (error) {
-      console.error(`❌ Error saving provider ${provider.id}:`, error);
-      throw error;
+      fs.writeFileSync(filePath, encryptedData, { mode: 0o600 })
+
+      console.log(`💾 Saved provider configuration: ${provider.name} (${provider.id})`)
+    }
+    catch (error) {
+      console.error(`❌ Error saving provider ${provider.id}:`, error)
+      throw error
     }
   }
 
@@ -87,30 +89,31 @@ export class ProviderStorage {
    */
   private async loadAllProviders(): Promise<void> {
     try {
-      this.providersCache.clear();
-      
-      // Get all provider files
-      const files = fs.readdirSync(this.storageDir);
-      const providerFiles = files.filter(file => 
-        file.startsWith('provider.') && file.endsWith('.encrypted')
-      );
+      this.providersCache.clear()
 
-      console.log(`📱 Found ${providerFiles.length} provider configuration files`);
+      // Get all provider files
+      const files = fs.readdirSync(this.storageDir)
+      const providerFiles = files.filter(file =>
+        file.startsWith('provider.') && file.endsWith('.encrypted'),
+      )
+
+      console.log(`📱 Found ${providerFiles.length} provider configuration files`)
 
       for (const file of providerFiles) {
-        const providerId = file.replace('provider.', '').replace('.encrypted', '');
-        const provider = await this.loadProvider(providerId);
+        const providerId = file.replace('provider.', '').replace('.encrypted', '')
+        const provider = await this.loadProvider(providerId)
         if (provider) {
-          this.providersCache.set(provider.id, provider);
+          this.providersCache.set(provider.id, provider)
         }
       }
 
-      this.isLoaded = true;
-      console.log(`✅ Loaded ${this.providersCache.size} provider configurations`);
-    } catch (error) {
-      console.error('❌ Error loading providers:', error);
-      this.providersCache.clear();
-      this.isLoaded = true;
+      this.isLoaded = true
+      console.log(`✅ Loaded ${this.providersCache.size} provider configurations`)
+    }
+    catch (error) {
+      console.error('❌ Error loading providers:', error)
+      this.providersCache.clear()
+      this.isLoaded = true
     }
   }
 
@@ -119,7 +122,7 @@ export class ProviderStorage {
    */
   private async ensureLoaded(): Promise<void> {
     if (!this.isLoaded) {
-      await this.loadAllProviders();
+      await this.loadAllProviders()
     }
   }
 
@@ -127,64 +130,64 @@ export class ProviderStorage {
    * Add or update a provider configuration
    */
   async saveProviderConfig(config: Omit<OAuthProviderConfig, 'createdAt' | 'updatedAt'>): Promise<void> {
-    await this.ensureLoaded();
+    await this.ensureLoaded()
 
-    const existingProvider = this.providersCache.get(config.id);
-    const now = Date.now();
+    const existingProvider = this.providersCache.get(config.id)
+    const now = Date.now()
 
     const provider: OAuthProviderConfig = {
       ...config,
       createdAt: existingProvider?.createdAt || now,
-      updatedAt: now
-    };
+      updatedAt: now,
+    }
 
-    await this.saveProvider(provider);
-    this.providersCache.set(provider.id, provider);
+    await this.saveProvider(provider)
+    this.providersCache.set(provider.id, provider)
 
-    console.log(`🔐 ${existingProvider ? 'Updated' : 'Added'} provider: ${provider.name} (${provider.id})`);
+    console.log(`🔐 ${existingProvider ? 'Updated' : 'Added'} provider: ${provider.name} (${provider.id})`)
   }
 
   /**
    * Get a provider configuration
    */
   async getProviderConfig(providerId: string): Promise<OAuthProviderConfig | null> {
-    await this.ensureLoaded();
-    return this.providersCache.get(providerId) || null;
+    await this.ensureLoaded()
+    return this.providersCache.get(providerId) || null
   }
 
   /**
    * Get all provider configurations
    */
   async getAllProviderConfigs(): Promise<OAuthProviderConfig[]> {
-    await this.ensureLoaded();
-    return Array.from(this.providersCache.values());
+    await this.ensureLoaded()
+    return Array.from(this.providersCache.values())
   }
 
   /**
    * Get available providers (those with client IDs configured)
    */
   async getAvailableProviders(): Promise<OAuthProviderConfig[]> {
-    const allProviders = await this.getAllProviderConfigs();
-    return allProviders.filter(provider => provider.clientId && provider.clientId.trim() !== '');
+    const allProviders = await this.getAllProviderConfigs()
+    return allProviders.filter(provider => provider.clientId && provider.clientId.trim() !== '')
   }
 
   /**
    * Remove a provider configuration
    */
   async removeProviderConfig(providerId: string): Promise<void> {
-    await this.ensureLoaded();
+    await this.ensureLoaded()
 
-    const filePath = this.getProviderFilePath(providerId);
-    
+    const filePath = this.getProviderFilePath(providerId)
+
     if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
-      console.log(`🗑️ Deleted provider configuration file: ${filePath}`);
+      fs.unlinkSync(filePath)
+      console.log(`🗑️ Deleted provider configuration file: ${filePath}`)
     }
 
     if (this.providersCache.has(providerId)) {
-      const provider = this.providersCache.get(providerId);
-      this.providersCache.delete(providerId);
-      console.log(`🗑️ Removed provider from cache: ${provider?.name} (${providerId})`);
+      const provider = this.providersCache.get(providerId)
+      this.providersCache.delete(providerId)
+      console.log(`🗑️ Removed provider from cache: ${provider?.name} (${providerId})`)
     }
   }
 
@@ -192,31 +195,31 @@ export class ProviderStorage {
    * Check if a provider exists
    */
   async hasProvider(providerId: string): Promise<boolean> {
-    await this.ensureLoaded();
-    return this.providersCache.has(providerId);
+    await this.ensureLoaded()
+    return this.providersCache.has(providerId)
   }
 
   /**
    * Get storage info for debugging
    */
   getStorageInfo(): {
-    storageDir: string;
-    providersCount: number;
-    providers: { id: string; name: string; isCustom: boolean; filePath: string; exists: boolean }[];
+    storageDir: string
+    providersCount: number
+    providers: { id: string, name: string, isCustom: boolean, filePath: string, exists: boolean }[]
   } {
     const providers = Array.from(this.providersCache.values()).map(provider => ({
       id: provider.id,
       name: provider.name,
       isCustom: provider.isCustom,
       filePath: this.getProviderFilePath(provider.id),
-      exists: fs.existsSync(this.getProviderFilePath(provider.id))
-    }));
+      exists: fs.existsSync(this.getProviderFilePath(provider.id)),
+    }))
 
     return {
       storageDir: this.storageDir,
       providersCount: this.providersCache.size,
-      providers
-    };
+      providers,
+    }
   }
 
   /**
@@ -241,15 +244,15 @@ export class ProviderStorage {
           'https://www.googleapis.com/auth/gmail.readonly',
           'https://www.googleapis.com/auth/spreadsheets',
           'https://www.googleapis.com/auth/presentations',
-          'https://www.googleapis.com/auth/drive.file'
+          'https://www.googleapis.com/auth/drive.file',
         ],
         usePKCE: true,
         redirectUri: 'http://localhost:8082/callback',
         additionalParams: {
           access_type: 'offline',
-          prompt: 'consent'
+          prompt: 'consent',
         },
-        isCustom: false
+        isCustom: false,
       },
       {
         id: 'github',
@@ -263,7 +266,7 @@ export class ProviderStorage {
         scopes: ['user:email', 'repo'],
         usePKCE: false,
         redirectUri: 'http://localhost:8082/callback',
-        isCustom: false
+        isCustom: false,
       },
       {
         id: 'microsoft',
@@ -276,16 +279,16 @@ export class ProviderStorage {
         scopes: ['openid', 'profile', 'email', 'User.Read'],
         usePKCE: true,
         redirectUri: 'http://localhost:8082/callback',
-        isCustom: false
-      }
-    ];
+        isCustom: false,
+      },
+    ]
 
     for (const provider of builtInProviders) {
-      const exists = await this.hasProvider(provider.id);
+      const exists = await this.hasProvider(provider.id)
       if (!exists) {
-        await this.saveProviderConfig(provider);
-        console.log(`🔧 Initialized built-in provider: ${provider.name}`);
+        await this.saveProviderConfig(provider)
+        console.log(`🔧 Initialized built-in provider: ${provider.name}`)
       }
     }
   }
-} 
+}
