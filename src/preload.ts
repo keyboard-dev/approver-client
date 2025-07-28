@@ -93,6 +93,11 @@ export interface ElectronAPI {
   onProviderAuthSuccess: (callback: (event: IpcRendererEvent, data: any) => void) => void;
   onProviderAuthError: (callback: (event: IpcRendererEvent, error: any) => void) => void;
   onProviderAuthLogout: (callback: (event: IpcRendererEvent, data: any) => void) => void;
+  // Manual Provider management
+  getAllProviderConfigs: () => Promise<any[]>;
+  saveProviderConfig: (config: any) => Promise<void>;
+  removeProviderConfig: (providerId: string) => Promise<void>;
+  getProviderConfig: (providerId: string) => Promise<any>;
   // Server Provider management
   addServerProvider: (server: any) => Promise<void>;
   removeServerProvider: (serverId: string) => Promise<void>;

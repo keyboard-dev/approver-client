@@ -3,60 +3,13 @@ import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { ManualProviderForm } from './ManualProviderForm';
-
-interface OAuthProvider {
-  id: string;
-  name: string;
-  icon?: string;
-  clientId: string;
-  clientSecret?: string;
-  authorizationUrl: string;
-  tokenUrl: string;
-  userInfoUrl?: string;
-  scopes: string[];
-  usePKCE: boolean;
-  redirectUri: string;
-  additionalParams?: Record<string, string>;
-}
-
-interface ProviderStatus {
-  authenticated: boolean;
-  expired: boolean;
-  user?: {
-    id: string;
-    email: string;
-    name: string;
-    firstName?: string;
-    lastName?: string;
-    picture?: string;
-    [key: string]: any;
-  };
-  storedAt?: number;
-  updatedAt?: number;
-}
+import type { OAuthProvider, ProviderStatus } from '../../preload';
 
 interface OAuthProviderManagerProps {
   className?: string;
 }
 
-declare global {
-  interface Window {
-    electronAPI: {
-      getAvailableProviders: () => Promise<OAuthProvider[]>;
-      startProviderOAuth: (providerId: string) => Promise<void>;
-      getProviderAuthStatus: () => Promise<Record<string, ProviderStatus>>;
-      getProviderAccessToken: (providerId: string) => Promise<string | null>;
-      logoutProvider: (providerId: string) => Promise<void>;
-      refreshProviderTokens: (providerId: string) => Promise<boolean>;
-      clearAllProviderTokens: () => Promise<void>;
-      getOAuthStorageInfo: () => Promise<any>;
-      getAllProviderConfigs: () => Promise<any[]>;
-      saveProviderConfig: (config: any) => Promise<void>;
-      removeProviderConfig: (providerId: string) => Promise<void>;
-      getProviderConfig: (providerId: string) => Promise<any>;
-    };
-  }
-}
+
 
 export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ className }) => {
   const [providers, setProviders] = useState<OAuthProvider[]>([]);
