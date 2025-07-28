@@ -1,5 +1,5 @@
-//require('@dotenvx/dotenvx').config()
-require('dotenv').config()
+require('@dotenvx/dotenvx').config()
+//require('dotenv').config()
 
 module.exports = {
   packagerConfig: {
