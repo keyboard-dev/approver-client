@@ -87,6 +87,7 @@ export class OAuthProviderManager {
   private readonly SERVER_PROVIDERS_FILE: string;
   private isLoaded: boolean = false;
   private providerStorage: ProviderStorage;
+  private getMainAccessToken?: () => Promise<string | null>;
 
   constructor(customProtocol: string = 'mcpauth') {
     this.customProtocol = customProtocol;
@@ -115,6 +116,13 @@ export class OAuthProviderManager {
   private async initialize(): Promise<void> {
     await this.loadServerProviders();
     await this.providerStorage.initializeBuiltInProviders();
+  }
+
+  /**
+   * Set the main access token getter function (for server provider authentication)
+   */
+  setMainAccessTokenGetter(getter: () => Promise<string | null>): void {
+    this.getMainAccessToken = getter;
   }
 
   /**
@@ -377,10 +385,25 @@ export class OAuthProviderManager {
    */
   async refreshTokens(providerId: string, refreshToken: string): Promise<ProviderTokens> {
     const provider = await this.getProvider(providerId);
-    if (!provider) {
-      throw new Error(`Provider ${providerId} not found`);
+    
+    // If we have a local provider configuration with client credentials, use direct refresh
+    if (provider && provider.clientId && provider.clientId.trim() !== '') {
+      try {
+        return await this.refreshTokensDirect(providerId, refreshToken, provider);
+      } catch (error) {
+        console.warn(`Direct token refresh failed for ${providerId}, trying server fallback:`, error);
+        // Fall through to server refresh if direct refresh fails
+      }
     }
 
+    // Fallback to server provider refresh (for tokens obtained via server OAuth)
+    return await this.refreshTokensViaServer(providerId, refreshToken);
+  }
+
+  /**
+   * Refresh tokens directly with the provider (requires local client credentials)
+   */
+  private async refreshTokensDirect(providerId: string, refreshToken: string, provider: any): Promise<ProviderTokens> {
     const body: Record<string, string> = {
       client_id: provider.clientId,
       refresh_token: refreshToken,
@@ -402,7 +425,7 @@ export class OAuthProviderManager {
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Token refresh failed: ${response.status} ${errorText}`);
+      throw new Error(`Direct token refresh failed: ${response.status} ${errorText}`);
     }
 
     const tokenData = await response.json() as any;
@@ -410,12 +433,91 @@ export class OAuthProviderManager {
     return {
       providerId: provider.id,
       access_token: tokenData.access_token,
-      refresh_token: tokenData.refresh_token || refreshToken, // Some providers don't return new refresh token
+      refresh_token: tokenData.refresh_token || refreshToken,
       token_type: tokenData.token_type || 'Bearer',
       expires_in: tokenData.expires_in || 3600,
       expires_at: Date.now() + ((tokenData.expires_in || 3600) * 1000),
       scope: tokenData.scope
     };
+  }
+
+  /**
+   * Refresh tokens via server provider (for tokens obtained via server OAuth)
+   */
+  private async refreshTokensViaServer(providerId: string, refreshToken: string): Promise<ProviderTokens> {
+    await this.ensureLoaded();
+    
+    // Try each configured server provider to see if they can refresh this token
+    const servers = Array.from(this.serverProviders.values());
+    
+    if (servers.length === 0) {
+      throw new Error(`No server providers configured and no local client credentials for ${providerId}`);
+    }
+
+    let lastError: Error | null = null;
+
+    for (const server of servers) {
+      try {
+        console.log(`🔄 Attempting to refresh ${providerId} token via server: ${server.name}`);
+        
+        const url = `${server.url}/api/oauth/refresh/${providerId}`;
+        
+        const body = {
+          refresh_token: refreshToken,
+          grant_type: 'refresh_token'
+        };
+
+                 // We need the main OAuth access token to authenticate with the server
+         const mainAccessToken = this.getMainAccessToken ? await this.getMainAccessToken() : null;
+
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        };
+
+        if (mainAccessToken) {
+          headers['Authorization'] = `Bearer ${mainAccessToken}`;
+        }
+
+        const response = await fetch(url, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(body)
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Server refresh failed: ${response.status} ${errorText}`);
+        }
+
+        const tokenData = await response.json() as any;
+
+        if (!tokenData.success) {
+          throw new Error('Server token refresh was unsuccessful');
+        }
+
+        console.log(`✅ Successfully refreshed ${providerId} tokens via ${server.name}`);
+
+        return {
+          providerId: providerId,
+          access_token: tokenData.access_token,
+          refresh_token: tokenData.refresh_token || refreshToken,
+          token_type: tokenData.token_type || 'Bearer',
+          expires_in: tokenData.expires_in || 3600,
+          expires_at: Date.now() + ((tokenData.expires_in || 3600) * 1000),
+          scope: tokenData.scope,
+          user: tokenData.user
+        };
+
+      } catch (error) {
+        console.warn(`Failed to refresh ${providerId} via ${server.name}:`, error);
+        lastError = error as Error;
+        continue; // Try next server
+      }
+    }
+
+    // If we get here, all servers failed
+    throw new Error(`Failed to refresh ${providerId} tokens via any server provider. Last error: ${lastError?.message}`);
   }
 
   /**

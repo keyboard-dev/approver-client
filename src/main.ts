@@ -81,6 +81,9 @@ class MenuBarNotificationApp {
     this.perProviderTokenStorage = new PerProviderTokenStorage();
     this.oauthHttpServer = new OAuthHttpServer(this.OAUTH_PORT);
     
+    // Inject main access token getter for server provider refresh
+    this.oauthProviderManager.setMainAccessTokenGetter(() => this.getValidAccessToken());
+    
     // Migrate from old storage format
     this.migrateTokenStorage().catch(error => {
       console.error('❌ Failed to migrate token storage:', error);
