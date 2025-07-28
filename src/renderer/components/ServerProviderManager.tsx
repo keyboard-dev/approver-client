@@ -291,7 +291,7 @@ export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ cl
 
 
 
-            <div className="flex gap-2 pt-4">
+            <div className="flex items-center gap-2 pt-4">
               <Button
                 onClick={handleAddServer}
                 disabled={!newServer.name || !newServer.url || isLoading['add']}
@@ -384,7 +384,7 @@ export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ cl
                                     )}
                                   </div>
                                 </div>
-                                <div className="flex items-center space-x-2">
+                                <div className="flex items-center gap-2">
                                   {isAuthenticated ? (
                                     <>
                                       <span className={`text-xs px-2 py-1 rounded ${isExpired ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
