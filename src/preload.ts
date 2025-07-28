@@ -93,6 +93,11 @@ export interface ElectronAPI {
   onProviderAuthSuccess: (callback: (event: IpcRendererEvent, data: any) => void) => void;
   onProviderAuthError: (callback: (event: IpcRendererEvent, error: any) => void) => void;
   onProviderAuthLogout: (callback: (event: IpcRendererEvent, data: any) => void) => void;
+  // Manual Provider management
+  getAllProviderConfigs: () => Promise<any[]>;
+  saveProviderConfig: (config: any) => Promise<void>;
+  removeProviderConfig: (providerId: string) => Promise<void>;
+  getProviderConfig: (providerId: string) => Promise<any>;
   // Server Provider management
   addServerProvider: (server: any) => Promise<void>;
   removeServerProvider: (serverId: string) => Promise<void>;
@@ -189,8 +194,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getWSConnectionKey: (): Promise<string | null> => ipcRenderer.invoke('get-ws-connection-key'),
   getWSConnectionUrl: (): Promise<string> => ipcRenderer.invoke('get-ws-connection-url'),
   regenerateWSKey: (): Promise<{ key: string; createdAt: number }> => ipcRenderer.invoke('regenerate-ws-key'),
-  // Window control
-  closeWindow: (): Promise<void> => ipcRenderer.invoke('window-close'),
   getWSKeyInfo: (): Promise<{ key: string | null; createdAt: number | null; keyFile: string }> => ipcRenderer.invoke('get-ws-key-info'),
   onWSKeyGenerated: (callback: (event: IpcRendererEvent, data: { key: string; createdAt: number }) => void): void => {
     ipcRenderer.on('ws-key-generated', callback);
