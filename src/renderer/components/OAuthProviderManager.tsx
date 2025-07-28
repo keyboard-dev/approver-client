@@ -9,17 +9,33 @@ interface OAuthProviderManagerProps {
   className?: string;
 }
 
+interface OAuthProviderConfig extends OAuthProvider {
+  isCustom?: boolean;
+  createdAt?: number;
+  updatedAt?: number;
+}
 
+interface StorageInfo {
+  filePath: string;
+  providersCount: number;
+  size?: number;
+  permissions?: string;
+}
+
+interface ProviderAuthEvent {
+  providerId: string;
+  message?: string;
+}
 
 export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ className }) => {
   const [providers, setProviders] = useState<OAuthProvider[]>([]);
-  const [allProviderConfigs, setAllProviderConfigs] = useState<any[]>([]);
+  const [allProviderConfigs, setAllProviderConfigs] = useState<OAuthProviderConfig[]>([]);
   const [providerStatus, setProviderStatus] = useState<Record<string, ProviderStatus>>({});
   const [isLoading, setIsLoading] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
-  const [storageInfo, setStorageInfo] = useState<any>(null);
+  const [storageInfo, setStorageInfo] = useState<StorageInfo | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [editingProvider, setEditingProvider] = useState<any>(null);
+  const [editingProvider, setEditingProvider] = useState<OAuthProviderConfig | null>(null);
 
   useEffect(() => {
     loadProviders();
@@ -28,7 +44,7 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
     loadStorageInfo();
 
     // Listen for OAuth events
-    const handleProviderAuthSuccess = (event: any, data: any) => {
+    const handleProviderAuthSuccess = (_event: any, data: ProviderAuthEvent) => {
       console.log('Provider auth success:', data);
       // Refresh all provider data to show the new authentication status
       loadProviders();
@@ -39,13 +55,13 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
       setError(null);
     };
 
-    const handleProviderAuthError = (event: any, data: any) => {
+    const handleProviderAuthError = (_event: any, data: ProviderAuthEvent) => {
       console.error('Provider auth error:', data);
       setError(`${data.providerId}: ${data.message}`);
       setIsLoading(prev => ({ ...prev, [data.providerId]: false }));
     };
 
-    const handleProviderAuthLogout = (event: any, data: any) => {
+    const handleProviderAuthLogout = (_event: any, data: ProviderAuthEvent) => {
       console.log('Provider auth logout:', data);
       loadProviderStatus();
     };
@@ -58,8 +74,12 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
     }
 
     return () => {
-      // Cleanup listeners - Note: Electron IPC doesn't require manual cleanup
-      // but we could add removeListener calls here if needed
+      // Cleanup listeners
+      if (window.electronAPI) {
+        window.electronAPI.removeAllListeners('provider-auth-success');
+        window.electronAPI.removeAllListeners('provider-auth-error');
+        window.electronAPI.removeAllListeners('provider-auth-logout');
+      }
     };
   }, []);
 
@@ -180,7 +200,7 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
     }
   };
 
-  const handleSaveProvider = async (config: any) => {
+  const handleSaveProvider = async (config: OAuthProviderConfig) => {
     try {
       await window.electronAPI.saveProviderConfig(config);
       await loadProviders();
