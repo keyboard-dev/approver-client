@@ -365,16 +365,8 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
                     <div>
                       <div className="flex items-center gap-2">
                         <h3 className="text-lg font-semibold">{config.name}</h3>
-                        {config.isCustom && (
-                          <Badge variant="outline" className="text-xs">Custom</Badge>
-                        )}
                         {!isAvailable && !hasTokens && (
                           <Badge variant="secondary" className="text-xs">No Client ID</Badge>
-                        )}
-                        {hasTokens && (
-                          <Badge variant="outline" className="text-xs">
-                            {isAvailable ? 'Local Config' : 'Server Auth'}
-                          </Badge>
                         )}
                       </div>
                       <p className="text-sm text-gray-500">
@@ -393,7 +385,7 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
                   <div className="flex items-center gap-2">
                     {getStatusBadge(status || { authenticated: false, expired: false })}
                     {config.isCustom && (
-                      <div className="flex gap-1">
+                      <div className="flex items-center gap-2">
                         <Button
                           variant="outline"
                           size="sm"
@@ -415,7 +407,7 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
 
                 {/* Show token management buttons if authenticated OR if provider is available for direct connect */}
                 {(hasTokens || isAvailable) && (
-                  <div className="mt-4 flex flex-wrap gap-2">
+                  <div className="mt-4 flex items-center flex-wrap gap-2">
                     {!status?.authenticated ? (
                       isAvailable && (
                         <Button

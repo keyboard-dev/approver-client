@@ -163,7 +163,7 @@ export const ManualProviderForm: React.FC<ManualProviderFormProps> = ({
                 variant="outline"
                 size="sm"
                 onClick={() => fillTemplate(provider)}
-                className="text-left justify-start"
+                className="flex items-center justify-start"
               >
                 <span className="mr-2">{provider.icon}</span>
                 {provider.name}
@@ -336,7 +336,7 @@ export const ManualProviderForm: React.FC<ManualProviderFormProps> = ({
           </p>
         </div>
 
-        <div className="flex gap-2 pt-4">
+        <div className="flex items-center gap-2 pt-4">
           <Button type="submit" disabled={isLoading}>
             {isLoading ? '⏳ Saving...' : (isEditing ? '💾 Update Provider' : '✅ Add Provider')}
           </Button>
