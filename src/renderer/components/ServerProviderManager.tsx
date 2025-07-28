@@ -21,6 +21,7 @@ interface ServerProviderInfo {
 export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ className }) => {
   const [servers, setServers] = useState<ServerProvider[]>([]);
   const [serverProviders, setServerProviders] = useState<Record<string, ServerProviderInfo[]>>({});
+  const [providerStatus, setProviderStatus] = useState<Record<string, any>>({});
   const [isLoading, setIsLoading] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -31,6 +32,45 @@ export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ cl
 
   useEffect(() => {
     loadServerProviders();
+    loadProviderStatus();
+
+    // Listen for OAuth completion events
+    const handleProviderAuthSuccess = (event: any, data: any) => {
+      console.log('Server provider auth success:', data);
+      // Clear loading state for the completed OAuth flow
+      setIsLoading(prev => {
+        const updated = { ...prev };
+        // Clear loading for any server-provider combinations
+        Object.keys(updated).forEach(key => {
+          if (key.includes('-') && key.endsWith(data.providerId)) {
+            updated[key] = false;
+          }
+        });
+        return updated;
+      });
+      // Refresh provider status to show new authentication
+      loadProviderStatus();
+      setError(null);
+    };
+
+    const handleProviderAuthError = (event: any, data: any) => {
+      console.error('Server provider auth error:', data);
+      setError(`Authentication failed: ${data.message}`);
+      // Clear all loading states
+      setIsLoading({});
+      // Refresh provider status in case of partial success
+      loadProviderStatus();
+    };
+
+    // Add event listeners if available
+    if (window.electronAPI) {
+      window.electronAPI.onProviderAuthSuccess?.(handleProviderAuthSuccess);
+      window.electronAPI.onProviderAuthError?.(handleProviderAuthError);
+    }
+
+    return () => {
+      // Cleanup - no specific cleanup needed for Electron IPC
+    };
   }, []);
 
   const loadServerProviders = async () => {
@@ -68,6 +108,15 @@ export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ cl
       }));
     } finally {
       setIsLoading(prev => ({ ...prev, [loadingKey]: false }));
+    }
+  };
+
+  const loadProviderStatus = async () => {
+    try {
+      const status = await window.electronAPI.getProviderAuthStatus();
+      setProviderStatus(status);
+    } catch (error) {
+      console.error('Failed to load provider status:', error);
     }
   };
 
@@ -126,11 +175,39 @@ export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ cl
     try {
       await window.electronAPI.startServerProviderOAuth(serverId, provider);
       console.log(`🔐 Started OAuth flow: ${serverId} → ${provider}`);
+      // Don't clear loading state here - it will be cleared by the auth success/error handlers
     } catch (error) {
       console.error(`Failed to start OAuth for ${serverId}/${provider}:`, error);
       setError(`Failed to start OAuth: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
+      // Only clear loading state on immediate error (not OAuth callback errors)
       setIsLoading(prev => ({ ...prev, [loadingKey]: false }));
+    }
+  };
+
+  const handleGetToken = async (providerId: string) => {
+    try {
+      const token = await window.electronAPI.getProviderAccessToken(providerId);
+      if (token) {
+        // Copy to clipboard
+        navigator.clipboard.writeText(token);
+        alert(`Access token copied to clipboard!\n\nToken preview: ${token.substring(0, 20)}...`);
+      } else {
+        alert('No valid token available. Please reconnect.');
+      }
+    } catch (error) {
+      console.error(`Failed to get token for ${providerId}:`, error);
+      setError(`Failed to get token for ${providerId}`);
+    }
+  };
+
+  const handleDisconnect = async (providerId: string) => {
+    try {
+      await window.electronAPI.logoutProvider(providerId);
+      await loadProviderStatus();
+      setError(null);
+    } catch (error) {
+      console.error(`Failed to disconnect ${providerId}:`, error);
+      setError(`Failed to disconnect from ${providerId}`);
     }
   };
 
@@ -151,12 +228,24 @@ export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ cl
             All requests are authenticated using your main OAuth access token.
           </p>
         </div>
-        <Button 
-          onClick={() => setShowAddForm(!showAddForm)}
-          className="bg-blue-600 hover:bg-blue-700"
-        >
-          {showAddForm ? 'Cancel' : 'Add Server'}
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            onClick={() => {
+              loadServerProviders();
+              loadProviderStatus();
+            }}
+            variant="outline"
+            size="sm"
+          >
+            🔄 Refresh
+          </Button>
+          <Button 
+            onClick={() => setShowAddForm(!showAddForm)}
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            {showAddForm ? 'Cancel' : 'Add Server'}
+          </Button>
+        </div>
       </div>
 
       {error && (
@@ -266,36 +355,84 @@ export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ cl
                         {isLoading[`fetch-${server.id}`] ? 'Refreshing...' : 'Refresh'}
                       </Button>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <div className="space-y-3">
                       {isLoading[`fetch-${server.id}`] ? (
-                        <div className="col-span-3 text-center text-gray-500 py-4">
+                        <div className="text-center text-gray-500 py-4">
                           <p>Loading providers...</p>
                         </div>
                       ) : serverProviders[server.id]?.length > 0 ? (
-                        serverProviders[server.id].map((provider) => (
-                          <Button
-                            key={provider.name}
-                            onClick={() => handleStartOAuth(server.id, provider.name)}
-                            disabled={!provider.configured || isLoading[`${server.id}-${provider.name}`]}
-                            variant="outline"
-                            size="sm"
-                            className={`justify-start ${!provider.configured ? 'opacity-50' : ''}`}
-                            title={provider.configured ? 
-                              `Scopes: ${provider.scopes.join(', ')}` : 
-                              'Not configured on server'
-                            }
-                          >
-                            {isLoading[`${server.id}-${provider.name}`] ? (
-                              'Starting...'
-                            ) : (
-                              <>
-                                {provider.configured ? '🟢' : '🔴'} {provider.name.charAt(0).toUpperCase() + provider.name.slice(1)}
-                              </>
-                            )}
-                          </Button>
-                        ))
-                      ) : (
-                        <div className="col-span-3 text-center text-gray-500 py-4">
+                        serverProviders[server.id].map((provider) => {
+                          const isAuthenticated = providerStatus[provider.name]?.authenticated;
+                          const user = providerStatus[provider.name]?.user;
+                          const isExpired = providerStatus[provider.name]?.expired;
+                          
+                          return (
+                            <div key={provider.name} className="space-y-2">
+                              <div className="flex items-center justify-between p-3 border rounded-lg bg-gray-50">
+                                <div className="flex items-center space-x-2">
+                                  <span className="text-lg">
+                                    {provider.configured ? '🟢' : '🔴'}
+                                  </span>
+                                  <div>
+                                    <div className="font-medium">
+                                      {provider.name.charAt(0).toUpperCase() + provider.name.slice(1)}
+                                    </div>
+                                    {isAuthenticated && user && (
+                                      <div className="text-xs text-gray-600">
+                                        👤 {user.name || user.email}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  {isAuthenticated ? (
+                                    <>
+                                      <span className={`text-xs px-2 py-1 rounded ${isExpired ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                                        {isExpired ? 'Expired' : 'Connected'}
+                                      </span>
+                                      <Button
+                                        onClick={() => handleGetToken(provider.name)}
+                                        variant="outline"
+                                        size="sm"
+                                        className="text-xs"
+                                      >
+                                        📋 Token
+                                      </Button>
+                                      <Button
+                                        onClick={() => handleDisconnect(provider.name)}
+                                        variant="outline"
+                                        size="sm"
+                                        className="text-xs text-red-600 hover:text-red-700"
+                                      >
+                                        ❌ Disconnect
+                                      </Button>
+                                    </>
+                                  ) : (
+                                    <Button
+                                      onClick={() => handleStartOAuth(server.id, provider.name)}
+                                      disabled={!provider.configured || isLoading[`${server.id}-${provider.name}`]}
+                                      variant="outline"
+                                      size="sm"
+                                      className={`${!provider.configured ? 'opacity-50' : ''}`}
+                                      title={provider.configured ? 
+                                        `Scopes: ${provider.scopes.join(', ')}` : 
+                                        'Not configured on server'
+                                      }
+                                    >
+                                      {isLoading[`${server.id}-${provider.name}`] ? (
+                                        'Starting...'
+                                      ) : (
+                                        '🔗 Connect'
+                                      )}
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })
+                                              ) : (
+                        <div className="text-center text-gray-500 py-4">
                           <p>No providers available</p>
                           <p className="text-xs">Check server configuration</p>
                         </div>
