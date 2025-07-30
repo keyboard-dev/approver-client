@@ -34,7 +34,6 @@ export class WindowManager {
 
     // Hide window when it loses focus
     this.mainWindow.on('blur', () => {
-      console.log('blur')
       if (this.mainWindow?.isVisible()) {
         setTimeout(() => {
           if (this.mainWindow?.isVisible() && !this.mainWindow?.isFocused()) {
