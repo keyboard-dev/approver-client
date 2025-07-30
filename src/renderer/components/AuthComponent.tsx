@@ -3,7 +3,7 @@ import { Button } from './ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Alert, AlertDescription } from '../../components/ui/alert'
 import { Badge } from './ui/badge'
-import { User, LogIn, LogOut, Shield, AlertCircle, CheckCircle } from 'lucide-react'
+import { User, LogOut, Shield, AlertCircle, CheckCircle } from 'lucide-react'
 import { AuthStatus, AuthError } from '../../preload'
 import { SKIP_AUTH_USER_EMAIL, SKIP_AUTH_USER_FIRST_NAME, SKIP_AUTH_USER_ID, SKIP_AUTH_USER_LAST_NAME } from '../../lib/constants/auth.constants'
 
@@ -45,7 +45,7 @@ const AuthComponent: React.FC<AuthComponentProps> = ({
     //   onAuthChange(data);
     // };
 
-    const handleAuthError = (event: any, errorData: AuthError) => {
+    const handleAuthError = (_event: Electron.CrossProcessExports.IpcRendererEvent | null, errorData: AuthError) => {
       console.error('Auth error:', errorData)
       setError(errorData.message)
       setIsLoading(false)
@@ -241,7 +241,7 @@ const AuthComponent: React.FC<AuthComponentProps> = ({
 
         <div className="text-xs text-gray-500 text-center self-center">
           <p>This will open your default browser for secure authentication.</p>
-          <p>You'll be redirected back to this app after login.</p>
+          <p>You&apos;ll be redirected back to this app after login.</p>
         </div>
       </CardContent>
     </Card>

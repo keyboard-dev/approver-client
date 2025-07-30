@@ -4,6 +4,26 @@ import * as os from 'os'
 import { encrypt, decrypt } from './encryption'
 import { ProviderTokens } from './oauth-providers'
 
+// OAuth user type based on the structure in oauth-providers.ts
+export interface OAuthUser {
+  id: string
+  email: string
+  name: string
+  firstName?: string
+  lastName?: string
+  picture?: string
+  [key: string]: unknown // Allow provider-specific user data
+}
+
+// Provider status information interface
+export interface ProviderStatusInfo {
+  authenticated: boolean
+  expired: boolean
+  user?: OAuthUser
+  storedAt?: number
+  updatedAt?: number
+}
+
 export interface StoredProviderTokens extends ProviderTokens {
   storedAt: number
   updatedAt: number
@@ -195,16 +215,10 @@ export class OAuthTokenStorage {
   /**
    * Get provider list with authentication status
    */
-  async getProviderStatus(): Promise<Record<string, {
-    authenticated: boolean
-    expired: boolean
-    user?: any
-    storedAt?: number
-    updatedAt?: number
-  }>> {
+  async getProviderStatus(): Promise<Record<string, ProviderStatusInfo>> {
     await this.ensureLoaded()
 
-    const status: Record<string, any> = {}
+    const status: Record<string, ProviderStatusInfo> = {}
 
     for (const [providerId, tokens] of Object.entries(this.tokensCache)) {
       const expired = await this.areTokensExpired(providerId)
@@ -223,7 +237,7 @@ export class OAuthTokenStorage {
   /**
    * Update user info for a provider
    */
-  async updateUserInfo(providerId: string, user: any): Promise<void> {
+  async updateUserInfo(providerId: string, user: OAuthUser): Promise<void> {
     await this.ensureLoaded()
 
     if (this.tokensCache[providerId]) {

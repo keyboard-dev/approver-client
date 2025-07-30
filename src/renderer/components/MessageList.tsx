@@ -39,7 +39,7 @@ const MessageList: React.FC<MessageListProps> = ({
               <div className="empty-state" id="emptyState">
                 <div className="empty-state-content">
                   <h2>No messages</h2>
-                  <p>You'll see your messages here when they arrive.</p>
+                  <p>You&apos;ll see your messages here when they arrive.</p>
                 </div>
               </div>
             )

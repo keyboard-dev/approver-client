@@ -4,6 +4,16 @@ import * as os from 'os'
 import { encrypt, decrypt } from './encryption'
 import { ProviderTokens } from './oauth-providers'
 
+export interface UserInfo {
+  id: string
+  email: string
+  name: string
+  firstName?: string
+  lastName?: string
+  picture?: string
+  [key: string]: unknown // Allow provider-specific user data
+}
+
 export interface StoredProviderTokens extends ProviderTokens {
   storedAt: number
   updatedAt: number
@@ -257,13 +267,19 @@ export class PerProviderTokenStorage {
   async getProviderStatus(): Promise<Record<string, {
     authenticated: boolean
     expired: boolean
-    user?: any
+    user?: UserInfo
     storedAt?: number
     updatedAt?: number
   }>> {
     await this.loadAllProviderTokens()
 
-    const status: Record<string, any> = {}
+    const status: Record<string, {
+      authenticated: boolean
+      expired: boolean
+      user?: UserInfo
+      storedAt?: number
+      updatedAt?: number
+    }> = {}
 
     for (const [providerId, tokens] of this.tokensCache.entries()) {
       const expired = await this.areTokensExpired(providerId)
@@ -282,7 +298,7 @@ export class PerProviderTokenStorage {
   /**
    * Update user info for a provider
    */
-  async updateUserInfo(providerId: string, user: any): Promise<void> {
+  async updateUserInfo(providerId: string, user: UserInfo): Promise<void> {
     await this.ensureProviderLoaded(providerId)
 
     const tokens = this.tokensCache.get(providerId)

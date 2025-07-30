@@ -18,10 +18,28 @@ interface ServerProviderInfo {
   configured: boolean
 }
 
+interface ProviderAuthData {
+  providerId: string
+  message?: string
+  user?: {
+    name?: string
+    email?: string
+  }
+}
+
+interface ProviderStatus {
+  authenticated: boolean
+  user?: {
+    name?: string
+    email?: string
+  }
+  expired?: boolean
+}
+
 export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ className }) => {
   const [servers, setServers] = useState<ServerProvider[]>([])
   const [serverProviders, setServerProviders] = useState<Record<string, ServerProviderInfo[]>>({})
-  const [providerStatus, setProviderStatus] = useState<Record<string, any>>({})
+  const [providerStatus, setProviderStatus] = useState<Record<string, ProviderStatus>>({})
   const [isLoading, setIsLoading] = useState<Record<string, boolean>>({})
   const [error, setError] = useState<string | null>(null)
   const [showAddForm, setShowAddForm] = useState(false)
@@ -35,7 +53,7 @@ export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ cl
     loadProviderStatus()
 
     // Listen for OAuth completion events
-    const handleProviderAuthSuccess = (event: any, data: any) => {
+    const handleProviderAuthSuccess = (_event: unknown, data: ProviderAuthData) => {
       console.log('Server provider auth success:', data)
       // Clear loading state for the completed OAuth flow
       setIsLoading((prev) => {
@@ -53,7 +71,7 @@ export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ cl
       setError(null)
     }
 
-    const handleProviderAuthError = (event: any, data: any) => {
+    const handleProviderAuthError = (_event: unknown, data: ProviderAuthData) => {
       console.error('Server provider auth error:', data)
       setError(`Authentication failed: ${data.message}`)
       // Clear all loading states

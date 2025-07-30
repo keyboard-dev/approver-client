@@ -28,7 +28,6 @@ interface ProviderAuthEvent {
 }
 
 export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ className }) => {
-  const [providers, setProviders] = useState<OAuthProvider[]>([])
   const [allProviderConfigs, setAllProviderConfigs] = useState<OAuthProviderConfig[]>([])
   const [providerStatus, setProviderStatus] = useState<Record<string, ProviderStatus>>({})
   const [isLoading, setIsLoading] = useState<Record<string, boolean>>({})
@@ -44,7 +43,7 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
     loadStorageInfo()
 
     // Listen for OAuth events
-    const handleProviderAuthSuccess = (_event: any, data: ProviderAuthEvent) => {
+    const handleProviderAuthSuccess = (_event: Electron.IpcRendererEvent, data: ProviderAuthEvent) => {
       console.log('Provider auth success:', data)
       // Refresh all provider data to show the new authentication status
       loadProviders()
@@ -55,13 +54,13 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
       setError(null)
     }
 
-    const handleProviderAuthError = (_event: any, data: ProviderAuthEvent) => {
+    const handleProviderAuthError = (_event: Electron.IpcRendererEvent, data: ProviderAuthEvent) => {
       console.error('Provider auth error:', data)
       setError(`${data.providerId}: ${data.message}`)
       setIsLoading(prev => ({ ...prev, [data.providerId]: false }))
     }
 
-    const handleProviderAuthLogout = (_event: any, data: ProviderAuthEvent) => {
+    const handleProviderAuthLogout = (_event: Electron.IpcRendererEvent, data: ProviderAuthEvent) => {
       console.log('Provider auth logout:', data)
       loadProviderStatus()
     }
@@ -85,8 +84,7 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
 
   const loadProviders = async () => {
     try {
-      const availableProviders = await window.electronAPI.getAvailableProviders()
-      setProviders(availableProviders)
+      await window.electronAPI.getAvailableProviders()
     }
     catch (error) {
       console.error('Failed to load providers:', error)
@@ -329,142 +327,144 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
         />
       )}
 
-      {allProviderConfigs.length === 0 ? (
-        <Card className="p-6">
-          <div className="text-center text-gray-500">
-            <p>No OAuth providers configured.</p>
-            <p className="text-sm mt-2">
-              Configure providers by setting environment variables like GOOGLE_CLIENT_ID, GITHUB_CLIENT_ID, etc.
-            </p>
-          </div>
-        </Card>
-      ) : (
-        <div className="grid gap-4">
-          {allProviderConfigs.map((config) => {
-            const status = providerStatus[config.id]
-            const loading = isLoading[config.id]
-            const isAvailable = config.clientId && config.clientId.trim() !== ''
-            const hasTokens = status?.authenticated
+      {allProviderConfigs.length === 0
+        ? (
+            <Card className="p-6">
+              <div className="text-center text-gray-500">
+                <p>No OAuth providers configured.</p>
+                <p className="text-sm mt-2">
+                  Configure providers by setting environment variables like GOOGLE_CLIENT_ID, GITHUB_CLIENT_ID, etc.
+                </p>
+              </div>
+            </Card>
+          )
+        : (
+            <div className="grid gap-4">
+              {allProviderConfigs.map((config) => {
+                const status = providerStatus[config.id]
+                const loading = isLoading[config.id]
+                const isAvailable = config.clientId && config.clientId.trim() !== ''
+                const hasTokens = status?.authenticated
 
-            return (
-              <Card key={config.id} className="p-6">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="text-2xl">{config.icon || '🔗'}</div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-lg font-semibold">{config.name}</h3>
-                        {!isAvailable && !hasTokens && (
-                          <Badge variant="secondary" className="text-xs">No Client ID</Badge>
-                        )}
-                      </div>
-                      <p className="text-sm text-gray-500">
-                        Scopes:
-                        {' '}
-                        {config.scopes?.join(', ') || 'None specified'}
-                      </p>
-                      {status?.user && (
-                        <div className="text-sm text-gray-600 mt-1">
-                          <div>
-                            👤
-                            {status.user.name || status.user.email}
+                return (
+                  <Card key={config.id} className="p-6">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="text-2xl">{config.icon || '🔗'}</div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-lg font-semibold">{config.name}</h3>
+                            {!isAvailable && !hasTokens && (
+                              <Badge variant="secondary" className="text-xs">No Client ID</Badge>
+                            )}
                           </div>
-                          {status.storedAt && (
-                            <div>
-                              📅 Connected:
-                              {formatDate(status.storedAt)}
+                          <p className="text-sm text-gray-500">
+                            Scopes:
+                            {' '}
+                            {config.scopes?.join(', ') || 'None specified'}
+                          </p>
+                          {status?.user && (
+                            <div className="text-sm text-gray-600 mt-1">
+                              <div>
+                                👤
+                                {status.user.name || status.user.email}
+                              </div>
+                              {status.storedAt && (
+                                <div>
+                                  📅 Connected:
+                                  {formatDate(status.storedAt)}
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {getStatusBadge(status || { authenticated: false, expired: false })}
-                    {config.isCustom && (
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleEditProvider(config.id)}
-                        >
-                          ✏️ Edit
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDeleteProvider(config.id)}
-                        >
-                          🗑️ Delete
-                        </Button>
                       </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Show token management buttons if authenticated OR if provider is available for direct connect */}
-                {(hasTokens || isAvailable) && (
-                  <div className="mt-4 flex items-center flex-wrap gap-2">
-                    {!status?.authenticated
-                      ? (
-                          isAvailable && (
+                      <div className="flex items-center gap-2">
+                        {getStatusBadge(status || { authenticated: false, expired: false })}
+                        {config.isCustom && (
+                          <div className="flex items-center gap-2">
                             <Button
-                              onClick={() => handleConnect(config.id)}
-                              disabled={loading}
-                              size="sm"
-                            >
-                              {loading ? '⏳ Connecting...' : '🔗 Connect'}
-                            </Button>
-                          )
-                        )
-                      : (
-                          <>
-                            <Button
-                              onClick={() => handleGetToken(config.id)}
                               variant="outline"
                               size="sm"
+                              onClick={() => handleEditProvider(config.id)}
                             >
-                              📋 Copy Token
+                              ✏️ Edit
                             </Button>
-                            {status.expired && (
-                              <Button
-                                onClick={() => handleRefresh(config.id)}
-                                disabled={loading}
-                                variant="outline"
-                                size="sm"
-                              >
-                                {loading ? '⏳ Refreshing...' : '🔄 Refresh'}
-                              </Button>
-                            )}
                             <Button
-                              onClick={() => handleDisconnect(config.id)}
-                              disabled={loading}
-                              variant="destructive"
+                              variant="outline"
                               size="sm"
+                              onClick={() => handleDeleteProvider(config.id)}
                             >
-                              {loading ? '⏳ Disconnecting...' : '❌ Disconnect'}
+                              🗑️ Delete
                             </Button>
-                          </>
+                          </div>
                         )}
-                  </div>
-                )}
+                      </div>
+                    </div>
 
-                {/* Only show the warning if no tokens exist AND no client ID is configured */}
-                {!hasTokens && !isAvailable && (
-                  <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                    <p className="text-sm text-yellow-700">
-                      ⚠️ This provider needs a Client ID to be configured before it can be used for direct authentication.
-                      {config.isCustom && ' Click "Edit" to add your Client ID.'}
-                      {' '}
-                      Alternatively, you can authenticate via Server Providers.
-                    </p>
-                  </div>
-                )}
-              </Card>
-            )
-          })}
-        </div>
-      )}
+                    {/* Show token management buttons if authenticated OR if provider is available for direct connect */}
+                    {(hasTokens || isAvailable) && (
+                      <div className="mt-4 flex items-center flex-wrap gap-2">
+                        {!status?.authenticated
+                          ? (
+                              isAvailable && (
+                                <Button
+                                  onClick={() => handleConnect(config.id)}
+                                  disabled={loading}
+                                  size="sm"
+                                >
+                                  {loading ? '⏳ Connecting...' : '🔗 Connect'}
+                                </Button>
+                              )
+                            )
+                          : (
+                              <>
+                                <Button
+                                  onClick={() => handleGetToken(config.id)}
+                                  variant="outline"
+                                  size="sm"
+                                >
+                                  📋 Copy Token
+                                </Button>
+                                {status.expired && (
+                                  <Button
+                                    onClick={() => handleRefresh(config.id)}
+                                    disabled={loading}
+                                    variant="outline"
+                                    size="sm"
+                                  >
+                                    {loading ? '⏳ Refreshing...' : '🔄 Refresh'}
+                                  </Button>
+                                )}
+                                <Button
+                                  onClick={() => handleDisconnect(config.id)}
+                                  disabled={loading}
+                                  variant="destructive"
+                                  size="sm"
+                                >
+                                  {loading ? '⏳ Disconnecting...' : '❌ Disconnect'}
+                                </Button>
+                              </>
+                            )}
+                      </div>
+                    )}
+
+                    {/* Only show the warning if no tokens exist AND no client ID is configured */}
+                    {!hasTokens && !isAvailable && (
+                      <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <p className="text-sm text-yellow-700">
+                          ⚠️ This provider needs a Client ID to be configured before it can be used for direct authentication.
+                          {config.isCustom && ' Click "Edit" to add your Client ID.'}
+                          {' '}
+                          Alternatively, you can authenticate via Server Providers.
+                        </p>
+                      </div>
+                    )}
+                  </Card>
+                )
+              })}
+            </div>
+          )}
 
       {storageInfo && (
         <Card className="p-4">

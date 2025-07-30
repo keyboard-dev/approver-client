@@ -1,9 +1,9 @@
-export const extractJsonFromCodeApproval = (messageBody: string): any => {
+export const extractJsonFromCodeApproval = (messageBody: string) => {
   try {
     // First, try to parse the entire body as JSON (in case it's already clean JSON)
     return JSON.parse(messageBody)
   }
-  catch (error) {
+  catch {
     // If that fails, try to extract JSON from the text
     try {
       // Look for JSON patterns - find text that starts with { and ends with }
@@ -30,7 +30,7 @@ export const extractJsonFromCodeApproval = (messageBody: string): any => {
         raw: true,
       }
     }
-    catch (parseError) {
+    catch {
       // If all parsing attempts fail, return the original text
       return {
         stdout: messageBody,

@@ -36,7 +36,7 @@ export interface ProviderTokens {
     firstName?: string
     lastName?: string
     picture?: string
-    [key: string]: any // Allow provider-specific user data
+    [key: string]: unknown // Allow provider-specific user data
   }
 }
 
@@ -105,7 +105,7 @@ export class OAuthProviderManager {
     this.providerStorage = new ProviderStorage()
 
     // Load server providers and initialize built-in providers
-    this.initialize().catch((error: any) => {
+    this.initialize().catch((error: unknown) => {
       console.error('❌ Failed to initialize OAuth provider manager:', error)
     })
   }
@@ -349,7 +349,7 @@ export class OAuthProviderManager {
       throw new Error(`Token exchange failed: ${response.status} ${errorText}`)
     }
 
-    const tokenData = await response.json() as any
+    const tokenData = await response.json() as Record<string, unknown>
 
     // Fetch user info if userInfoUrl is provided
     let userData = null
@@ -363,7 +363,7 @@ export class OAuthProviderManager {
 
         if (userResponse.ok) {
           userData = await userResponse.json()
-          userData = this.normalizeUserData(provider.id, userData)
+          userData = this.normalizeUserData(provider.id, userData as Record<string, unknown>)
         }
       }
       catch (error) {
@@ -373,13 +373,13 @@ export class OAuthProviderManager {
 
     return {
       providerId: provider.id,
-      access_token: tokenData.access_token,
-      refresh_token: tokenData.refresh_token,
-      token_type: tokenData.token_type || 'Bearer',
-      expires_in: tokenData.expires_in || 3600,
-      expires_at: Date.now() + ((tokenData.expires_in || 3600) * 1000),
-      scope: tokenData.scope,
-      user: userData,
+      access_token: tokenData.access_token as string,
+      refresh_token: tokenData.refresh_token as string | undefined,
+      token_type: tokenData.token_type as string || 'Bearer',
+      expires_in: tokenData.expires_in as number || 3600,
+      expires_at: Date.now() + ((tokenData.expires_in as number || 3600) * 1000),
+      scope: tokenData.scope as string | undefined,
+      user: userData as ProviderTokens['user'],
     }
   }
 
@@ -407,7 +407,7 @@ export class OAuthProviderManager {
   /**
    * Refresh tokens directly with the provider (requires local client credentials)
    */
-  private async refreshTokensDirect(providerId: string, refreshToken: string, provider: any): Promise<ProviderTokens> {
+  private async refreshTokensDirect(providerId: string, refreshToken: string, provider: OAuthProvider): Promise<ProviderTokens> {
     const body: Record<string, string> = {
       client_id: provider.clientId,
       refresh_token: refreshToken,
@@ -432,16 +432,16 @@ export class OAuthProviderManager {
       throw new Error(`Direct token refresh failed: ${response.status} ${errorText}`)
     }
 
-    const tokenData = await response.json() as any
+    const tokenData = await response.json() as Record<string, unknown>
 
     return {
       providerId: provider.id,
-      access_token: tokenData.access_token,
-      refresh_token: tokenData.refresh_token || refreshToken,
-      token_type: tokenData.token_type || 'Bearer',
-      expires_in: tokenData.expires_in || 3600,
-      expires_at: Date.now() + ((tokenData.expires_in || 3600) * 1000),
-      scope: tokenData.scope,
+      access_token: tokenData.access_token as string,
+      refresh_token: tokenData.refresh_token as string | undefined,
+      token_type: tokenData.token_type as string || 'Bearer',
+      expires_in: tokenData.expires_in as number || 3600,
+      expires_at: Date.now() + ((tokenData.expires_in as number || 3600) * 1000),
+      scope: tokenData.scope as string | undefined,
     }
   }
 
@@ -494,7 +494,7 @@ export class OAuthProviderManager {
           throw new Error(`Server refresh failed: ${response.status} ${errorText}`)
         }
 
-        const tokenData = await response.json() as any
+        const tokenData = await response.json() as Record<string, unknown>
 
         if (!tokenData.success) {
           throw new Error('Server token refresh was unsuccessful')
@@ -504,13 +504,13 @@ export class OAuthProviderManager {
 
         return {
           providerId: providerId,
-          access_token: tokenData.access_token,
-          refresh_token: tokenData.refresh_token || refreshToken,
-          token_type: tokenData.token_type || 'Bearer',
-          expires_in: tokenData.expires_in || 3600,
-          expires_at: Date.now() + ((tokenData.expires_in || 3600) * 1000),
-          scope: tokenData.scope,
-          user: tokenData.user,
+          access_token: tokenData.access_token as string,
+          refresh_token: tokenData.refresh_token as string | undefined,
+          token_type: tokenData.token_type as string || 'Bearer',
+          expires_in: tokenData.expires_in as number || 3600,
+          expires_at: Date.now() + ((tokenData.expires_in as number || 3600) * 1000),
+          scope: tokenData.scope as string | undefined,
+          user: tokenData.user as ProviderTokens['user'],
         }
       }
       catch (error) {
@@ -649,7 +649,7 @@ export class OAuthProviderManager {
   /**
    * Get provider storage info
    */
-  getProviderStorageInfo(): any {
+  getProviderStorageInfo(): Record<string, unknown> {
     return this.providerStorage.getStorageInfo()
   }
 
@@ -768,7 +768,7 @@ export class OAuthProviderManager {
         throw new Error(`Token exchange failed: ${response.status} ${errorText}`)
       }
 
-      const tokenData = await response.json() as any
+      const tokenData = await response.json() as Record<string, unknown>
 
       if (!tokenData.success) {
         throw new Error('Server token exchange was unsuccessful')
@@ -778,13 +778,13 @@ export class OAuthProviderManager {
 
       return {
         providerId: provider, // Use just the provider name (e.g., "google") instead of combined ID
-        access_token: tokenData.access_token,
-        refresh_token: tokenData.refresh_token,
-        token_type: tokenData.token_type || 'Bearer',
-        expires_in: tokenData.expires_in || 3600,
-        expires_at: Date.now() + ((tokenData.expires_in || 3600) * 1000),
-        scope: tokenData.scope,
-        user: tokenData.user,
+        access_token: tokenData.access_token as string,
+        refresh_token: tokenData.refresh_token as string | undefined,
+        token_type: tokenData.token_type as string || 'Bearer',
+        expires_in: tokenData.expires_in as number || 3600,
+        expires_at: Date.now() + ((tokenData.expires_in as number || 3600) * 1000),
+        scope: tokenData.scope as string | undefined,
+        user: tokenData.user as ProviderTokens['user'],
       }
     }
     catch (error) {
@@ -796,43 +796,43 @@ export class OAuthProviderManager {
   /**
    * Normalize user data from different providers to a common format
    */
-  private normalizeUserData(providerId: string, userData: any): any {
+  private normalizeUserData(providerId: string, userData: Record<string, unknown>): Record<string, unknown> {
     switch (providerId) {
       case 'google':
         return {
-          id: userData.id,
-          email: userData.email,
-          name: userData.name,
-          firstName: userData.given_name,
-          lastName: userData.family_name,
-          picture: userData.picture,
-          verified_email: userData.verified_email,
-          locale: userData.locale,
+          id: userData.id as string,
+          email: userData.email as string,
+          name: userData.name as string,
+          firstName: userData.given_name as string | undefined,
+          lastName: userData.family_name as string | undefined,
+          picture: userData.picture as string | undefined,
+          verified_email: userData.verified_email as boolean | undefined,
+          locale: userData.locale as string | undefined,
         }
 
       case 'github':
         return {
           id: userData.id?.toString(),
-          email: userData.email,
-          name: userData.name || userData.login,
-          firstName: userData.name?.split(' ')[0],
-          lastName: userData.name?.split(' ').slice(1).join(' '),
-          picture: userData.avatar_url,
-          login: userData.login,
-          company: userData.company,
-          location: userData.location,
+          email: userData.email as string | undefined,
+          name: (userData.name as string | undefined) || (userData.login as string | undefined),
+          firstName: (userData.name as string | undefined)?.split(' ')[0],
+          lastName: (userData.name as string | undefined)?.split(' ').slice(1).join(' '),
+          picture: userData.avatar_url as string | undefined,
+          login: userData.login as string | undefined,
+          company: userData.company as string | undefined,
+          location: userData.location as string | undefined,
         }
 
       case 'microsoft':
         return {
-          id: userData.id,
-          email: userData.mail || userData.userPrincipalName,
-          name: userData.displayName,
-          firstName: userData.givenName,
-          lastName: userData.surname,
-          picture: userData.photo,
-          jobTitle: userData.jobTitle,
-          department: userData.department,
+          id: userData.id as string,
+          email: (userData.mail as string | undefined) || (userData.userPrincipalName as string | undefined),
+          name: userData.displayName as string | undefined,
+          firstName: userData.givenName as string | undefined,
+          lastName: userData.surname as string | undefined,
+          picture: userData.photo as string | undefined,
+          jobTitle: userData.jobTitle as string | undefined,
+          department: userData.department as string | undefined,
         }
 
       default:

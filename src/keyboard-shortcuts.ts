@@ -6,13 +6,53 @@ const getApiUrl = () => {
   return process.env.API_URL || 'https://api.keyboard.dev'
 }
 
+// Type definitions for API responses
+interface ApiResponse {
+  success: boolean
+  message?: string
+  [key: string]: unknown
+}
+
+interface ScriptApiResponse extends ApiResponse {
+  id: string
+  script: ScriptTemplate
+}
+
+interface ScriptsListApiResponse extends ApiResponse {
+  scripts: Array<{
+    id: string
+    name: string
+    description: string
+    schema: ScriptInputSchema
+    script: string
+    tags: string[]
+    userId?: string
+    createdAt?: string
+    updatedAt?: string
+  }>
+}
+
+interface SearchScriptsApiResponse extends ApiResponse {
+  scripts: Array<{
+    id: string
+    name: string
+    description: string
+    schema: ScriptInputSchema
+    script: string
+    tags: string[]
+    userId?: string
+    createdAt?: string
+    updatedAt?: string
+  }>
+}
+
 // Helper function to make authenticated API requests to external service
 async function makeAuthenticatedRequest(
   endpoint: string,
   token: string,
   method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET',
-  body?: any,
-): Promise<any> {
+  body?: Record<string, unknown>,
+): Promise<unknown> {
   const apiUrl = getApiUrl()
   if (!apiUrl) {
     throw new Error('API_URL environment variable is not set')
@@ -34,8 +74,8 @@ async function makeAuthenticatedRequest(
   const response = await fetch(url, options)
 
   if (!response.ok) {
-    const errorData: any = await response.json().catch(() => ({}))
-    throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`)
+    const errorData = await response.json().catch(() => ({})) as Record<string, unknown>
+    throw new Error((errorData.message as string) || `HTTP ${response.status}: ${response.statusText}`)
   }
 
   return await response.json()
@@ -48,7 +88,7 @@ export interface ScriptInputSchema {
     description: string
     title: string
     required?: boolean
-    default?: any
+    default?: unknown
     options?: string[] // For enum-like inputs
     items?: ScriptInputSchema // For array/object types
   }
@@ -69,12 +109,12 @@ export interface ScriptTemplate {
 
 export interface ExecutableScript {
   script: string
-  inputs: Record<string, any>
+  inputs: Record<string, unknown>
   interpolated: string
 }
 
 // Script interpolation function - now works with schema-based inputs
-export function interpolateScript(script: string, inputs: Record<string, any>): ExecutableScript {
+export function interpolateScript(script: string, inputs: Record<string, unknown>): ExecutableScript {
   let interpolated = script
 
   for (const [key, value] of Object.entries(inputs)) {
@@ -92,7 +132,7 @@ export function interpolateScript(script: string, inputs: Record<string, any>): 
       if (typeof value === 'string' && !isInObjectContext) {
         serializedValue = value
       }
-      else if (typeof value === 'object' || Array.isArray(value)) {
+      else if ((typeof value === 'object' && value !== null) || Array.isArray(value)) {
         serializedValue = JSON.stringify(value, null, 2)
       }
       else {
@@ -100,7 +140,7 @@ export function interpolateScript(script: string, inputs: Record<string, any>): 
       }
     }
     else {
-      serializedValue = typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)
+      serializedValue = (typeof value === 'object' && value !== null) ? JSON.stringify(value, null, 2) : String(value)
     }
 
     interpolated = interpolated.replace(regex, serializedValue)
@@ -129,7 +169,7 @@ export function extractVariables(script: string): string[] {
 }
 
 // Validate inputs against schema
-export function validateInputs(inputs: Record<string, any>, schema: ScriptInputSchema): { valid: boolean, errors: string[] } {
+export function validateInputs(inputs: Record<string, unknown>, schema: ScriptInputSchema): { valid: boolean, errors: string[] } {
   const errors: string[] = []
 
   // Check required fields
@@ -202,7 +242,7 @@ export async function saveScriptTemplate(
         script: encryptedScript, // Send encrypted script to external API
         tags: scriptData.tags,
       },
-    )
+    ) as ScriptApiResponse
 
     return { success: true, id: response.id }
   }
@@ -218,7 +258,7 @@ export async function getScriptTemplate(
   token: string,
 ): Promise<{ success: boolean, script?: ScriptTemplate, error?: string }> {
   try {
-    const response = await makeAuthenticatedRequest(`/api/scripts/${id}`, token)
+    const response = await makeAuthenticatedRequest(`/api/scripts/${id}`, token) as ScriptApiResponse
 
     // Decrypt the script after receiving from external API
     const decryptedScript = decrypt(response.script.script)
@@ -247,10 +287,10 @@ export async function listScriptTemplates(
       endpoint += `?tags=${tags.join(',')}`
     }
 
-    const response = await makeAuthenticatedRequest(endpoint, token)
+    const response = await makeAuthenticatedRequest(endpoint, token) as ScriptsListApiResponse
 
     // Decrypt all script contents
-    const decryptedScripts = response.scripts.map((script: any) => {
+    const decryptedScripts = response.scripts.map((script: ScriptsListApiResponse['scripts'][0]) => {
       try {
         return {
           ...script,
@@ -261,8 +301,8 @@ export async function listScriptTemplates(
         console.error(`Error decrypting script ${script.id}:`, decryptError)
       }
 
-      const justScriptInfo = script
-      delete justScriptInfo['script']
+      const justScriptInfo: Partial<ScriptsListApiResponse['scripts'][0]> = { ...script }
+      delete justScriptInfo.script
       try {
         return {
           ...justScriptInfo,
@@ -276,7 +316,7 @@ export async function listScriptTemplates(
       }
     })
 
-    return { success: true, scripts: decryptedScripts }
+    return { success: true, scripts: decryptedScripts as ScriptTemplate[] }
   }
   catch (error) {
     console.error('Error listing script templates:', error)
@@ -332,10 +372,10 @@ export async function searchScriptTemplates(
     const response = await makeAuthenticatedRequest(
       `/api/scripts/search?q=${encodeURIComponent(searchTerm)}`,
       token,
-    )
+    ) as SearchScriptsApiResponse
 
     // Decrypt all script contents
-    const decryptedScripts = response.scripts.map((script: any) => {
+    const decryptedScripts = response.scripts.map((script: SearchScriptsApiResponse['scripts'][0]) => {
       try {
         return {
           ...script,
@@ -346,12 +386,12 @@ export async function searchScriptTemplates(
         console.error(`Error decrypting script ${script.id}:`, decryptError)
       }
 
-      const justScriptInfo = script
-      delete justScriptInfo['script']
+      const justScriptInfo: Partial<SearchScriptsApiResponse['scripts'][0]> = { ...script }
+      delete justScriptInfo.script
       return justScriptInfo
     })
 
-    return { success: true, scripts: decryptedScripts }
+    return { success: true, scripts: decryptedScripts as ScriptTemplate[] }
   }
   catch (error) {
     console.error('Error searching script templates:', error)
@@ -359,12 +399,25 @@ export async function searchScriptTemplates(
   }
 }
 
+// Type for interpolation result
+interface InterpolationResult {
+  success: boolean
+  scriptId: string
+  scriptName: string
+  scriptDescription: string
+  template: string
+  variables: Record<string, unknown>
+  interpolatedCode: string
+  availableVariables: string[]
+  tags: string[]
+}
+
 // Interpolate script via external API (with local processing)
 export async function interpolateScriptViaAPI(
   id: string,
   token: string,
-  variables: Record<string, any>,
-): Promise<{ success: boolean, result?: any, error?: string }> {
+  variables: Record<string, unknown>,
+): Promise<{ success: boolean, result?: InterpolationResult, error?: string }> {
   try {
     // First get the script template (already decrypted by getScriptTemplate)
     const templateResult = await getScriptTemplate(id, token)
@@ -389,7 +442,7 @@ export async function interpolateScriptViaAPI(
     const interpolated = interpolateScript(script.script, variables)
 
     // Return the same format as the API would
-    const result = {
+    const result: InterpolationResult = {
       success: true,
       scriptId: id,
       scriptName: script.name,
@@ -413,17 +466,17 @@ export async function interpolateScriptViaAPI(
 export async function interpolateScriptViaAPIEndpoint(
   id: string,
   token: string,
-  variables: Record<string, any>,
-): Promise<{ success: boolean, result?: any, error?: string }> {
+  variables: Record<string, unknown>,
+): Promise<{ success: boolean, result?: InterpolationResult, error?: string }> {
   try {
     const response = await makeAuthenticatedRequest(
       `/api/scripts/${id}/interpolate`,
       token,
       'POST',
       { variables },
-    )
+    ) as { result: InterpolationResult }
 
-    return { success: true, result: response }
+    return { success: true, result: response.result }
   }
   catch (error) {
     console.error('Error interpolating script via API:', error)

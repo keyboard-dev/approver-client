@@ -24,7 +24,7 @@ const EncryptionKeyManager: React.FC<EncryptionKeyManagerProps> = ({ className =
     loadKeyInfo()
 
     // Listen for key generation events
-    const handleKeyGenerated = (event: any, data: { key: string, createdAt: number, source: string }) => {
+    const handleKeyGenerated = (_event: unknown, data: { key: string, createdAt: number, source: string }) => {
       setKeyInfo(prev => ({
         ...prev,
         key: data.key,

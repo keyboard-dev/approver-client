@@ -123,7 +123,7 @@ export class WindowManager {
     return this.mainWindow?.isVisible() ?? false
   }
 
-  public sendMessage(channel: string, ...args: any[]): void {
+  public sendMessage(channel: string, ...args: unknown[]): void {
     if (this.mainWindow) {
       this.mainWindow.webContents.send(channel, ...args)
     }

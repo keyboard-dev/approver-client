@@ -3,10 +3,37 @@ import { Card } from './ui/card'
 import { Button } from './ui/button'
 import { Textarea } from '../../components/ui/textarea'
 
+interface ProviderConfig {
+  id: string
+  name: string
+  icon: string
+  clientId: string
+  clientSecret?: string
+  authorizationUrl: string
+  tokenUrl: string
+  userInfoUrl?: string
+  scopes: string[]
+  usePKCE: boolean
+  redirectUri: string
+  additionalParams?: Record<string, unknown>
+  isCustom: boolean
+}
+
+interface ProviderTemplate {
+  name: string
+  icon: string
+  authorizationUrl: string
+  tokenUrl: string
+  userInfoUrl?: string
+  scopes: string
+  usePKCE: boolean
+  additionalParams?: Record<string, unknown>
+}
+
 interface ManualProviderFormProps {
-  onSave: (config: any) => Promise<void>
+  onSave: (config: ProviderConfig) => Promise<void>
   onCancel: () => void
-  initialConfig?: any
+  initialConfig?: ProviderConfig
   isEditing?: boolean
 }
 
@@ -52,7 +79,7 @@ export const ManualProviderForm: React.FC<ManualProviderFormProps> = ({
         try {
           additionalParams = JSON.parse(config.additionalParams)
         }
-        catch (err) {
+        catch {
           throw new Error('Invalid JSON in additional parameters')
         }
       }
@@ -124,7 +151,7 @@ export const ManualProviderForm: React.FC<ManualProviderFormProps> = ({
     },
   ]
 
-  const fillTemplate = (template: any) => {
+  const fillTemplate = (template: ProviderTemplate) => {
     setConfig(prev => ({
       ...prev,
       name: template.name,

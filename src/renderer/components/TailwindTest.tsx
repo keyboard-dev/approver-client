@@ -19,7 +19,7 @@ const TailwindTest: React.FC = () => {
             </div>
             <h3 className="text-xl font-semibold text-gray-800 mb-2">Colors & Shadows</h3>
             <p className="text-gray-600">
-              This card demonstrates Tailwind's color palette, shadows, and hover effects.
+              This card demonstrates Tailwind&apos;s color palette, shadows, and hover effects.
             </p>
           </div>
 

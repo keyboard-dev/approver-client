@@ -10,6 +10,15 @@ import gitignore from 'eslint-config-flat-gitignore'
 
 export default tseslint.config([
   gitignore(),
+  // Additional ignores for files that should be excluded but might not be in gitignore
+  {
+    ignores: [
+      '**/package-lock.json',
+      '**/yarn.lock',
+      '**/pnpm-lock.yaml',
+      '**/bun.lockb',
+    ],
+  },
   { files: ['**/*.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'], plugins: { js }, extends: [js.configs.recommended], languageOptions: { globals: { ...globals.browser, ...globals.node } } },
   tseslint.configs.recommended,
   {

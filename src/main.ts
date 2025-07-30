@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Notification, ipcMain, shell, protocol, screen, Tray, Menu, nativeImage } from 'electron'
+import { app, Notification, ipcMain, shell } from 'electron'
 import * as WebSocket from 'ws'
 import * as path from 'path'
 import * as crypto from 'crypto'
@@ -6,14 +6,41 @@ import * as fs from 'fs'
 import * as os from 'os'
 import { createRestAPIServer } from './rest-api'
 import { Message, AuthTokens, PKCEParams, AuthorizeResponse, TokenResponse, ErrorResponse } from './types'
-import { TrayManager, TrayManagerOptions } from './tray-manager'
-import { WindowManager, WindowManagerOptions } from './window-manager'
+import { TrayManager } from './tray-manager'
+import { WindowManager } from './window-manager'
 import { setEncryptionKeyProvider } from './encryption'
-import { OAuthProviderManager, OAuthProvider, ProviderTokens, PKCEParams as NewPKCEParams, ServerProvider } from './oauth-providers'
+import { OAuthProviderManager, OAuthProvider, ProviderTokens, PKCEParams as NewPKCEParams, ServerProvider, ServerProviderInfo } from './oauth-providers'
 import { OAuthTokenStorage, StoredProviderTokens } from './oauth-token-storage'
 import { PerProviderTokenStorage } from './per-provider-token-storage'
 import { OAuthProviderConfig } from './provider-storage'
 import { OAuthHttpServer, OAuthCallbackData } from './oauth-http-server'
+
+// Types for WebSocket server configuration
+interface WebSocketVerifyInfo {
+  req: {
+    url?: string
+    connection: {
+      remoteAddress?: string
+    }
+  }
+}
+
+// Types for REST API Server interface
+interface RestAPIServerInterface {
+  start: () => Promise<void>
+  stop: () => Promise<void>
+  getPort: () => number
+}
+
+// Types for user objects in auth responses
+interface AuthUser {
+  id?: string
+  email?: string
+  firstName?: string
+  lastName?: string
+  name?: string
+  profile_picture?: string
+}
 
 // Helper function to find assets directory reliably
 function getAssetsPath(): string {
@@ -48,7 +75,7 @@ class MenuBarNotificationApp {
   private trayManager: TrayManager
   private windowManager: WindowManager
   private wsServer: WebSocket.Server | null = null
-  private restApiServer: any = null
+  private restApiServer: RestAPIServerInterface | null = null
   private messages: Message[] = []
   private pendingCount: number = 0
   private notificationsEnabled: boolean = true
@@ -93,7 +120,7 @@ class MenuBarNotificationApp {
       onWindowClosed: () => {
         // Handle window closed
       },
-      onMessageShow: (message: Message) => {
+      onMessageShow: () => {
         // Handle message show
       },
     })
@@ -154,7 +181,7 @@ class MenuBarNotificationApp {
           const files = fs.readdirSync(assetsPath)
           console.log('Available assets:', files)
         }
-        catch (err) {
+        catch {
           console.warn('Could not read assets directory:', assetsPath)
         }
       }
@@ -176,7 +203,7 @@ class MenuBarNotificationApp {
     }
 
     // Handle second instance (protocol callbacks for all platforms)
-    app.on('second-instance', (event, commandLine, workingDirectory) => {
+    app.on('second-instance', (_event, commandLine) => {
       // Find protocol URL in command line arguments
       const url = commandLine.find(arg => arg.startsWith(`${this.CUSTOM_PROTOCOL}://`))
       if (url) {
@@ -972,7 +999,7 @@ class MenuBarNotificationApp {
     this.wsServer = new WebSocket.Server({
       port: this.WS_PORT,
       host: '127.0.0.1', // Localhost only for security
-      verifyClient: (info: any) => {
+      verifyClient: (info: WebSocketVerifyInfo) => {
         try {
           // Extract key from query parameters
           const url = new URL(info.req.url!, `ws://127.0.0.1:${this.WS_PORT}`)
@@ -1181,16 +1208,16 @@ class MenuBarNotificationApp {
   }
 
   private async requestNotificationPermissions(): Promise<void> {
-    try {
-      // On macOS, we can use the system notification request
-      if (Notification.isSupported()) {
-      }
-      else {
-      }
-    }
-    catch (error) {
-      console.error('❌ Error requesting notification permissions:', error)
-    }
+    // try {
+    //   // On macOS, we can use the system notification request
+    //   if (Notification.isSupported()) {
+    //   }
+    //   else {
+    //   }
+    // }
+    // catch (error) {
+    //   console.error('❌ Error requesting notification permissions:', error)
+    // }
   }
 
   private openMessageWindow(message?: Message): void {
@@ -1217,7 +1244,7 @@ class MenuBarNotificationApp {
       await this.startOAuthFlow()
     })
 
-    ipcMain.handle('get-auth-status', (): { authenticated: boolean, user?: any } => {
+    ipcMain.handle('get-auth-status', (): { authenticated: boolean, user?: AuthUser } => {
       return {
         authenticated: !!this.authTokens,
         user: this.authTokens?.user,
@@ -1241,7 +1268,7 @@ class MenuBarNotificationApp {
       await this.startProviderOAuthFlow(providerId)
     })
 
-    ipcMain.handle('get-provider-auth-status', async (): Promise<Record<string, any>> => {
+    ipcMain.handle('get-provider-auth-status', async (): Promise<Record<string, unknown>> => {
       return await this.perProviderTokenStorage.getProviderStatus()
     })
 
@@ -1278,7 +1305,7 @@ class MenuBarNotificationApp {
       await this.perProviderTokenStorage.clearAllTokens()
     })
 
-    ipcMain.handle('get-oauth-storage-info', (): any => {
+    ipcMain.handle('get-oauth-storage-info', (): Record<string, unknown> => {
       return {
         ...this.perProviderTokenStorage.getStorageInfo(),
         providerStorage: this.oauthProviderManager.getProviderStorageInfo(),
@@ -1324,7 +1351,7 @@ class MenuBarNotificationApp {
       await this.startServerProviderOAuthFlow(serverId, provider)
     })
 
-    ipcMain.handle('fetch-server-providers', async (event, serverId: string): Promise<any[]> => {
+    ipcMain.handle('fetch-server-providers', async (event, serverId: string): Promise<ServerProviderInfo[]> => {
       const accessToken = await this.getValidAccessToken()
       return await this.oauthProviderManager.fetchServerProviders(serverId, accessToken || undefined)
     })
@@ -1350,7 +1377,7 @@ class MenuBarNotificationApp {
     })
 
     // Handle approve message
-    ipcMain.handle('approve-message', (event, messageId: string, feedback?: string, messageBody?: string): void => {
+    ipcMain.handle('approve-message', (event, messageId: string, feedback?: string): void => {
       const message = this.messages.find(msg => msg.id === messageId)
       if (message) {
         message.status = 'approved'
