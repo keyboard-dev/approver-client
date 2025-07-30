@@ -1,7 +1,7 @@
 node_modules
 dist
 dist-build
-dist-readt
+dist-react
 .env
 .env.local
 .env.development.local
