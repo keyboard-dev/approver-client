@@ -5,19 +5,21 @@ require('@dotenvx/dotenvx').config()
 module.exports = {
   packagerConfig: {
     asar: true,
+    icon: 'assets/keyboard-dock.icns',
     protocols: [
       {
         name: 'MCP Auth Protocol',
         schemes: ['mcpauth'],
       },
     ],
-    osxSign: {
-    },
-    osxNotarize: {
-      appleApiKey: process.env.APPLE_API_KEY,
-      appleApiKeyId: process.env.APPLE_API_KEY_ID,
-      appleApiIssuer: process.env.APPLE_API_ISSUER,
-    },
+    ...(process.env.NODE_ENV !== 'development' && !process.env.SKIP_SIGNING && {
+      osxSign: {},
+      osxNotarize: {
+        appleApiKey: process.env.APPLE_API_KEY,
+        appleApiKeyId: process.env.APPLE_API_KEY_ID,
+        appleApiIssuer: process.env.APPLE_API_ISSUER,
+      },
+    }),
   },
   makers: [
     {

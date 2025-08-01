@@ -153,7 +153,7 @@ class MenuBarNotificationApp {
   private initializeApp(): void {
     // STEP 1: Handle single instance FIRST
     const gotTheLock = app.requestSingleInstanceLock()
-    app.dock.setIcon(path.join(__dirname, 'assets/keyboard512px.png'))
+    // app.dock.setIcon(path.join(__dirname, 'assets/keyboard-dock.png'))
 
     if (!gotTheLock) {
       app.quit()
@@ -164,10 +164,10 @@ class MenuBarNotificationApp {
 
     // Platform-specific protocol handling
     if (process.platform === 'darwin') {
-      console.log('Setting dock icon')
+      // console.log('Setting dock icon')
       // Fix: Use helper function for reliable asset path resolution
       const assetsPath = getAssetsPath()
-      const iconPath = path.join(assetsPath, 'keyboard512px.png')
+      const iconPath = path.join(assetsPath, 'keyboard-dock.png')
 
       // Check if file exists before setting
       if (fs.existsSync(iconPath)) {
@@ -1186,14 +1186,14 @@ class MenuBarNotificationApp {
 
     try {
       // Fix: Use helper function for reliable asset path resolution
-      const assetsPath = getAssetsPath()
-      const iconPath = path.join(assetsPath, 'keyboard512px.png')
+      // const assetsPath = getAssetsPath()
+      // const iconPath = path.join(assetsPath, 'keyboard512px.png')
 
       const notification = new Notification({
         title: message.title,
         body: message.body,
         urgency: message.priority === 'high' ? 'critical' : 'normal',
-        icon: iconPath, // Add your logo here
+        // icon: iconPath, // Add your logo here
       })
 
       notification.on('click', () => {
