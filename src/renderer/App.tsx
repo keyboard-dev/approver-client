@@ -1,20 +1,21 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { Message, AuthStatus, ElectronAPI } from '../preload'
-import { Button } from './components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card'
-import { Textarea } from '../components/ui/textarea'
-import { Alert, AlertDescription } from '../components/ui/alert'
-import { Separator } from '../components/ui/separator'
-import { Badge } from './components/ui/badge'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from './components/ui/tabs'
-import { CheckCircle, XCircle, Clock, AlertTriangle, X, Wifi, WifiOff } from 'lucide-react'
-import AuthComponent from './components/AuthComponent'
-import WebSocketKeyManager from './components/WebSocketKeyManager'
-import EncryptionKeyManager from './components/EncryptionKeyManager'
-import { OAuthProviderManager } from './components/OAuthProviderManager'
-import ServerProviderManager from './components/ServerProviderManager'
-import './App.css'
-import { extractJsonFromCodeApproval } from '../lib/utils/data.utils'
+import { Separator } from '@radix-ui/react-separator';
+import { AlertTriangle, CheckCircle, Clock, Wifi, WifiOff, X, XCircle } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Alert, AlertDescription } from '../components/ui/alert';
+import { Textarea } from '../components/ui/textarea';
+import { extractJsonFromCodeApproval } from '../lib/utils/data.utils';
+import { AuthStatus, ElectronAPI, Message } from '../preload';
+import './App.css';
+import AuthComponent from './components/AuthComponent';
+import EncryptionKeyManager from './components/EncryptionKeyManager';
+import { OAuthProviderManager } from './components/OAuthProviderManager';
+import ServerProviderManager from './components/ServerProviderManager';
+import WebSocketKeyManager from './components/WebSocketKeyManager';
+import { ApprovalScreen } from './components/screens/ApprovalScreen';
+import { Badge } from './components/ui/badge';
+import { Button } from './components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
 
 const App: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([])
@@ -231,6 +232,19 @@ const App: React.FC = () => {
     }
   }
 
+  // Wrapper functions for ApprovalScreen callbacks
+  const handleApprove = async (messageId: string) => {
+    if (currentMessage?.id === messageId) {
+      await approveMessage()
+    }
+  }
+
+  const handleReject = async (messageId: string) => {
+    if (currentMessage?.id === messageId) {
+      await rejectMessage()
+    }
+  }
+
   // Show message detail
   const showMessageDetail = (message: Message) => {
     if (!authStatusRef.current.authenticated) return
@@ -313,7 +327,7 @@ const App: React.FC = () => {
             </TabsContent>
             <TabsContent value="explanation" className="mt-2">
               <div className="bg-gray-100 p-4 rounded-lg">
-                <pre className="whitespace-pre-wrap text-sm">{message.explaination || 'No explanation provided'}</pre>
+                <pre className="whitespace-pre-wrap text-sm">{message.explanation || 'No explanation provided'}</pre>
               </div>
             </TabsContent>
           </Tabs>
@@ -380,6 +394,17 @@ const App: React.FC = () => {
       default:
         return message.body
     }
+  }
+
+  if (currentMessage?.title === 'Security Evaluation Request') {
+    return (
+      <ApprovalScreen
+        message={currentMessage}
+        onBack={showMessageList}
+        onApprove={handleApprove}
+        onReject={handleReject}
+      />
+    )
   }
 
   return (
@@ -504,87 +529,88 @@ const App: React.FC = () => {
                           <pre className="whitespace-pre-wrap text-sm">{currentMessage.body}</pre>
                         </div>
                       )} */}
-                        </div>
-
-                        <Separator />
-
-                        {/* Action Buttons */}
-                        {currentMessage.status === 'pending' || !currentMessage.status
-                          ? (
-                              <div className="space-y-4">
-                                <h3 className="text-lg font-semibold">Actions Required</h3>
-
-                                {/* Feedback Section Toggle */}
-                                <div className="flex items-center space-x-2">
-                                  <input
-                                    type="checkbox"
-                                    id="show-feedback"
-                                    checked={showFeedback}
-                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                                      setShowFeedback(e.target.checked)}
-                                    className="rounded"
-                                  />
-                                  <label htmlFor="show-feedback" className="text-sm">
-                                    Add feedback/comments
-                                  </label>
-                                </div>
-
-                                {/* Feedback Textarea */}
-                                {showFeedback && (
-                                  <div className="space-y-2">
-                                    <label className="text-sm font-medium">Feedback</label>
-                                    <Textarea
-                                      placeholder="Enter your feedback or comments..."
-                                      value={feedback}
-                                      onChange={e => setFeedback(e.target.value)}
-                                      className="min-h-[100px]"
-                                    />
-                                  </div>
-                                )}
-
-                                {/* Action Buttons */}
-                                <div className="flex space-x-4">
-                                  <Button
-                                    onClick={approveMessage}
-                                    className="bg-green-600 hover:bg-green-700 text-white"
-                                  >
-                                    <CheckCircle className="mr-2 h-4 w-4" />
-                                    Approve
-                                  </Button>
-                                  <Button
-                                    onClick={rejectMessage}
-                                    variant="destructive"
-                                  >
-                                    <XCircle className="mr-2 h-4 w-4" />
-                                    Reject
-                                  </Button>
-                                </div>
                               </div>
-                            )
-                          : (
-                              <div className="space-y-4">
-                                <h3 className="text-lg font-semibold">Status</h3>
-                                <div className="flex items-center space-x-2">
-                                  {getStatusIcon(currentMessage.status)}
-                                  <span className="text-sm">
-                                    This request has been
-                                    {' '}
-                                    {currentMessage.status}
-                                  </span>
-                                </div>
 
-                                {currentMessage.feedback && (
-                                  <div className="space-y-2">
-                                    <label className="text-sm font-medium">Feedback</label>
-                                    <div className="bg-gray-100 p-3 rounded-lg text-sm">
-                                      {currentMessage.feedback}
+                              <Separator />
+
+                              {/* Action Buttons */}
+                              {currentMessage.status === 'pending' || !currentMessage.status
+                                ? (
+                                    <div className="space-y-4">
+                                      <h3 className="text-lg font-semibold">Actions Required</h3>
+
+                                      {/* Feedback Section Toggle */}
+                                      <div className="flex items-center space-x-2">
+                                        <input
+                                          type="checkbox"
+                                          id="show-feedback"
+                                          checked={showFeedback}
+                                          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                                            setShowFeedback(e.target.checked)}
+                                          className="rounded"
+                                        />
+                                        <label htmlFor="show-feedback" className="text-sm">
+                                          Add feedback/comments
+                                        </label>
+                                      </div>
+
+                                      {/* Feedback Textarea */}
+                                      {showFeedback && (
+                                        <div className="space-y-2">
+                                          <label className="text-sm font-medium">Feedback</label>
+                                          <Textarea
+                                            placeholder="Enter your feedback or comments..."
+                                            value={feedback}
+                                            onChange={e => setFeedback(e.target.value)}
+                                            className="min-h-[100px]"
+                                          />
+                                        </div>
+                                      )}
+
+                                      {/* Action Buttons */}
+                                      <div className="flex space-x-4">
+                                        <Button
+                                          onClick={approveMessage}
+                                          className="bg-green-600 hover:bg-green-700 text-white"
+                                        >
+                                          <CheckCircle className="mr-2 h-4 w-4" />
+                                          Approve
+                                        </Button>
+                                        <Button
+                                          onClick={rejectMessage}
+                                          variant="destructive"
+                                        >
+                                          <XCircle className="mr-2 h-4 w-4" />
+                                          Reject
+                                        </Button>
+                                      </div>
                                     </div>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                      </CardContent>
-                    </Card>
+                                  )
+                                : (
+                                    <div className="space-y-4">
+                                      <h3 className="text-lg font-semibold">Status</h3>
+                                      <div className="flex items-center space-x-2">
+                                        {getStatusIcon(currentMessage.status)}
+                                        <span className="text-sm">
+                                          This request has been
+                                          {' '}
+                                          {currentMessage.status}
+                                        </span>
+                                      </div>
+
+                                      {currentMessage.feedback && (
+                                        <div className="space-y-2">
+                                          <label className="text-sm font-medium">Feedback</label>
+                                          <div className="bg-gray-100 p-3 rounded-lg text-sm">
+                                            {currentMessage.feedback}
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                            </CardContent>
+                          </Card>
+                        )
                   )
                 : (
               // Message List View
