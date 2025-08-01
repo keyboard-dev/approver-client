@@ -64,7 +64,7 @@ export class OAuthTokenStorage {
       this.tokensCache = JSON.parse(decryptedData)
       this.isLoaded = true
 
-      console.log(`📱 Loaded OAuth tokens for ${Object.keys(this.tokensCache).length} providers`)
+
     }
     catch (error) {
       console.error('❌ Error loading OAuth tokens:', error)
@@ -84,8 +84,6 @@ export class OAuthTokenStorage {
 
       // Write with restricted permissions
       fs.writeFileSync(this.TOKENS_FILE, encryptedData, { mode: 0o600 })
-
-      console.log(`💾 Saved OAuth tokens for ${Object.keys(this.tokensCache).length} providers`)
     }
     catch (error) {
       console.error('❌ Error saving OAuth tokens:', error)
@@ -116,8 +114,6 @@ export class OAuthTokenStorage {
 
     this.tokensCache[tokens.providerId] = storedTokens
     await this.saveTokens()
-
-    console.log(`🔐 Stored tokens for provider: ${tokens.providerId}`)
   }
 
   /**
@@ -169,7 +165,6 @@ export class OAuthTokenStorage {
     if (await this.areTokensExpired(providerId)) {
       if (tokens.refresh_token && refreshCallback) {
         try {
-          console.log(`🔄 Refreshing tokens for provider: ${providerId}`)
           const newTokens = await refreshCallback(providerId, tokens.refresh_token)
           await this.storeTokens(newTokens)
           return newTokens.access_token
@@ -199,7 +194,6 @@ export class OAuthTokenStorage {
     if (this.tokensCache[providerId]) {
       delete this.tokensCache[providerId]
       await this.saveTokens()
-      console.log(`🗑️ Removed tokens for provider: ${providerId}`)
     }
   }
 
@@ -209,7 +203,6 @@ export class OAuthTokenStorage {
   async clearAllTokens(): Promise<void> {
     this.tokensCache = {}
     await this.saveTokens()
-    console.log('🗑️ Cleared all OAuth tokens')
   }
 
   /**

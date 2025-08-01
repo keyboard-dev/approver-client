@@ -16,17 +16,6 @@ function generateKeys() {
   const encryptionKey = generateEncryptionKey()
   const codeEncryptionKey = generateEncryptionKey()
 
-  console.log('Generated Encryption Keys:')
-  console.log('========================')
-  console.log(`ENCRYPTION_KEY=${encryptionKey}`)
-  console.log(`CODE_ENCRYPTION_KEY=${codeEncryptionKey}`)
-  console.log('========================')
-  console.log('')
-  console.log('Add these to your .env file:')
-  console.log(`ENCRYPTION_KEY=${encryptionKey}`)
-  console.log(`CODE_ENCRYPTION_KEY=${codeEncryptionKey}`)
-  console.log('')
-  console.log('Note: Keep these keys secure and never commit them to version control!')
 }
 
 // Generate keys when script is run directly

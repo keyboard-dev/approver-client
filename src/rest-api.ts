@@ -579,7 +579,6 @@ export const createRestAPIServer = (
     return new Promise((resolve) => {
       if (server) {
         server.close(() => {
-          console.log('🛑 REST API server stopped')
           resolve()
         })
       }

@@ -121,7 +121,6 @@ export class TrayManager {
               console.warn('Invalid icon dimensions, using fallback')
               return this.createFallbackIcon()
             }
-            // console.log(`Original icon size: ${originalSize.width}x${originalSize.height}`)
           }
           catch (sizeError) {
             console.error('Error getting icon size:', sizeError)
@@ -151,7 +150,6 @@ export class TrayManager {
           // Verify final size with safety
           // try {
           //   const finalSize = resizedIcon.getSize()
-          //   console.log(`Final icon size: ${finalSize.width}x${finalSize.height}`)
           // }
           // catch (finalSizeError) {
           //   console.error('Error getting final icon size:', finalSizeError)
@@ -176,8 +174,6 @@ export class TrayManager {
             }
           }
 
-          // console.log(`Using ${pendingCount > 0 ? 'badged' : 'normal'} icon:`, iconPath)
-          // console.log(`Icon size: ${traySize}x${traySize}, Template mode: ${process.platform === 'darwin'}`)
           return resizedIcon
         }
         else {

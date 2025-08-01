@@ -118,7 +118,6 @@ export class OAuthHttpServer {
 
       this.server.listen(this.port, 'localhost', () => {
         this.isRunning = true
-        console.log(`🌐 OAuth callback server started on http://localhost:${this.port}`)
         resolve()
       })
 
@@ -136,7 +135,6 @@ export class OAuthHttpServer {
   stopServer(): void {
     if (this.server && this.isRunning) {
       this.server.close(() => {
-        console.log('🛑 OAuth callback server stopped')
       })
       this.server = null
       this.isRunning = false

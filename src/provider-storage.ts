@@ -76,7 +76,7 @@ export class ProviderStorage {
       // Write with restricted permissions
       fs.writeFileSync(filePath, encryptedData, { mode: 0o600 })
 
-      console.log(`💾 Saved provider configuration: ${provider.name} (${provider.id})`)
+  
     }
     catch (error) {
       console.error(`❌ Error saving provider ${provider.id}:`, error)
@@ -97,7 +97,6 @@ export class ProviderStorage {
         file.startsWith('provider.') && file.endsWith('.encrypted'),
       )
 
-      console.log(`📱 Found ${providerFiles.length} provider configuration files`)
 
       for (const file of providerFiles) {
         const providerId = file.replace('provider.', '').replace('.encrypted', '')
@@ -108,7 +107,6 @@ export class ProviderStorage {
       }
 
       this.isLoaded = true
-      console.log(`✅ Loaded ${this.providersCache.size} provider configurations`)
     }
     catch (error) {
       console.error('❌ Error loading providers:', error)
@@ -144,7 +142,6 @@ export class ProviderStorage {
     await this.saveProvider(provider)
     this.providersCache.set(provider.id, provider)
 
-    console.log(`🔐 ${existingProvider ? 'Updated' : 'Added'} provider: ${provider.name} (${provider.id})`)
   }
 
   /**
@@ -181,13 +178,11 @@ export class ProviderStorage {
 
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath)
-      console.log(`🗑️ Deleted provider configuration file: ${filePath}`)
     }
 
     if (this.providersCache.has(providerId)) {
       const provider = this.providersCache.get(providerId)
       this.providersCache.delete(providerId)
-      console.log(`🗑️ Removed provider from cache: ${provider?.name} (${providerId})`)
     }
   }
 
@@ -287,7 +282,6 @@ export class ProviderStorage {
       const exists = await this.hasProvider(provider.id)
       if (!exists) {
         await this.saveProviderConfig(provider)
-        console.log(`🔧 Initialized built-in provider: ${provider.name}`)
       }
     }
   }

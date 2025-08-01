@@ -58,7 +58,6 @@ export class PerProviderTokenStorage {
       this.tokensCache.set(providerId, tokens)
       this.loadedProviders.add(providerId)
 
-      console.log(`📱 Loaded OAuth tokens for provider: ${providerId}`)
       return tokens
     }
     catch (error) {
@@ -80,8 +79,6 @@ export class PerProviderTokenStorage {
 
       // Write with restricted permissions
       fs.writeFileSync(filePath, encryptedData, { mode: 0o600 })
-
-      console.log(`💾 Saved OAuth tokens for provider: ${tokens.providerId}`)
     }
     catch (error) {
       console.error(`❌ Error saving OAuth tokens for ${tokens.providerId}:`, error)
@@ -114,7 +111,6 @@ export class PerProviderTokenStorage {
     this.tokensCache.set(tokens.providerId, storedTokens)
     await this.saveProviderTokens(storedTokens)
 
-    console.log(`🔐 Stored tokens for provider: ${tokens.providerId}`)
   }
 
   /**
@@ -150,7 +146,6 @@ export class PerProviderTokenStorage {
         file.startsWith('oauth-tokens.') && file.endsWith('.encrypted'),
       )
 
-      console.log(`📱 Found ${tokenFiles.length} OAuth token files`)
 
       for (const file of tokenFiles) {
         const providerId = file.replace('oauth-tokens.', '').replace('.encrypted', '')
@@ -159,7 +154,6 @@ export class PerProviderTokenStorage {
         }
       }
 
-      console.log(`✅ Loaded tokens for ${this.tokensCache.size} providers`)
     }
     catch (error) {
       console.error('❌ Error loading all provider tokens:', error)
@@ -199,7 +193,6 @@ export class PerProviderTokenStorage {
     if (await this.areTokensExpired(providerId)) {
       if (tokens.refresh_token && refreshCallback) {
         try {
-          console.log(`🔄 Refreshing tokens for provider: ${providerId}`)
           const newTokens = await refreshCallback(providerId, tokens.refresh_token)
           await this.storeTokens(newTokens)
           return newTokens.access_token
@@ -229,14 +222,12 @@ export class PerProviderTokenStorage {
     // Remove from cache
     if (this.tokensCache.has(providerId)) {
       this.tokensCache.delete(providerId)
-      console.log(`🗑️ Removed tokens from cache for provider: ${providerId}`)
     }
 
     // Remove file
     const filePath = this.getTokenFilePath(providerId)
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath)
-      console.log(`🗑️ Deleted token file: ${filePath}`)
     }
   }
 
@@ -252,13 +243,11 @@ export class PerProviderTokenStorage {
       const filePath = this.getTokenFilePath(providerId)
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath)
-        console.log(`🗑️ Deleted token file: ${filePath}`)
       }
     }
 
     this.tokensCache.clear()
     this.loadedProviders.clear()
-    console.log('🗑️ Cleared all OAuth tokens')
   }
 
   /**
@@ -378,20 +367,16 @@ export class PerProviderTokenStorage {
    * Migrate from old single-file storage to per-provider files
    */
   async migrateFromOldStorage(oldStorageData: Record<string, StoredProviderTokens>): Promise<void> {
-    console.log(`🔄 Migrating ${Object.keys(oldStorageData).length} providers from old storage format`)
 
     for (const [providerId, tokens] of Object.entries(oldStorageData)) {
       // Only migrate if we don't already have a file for this provider
       const filePath = this.getTokenFilePath(providerId)
       if (!fs.existsSync(filePath)) {
         await this.storeTokens(tokens)
-        console.log(`✅ Migrated tokens for provider: ${providerId}`)
       }
       else {
-        console.log(`⏭️ Skipped migration for ${providerId} (file already exists)`)
       }
     }
 
-    console.log('✅ Migration completed')
   }
 }
