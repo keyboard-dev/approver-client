@@ -139,16 +139,13 @@ export class OAuthProviderManager {
       const encryptedData = fs.readFileSync(this.SERVER_PROVIDERS_FILE, 'utf8')
       const decryptedData = decrypt(encryptedData)
       const providersArray = JSON.parse(decryptedData) as ServerProvider[]
-      console.log('this.serverProviders', this.serverProviders)
       // Clear existing providers and load from file
       this.serverProviders.clear()
-      console.log('providersArray', providersArray)
       providersArray.forEach((provider) => {
         this.serverProviders.set(provider.id, provider)
       })
 
       this.isLoaded = true
-      console.log(`📱 Loaded ${this.serverProviders.size} server providers from encrypted storage`)
     }
     catch (error) {
       console.error('❌ Error loading server providers:', error)
@@ -170,7 +167,6 @@ export class OAuthProviderManager {
       // Write with restricted permissions
       fs.writeFileSync(this.SERVER_PROVIDERS_FILE, encryptedData, { mode: 0o600 })
 
-      console.log(`💾 Saved ${this.serverProviders.size} server providers to encrypted storage`)
     }
     catch (error) {
       console.error('❌ Error saving server providers:', error)
@@ -463,7 +459,6 @@ export class OAuthProviderManager {
 
     for (const server of servers) {
       try {
-        console.log(`🔄 Attempting to refresh ${providerId} token via server: ${server.name}`)
 
         const url = `${server.url}/api/oauth/refresh/${providerId}`
 
@@ -501,7 +496,6 @@ export class OAuthProviderManager {
           throw new Error('Server token refresh was unsuccessful')
         }
 
-        console.log(`✅ Successfully refreshed ${providerId} tokens via ${server.name}`)
 
         return {
           providerId: providerId,
@@ -532,7 +526,6 @@ export class OAuthProviderManager {
     await this.ensureLoaded()
     this.serverProviders.set(server.id, server)
     await this.saveServerProviders()
-    console.log(`🔗 Added server provider: ${server.name} at ${server.url}`)
   }
 
   /**
@@ -544,7 +537,6 @@ export class OAuthProviderManager {
     if (server) {
       this.serverProviders.delete(serverId)
       await this.saveServerProviders()
-      console.log(`🗑️ Removed server provider: ${server.name}`)
     }
   }
 
@@ -568,7 +560,6 @@ export class OAuthProviderManager {
 
     const url = `${server.url}/api/oauth/providers`
 
-    console.log(`🔍 Fetching providers from: ${url}`)
 
     try {
       const headers: Record<string, string> = {
@@ -595,7 +586,6 @@ export class OAuthProviderManager {
         throw new Error('Server returned unsuccessful response')
       }
 
-      console.log(`✅ Found ${data.count} providers from ${server.name}:`, data.providers.map(p => p.name))
 
       return data.providers
     }
@@ -678,7 +668,6 @@ export class OAuthProviderManager {
 
     const fullUrl = `${url}?${params.toString()}`
 
-    console.log(`🔗 Fetching authorization URL from: ${fullUrl}`)
 
     try {
       const headers: Record<string, string> = {
@@ -705,7 +694,6 @@ export class OAuthProviderManager {
         throw new Error('Server returned unsuccessful response')
       }
 
-      console.log(`✅ Got authorization URL from server: ${data.authorization_url.substring(0, 100)}...`)
 
       return {
         authUrl: data.authorization_url,
@@ -745,7 +733,6 @@ export class OAuthProviderManager {
       grant_type: 'authorization_code',
     }
 
-    console.log(`🔄 Exchanging code with server: ${url}`)
 
     try {
       const headers: Record<string, string> = {

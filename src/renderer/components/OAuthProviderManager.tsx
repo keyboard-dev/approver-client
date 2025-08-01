@@ -44,7 +44,6 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
 
     // Listen for OAuth events
     const handleProviderAuthSuccess = (_event: Electron.IpcRendererEvent, data: ProviderAuthEvent) => {
-      console.log('Provider auth success:', data)
       // Refresh all provider data to show the new authentication status
       loadProviders()
       loadAllProviderConfigs()
@@ -61,7 +60,6 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
     }
 
     const handleProviderAuthLogout = (_event: Electron.IpcRendererEvent, data: ProviderAuthEvent) => {
-      console.log('Provider auth logout:', data)
       loadProviderStatus()
     }
 

@@ -51,7 +51,6 @@ export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ cl
 
     // Listen for OAuth completion events
     const handleProviderAuthSuccess = (_event: unknown, data: ProviderAuthData) => {
-      console.log('Server provider auth success:', data)
       // Clear loading state for the completed OAuth flow
       setIsLoading((prev) => {
         const updated = { ...prev }
@@ -110,12 +109,10 @@ export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ cl
 
     try {
       const providers = await window.electronAPI.fetchServerProviders(serverId)
-      console.log('providers', providers)
       setServerProviders(prev => ({
         ...prev,
         [serverId]: providers,
       }))
-      console.log(`✅ Fetched ${providers.length} providers for server ${serverId}`)
     }
     catch (error) {
       console.error(`Failed to fetch providers for server ${serverId}:`, error)
@@ -154,7 +151,6 @@ export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ cl
       }
 
       await window.electronAPI.addServerProvider(serverConfig)
-      console.log(`✅ Successfully added server provider: ${newServer.name}`)
 
       await loadServerProviders()
       // Fetch providers for the newly added server
@@ -179,7 +175,6 @@ export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ cl
 
     try {
       await window.electronAPI.removeServerProvider(serverId)
-      console.log(`🗑️ Removed server provider: ${serverId}`)
       await loadServerProviders()
     }
     catch (error) {
@@ -198,7 +193,6 @@ export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ cl
 
     try {
       await window.electronAPI.startServerProviderOAuth(serverId, provider)
-      console.log(`🔐 Started OAuth flow: ${serverId} → ${provider}`)
       // Don't clear loading state here - it will be cleared by the auth success/error handlers
     }
     catch (error) {
