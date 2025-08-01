@@ -76,7 +76,7 @@ export class ProviderStorage {
       // Write with restricted permissions
       fs.writeFileSync(filePath, encryptedData, { mode: 0o600 })
 
-      console.log(`💾 Saved provider configuration: ${provider.name} (${provider.id})`)
+  
     }
     catch (error) {
       console.error(`❌ Error saving provider ${provider.id}:`, error)

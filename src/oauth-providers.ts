@@ -139,9 +139,10 @@ export class OAuthProviderManager {
       const encryptedData = fs.readFileSync(this.SERVER_PROVIDERS_FILE, 'utf8')
       const decryptedData = decrypt(encryptedData)
       const providersArray = JSON.parse(decryptedData) as ServerProvider[]
-
+      console.log('this.serverProviders', this.serverProviders)
       // Clear existing providers and load from file
       this.serverProviders.clear()
+      console.log('providersArray', providersArray)
       providersArray.forEach((provider) => {
         this.serverProviders.set(provider.id, provider)
       })
@@ -774,7 +775,7 @@ export class OAuthProviderManager {
         throw new Error('Server token exchange was unsuccessful')
       }
 
-      console.log(`✅ Successfully exchanged code for tokens via ${server.name}`)
+ 
 
       return {
         providerId: provider, // Use just the provider name (e.g., "google") instead of combined ID

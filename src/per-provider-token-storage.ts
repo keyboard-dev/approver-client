@@ -58,7 +58,6 @@ export class PerProviderTokenStorage {
       this.tokensCache.set(providerId, tokens)
       this.loadedProviders.add(providerId)
 
-      console.log(`📱 Loaded OAuth tokens for provider: ${providerId}`)
       return tokens
     }
     catch (error) {
@@ -80,8 +79,6 @@ export class PerProviderTokenStorage {
 
       // Write with restricted permissions
       fs.writeFileSync(filePath, encryptedData, { mode: 0o600 })
-
-      console.log(`💾 Saved OAuth tokens for provider: ${tokens.providerId}`)
     }
     catch (error) {
       console.error(`❌ Error saving OAuth tokens for ${tokens.providerId}:`, error)
@@ -114,7 +111,6 @@ export class PerProviderTokenStorage {
     this.tokensCache.set(tokens.providerId, storedTokens)
     await this.saveProviderTokens(storedTokens)
 
-    console.log(`🔐 Stored tokens for provider: ${tokens.providerId}`)
   }
 
   /**

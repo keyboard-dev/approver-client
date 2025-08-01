@@ -86,10 +86,10 @@ class MenuBarNotificationApp {
   private readonly CUSTOM_PROTOCOL = 'mcpauth'
   private currentPKCE: PKCEParams | null = null
   private authTokens: AuthTokens | null = null
-  // New OAuth provider system
-  private oauthProviderManager: OAuthProviderManager
-  private oauthTokenStorage: OAuthTokenStorage
-  private perProviderTokenStorage: PerProviderTokenStorage
+  // New OAuth provider system (initialized later after encryption is ready)
+  private oauthProviderManager!: OAuthProviderManager
+  private oauthTokenStorage!: OAuthTokenStorage
+  private perProviderTokenStorage!: PerProviderTokenStorage
   private currentProviderPKCE: NewPKCEParams | null = null
   private oauthHttpServer: OAuthHttpServer
   // WebSocket security
@@ -101,19 +101,8 @@ class MenuBarNotificationApp {
   private readonly ENCRYPTION_KEY_FILE = path.join(os.homedir(), '.keyboard-mcp-encryption-key')
 
   constructor() {
-    // Initialize OAuth provider system
-    this.oauthProviderManager = new OAuthProviderManager(this.CUSTOM_PROTOCOL)
-    this.oauthTokenStorage = new OAuthTokenStorage() // Keep for migration
-    this.perProviderTokenStorage = new PerProviderTokenStorage()
+    // Initialize HTTP server (doesn't need encryption)
     this.oauthHttpServer = new OAuthHttpServer(this.OAUTH_PORT)
-
-    // Inject main access token getter for server provider refresh
-    this.oauthProviderManager.setMainAccessTokenGetter(() => this.getValidAccessToken())
-
-    // Migrate from old storage format
-    this.migrateTokenStorage().catch((error) => {
-      console.error('❌ Failed to migrate token storage:', error)
-    })
 
     // Initialize managers
     this.windowManager = new WindowManager({
@@ -229,6 +218,9 @@ class MenuBarNotificationApp {
       // Initialize encryption key
       await this.initializeEncryptionKey()
 
+      // NOW initialize OAuth provider system (after encryption is ready)
+      await this.initializeOAuthProviderSystem()
+
       this.trayManager.createTray()
       this.setupWebSocketServer()
       this.setupRestAPI()
@@ -254,7 +246,32 @@ class MenuBarNotificationApp {
     })
   }
 
-  // WebSocket Security Methods
+  // OAuth Provider System Initialization
+  /**
+   * Initialize OAuth provider system after encryption is ready
+   */
+  private async initializeOAuthProviderSystem(): Promise<void> {
+    try {
+      console.log('🔐 Initializing OAuth provider system...')
+      
+      // Initialize OAuth provider system
+      this.oauthProviderManager = new OAuthProviderManager(this.CUSTOM_PROTOCOL)
+      this.oauthTokenStorage = new OAuthTokenStorage() // Keep for migration
+      this.perProviderTokenStorage = new PerProviderTokenStorage()
+
+      // Inject main access token getter for server provider refresh
+      this.oauthProviderManager.setMainAccessTokenGetter(() => this.getValidAccessToken())
+
+      // Migrate from old storage format
+      await this.migrateTokenStorage()
+      
+      console.log('✅ OAuth provider system initialized successfully')
+    } catch (error) {
+      console.error('❌ Failed to initialize OAuth provider system:', error)
+      throw error
+    }
+  }
+
   /**
    * Migrate tokens from old single-file storage to new per-provider storage
    */
@@ -1085,7 +1102,7 @@ class MenuBarNotificationApp {
                 user: providerInfo?.user || (this.SKIP_AUTH ? { email: 'test@example.com', firstName: 'Test Provider' } : null),
                 providerName: provider?.name || providerId,
               }
-
+   
               ws.send(JSON.stringify(tokenResponse))
             }
             catch (error) {
@@ -1353,7 +1370,8 @@ class MenuBarNotificationApp {
 
     ipcMain.handle('fetch-server-providers', async (event, serverId: string): Promise<ServerProviderInfo[]> => {
       const accessToken = await this.getValidAccessToken()
-      return await this.oauthProviderManager.fetchServerProviders(serverId, accessToken || undefined)
+      let serverProviders = await this.oauthProviderManager.fetchServerProviders(serverId, accessToken || undefined)
+      return serverProviders
     })
 
     // Handle requests for all messages
