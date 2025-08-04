@@ -297,20 +297,14 @@ body {
     display: none;
 }
 
-/* Scrollbar styling for webkit browsers */
-::-webkit-scrollbar {
-    width: 6px;
+/* Hide scrollbars completely */
+* {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* Internet Explorer 10+ */
 }
 
-::-webkit-scrollbar-track {
-    background: rgba(0, 0, 0, 0.05);
-}
-
-::-webkit-scrollbar-thumb {
-    background: rgba(0, 0, 0, 0.2);
-    border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-    background: rgba(0, 0, 0, 0.3);
+*::-webkit-scrollbar {
+    display: none; /* WebKit */
+    width: 0;
+    height: 0;
 }
