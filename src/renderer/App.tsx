@@ -249,7 +249,6 @@ const App: React.FC = () => {
   const showMessageDetail = (message: Message) => {
     if (!authStatusRef.current.authenticated) return
 
-    console.log('message', message)
 
     setCurrentMessage(message)
     setFeedback(message.feedback || '')

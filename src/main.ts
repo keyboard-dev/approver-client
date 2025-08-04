@@ -86,10 +86,10 @@ class MenuBarNotificationApp {
   private readonly CUSTOM_PROTOCOL = 'mcpauth'
   private currentPKCE: PKCEParams | null = null
   private authTokens: AuthTokens | null = null
-  // New OAuth provider system
-  private oauthProviderManager: OAuthProviderManager
-  private oauthTokenStorage: OAuthTokenStorage
-  private perProviderTokenStorage: PerProviderTokenStorage
+  // New OAuth provider system (initialized later after encryption is ready)
+  private oauthProviderManager!: OAuthProviderManager
+  private oauthTokenStorage!: OAuthTokenStorage
+  private perProviderTokenStorage!: PerProviderTokenStorage
   private currentProviderPKCE: NewPKCEParams | null = null
   private oauthHttpServer: OAuthHttpServer
   // WebSocket security
@@ -101,19 +101,8 @@ class MenuBarNotificationApp {
   private readonly ENCRYPTION_KEY_FILE = path.join(os.homedir(), '.keyboard-mcp-encryption-key')
 
   constructor() {
-    // Initialize OAuth provider system
-    this.oauthProviderManager = new OAuthProviderManager(this.CUSTOM_PROTOCOL)
-    this.oauthTokenStorage = new OAuthTokenStorage() // Keep for migration
-    this.perProviderTokenStorage = new PerProviderTokenStorage()
+    // Initialize HTTP server (doesn't need encryption)
     this.oauthHttpServer = new OAuthHttpServer(this.OAUTH_PORT)
-
-    // Inject main access token getter for server provider refresh
-    this.oauthProviderManager.setMainAccessTokenGetter(() => this.getValidAccessToken())
-
-    // Migrate from old storage format
-    this.migrateTokenStorage().catch((error) => {
-      console.error('❌ Failed to migrate token storage:', error)
-    })
 
     // Initialize managers
     this.windowManager = new WindowManager({
@@ -153,7 +142,7 @@ class MenuBarNotificationApp {
   private initializeApp(): void {
     // STEP 1: Handle single instance FIRST
     const gotTheLock = app.requestSingleInstanceLock()
-    app.dock.setIcon(path.join(__dirname, 'assets/keyboard512px.png'))
+    // app.dock.setIcon(path.join(__dirname, 'assets/keyboard-dock.png'))
 
     if (!gotTheLock) {
       app.quit()
@@ -164,22 +153,19 @@ class MenuBarNotificationApp {
 
     // Platform-specific protocol handling
     if (process.platform === 'darwin') {
-      console.log('Setting dock icon')
       // Fix: Use helper function for reliable asset path resolution
       const assetsPath = getAssetsPath()
-      const iconPath = path.join(assetsPath, 'keyboard512px.png')
+      const iconPath = path.join(assetsPath, 'keyboard-dock.png')
 
       // Check if file exists before setting
       if (fs.existsSync(iconPath)) {
         app.dock.setIcon(iconPath)
-        console.log('Dock icon set successfully:', iconPath)
       }
       else {
         console.warn('Dock icon not found at:', iconPath)
         // List what's actually in the assets directory for debugging
         try {
           const files = fs.readdirSync(assetsPath)
-          console.log('Available assets:', files)
         }
         catch {
           console.warn('Could not read assets directory:', assetsPath)
@@ -192,12 +178,10 @@ class MenuBarNotificationApp {
 
         // Only handle our custom protocol URLs, ignore HTTP URLs
         if (url.startsWith(`${this.CUSTOM_PROTOCOL}://`)) {
-          console.log('🔗 Processing custom protocol callback:', url)
           // Custom protocol URLs should only go to legacy OAuth handler
           this.handleOAuthCallback(url)
         }
         else {
-          console.log('🔗 Ignoring non-protocol URL:', url)
         }
       })
     }
@@ -207,7 +191,6 @@ class MenuBarNotificationApp {
       // Find protocol URL in command line arguments
       const url = commandLine.find(arg => arg.startsWith(`${this.CUSTOM_PROTOCOL}://`))
       if (url) {
-        console.log('🔗 Processing second instance protocol callback:', url)
         // Custom protocol URLs should only go to legacy OAuth handler
         this.handleOAuthCallback(url)
       }
@@ -228,6 +211,9 @@ class MenuBarNotificationApp {
 
       // Initialize encryption key
       await this.initializeEncryptionKey()
+
+      // NOW initialize OAuth provider system (after encryption is ready)
+      await this.initializeOAuthProviderSystem()
 
       this.trayManager.createTray()
       this.setupWebSocketServer()
@@ -254,7 +240,30 @@ class MenuBarNotificationApp {
     })
   }
 
-  // WebSocket Security Methods
+  // OAuth Provider System Initialization
+  /**
+   * Initialize OAuth provider system after encryption is ready
+   */
+  private async initializeOAuthProviderSystem(): Promise<void> {
+    try {
+      
+      // Initialize OAuth provider system
+      this.oauthProviderManager = new OAuthProviderManager(this.CUSTOM_PROTOCOL)
+      this.oauthTokenStorage = new OAuthTokenStorage() // Keep for migration
+      this.perProviderTokenStorage = new PerProviderTokenStorage()
+
+      // Inject main access token getter for server provider refresh
+      this.oauthProviderManager.setMainAccessTokenGetter(() => this.getValidAccessToken())
+
+      // Migrate from old storage format
+      await this.migrateTokenStorage()
+      
+    } catch (error) {
+      console.error('❌ Failed to initialize OAuth provider system:', error)
+      throw error
+    }
+  }
+
   /**
    * Migrate tokens from old single-file storage to new per-provider storage
    */
@@ -262,7 +271,6 @@ class MenuBarNotificationApp {
     try {
       const oldTokens = await this.oauthTokenStorage.getAllTokens()
       if (Object.keys(oldTokens).length > 0) {
-        console.log(`🔄 Migrating ${Object.keys(oldTokens).length} providers to new storage format`)
         await this.perProviderTokenStorage.migrateFromOldStorage(oldTokens)
 
         // After successful migration, optionally clear old storage
@@ -289,7 +297,6 @@ class MenuBarNotificationApp {
 
           if (keyAge < maxAge) {
             this.wsConnectionKey = parsedData.key
-            console.log('🔑 Loaded existing WebSocket connection key')
             return
           }
         }
@@ -320,7 +327,6 @@ class MenuBarNotificationApp {
       // Write to file with restricted permissions
       fs.writeFileSync(this.WS_KEY_FILE, JSON.stringify(keyData, null, 2), { mode: 0o600 })
 
-      console.log('🔑 Generated new WebSocket connection key')
 
       // Notify UI if window exists
       this.windowManager.sendMessage('ws-key-generated', {
@@ -353,7 +359,6 @@ class MenuBarNotificationApp {
         const envKey = Buffer.from(process.env.ENCRYPTION_KEY, 'hex')
         if (envKey.length === 32) {
           this.encryptionKey = process.env.ENCRYPTION_KEY
-          console.log('🔑 Using encryption key from environment variable')
           return
         }
         else {
@@ -373,7 +378,6 @@ class MenuBarNotificationApp {
 
           if (keyAge < maxAge) {
             this.encryptionKey = parsedData.key
-            console.log('🔑 Loaded existing generated encryption key')
             return
           }
         }
@@ -405,7 +409,6 @@ class MenuBarNotificationApp {
       // Write to file with restricted permissions
       fs.writeFileSync(this.ENCRYPTION_KEY_FILE, JSON.stringify(keyData, null, 2), { mode: 0o600 })
 
-      console.log('🔑 Generated new encryption key')
 
       // Notify UI if window exists
       this.windowManager.sendMessage('encryption-key-generated', {
@@ -479,12 +482,6 @@ class MenuBarNotificationApp {
 
       // Generate PKCE parameters
       this.currentProviderPKCE = this.oauthProviderManager.generatePKCE(providerId)
-      console.log('🔑 Generated PKCE parameters:', {
-        providerId: this.currentProviderPKCE.providerId,
-        state: this.currentProviderPKCE.state,
-        hasCodeVerifier: !!this.currentProviderPKCE.codeVerifier,
-        hasCodeChallenge: !!this.currentProviderPKCE.codeChallenge,
-      })
 
       // Start HTTP server to handle OAuth callback
       await this.oauthHttpServer.startServer((callbackData: OAuthCallbackData) => {
@@ -493,13 +490,10 @@ class MenuBarNotificationApp {
 
       // Build authorization URL
       const authUrl = await this.oauthProviderManager.buildAuthorizationUrl(providerId, this.currentProviderPKCE)
-      console.log('🔗 Authorization URL created:', authUrl.substring(0, 100) + '...')
 
       // Open browser for user authentication
       await shell.openExternal(authUrl)
 
-      console.log(`🔐 Started OAuth flow for provider: ${providerId}`)
-      console.log(`🌐 OAuth callback server listening on http://localhost:${this.OAUTH_PORT}/callback`)
     }
     catch (error) {
       console.error(`❌ OAuth flow error for ${providerId}:`, error)
@@ -571,13 +565,10 @@ class MenuBarNotificationApp {
         sessionId: sessionId,
       }
 
-      console.log(`🔗 Server authorization URL: ${authUrl.substring(0, 100)}...`)
 
       // Open browser for user authentication
       await shell.openExternal(authUrl)
 
-      console.log(`🔐 Started server OAuth flow: ${server.name} → ${provider}`)
-      console.log(`🌐 OAuth callback server listening on http://localhost:${this.OAUTH_PORT}/callback`)
     }
     catch (error) {
       console.error(`❌ Server OAuth flow error for ${serverId}/${provider}:`, error)
@@ -592,13 +583,6 @@ class MenuBarNotificationApp {
     provider: string,
   ): Promise<void> {
     try {
-      console.log('🌐 Server OAuth callback received:', {
-        hasError: !!callbackData.error,
-        hasCode: !!callbackData.code,
-        hasState: !!callbackData.state,
-        serverId,
-        provider,
-      })
 
       if (callbackData.error) {
         throw new Error(`OAuth error: ${callbackData.error} - ${callbackData.error_description || ''}`)
@@ -620,7 +604,6 @@ class MenuBarNotificationApp {
         throw new Error('State mismatch - potential security issue')
       }
 
-      console.log('✅ State validation passed, exchanging code for tokens')
 
       // Exchange code for tokens using server
       const accessToken = await this.getValidAccessToken()
@@ -636,7 +619,6 @@ class MenuBarNotificationApp {
       // Store tokens securely
       await this.perProviderTokenStorage.storeTokens(tokens)
 
-      console.log('🧹 Clearing session data after successful token exchange')
       this.currentProviderPKCE = null
 
       // Notify the renderer process
@@ -660,7 +642,6 @@ class MenuBarNotificationApp {
         priority: 'normal',
       })
 
-      console.log(`✅ Successfully authenticated with ${serverId} (${provider})`)
     }
     catch (error) {
       console.error(`❌ Server OAuth callback error for ${serverId}/${provider}:`, error)
@@ -670,14 +651,6 @@ class MenuBarNotificationApp {
 
   private async handleOAuthHttpCallback(callbackData: OAuthCallbackData): Promise<void> {
     try {
-      console.log('🌐 HTTP OAuth callback received:', {
-        hasError: !!callbackData.error,
-        hasCode: !!callbackData.code,
-        hasState: !!callbackData.state,
-        receivedState: callbackData.state,
-        storedState: this.currentProviderPKCE?.state,
-        storedProviderId: this.currentProviderPKCE?.providerId,
-      })
 
       if (callbackData.error) {
         throw new Error(`OAuth error: ${callbackData.error} - ${callbackData.error_description || ''}`)
@@ -700,7 +673,6 @@ class MenuBarNotificationApp {
         throw new Error('State mismatch - potential CSRF attack')
       }
 
-      console.log('✅ State validation passed, proceeding with token exchange')
 
       // Exchange code for tokens
       await this.exchangeProviderCodeForTokens(this.currentProviderPKCE.providerId, callbackData.code, this.currentProviderPKCE)
@@ -714,7 +686,6 @@ class MenuBarNotificationApp {
 
   private async exchangeProviderCodeForTokens(providerId: string, code: string, pkceParams: NewPKCEParams): Promise<void> {
     try {
-      console.log('🔄 Starting token exchange for provider:', providerId)
 
       // Exchange code for tokens using provider manager
       const tokens = await this.oauthProviderManager.exchangeCodeForTokens(providerId, code, pkceParams)
@@ -722,7 +693,6 @@ class MenuBarNotificationApp {
       // Store tokens securely
       await this.perProviderTokenStorage.storeTokens(tokens)
 
-      console.log('🧹 Clearing PKCE data after successful token exchange')
       // Clear PKCE data
       this.currentProviderPKCE = null
 
@@ -750,7 +720,6 @@ class MenuBarNotificationApp {
         priority: 'normal',
       })
 
-      console.log(`✅ Successfully authenticated with ${providerName}`)
     }
     catch (error) {
       console.error(`❌ Token exchange error for ${providerId}:`, error)
@@ -796,7 +765,6 @@ class MenuBarNotificationApp {
     const provider = await this.oauthProviderManager.getProvider(providerId)
     const providerName = provider?.name || providerId
 
-    console.log(`👋 Logged out from ${providerName}`)
   }
 
   private async startOAuthFlow(): Promise<void> {
@@ -1032,7 +1000,6 @@ class MenuBarNotificationApp {
     })
 
     this.wsServer.on('connection', (ws: WebSocket, req) => {
-      console.log(`🔐 Secure WebSocket connection established from ${req.connection.remoteAddress}`)
 
       ws.on('message', async (data: WebSocket.Data) => {
         try {
@@ -1085,7 +1052,7 @@ class MenuBarNotificationApp {
                 user: providerInfo?.user || (this.SKIP_AUTH ? { email: 'test@example.com', firstName: 'Test Provider' } : null),
                 providerName: provider?.name || providerId,
               }
-
+   
               ws.send(JSON.stringify(tokenResponse))
             }
             catch (error) {
@@ -1120,7 +1087,6 @@ class MenuBarNotificationApp {
                 timestamp: Date.now(),
                 requestId: message.requestId,
               }
-              console.log('🔐 Sending status response:', statusResponse)
 
               ws.send(JSON.stringify(statusResponse))
             }
@@ -1144,7 +1110,6 @@ class MenuBarNotificationApp {
       })
 
       ws.on('close', () => {
-        console.log('🔐 Secure WebSocket connection closed')
       })
     })
   }
@@ -1186,14 +1151,14 @@ class MenuBarNotificationApp {
 
     try {
       // Fix: Use helper function for reliable asset path resolution
-      const assetsPath = getAssetsPath()
-      const iconPath = path.join(assetsPath, 'keyboard512px.png')
+      // const assetsPath = getAssetsPath()
+      // const iconPath = path.join(assetsPath, 'keyboard512px.png')
 
       const notification = new Notification({
         title: message.title,
         body: message.body,
         urgency: message.priority === 'high' ? 'critical' : 'normal',
-        icon: iconPath, // Add your logo here
+        // icon: iconPath, // Add your logo here
       })
 
       notification.on('click', () => {
@@ -1353,7 +1318,8 @@ class MenuBarNotificationApp {
 
     ipcMain.handle('fetch-server-providers', async (event, serverId: string): Promise<ServerProviderInfo[]> => {
       const accessToken = await this.getValidAccessToken()
-      return await this.oauthProviderManager.fetchServerProviders(serverId, accessToken || undefined)
+      let serverProviders = await this.oauthProviderManager.fetchServerProviders(serverId, accessToken || undefined)
+      return serverProviders
     })
 
     // Handle requests for all messages

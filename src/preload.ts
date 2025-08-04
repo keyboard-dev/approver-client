@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron'
+import { ServerProviderInfo } from './oauth-providers'
 
 export interface Message {
   id: string
@@ -154,7 +155,7 @@ export interface ElectronAPI {
   addServerProvider: (server: ServerProvider) => Promise<void>
   removeServerProvider: (serverId: string) => Promise<void>
   getServerProviders: () => Promise<ServerProvider[]>
-  fetchServerProviders: (serverId: string) => Promise<OAuthProvider[]>
+  fetchServerProviders: (serverId: string) => Promise<ServerProviderInfo[]>
   startServerProviderOAuth: (serverId: string, provider: string) => Promise<void>
   // WebSocket key management
   getWSConnectionKey: () => Promise<string | null>
@@ -239,7 +240,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   addServerProvider: (server: ServerProvider): Promise<void> => ipcRenderer.invoke('add-server-provider', server),
   removeServerProvider: (serverId: string): Promise<void> => ipcRenderer.invoke('remove-server-provider', serverId),
   getServerProviders: (): Promise<ServerProvider[]> => ipcRenderer.invoke('get-server-providers'),
-  fetchServerProviders: (serverId: string): Promise<OAuthProvider[]> => ipcRenderer.invoke('fetch-server-providers', serverId),
+  fetchServerProviders: (serverId: string): Promise<ServerProviderInfo[]> => ipcRenderer.invoke('fetch-server-providers', serverId),
   startServerProviderOAuth: (serverId: string, provider: string): Promise<void> => ipcRenderer.invoke('start-server-provider-oauth', serverId, provider),
 
   // WebSocket key management

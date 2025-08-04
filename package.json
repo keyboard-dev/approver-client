@@ -17,7 +17,7 @@
     "build-signed": "npm run build && electron-forge make --platform=darwin",
     "build-signed-bg": "nohup npm run build-signed > build.log 2>&1 &",
     "build-signed-ci": "dotenvx run -f .env.ci -- npm run build-signed",
-    "build-dev": "npm run build && electron-forge package --platform=darwin",
+    "build-dev": "NODE_ENV=development npm run build && SKIP_SIGNING=true electron-forge package --platform=darwin",
     "check-build": "tail -f build.log",
     "build-win": "npm run build && electron-builder --win",
     "build-linux": "npm run build && electron-builder --linux",
@@ -103,13 +103,13 @@
     ],
     "mac": {
       "category": "public.app-category.developer-tools",
-      "icon": "assets/keyboard512px.png"
+      "icon": "assets/keyboard-dock.icns"
     },
     "win": {
-      "icon": "assets/keyboard512px.png"
+      "icon": "assets/keyboard-dock.icns"
     },
     "linux": {
-      "icon": "assets/keyboard512px.png"
+      "icon": "assets/keyboard-dock.icns"
     }
   }
 }
