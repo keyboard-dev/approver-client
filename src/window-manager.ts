@@ -20,6 +20,8 @@ export class WindowManager {
       width: 600, // Larger for reading code
       height: 700, // Taller for explanations
       show: false, // Don't show/focus the window when created
+      transparent: true,
+      frame: false,
       webPreferences: {
         preload: path.join(__dirname, 'preload.js'),
       },

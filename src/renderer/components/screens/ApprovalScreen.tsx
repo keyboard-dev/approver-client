@@ -8,15 +8,10 @@ interface ApprovalScreenProps {
   onReject?: (messageId: string) => void
 }
 
-export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
-  message,
-  onBack,
-  onApprove,
-  onReject,
-}) => {
+export const ApprovalScreen: React.FC<ApprovalScreenProps> = () => {
   return (
     <div
-      className="flex flex-col w-[581px] h-[702px] bg-red-500"
+      className="flex flex-col w-full min-h-screen liquid-glass-background draggable"
     >
       lorem ipsum dolor sit amet
     </div>
