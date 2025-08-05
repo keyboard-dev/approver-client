@@ -249,7 +249,6 @@ const App: React.FC = () => {
   const showMessageDetail = (message: Message) => {
     if (!authStatusRef.current.authenticated) return
 
-
     setCurrentMessage(message)
     setFeedback(message.feedback || '')
     setShowFeedback(false)
@@ -411,9 +410,11 @@ const App: React.FC = () => {
     return (
       <ApprovalScreen
         message={mockMessage}
+        systemStatus="" // todo
         onBack={showMessageList}
         onApprove={handleApprove}
         onReject={handleReject}
+        onOptionClick={() => { console.warn('todo') }} // todo
       />
     )
   }
