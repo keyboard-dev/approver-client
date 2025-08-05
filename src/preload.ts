@@ -15,7 +15,7 @@ export interface Message {
   codeEval?: boolean
   code?: string
   explanation?: string
-  riskLevel?: 'low' | 'medium' | 'high'
+  risk_level?: 'low' | 'medium' | 'high'
 }
 
 export interface AuthStatus {

@@ -403,6 +403,7 @@ const App: React.FC = () => {
     timestamp: new Date().getTime(),
     priority: 'high' as const,
     feedback: 'This is a test feedback.',
+    risk_level: 'low' as const,
   }
 
   // if (currentMessage?.title === 'Security Evaluation Request') {

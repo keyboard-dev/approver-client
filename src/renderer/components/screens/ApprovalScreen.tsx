@@ -22,6 +22,28 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
   onReject,
   onOptionClick,
 }) => {
+  const {
+    risk_level,
+    status,
+    timestamp,
+  } = message
+
+  let riskLevelTextColor, riskLevelBgColor
+  switch (risk_level) {
+    case 'low':
+      riskLevelTextColor = '#7BB750'
+      riskLevelBgColor = '#98C379'
+      break
+    case 'medium':
+      riskLevelTextColor = '#E9AA34'
+      riskLevelBgColor = '#E5C07B'
+      break
+    case 'high':
+      riskLevelTextColor = '#E06C75'
+      riskLevelBgColor = '#E06C75'
+      break
+  }
+
   return (
     <div
       className="flex flex-col w-full min-h-screen bg-transparent draggable rounded-[0.5rem] p-[0.63rem] pt-0 items-center text-[0.88rem]"
@@ -71,12 +93,26 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
         <div
           className="rounded-[0.38rem] border border-[#E5E5E5] w-full px-[0.63rem] py-[0.44rem] flex justify-between"
         >
-          <div>
-            <div>
-              Risk level
-            </div>
+          {risk_level
+            && (
+              <div>
+                <div
+                  className="text-[#737373]"
+                >
+                  Risk level
+                </div>
+                <div
+                  className="rounded-full px-[0.5rem] py-[0.25rem] w-fit capitalize"
+                  style={{
+                    color: riskLevelTextColor,
+                    backgroundColor: `${riskLevelBgColor}26`,
+                  }}
+                >
+                  {risk_level}
+                </div>
+              </div>
+            )}
 
-          </div>
           <div>
             Status
           </div>
