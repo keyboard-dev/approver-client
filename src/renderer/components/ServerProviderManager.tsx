@@ -13,8 +13,6 @@ interface ServerProviderManagerProps {
   className?: string
 }
 
-
-
 interface ProviderAuthData {
   providerId: string
   message?: string
@@ -233,6 +231,29 @@ export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ cl
     }
   }
 
+  const handleRefresh = async (providerId: string) => {
+    const loadingKey = `refresh-${providerId}`
+    setIsLoading(prev => ({ ...prev, [loadingKey]: true }))
+
+    try {
+      const success = await window.electronAPI.refreshProviderTokens(providerId)
+      if (success) {
+        await loadProviderStatus()
+        setError(null)
+      }
+      else {
+        setError(`Failed to refresh tokens for ${providerId}`)
+      }
+    }
+    catch (error) {
+      console.error(`Failed to refresh tokens for ${providerId}:`, error)
+      setError(`Failed to refresh tokens for ${providerId}`)
+    }
+    finally {
+      setIsLoading(prev => ({ ...prev, [loadingKey]: false }))
+    }
+  }
+
   const handleInputChange = (field: string, value: string) => {
     setNewServer(prev => ({
       ...prev,
@@ -259,7 +280,7 @@ export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ cl
             variant="outline"
             size="sm"
           >
-            🔄 Refresh
+            🔄 Server Providers
           </Button>
           <Button
             onClick={() => setShowAddForm(!showAddForm)}
@@ -421,6 +442,19 @@ export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ cl
                                                     <span className={`text-xs px-2 py-1 rounded ${isExpired ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
                                                       {isExpired ? 'Expired' : 'Connected'}
                                                     </span>
+                                                    {isExpired && (
+                                                      <Button
+                                                        onClick={() => handleRefresh(provider.name)}
+                                                        disabled={isLoading[`refresh-${provider.name}`]}
+                                                        variant="outline"
+                                                        size="sm"
+                                                        className="text-xs text-blue-600 hover:text-blue-700"
+                                                      >
+                                                        {isLoading[`refresh-${provider.name}`] ? '⏳' : '🔄'}
+                                                        {' '}
+                                                        Refresh
+                                                      </Button>
+                                                    )}
                                                     <Button
                                                       onClick={() => handleGetToken(provider.name)}
                                                       variant="outline"
