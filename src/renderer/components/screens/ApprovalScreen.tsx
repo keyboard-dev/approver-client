@@ -1,6 +1,12 @@
-import React from 'react'
-import iconGearUrl from '../../../../assets/icon-gear.svg'
+import React, { useState } from 'react'
 import { Message } from '../../../preload'
+
+import checkIconUrl from '../../../../assets/icon-check.svg'
+import clockIconUrl from '../../../../assets/icon-clock.svg'
+import codeIconUrl from '../../../../assets/icon-code.svg'
+import iconGearUrl from '../../../../assets/icon-gear.svg'
+import thinkingIconUrl from '../../../../assets/icon-thinking.svg'
+import xIconUrl from '../../../../assets/icon-x.svg'
 
 interface ApprovalScreenProps {
   message: Message
@@ -22,7 +28,11 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
   onReject,
   onOptionClick,
 }) => {
+  const [activeTab, setActiveTab] = useState<'code' | 'description'>('description')
+
   const {
+    code,
+    description,
     risk_level,
     status,
     timestamp,
@@ -32,17 +42,32 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
   switch (risk_level) {
     case 'low':
       riskLevelTextColor = '#7BB750'
-      riskLevelBgColor = '#98C379'
+      riskLevelBgColor = '#98C37926'
       break
     case 'medium':
       riskLevelTextColor = '#E9AA34'
-      riskLevelBgColor = '#E5C07B'
+      riskLevelBgColor = '#E5C07B26'
       break
     case 'high':
       riskLevelTextColor = '#E06C75'
-      riskLevelBgColor = '#E06C75'
+      riskLevelBgColor = '#E06C7526'
       break
   }
+
+  let statusIconUrl
+  switch (status) {
+    case 'pending':
+      statusIconUrl = clockIconUrl
+      break
+    case 'approved':
+      statusIconUrl = checkIconUrl
+      break
+    case 'rejected':
+      statusIconUrl = xIconUrl
+      break
+  }
+
+  const createdAt = new Date(timestamp).toLocaleString()
 
   return (
     <div
@@ -105,7 +130,7 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
                   className="rounded-full px-[0.5rem] py-[0.25rem] w-fit capitalize"
                   style={{
                     color: riskLevelTextColor,
-                    backgroundColor: `${riskLevelBgColor}26`,
+                    backgroundColor: riskLevelBgColor,
                   }}
                 >
                   {risk_level}
@@ -113,12 +138,66 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
               </div>
             )}
 
+          {status
+            && (
+              <div>
+                <div
+                  className="text-[#737373]"
+                >
+                  Status
+                </div>
+                <div
+                  className="flex items-center gap-[0.25rem] capitalize"
+                >
+                  <img src={statusIconUrl} alt="Status" className="w-[0.75rem] h-[0.75rem] m-[0.19rem]" />
+                  {status}
+                </div>
+              </div>
+            )}
+
           <div>
-            Status
+            <div
+              className="text-[#737373]"
+            >
+              Created
+            </div>
+            <div>
+              {createdAt}
+            </div>
           </div>
-          <div>
-            Created
-          </div>
+        </div>
+
+        <div
+          className="flex w-full border border-[#E5E5E5] rounded-[0.38rem] bg-[#F3F3F3] p-[0.25rem] text-[#737373] font-semibold"
+        >
+          <button
+            onClick={() => setActiveTab('description')}
+            className="grow basis-0 flex items-center justify-center py-[0.5rem] rounded-[0.25rem] gap-[0.31rem]"
+            style={
+              activeTab === 'description'
+                ? {
+                    backgroundColor: 'white',
+                  }
+                : {}
+            }
+          >
+            <img src={thinkingIconUrl} alt="thinking" className="w-[1rem] h-[1rem] m-[0.19rem]" />
+            What the model wants to do
+          </button>
+          <button
+            onClick={() => setActiveTab('code')}
+            className="grow basis-0 flex items-center justify-center py-[0.5rem] rounded-[0.25rem] gap-[0.31rem]"
+            style={
+              activeTab === 'code'
+                ? {
+                    backgroundColor: 'white',
+                  }
+                : {}
+            }
+          >
+            <img src={codeIconUrl} alt="code" className="w-[1rem] h-[1rem] m-[0.19rem]" />
+            Generated script
+          </button>
         </div>
       </div>
     </div>
