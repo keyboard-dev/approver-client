@@ -36,15 +36,15 @@ export class WindowManager {
     this.mainWindow.loadFile(path.join(__dirname, '../public/index.html'))
 
     // Hide window when it loses focus
-    // this.mainWindow.on('blur', () => {
-    //   if (this.mainWindow?.isVisible()) {
-    //     setTimeout(() => {
-    //       if (this.mainWindow?.isVisible() && !this.mainWindow?.isFocused()) {
-    //         this.mainWindow.hide()
-    //       }
-    //     }, 100)
-    //   }
-    // })
+    this.mainWindow.on('blur', () => {
+      if (this.mainWindow?.isVisible()) {
+        setTimeout(() => {
+          if (this.mainWindow?.isVisible() && !this.mainWindow?.isFocused()) {
+            this.mainWindow.hide()
+          }
+        }, 100)
+      }
+    })
 
     this.mainWindow.on('closed', () => {
       this.mainWindow = null

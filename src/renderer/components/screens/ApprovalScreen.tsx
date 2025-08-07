@@ -1,11 +1,16 @@
 import React, { useState } from 'react'
+import { Prism } from 'react-syntax-highlighter'
+import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism'
+
 import { Message } from '../../../preload'
 
+import blueCheckIconUrl from '../../../../assets/icon-check-blue.svg'
 import checkIconUrl from '../../../../assets/icon-check.svg'
 import clockIconUrl from '../../../../assets/icon-clock.svg'
 import codeIconUrl from '../../../../assets/icon-code.svg'
 import iconGearUrl from '../../../../assets/icon-gear.svg'
 import thinkingIconUrl from '../../../../assets/icon-thinking.svg'
+import greyXIconUrl from '../../../../assets/icon-x-grey.svg'
 import xIconUrl from '../../../../assets/icon-x.svg'
 
 interface ApprovalScreenProps {
@@ -15,24 +20,23 @@ interface ApprovalScreenProps {
   // user is authenticated
   systemStatus: string
   onBack?: () => void
-  onApprove?: (messageId: string) => void
-  onReject?: (messageId: string) => void
+  onApprove?: () => void
+  onReject?: () => void
   onOptionClick?: () => void
 }
 
 export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
   message,
-  systemStatus,
   onBack,
   onApprove,
   onReject,
   onOptionClick,
 }) => {
-  const [activeTab, setActiveTab] = useState<'code' | 'description'>('description')
+  const [activeTab, setActiveTab] = useState<'code' | 'explanation'>('explanation')
 
   const {
     code,
-    description,
+    explanation,
     risk_level,
     status,
     timestamp,
@@ -71,7 +75,7 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
 
   return (
     <div
-      className="flex flex-col w-full min-h-screen bg-transparent draggable rounded-[0.5rem] p-[0.63rem] pt-0 items-center text-[0.88rem]"
+      className="flex flex-col w-full h-screen bg-transparent draggable rounded-[0.5rem] p-[0.63rem] pt-0 items-center text-[0.88rem] text-[#171717]"
     >
       <div className="flex w-full -h-[1.56rem] mx-[1.25rem] my-[0.5rem] justify-between">
         <div />
@@ -100,7 +104,7 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
       </div>
 
       <div
-        className="flex flex-col w-full flex-grow bg-white rounded-[0.5rem] px-[0.63rem] py-[0.75rem] not-draggable gap-[0.63rem] items-start"
+        className="flex flex-col w-full grow min-h-0 bg-white rounded-[0.5rem] px-[0.63rem] py-[0.75rem] not-draggable gap-[0.63rem] items-start"
       >
         <button
           onClick={onBack}
@@ -110,7 +114,7 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
         </button>
 
         <div
-          className="text-[#171717] text-[1.25rem] font-bold"
+          className="text-[1.25rem] font-bold"
         >
           Security evaluation request
         </div>
@@ -171,10 +175,10 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
           className="flex w-full border border-[#E5E5E5] rounded-[0.38rem] bg-[#F3F3F3] p-[0.25rem] text-[#737373] font-semibold"
         >
           <button
-            onClick={() => setActiveTab('description')}
+            onClick={() => setActiveTab('explanation')}
             className="grow basis-0 flex items-center justify-center py-[0.5rem] rounded-[0.25rem] gap-[0.31rem]"
             style={
-              activeTab === 'description'
+              activeTab === 'explanation'
                 ? {
                     backgroundColor: 'white',
                   }
@@ -199,6 +203,67 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
             Generated script
           </button>
         </div>
+
+        {activeTab === 'explanation' && (
+          <div
+            className="p-[0.75rem] border border-[#E5E5E5] rounded-[0.38rem] w-full grow overflow-auto min-h-0"
+          >
+            {explanation}
+          </div>
+        )}
+
+        {activeTab === 'code' && code && (
+          <Prism
+            className="border border-[#E5E5E5] rounded-[0.38rem] w-full grow min-h-0"
+            language="jsx"
+            style={oneLight}
+            customStyle={{
+              backgroundColor: 'transparent',
+              padding: '0.75rem',
+              margin: 0,
+              fontFamily: 'Fira Code, monospace',
+            }}
+            showLineNumbers
+            lineNumberStyle={{
+              minWidth: '2.5rem',
+            }}
+            wrapLongLines
+          >
+            {code}
+          </Prism>
+        )}
+
+        {status === 'pending' && (
+          <div
+            className="w-full flex flex-col gap-[0.5rem]"
+          >
+            <div
+              className="w-full flex gap-[0.31rem]"
+            >
+              <button
+                className="bg-[#F3F3F3] text-[#737373] grow basis-0 flex gap-[0.31rem] rounded-[0.25rem] p-[0.5rem] items-center justify-center"
+                onClick={onReject}
+              >
+                <img src={greyXIconUrl} alt="x" className="w-[0.75rem] h-[0.75rem]" />
+                Reject
+              </button>
+
+              <button
+                className="bg-[#5093B726] text-[#5093B7] grow basis-0 flex gap-[0.31rem] rounded-[0.25rem] p-[0.5rem] items-center justify-center"
+                onClick={onApprove}
+              >
+                <img src={blueCheckIconUrl} alt="check" className="w-[0.75rem] h-[0.75rem]" />
+                Approve
+              </button>
+            </div>
+
+            <div
+              className="text-[#737373] text-[0.75rem] text-center w-full"
+            >
+              AI can make mistakes. Always review before approving.
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
