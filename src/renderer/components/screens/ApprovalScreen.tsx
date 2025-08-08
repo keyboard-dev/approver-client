@@ -19,24 +19,24 @@ interface ApprovalScreenProps {
   // websocket started
   // user is authenticated
   systemStatus: string
-  onBack?: () => void
-  onApprove?: () => void
-  onReject?: () => void
-  onOptionClick?: () => void
+  onApprove: () => void
+  onBack: () => void
+  onOptionClick: () => void
+  onReject: () => void
 }
 
 export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
   message,
-  onBack,
   onApprove,
-  onReject,
+  onBack,
   onOptionClick,
+  onReject,
 }) => {
-  const [activeTab, setActiveTab] = useState<'code' | 'explanation'>('explanation')
+  const [activeTab, setActiveTab] = useState<'code' | 'explaination'>('explaination')
 
   const {
     code,
-    explanation,
+    explaination,
     risk_level,
     status,
     timestamp,
@@ -175,10 +175,10 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
           className="flex w-full border border-[#E5E5E5] rounded-[0.38rem] bg-[#F3F3F3] p-[0.25rem] text-[#737373] font-semibold"
         >
           <button
-            onClick={() => setActiveTab('explanation')}
-            className="grow basis-0 flex items-center justify-center py-[0.5rem] rounded-[0.25rem] gap-[0.31rem]"
+            onClick={() => setActiveTab('explaination')}
+            className="grow basis-0 flex items-center justify-center py-[0.5rem] rounded-[0.25rem] gap-[0.31rem] border-none outline-none"
             style={
-              activeTab === 'explanation'
+              activeTab === 'explaination'
                 ? {
                     backgroundColor: 'white',
                   }
@@ -190,7 +190,7 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
           </button>
           <button
             onClick={() => setActiveTab('code')}
-            className="grow basis-0 flex items-center justify-center py-[0.5rem] rounded-[0.25rem] gap-[0.31rem]"
+            className="grow basis-0 flex items-center justify-center py-[0.5rem] rounded-[0.25rem] gap-[0.31rem] border-none outline-none"
             style={
               activeTab === 'code'
                 ? {
@@ -204,18 +204,18 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
           </button>
         </div>
 
-        {activeTab === 'explanation' && (
+        {activeTab === 'explaination' && (
           <div
             className="p-[0.75rem] border border-[#E5E5E5] rounded-[0.38rem] w-full grow overflow-auto min-h-0"
           >
-            {explanation}
+            {explaination}
           </div>
         )}
 
         {activeTab === 'code' && code && (
           <Prism
             className="border border-[#E5E5E5] rounded-[0.38rem] w-full grow min-h-0"
-            language="jsx"
+            language="tsx"
             style={oneLight}
             customStyle={{
               backgroundColor: 'transparent',
@@ -241,7 +241,7 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
               className="w-full flex gap-[0.31rem]"
             >
               <button
-                className="bg-[#F3F3F3] text-[#737373] grow basis-0 flex gap-[0.31rem] rounded-[0.25rem] p-[0.5rem] items-center justify-center"
+                className="bg-[#F3F3F3] text-[#737373] grow basis-0 flex gap-[0.31rem] rounded-[0.25rem] p-[0.5rem] items-center justify-center border-none outline-none"
                 onClick={onReject}
               >
                 <img src={greyXIconUrl} alt="x" className="w-[0.75rem] h-[0.75rem]" />
@@ -249,7 +249,7 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
               </button>
 
               <button
-                className="bg-[#5093B726] text-[#5093B7] grow basis-0 flex gap-[0.31rem] rounded-[0.25rem] p-[0.5rem] items-center justify-center"
+                className="bg-[#5093B726] text-[#5093B7] grow basis-0 flex gap-[0.31rem] rounded-[0.25rem] p-[0.5rem] items-center justify-center border-none outline-none"
                 onClick={onApprove}
               >
                 <img src={blueCheckIconUrl} alt="check" className="w-[0.75rem] h-[0.75rem]" />

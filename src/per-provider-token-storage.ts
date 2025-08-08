@@ -1,7 +1,7 @@
 import * as fs from 'fs'
-import * as path from 'path'
 import * as os from 'os'
-import { encrypt, decrypt } from './encryption'
+import * as path from 'path'
+import { decrypt, encrypt } from './encryption'
 import { ProviderTokens } from './oauth-providers'
 
 export interface UserInfo {
@@ -110,7 +110,6 @@ export class PerProviderTokenStorage {
 
     this.tokensCache.set(tokens.providerId, storedTokens)
     await this.saveProviderTokens(storedTokens)
-
   }
 
   /**
@@ -146,14 +145,12 @@ export class PerProviderTokenStorage {
         file.startsWith('oauth-tokens.') && file.endsWith('.encrypted'),
       )
 
-
       for (const file of tokenFiles) {
         const providerId = file.replace('oauth-tokens.', '').replace('.encrypted', '')
         if (!this.loadedProviders.has(providerId)) {
           await this.loadProviderTokens(providerId)
         }
       }
-
     }
     catch (error) {
       console.error('❌ Error loading all provider tokens:', error)
@@ -367,16 +364,14 @@ export class PerProviderTokenStorage {
    * Migrate from old single-file storage to per-provider files
    */
   async migrateFromOldStorage(oldStorageData: Record<string, StoredProviderTokens>): Promise<void> {
-
     for (const [providerId, tokens] of Object.entries(oldStorageData)) {
       // Only migrate if we don't already have a file for this provider
       const filePath = this.getTokenFilePath(providerId)
       if (!fs.existsSync(filePath)) {
         await this.storeTokens(tokens)
       }
-      else {
-      }
+      // else {
+      // }
     }
-
   }
 }

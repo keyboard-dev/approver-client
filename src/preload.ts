@@ -14,7 +14,7 @@ export interface Message {
   requiresResponse?: boolean
   codeEval?: boolean
   code?: string
-  explanation?: string
+  explaination?: string
   risk_level?: 'low' | 'medium' | 'high'
 }
 

@@ -13,8 +13,6 @@ interface ServerProviderManagerProps {
   className?: string
 }
 
-
-
 interface ProviderAuthData {
   providerId: string
   message?: string

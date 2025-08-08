@@ -1,19 +1,19 @@
-import { app, Notification, ipcMain, shell } from 'electron'
-import * as WebSocket from 'ws'
-import * as path from 'path'
 import * as crypto from 'crypto'
+import { app, ipcMain, Notification, shell } from 'electron'
 import * as fs from 'fs'
 import * as os from 'os'
-import { createRestAPIServer } from './rest-api'
-import { Message, AuthTokens, PKCEParams, AuthorizeResponse, TokenResponse, ErrorResponse } from './types'
-import { TrayManager } from './tray-manager'
-import { WindowManager } from './window-manager'
+import * as path from 'path'
+import * as WebSocket from 'ws'
 import { setEncryptionKeyProvider } from './encryption'
-import { OAuthProviderManager, OAuthProvider, ProviderTokens, PKCEParams as NewPKCEParams, ServerProvider, ServerProviderInfo } from './oauth-providers'
+import { OAuthCallbackData, OAuthHttpServer } from './oauth-http-server'
+import { PKCEParams as NewPKCEParams, OAuthProvider, OAuthProviderManager, ProviderTokens, ServerProvider, ServerProviderInfo } from './oauth-providers'
 import { OAuthTokenStorage, StoredProviderTokens } from './oauth-token-storage'
 import { PerProviderTokenStorage } from './per-provider-token-storage'
 import { OAuthProviderConfig } from './provider-storage'
-import { OAuthHttpServer, OAuthCallbackData } from './oauth-http-server'
+import { createRestAPIServer } from './rest-api'
+import { TrayManager } from './tray-manager'
+import { AuthorizeResponse, AuthTokens, ErrorResponse, Message, PKCEParams, TokenResponse } from './types'
+import { WindowManager } from './window-manager'
 
 // Types for WebSocket server configuration
 interface WebSocketVerifyInfo {
@@ -165,6 +165,7 @@ class MenuBarNotificationApp {
         console.warn('Dock icon not found at:', iconPath)
         // List what's actually in the assets directory for debugging
         try {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
           const files = fs.readdirSync(assetsPath)
         }
         catch {
@@ -181,8 +182,8 @@ class MenuBarNotificationApp {
           // Custom protocol URLs should only go to legacy OAuth handler
           this.handleOAuthCallback(url)
         }
-        else {
-        }
+        // else {
+        // }
       })
     }
 
@@ -246,7 +247,6 @@ class MenuBarNotificationApp {
    */
   private async initializeOAuthProviderSystem(): Promise<void> {
     try {
-      
       // Initialize OAuth provider system
       this.oauthProviderManager = new OAuthProviderManager(this.CUSTOM_PROTOCOL)
       this.oauthTokenStorage = new OAuthTokenStorage() // Keep for migration
@@ -257,8 +257,8 @@ class MenuBarNotificationApp {
 
       // Migrate from old storage format
       await this.migrateTokenStorage()
-      
-    } catch (error) {
+    }
+    catch (error) {
       console.error('❌ Failed to initialize OAuth provider system:', error)
       throw error
     }
@@ -326,7 +326,6 @@ class MenuBarNotificationApp {
 
       // Write to file with restricted permissions
       fs.writeFileSync(this.WS_KEY_FILE, JSON.stringify(keyData, null, 2), { mode: 0o600 })
-
 
       // Notify UI if window exists
       this.windowManager.sendMessage('ws-key-generated', {
@@ -408,7 +407,6 @@ class MenuBarNotificationApp {
 
       // Write to file with restricted permissions
       fs.writeFileSync(this.ENCRYPTION_KEY_FILE, JSON.stringify(keyData, null, 2), { mode: 0o600 })
-
 
       // Notify UI if window exists
       this.windowManager.sendMessage('encryption-key-generated', {
@@ -493,7 +491,6 @@ class MenuBarNotificationApp {
 
       // Open browser for user authentication
       await shell.openExternal(authUrl)
-
     }
     catch (error) {
       console.error(`❌ OAuth flow error for ${providerId}:`, error)
@@ -565,10 +562,8 @@ class MenuBarNotificationApp {
         sessionId: sessionId,
       }
 
-
       // Open browser for user authentication
       await shell.openExternal(authUrl)
-
     }
     catch (error) {
       console.error(`❌ Server OAuth flow error for ${serverId}/${provider}:`, error)
@@ -583,7 +578,6 @@ class MenuBarNotificationApp {
     provider: string,
   ): Promise<void> {
     try {
-
       if (callbackData.error) {
         throw new Error(`OAuth error: ${callbackData.error} - ${callbackData.error_description || ''}`)
       }
@@ -603,7 +597,6 @@ class MenuBarNotificationApp {
         })
         throw new Error('State mismatch - potential security issue')
       }
-
 
       // Exchange code for tokens using server
       const accessToken = await this.getValidAccessToken()
@@ -641,7 +634,6 @@ class MenuBarNotificationApp {
         timestamp: Date.now(),
         priority: 'normal',
       })
-
     }
     catch (error) {
       console.error(`❌ Server OAuth callback error for ${serverId}/${provider}:`, error)
@@ -651,7 +643,6 @@ class MenuBarNotificationApp {
 
   private async handleOAuthHttpCallback(callbackData: OAuthCallbackData): Promise<void> {
     try {
-
       if (callbackData.error) {
         throw new Error(`OAuth error: ${callbackData.error} - ${callbackData.error_description || ''}`)
       }
@@ -673,7 +664,6 @@ class MenuBarNotificationApp {
         throw new Error('State mismatch - potential CSRF attack')
       }
 
-
       // Exchange code for tokens
       await this.exchangeProviderCodeForTokens(this.currentProviderPKCE.providerId, callbackData.code, this.currentProviderPKCE)
     }
@@ -686,7 +676,6 @@ class MenuBarNotificationApp {
 
   private async exchangeProviderCodeForTokens(providerId: string, code: string, pkceParams: NewPKCEParams): Promise<void> {
     try {
-
       // Exchange code for tokens using provider manager
       const tokens = await this.oauthProviderManager.exchangeCodeForTokens(providerId, code, pkceParams)
 
@@ -719,7 +708,6 @@ class MenuBarNotificationApp {
         timestamp: Date.now(),
         priority: 'normal',
       })
-
     }
     catch (error) {
       console.error(`❌ Token exchange error for ${providerId}:`, error)
@@ -763,8 +751,8 @@ class MenuBarNotificationApp {
     this.windowManager.sendMessage('provider-auth-logout', { providerId })
 
     const provider = await this.oauthProviderManager.getProvider(providerId)
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const providerName = provider?.name || providerId
-
   }
 
   private async startOAuthFlow(): Promise<void> {
@@ -999,8 +987,7 @@ class MenuBarNotificationApp {
       },
     })
 
-    this.wsServer.on('connection', (ws: WebSocket, req) => {
-
+    this.wsServer.on('connection', (ws: WebSocket) => {
       ws.on('message', async (data: WebSocket.Data) => {
         try {
           const message = JSON.parse(data.toString())
@@ -1052,7 +1039,7 @@ class MenuBarNotificationApp {
                 user: providerInfo?.user || (this.SKIP_AUTH ? { email: 'test@example.com', firstName: 'Test Provider' } : null),
                 providerName: provider?.name || providerId,
               }
-   
+
               ws.send(JSON.stringify(tokenResponse))
             }
             catch (error) {
@@ -1318,7 +1305,7 @@ class MenuBarNotificationApp {
 
     ipcMain.handle('fetch-server-providers', async (event, serverId: string): Promise<ServerProviderInfo[]> => {
       const accessToken = await this.getValidAccessToken()
-      let serverProviders = await this.oauthProviderManager.fetchServerProviders(serverId, accessToken || undefined)
+      const serverProviders = await this.oauthProviderManager.fetchServerProviders(serverId, accessToken || undefined)
       return serverProviders
     })
 
