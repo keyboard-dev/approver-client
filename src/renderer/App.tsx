@@ -1,20 +1,21 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { Message, AuthStatus, ElectronAPI } from '../preload'
-import { Button } from './components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card'
-import { Textarea } from '../components/ui/textarea'
+import { Separator } from '@radix-ui/react-separator'
+import { AlertTriangle, CheckCircle, Clock, Wifi, WifiOff, X, XCircle } from 'lucide-react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Alert, AlertDescription } from '../components/ui/alert'
-import { Separator } from '../components/ui/separator'
-import { Badge } from './components/ui/badge'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from './components/ui/tabs'
-import { CheckCircle, XCircle, Clock, AlertTriangle, X, Wifi, WifiOff } from 'lucide-react'
+import { Textarea } from '../components/ui/textarea'
+import { extractJsonFromCodeApproval } from '../lib/utils/data.utils'
+import { AuthStatus, ElectronAPI, Message } from '../preload'
+import './App.css'
 import AuthComponent from './components/AuthComponent'
-import WebSocketKeyManager from './components/WebSocketKeyManager'
 import EncryptionKeyManager from './components/EncryptionKeyManager'
 import { OAuthProviderManager } from './components/OAuthProviderManager'
 import ServerProviderManager from './components/ServerProviderManager'
-import './App.css'
-import { extractJsonFromCodeApproval } from '../lib/utils/data.utils'
+import WebSocketKeyManager from './components/WebSocketKeyManager'
+import { ApprovalScreen } from './components/screens/ApprovalScreen'
+import { Badge } from './components/ui/badge'
+import { Button } from './components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs'
 
 const App: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([])
@@ -235,7 +236,6 @@ const App: React.FC = () => {
   const showMessageDetail = (message: Message) => {
     if (!authStatusRef.current.authenticated) return
 
-
     setCurrentMessage(message)
     setFeedback(message.feedback || '')
     setShowFeedback(false)
@@ -306,13 +306,13 @@ const App: React.FC = () => {
               <TabsTrigger value="explanation">Explanation</TabsTrigger>
             </TabsList>
             <TabsContent value="code" className="mt-2">
-              <div className="bg-gray-100 p-4 rounded-lg">
+              <div className="bg-gray-100 p-4 rounded-lg max-h-96 overflow-auto">
                 <pre className="whitespace-pre-wrap text-sm font-mono">{message.code || 'No code provided'}</pre>
               </div>
             </TabsContent>
             <TabsContent value="explanation" className="mt-2">
-              <div className="bg-gray-100 p-4 rounded-lg">
-                <pre className="whitespace-pre-wrap text-sm">{message.explaination || 'No explanation provided'}</pre>
+              <div className="bg-gray-100 p-4 rounded-lg max-h-96 overflow-auto">
+                <pre className="whitespace-pre-wrap text-sm">{message.explanation || 'No explanation provided'}</pre>
               </div>
             </TabsContent>
           </Tabs>
@@ -328,7 +328,7 @@ const App: React.FC = () => {
           ({ stdout, stderr } = parsedBody)
         }
         return (
-          <div className="bg-gray-100 p-4 rounded-lg">
+          <div className="bg-gray-100 p-4 rounded-lg max-h-96 overflow-auto">
             <pre className="whitespace-pre-wrap text-sm">{stdout || 'No output'}</pre>
             {stderr && (
               <div className="mt-2">
@@ -341,7 +341,7 @@ const App: React.FC = () => {
       }
       default:
         return (
-          <div className="bg-gray-100 p-4 rounded-lg">
+          <div className="bg-gray-100 p-4 rounded-lg max-h-96 overflow-auto">
             <pre className="whitespace-pre-wrap text-sm">
               {message.body}
             </pre>
@@ -381,8 +381,21 @@ const App: React.FC = () => {
     }
   }
 
+  if (currentMessage?.title === 'Security Evaluation Request') {
+    return (
+      <ApprovalScreen
+        message={currentMessage}
+        onApprove={approveMessage}
+        onBack={showMessageList}
+        onOptionClick={toggleSettings}
+        onReject={rejectMessage}
+        systemStatus="" // todo
+      />
+    )
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="h-screen bg-gray-50 overflow-auto">
       <div
         className="h-8 bg-gray-800 flex items-center justify-center px-4"
         style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}

@@ -166,7 +166,6 @@ export class OAuthProviderManager {
 
       // Write with restricted permissions
       fs.writeFileSync(this.SERVER_PROVIDERS_FILE, encryptedData, { mode: 0o600 })
-
     }
     catch (error) {
       console.error('❌ Error saving server providers:', error)
@@ -459,7 +458,6 @@ export class OAuthProviderManager {
 
     for (const server of servers) {
       try {
-
         const url = `${server.url}/api/oauth/refresh/${providerId}`
 
         const body = {
@@ -495,7 +493,6 @@ export class OAuthProviderManager {
         if (!tokenData.success) {
           throw new Error('Server token refresh was unsuccessful')
         }
-
 
         return {
           providerId: providerId,
@@ -560,7 +557,6 @@ export class OAuthProviderManager {
 
     const url = `${server.url}/api/oauth/providers`
 
-
     try {
       const headers: Record<string, string> = {
         Accept: 'application/json',
@@ -585,7 +581,6 @@ export class OAuthProviderManager {
       if (!data.success) {
         throw new Error('Server returned unsuccessful response')
       }
-
 
       return data.providers
     }
@@ -668,7 +663,6 @@ export class OAuthProviderManager {
 
     const fullUrl = `${url}?${params.toString()}`
 
-
     try {
       const headers: Record<string, string> = {
         Accept: 'application/json',
@@ -693,7 +687,6 @@ export class OAuthProviderManager {
       if (!data.success) {
         throw new Error('Server returned unsuccessful response')
       }
-
 
       return {
         authUrl: data.authorization_url,
@@ -733,7 +726,6 @@ export class OAuthProviderManager {
       grant_type: 'authorization_code',
     }
 
-
     try {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -761,8 +753,6 @@ export class OAuthProviderManager {
       if (!tokenData.success) {
         throw new Error('Server token exchange was unsuccessful')
       }
-
- 
 
       return {
         providerId: provider, // Use just the provider name (e.g., "google") instead of combined ID

@@ -63,8 +63,6 @@ export class OAuthTokenStorage {
       const decryptedData = decrypt(encryptedData)
       this.tokensCache = JSON.parse(decryptedData)
       this.isLoaded = true
-
-
     }
     catch (error) {
       console.error('❌ Error loading OAuth tokens:', error)

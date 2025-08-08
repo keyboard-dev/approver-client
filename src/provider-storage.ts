@@ -1,7 +1,7 @@
 import * as fs from 'fs'
-import * as path from 'path'
 import * as os from 'os'
-import { encrypt, decrypt } from './encryption'
+import * as path from 'path'
+import { decrypt, encrypt } from './encryption'
 
 export interface OAuthProviderConfig {
   id: string
@@ -75,8 +75,6 @@ export class ProviderStorage {
 
       // Write with restricted permissions
       fs.writeFileSync(filePath, encryptedData, { mode: 0o600 })
-
-  
     }
     catch (error) {
       console.error(`❌ Error saving provider ${provider.id}:`, error)
@@ -96,7 +94,6 @@ export class ProviderStorage {
       const providerFiles = files.filter(file =>
         file.startsWith('provider.') && file.endsWith('.encrypted'),
       )
-
 
       for (const file of providerFiles) {
         const providerId = file.replace('provider.', '').replace('.encrypted', '')
@@ -141,7 +138,6 @@ export class ProviderStorage {
 
     await this.saveProvider(provider)
     this.providersCache.set(provider.id, provider)
-
   }
 
   /**
@@ -181,6 +177,7 @@ export class ProviderStorage {
     }
 
     if (this.providersCache.has(providerId)) {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const provider = this.providersCache.get(providerId)
       this.providersCache.delete(providerId)
     }

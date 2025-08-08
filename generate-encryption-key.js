@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-require-imports */
 const crypto = require('crypto')
 
@@ -15,7 +16,6 @@ function generateEncryptionKey() {
 function generateKeys() {
   const encryptionKey = generateEncryptionKey()
   const codeEncryptionKey = generateEncryptionKey()
-
 }
 
 // Generate keys when script is run directly

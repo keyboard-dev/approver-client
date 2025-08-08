@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react'
-import { Card } from './ui/card'
-import { Button } from './ui/button'
-import { Badge } from './ui/badge'
-import { ManualProviderForm } from './ManualProviderForm'
+import React, { useEffect, useState } from 'react'
 import type { OAuthProvider, ProviderStatus } from '../../preload'
+import { ManualProviderForm } from './ManualProviderForm'
+import { Badge } from './ui/badge'
+import { Button } from './ui/button'
+import { Card } from './ui/card'
 
 interface OAuthProviderManagerProps {
   className?: string
@@ -59,6 +59,7 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
       setIsLoading(prev => ({ ...prev, [data.providerId]: false }))
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const handleProviderAuthLogout = (_event: Electron.IpcRendererEvent, data: ProviderAuthEvent) => {
       loadProviderStatus()
     }

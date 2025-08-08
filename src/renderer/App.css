@@ -1,3 +1,4 @@
+/* eslint-disable css/no-invalid-properties */
 /* App Styles */
 .app {
   height: 100vh;
@@ -286,4 +287,12 @@
 .priority-badge.high {
   background: #f8d7da;
   color: #721c24;
-} 
+}
+
+.draggable {
+  -webkit-app-region: drag;
+}
+
+.not-draggable {
+  -webkit-app-region: no-drag;
+}

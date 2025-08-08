@@ -1,3 +1,4 @@
+/* eslint-disable css/use-baseline */
 /* Reset and base styles */
 * {
     margin: 0;
@@ -19,7 +20,7 @@ body {
     flex-direction: column;
     background: rgba(255, 255, 255, 0.95);
     -webkit-backdrop-filter: blur(10px);
-    /* eslint-disable-next-line css/use-baseline */
+     
     backdrop-filter: blur(10px);
 }
 
@@ -32,7 +33,7 @@ body {
     background: rgba(255, 255, 255, 0.1);
     border-bottom: 1px solid rgba(0, 0, 0, 0.1);
     -webkit-backdrop-filter: blur(20px);
-    /* eslint-disable-next-line css/use-baseline */
+     
     backdrop-filter: blur(20px);
 }
 
@@ -152,7 +153,7 @@ body {
     height: 100%;
     background: rgba(255, 255, 255, 0.98);
     -webkit-backdrop-filter: blur(20px);
-    /* eslint-disable-next-line css/use-baseline */
+     
     backdrop-filter: blur(20px);
     display: flex;
     flex-direction: column;
@@ -297,20 +298,14 @@ body {
     display: none;
 }
 
-/* Scrollbar styling for webkit browsers */
-::-webkit-scrollbar {
-    width: 6px;
+/* Hide scrollbars completely */
+* {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* Internet Explorer 10+ */
 }
 
-::-webkit-scrollbar-track {
-    background: rgba(0, 0, 0, 0.05);
-}
-
-::-webkit-scrollbar-thumb {
-    background: rgba(0, 0, 0, 0.2);
-    border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-    background: rgba(0, 0, 0, 0.3);
+*::-webkit-scrollbar {
+    display: none; /* WebKit */
+    width: 0;
+    height: 0;
 }

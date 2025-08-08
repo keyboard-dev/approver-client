@@ -18,15 +18,18 @@ export class WindowManager {
   public createMainWindow(): void {
     this.mainWindow = new BrowserWindow({
       width: 600, // Larger for reading code
-      height: 700, // Taller for explanations
+      height: 800, // Taller for explanations
       show: false, // Don't show/focus the window when created
+      transparent: true,
+      frame: false,
       webPreferences: {
         preload: path.join(__dirname, 'preload.js'),
       },
       ...(process.platform === 'darwin' && {
         titleBarStyle: 'hidden',
         type: 'panel',
-        // alwaysOnTop: true,
+        vibrancy: 'under-window',
+        visualEffectState: 'active',
       }),
     })
 
