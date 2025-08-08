@@ -719,7 +719,6 @@ class MenuBarNotificationApp {
         timestamp: Date.now(),
         priority: 'normal',
       })
-
     }
     catch (error) {
       console.error(`❌ Token exchange error for ${providerId}:`, error)
