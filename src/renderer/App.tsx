@@ -426,7 +426,7 @@ const App: React.FC = () => {
       </div>
 
       <div
-        className="flex flex-col w-full grow min-h-0 bg-white rounded-[0.5rem] px-[0.63rem] py-[0.75rem] not-draggable gap-[0.63rem] items-start"
+        className="flex flex-col w-full grow min-h-0 bg-white rounded-[0.5rem] px-[0.63rem] py-[0.75rem] not-draggable gap-[0.63rem] items-start overflow-auto"
       >
         {/* Dismissible Connection Alert - Only show when disconnected and not dismissed */}
         {connectionStatus === 'disconnected' && !isAlertDismissed && authStatus.authenticated && (
