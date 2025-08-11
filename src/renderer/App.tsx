@@ -1,6 +1,7 @@
 import { Separator } from '@radix-ui/react-separator'
 import { AlertTriangle, CheckCircle, Clock, Wifi, WifiOff, X, XCircle } from 'lucide-react'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+import iconGearUrl from '../../assets/icon-gear.svg'
 import { Alert, AlertDescription } from '../components/ui/alert'
 import { Textarea } from '../components/ui/textarea'
 import { extractJsonFromCodeApproval } from '../lib/utils/data.utils'
@@ -312,7 +313,7 @@ const App: React.FC = () => {
             </TabsContent>
             <TabsContent value="explanation" className="mt-2">
               <div className="bg-gray-100 p-4 rounded-lg max-h-96 overflow-auto">
-                <pre className="whitespace-pre-wrap text-sm">{message.explanation || 'No explanation provided'}</pre>
+                <pre className="whitespace-pre-wrap text-sm">{message.explaination || 'No explanation provided'}</pre>
               </div>
             </TabsContent>
           </Tabs>
@@ -395,15 +396,38 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="h-screen bg-gray-50 overflow-auto">
-      <div
-        className="h-8 bg-gray-800 flex items-center justify-center px-4"
-        style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
-      >
-        <div className="text-white text-sm font-medium">Keyboard Approver</div>
+    <div
+      className="flex flex-col w-full h-screen bg-transparent draggable rounded-[0.5rem] p-[0.63rem] pt-0 items-center text-[0.88rem] text-[#171717]"
+    >
+      <div className="flex w-full -h-[1.56rem] mx-[1.25rem] my-[0.5rem] justify-between">
+        <div />
+        <div
+          className="px-[0.75rem] py-[0.25rem] rounded-full bg-[#BFBFBF] flex items-center gap-[0.63rem]"
+        >
+          <div
+            className="w-[10px] h-[10px] rounded-full bg-[#7BB750]"
+          />
+          <div
+            className="text-[#737373]"
+          >
+            All systems are
+            {' '}
+            <span className="text-[#7BB750] font-semibold">
+              normal
+            </span>
+          </div>
+        </div>
+        <button
+          onClick={toggleSettings}
+          className="px-[0.5rem] py-[0.25rem] rounded-full bg-[#BFBFBF] not-draggable"
+        >
+          <img src={iconGearUrl} alt="Settings" className="w-4 h-4" />
+        </button>
       </div>
 
-      <div className="p-4">
+      <div
+        className="flex flex-col w-full grow min-h-0 bg-white rounded-[0.5rem] px-[0.63rem] py-[0.75rem] not-draggable gap-[0.63rem] items-start"
+      >
         {/* Dismissible Connection Alert - Only show when disconnected and not dismissed */}
         {connectionStatus === 'disconnected' && !isAlertDismissed && authStatus.authenticated && (
           <div className="fixed top-4 right-4 z-40">
