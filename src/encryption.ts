@@ -63,8 +63,9 @@ export function encrypt(text: string): string {
 
 export function encryptWithCustomKey(text: string): string {
   try {
-    console.warn('CUSTOM_ENCRYPTION_KEY', CUSTOM_ENCRYPTION_KEY)
-    console.warn('CUSTOM_ENCRYPTION_KEY length', CUSTOM_ENCRYPTION_KEY.length)
+    if (!CUSTOM_ENCRYPTION_KEY || CUSTOM_ENCRYPTION_KEY.length == 0) {
+      return encrypt(text)
+    }
     if (!CUSTOM_ENCRYPTION_KEY || CUSTOM_ENCRYPTION_KEY.length !== 32) {
       throw new Error('Encryption key must be 32 bytes')
     }
@@ -110,6 +111,9 @@ export function decryptWithCustomKey(encryptedText: string): string {
 
     if (!ivHex || !encrypted) {
       throw new Error('Invalid encrypted data format')
+    }
+    if (!CUSTOM_ENCRYPTION_KEY || CUSTOM_ENCRYPTION_KEY.length == 0) {
+      return decrypt(encryptedText)
     }
     const iv = Buffer.from(ivHex, 'hex')
     const decipher = createDecipheriv(ALGORITHM, CUSTOM_ENCRYPTION_KEY, iv)
