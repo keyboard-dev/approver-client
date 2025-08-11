@@ -66,8 +66,6 @@ function getAssetsPath(): string {
   if (fs.existsSync(rootAssetsPath)) {
     return rootAssetsPath
   }
-
-  console.warn('Assets directory not found, using default path')
   return devAssetsPath // Return something even if not found
 }
 
@@ -162,14 +160,13 @@ class MenuBarNotificationApp {
         app.dock.setIcon(iconPath)
       }
       else {
-        console.warn('Dock icon not found at:', iconPath)
         // List what's actually in the assets directory for debugging
         try {
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
           const files = fs.readdirSync(assetsPath)
         }
         catch {
-          console.warn('Could not read assets directory:', assetsPath)
+          console.warn('Could not read assets directory:')
         }
       }
 
@@ -968,13 +965,11 @@ class MenuBarNotificationApp {
             || remoteAddress === '::ffff:127.0.0.1'
 
           if (!isLocalhost) {
-            console.warn(`🚨 Rejected WebSocket connection from non-localhost: ${remoteAddress}`)
             return false
           }
 
           // Validate key
           if (!providedKey || !this.validateWebSocketKey(providedKey)) {
-            console.warn(`🚨 Rejected WebSocket connection with invalid key from ${remoteAddress}`)
             return false
           }
 

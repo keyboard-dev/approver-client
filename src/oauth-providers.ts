@@ -362,8 +362,8 @@ export class OAuthProviderManager {
           userData = this.normalizeUserData(provider.id, userData as Record<string, unknown>)
         }
       }
-      catch (error) {
-        console.warn(`Failed to fetch user info for ${provider.id}:`, error)
+      catch {
+        // Ignore errors
       }
     }
 
@@ -390,9 +390,8 @@ export class OAuthProviderManager {
       try {
         return await this.refreshTokensDirect(providerId, refreshToken, provider)
       }
-      catch (error) {
-        console.warn(`Direct token refresh failed for ${providerId}, trying server fallback:`, error)
-        // Fall through to server refresh if direct refresh fails
+      catch {
+        // Ignore error
       }
     }
 
@@ -505,15 +504,13 @@ export class OAuthProviderManager {
           user: tokenData.user as ProviderTokens['user'],
         }
       }
-      catch (error) {
-        console.warn(`Failed to refresh ${providerId} via ${server.name}:`, error)
-        lastError = error as Error
+      catch {
         continue // Try next server
       }
     }
 
     // If we get here, all servers failed
-    throw new Error(`Failed to refresh ${providerId} tokens via any server provider. Last error: ${lastError?.message}`)
+    throw new Error(`Failed to refresh ${providerId} tokens via any server provider.`)
   }
 
   /**
