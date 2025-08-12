@@ -1,6 +1,5 @@
+import Editor from '@monaco-editor/react'
 import React, { useState } from 'react'
-import { Prism } from 'react-syntax-highlighter'
-import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism'
 
 import { Message } from '../../../preload'
 
@@ -33,6 +32,7 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
   onReject,
 }) => {
   const [activeTab, setActiveTab] = useState<'code' | 'explaination'>('explaination')
+  const [edittedCode, setEdittedCode] = useState<string>(message.code || '')
 
   const {
     code,
@@ -213,24 +213,41 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
         )}
 
         {activeTab === 'code' && code && (
-          <Prism
-            className="border border-[#E5E5E5] rounded-[0.38rem] w-full grow min-h-0"
-            language="tsx"
-            style={oneLight}
-            customStyle={{
-              backgroundColor: 'transparent',
-              padding: '0.75rem',
-              margin: 0,
+          // <Prism
+          //   className="border border-[#E5E5E5] rounded-[0.38rem] w-full grow min-h-0"
+          //   language="tsx"
+          //   style={oneLight}
+          //   customStyle={{
+          //     backgroundColor: 'transparent',
+          //     padding: '0.75rem',
+          //     margin: 0,
+          //     fontFamily: 'Fira Code, monospace',
+          //   }}
+          //   showLineNumbers
+          //   lineNumberStyle={{
+          //     minWidth: '2.5rem',
+          //   }}
+          //   wrapLongLines
+          // >
+          //   {code}
+          // </Prism>
+          <Editor
+            // height="100%"
+            defaultLanguage="typescript"
+            defaultValue={edittedCode}
+            onChange={value => setEdittedCode(value || '')}
+            theme="light"
+            options={{
+              minimap: {
+                enabled: false,
+              },
               fontFamily: 'Fira Code, monospace',
             }}
-            showLineNumbers
-            lineNumberStyle={{
-              minWidth: '2.5rem',
+            className="border border-[#E5E5E5] rounded-[0.38rem] w-full grow min-h-0 overflow-auto"
+            wrapperProps={{
+              className: 'border border-[#E5E5E5] rounded-[0.38rem] w-full grow min-h-0 overflow-auto',
             }}
-            wrapLongLines
-          >
-            {code}
-          </Prism>
+          />
         )}
 
         {status === 'pending' && (

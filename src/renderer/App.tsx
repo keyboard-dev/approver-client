@@ -382,10 +382,23 @@ const App: React.FC = () => {
     }
   }
 
-  if (currentMessage?.title === 'Security Evaluation Request') {
+  const mockMessage = {
+    id: '123',
+    title: 'Security Evaluation Request',
+    body: 'This is a mock message',
+    code: 'console.log("Hello, world!");',
+    explaination: 'This is a mock explanation',
+    status: 'pending' as const,
+    sender: 'test@test.com',
+    timestamp: new Date().getTime(),
+  }
+
+  // if (currentMessage?.title === 'Security Evaluation Request') {
+  if (mockMessage?.title === 'Security Evaluation Request') {
     return (
       <ApprovalScreen
-        message={currentMessage}
+        // message={currentMessage}
+        message={mockMessage}
         onApprove={approveMessage}
         onBack={showMessageList}
         onOptionClick={toggleSettings}
