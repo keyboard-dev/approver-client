@@ -120,7 +120,7 @@ export interface ElectronAPI {
   getMessages: () => Promise<Message[]>
   markMessageRead: (messageId: string) => Promise<void>
   deleteMessage: (messageId: string) => Promise<void>
-  approveMessage: (messageId: string, feedback?: string, messageBody?: string) => Promise<void>
+  approveMessage: (messageId: string, feedback?: string, overrides?: Partial<Message>) => Promise<void>
   rejectMessage: (messageId: string, feedback?: string) => Promise<void>
   showMessages: () => void
   onShowMessage: (callback: (event: IpcRendererEvent, message: Message) => void) => void
@@ -177,7 +177,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getMessages: (): Promise<Message[]> => ipcRenderer.invoke('get-messages'),
   markMessageRead: (messageId: string): Promise<void> => ipcRenderer.invoke('mark-message-read', messageId),
   deleteMessage: (messageId: string): Promise<void> => ipcRenderer.invoke('delete-message', messageId),
-  approveMessage: (messageId: string, feedback?: string, messageBody?: string): Promise<void> => ipcRenderer.invoke('approve-message', messageId, feedback, messageBody),
+  approveMessage: (messageId: string, feedback?: string, overrides?: Partial<Message>): Promise<void> => ipcRenderer.invoke('approve-message', messageId, feedback, overrides),
   rejectMessage: (messageId: string, feedback?: string): Promise<void> => ipcRenderer.invoke('reject-message', messageId, feedback),
   showMessages: (): void => ipcRenderer.send('show-messages'),
 

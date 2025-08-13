@@ -1,4 +1,6 @@
 import Editor from '@monaco-editor/react'
+import * as monaco from 'monaco-editor'
+import lazyTheme from 'monaco-themes/themes/Lazy.json'
 import React, { useState } from 'react'
 
 import { Message } from '../../../preload'
@@ -13,26 +15,34 @@ import greyXIconUrl from '../../../../assets/icon-x-grey.svg'
 import xIconUrl from '../../../../assets/icon-x.svg'
 
 interface ApprovalScreenProps {
+  currentMessageCode?: string
   message: Message
   // todo reflect status of websocket and user authentication
-  // websocket started
   // user is authenticated
+  // websocket started
   systemStatus: string
   onApprove: () => void
   onBack: () => void
   onOptionClick: () => void
   onReject: () => void
+  setCurrentMessageCode: (code?: string) => void
 }
 
 export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
+  currentMessageCode,
   message,
   onApprove,
   onBack,
   onOptionClick,
   onReject,
+  setCurrentMessageCode,
 }) => {
   const [activeTab, setActiveTab] = useState<'code' | 'explaination'>('explaination')
-  const [edittedCode, setEdittedCode] = useState<string>(message.code || '')
+
+  const handleEditorWillMount = (monacoInstance: typeof monaco) => {
+    // monacoInstance.editor.defineTheme('github', githubTheme as monaco.editor.IStandaloneThemeData)
+    monacoInstance.editor.defineTheme('lazy', lazyTheme as monaco.editor.IStandaloneThemeData)
+  }
 
   const {
     code,
@@ -232,20 +242,17 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
           //   {code}
           // </Prism>
           <Editor
-            // height="100%"
-            defaultLanguage="typescript"
-            defaultValue={edittedCode}
-            onChange={value => setEdittedCode(value || '')}
-            theme="light"
+            height="100%"
+            width="100%"
+            defaultLanguage="javascript"
+            defaultValue={currentMessageCode}
+            onChange={value => setCurrentMessageCode(value)}
+            theme="lazy"
+            beforeMount={handleEditorWillMount}
             options={{
-              minimap: {
-                enabled: false,
-              },
-              fontFamily: 'Fira Code, monospace',
-            }}
-            className="border border-[#E5E5E5] rounded-[0.38rem] w-full grow min-h-0 overflow-auto"
-            wrapperProps={{
-              className: 'border border-[#E5E5E5] rounded-[0.38rem] w-full grow min-h-0 overflow-auto',
+              fontFamily: '"Fira Code", monospace',
+              lineNumbersMinChars: 0,
+              minimap: { enabled: false },
             }}
           />
         )}

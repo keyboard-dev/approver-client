@@ -1,6 +1,7 @@
 import * as crypto from 'crypto'
 import { app, ipcMain, Notification, shell } from 'electron'
 import * as fs from 'fs'
+import _ from 'lodash'
 import * as os from 'os'
 import * as path from 'path'
 import * as WebSocket from 'ws'
@@ -1325,18 +1326,24 @@ class MenuBarNotificationApp {
     })
 
     // Handle approve message
-    ipcMain.handle('approve-message', (event, messageId: string, feedback?: string): void => {
+    ipcMain.handle('approve-message', (event, messageId: string, feedback?: string, overrides?: Partial<Message>): void => {
       const message = this.messages.find(msg => msg.id === messageId)
+
       if (message) {
         message.status = 'approved'
-        message.feedback = feedback
+
+        let sendingMessage = _.cloneDeep(message)
+        sendingMessage.feedback = feedback
+        if (overrides) {
+          sendingMessage = _.merge(sendingMessage, overrides)
+        }
 
         // Update pending count
         this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length
         this.trayManager.updateTrayIcon()
 
         // Send response back through WebSocket if needed
-        this.sendWebSocketResponse(message, 'approved', feedback)
+        this.sendWebSocketResponse(sendingMessage)
       }
     })
 
@@ -1352,7 +1359,7 @@ class MenuBarNotificationApp {
         this.trayManager.updateTrayIcon()
 
         // Send response back through WebSocket if needed
-        this.sendWebSocketResponse(message, 'rejected', feedback)
+        this.sendWebSocketResponse(message)
       }
     })
 
@@ -1423,29 +1430,30 @@ class MenuBarNotificationApp {
     })
   }
 
-  private sendWebSocketResponse(message: Message, status: 'approved' | 'rejected', feedback?: string): void {
+  private sendWebSocketResponse(message: Message): void {
     if (this.wsServer && message.requiresResponse) {
-      const response = {
-        id: message.id,
-        status: status,
-        feedback: feedback,
-        timestamp: Date.now(),
-        originalMessage: {
-          id: message.id,
-          title: message.title,
-          body: 'no body',
-        },
-      }
-      if (status === 'approved') {
-        if (message.body) {
-          response.originalMessage.body = message.body
-        }
-      }
+      // const response = {
+      //   id: message.id,
+      //   status: status,
+      //   feedback: feedback,
+      //   timestamp: Date.now(),
+      //   originalMessage: {
+      //     id: message.id,
+      //     title: message.title,
+      //     body: 'no body',
+      //   },
+      // }
+
+      // if (status === 'approved') {
+      //   if (message.body) {
+      //     response.originalMessage.body = message.body
+      //   }
+      // }
 
       // Send response to all connected WebSocket clients
       this.wsServer.clients.forEach((client) => {
         if (client.readyState === WebSocket.OPEN) {
-          client.send(JSON.stringify(response))
+          client.send(JSON.stringify(message))
         }
       })
     }
@@ -1467,7 +1475,7 @@ class MenuBarNotificationApp {
           this.trayManager.updateTrayIcon()
 
           // Send response through WebSocket if needed
-          this.sendWebSocketResponse(message, status, feedback)
+          this.sendWebSocketResponse(message)
 
           return true
         }

@@ -41,3 +41,46 @@ export const extractJsonFromCodeApproval = (messageBody: string) => {
     }
   }
 }
+
+export const getCodeApprovalMessageBodyWithStdMessage = ({
+  messageBody,
+  stdout,
+  stderr,
+}: {
+  messageBody: string
+  stdout: string
+  stderr: string
+}) => {
+  try {
+    // First, try to find and extract the JSON part from the message
+    const jsonMatch = messageBody.match(/\{[\s\S]*\}/)
+
+    if (jsonMatch) {
+      const jsonStr = jsonMatch[0]
+      const jsonData = JSON.parse(jsonStr)
+
+      // Update the stdout and stderr in the data object
+      if (jsonData.data) {
+        jsonData.data.stdout = stdout
+        jsonData.data.stderr = stderr
+      }
+      else {
+        // If no data object, update at root level
+        jsonData.stdout = stdout
+        jsonData.stderr = stderr
+      }
+
+      // Replace the original JSON in the message with the updated JSON
+      const updatedJsonStr = JSON.stringify(jsonData)
+      return messageBody.replace(jsonMatch[0], updatedJsonStr)
+    }
+
+    // If no JSON found, return original message
+    return messageBody
+  }
+  catch (error) {
+    // If parsing fails, return original message
+    console.error('Failed to update stdout/stderr in message:', error)
+    return messageBody
+  }
+}
