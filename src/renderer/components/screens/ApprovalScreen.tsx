@@ -33,7 +33,7 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
   onOptionClick,
   onReject,
 }) => {
-  const [activeTab, setActiveTab] = useState<'code' | 'explaination'>('explaination')
+  const [activeTab, setActiveTab] = useState<'code' | 'explanation'>('explanation')
 
   const handleEditorWillMount = (monacoInstance: typeof monaco) => {
     // monacoInstance.editor.defineTheme('github', githubTheme as monaco.editor.IStandaloneThemeData)
@@ -42,7 +42,7 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
 
   const {
     code,
-    explaination,
+    explanation,
     risk_level,
     status,
     timestamp,
@@ -183,10 +183,10 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
           className="flex w-full border border-[#E5E5E5] rounded-[0.38rem] bg-[#F3F3F3] p-[0.25rem] text-[#737373] font-semibold"
         >
           <button
-            onClick={() => setActiveTab('explaination')}
+            onClick={() => setActiveTab('explanation')}
             className="grow basis-0 flex items-center justify-center py-[0.5rem] rounded-[0.25rem] gap-[0.31rem] border-none outline-none"
             style={
-              activeTab === 'explaination'
+              activeTab === 'explanation'
                 ? {
                     backgroundColor: 'white',
                   }
@@ -212,11 +212,11 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
           </button>
         </div>
 
-        {activeTab === 'explaination' && (
+        {activeTab === 'explanation' && (
           <div
             className="p-[0.75rem] border border-[#E5E5E5] rounded-[0.38rem] w-full grow overflow-auto min-h-0"
           >
-            {explaination}
+            {explanation}
           </div>
         )}
 
