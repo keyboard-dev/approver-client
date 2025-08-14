@@ -13,6 +13,8 @@ export interface Message {
   code?: string
   explaination?: string
   type?: string
+  risk_level?: 'low' | 'medium' | 'high'
+  codespaceResponse?: { data: Record<string, unknown> & { stdout?: string, stderr?: string } }
 }
 
 export interface AuthTokens {

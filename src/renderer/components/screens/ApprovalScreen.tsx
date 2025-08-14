@@ -3,7 +3,7 @@ import * as monaco from 'monaco-editor'
 import lazyTheme from 'monaco-themes/themes/Lazy.json'
 import React, { useState } from 'react'
 
-import { Message } from '../../../preload'
+import { Message } from '../../../types'
 
 import blueCheckIconUrl from '../../../../assets/icon-check-blue.svg'
 import checkIconUrl from '../../../../assets/icon-check.svg'
@@ -15,7 +15,6 @@ import greyXIconUrl from '../../../../assets/icon-x-grey.svg'
 import xIconUrl from '../../../../assets/icon-x.svg'
 
 interface ApprovalScreenProps {
-  currentMessageCode?: string
   message: Message
   // todo reflect status of websocket and user authentication
   // user is authenticated
@@ -25,17 +24,14 @@ interface ApprovalScreenProps {
   onBack: () => void
   onOptionClick: () => void
   onReject: () => void
-  setCurrentMessageCode: (code?: string) => void
 }
 
 export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
-  currentMessageCode,
   message,
   onApprove,
   onBack,
   onOptionClick,
   onReject,
-  setCurrentMessageCode,
 }) => {
   const [activeTab, setActiveTab] = useState<'code' | 'explaination'>('explaination')
 
@@ -88,7 +84,9 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
       className="flex flex-col w-full h-screen bg-transparent draggable rounded-[0.5rem] p-[0.63rem] pt-0 items-center text-[0.88rem] text-[#171717]"
     >
       <div className="flex w-full -h-[1.56rem] mx-[1.25rem] my-[0.5rem] justify-between">
-        <div />
+        <div
+          className="px-[0.5rem] py-[0.25rem] w-4 h-4"
+        />
         <div
           className="px-[0.75rem] py-[0.25rem] rounded-full bg-[#BFBFBF] flex items-center gap-[0.63rem]"
         >
@@ -107,7 +105,7 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
         </div>
         <button
           onClick={onOptionClick}
-          className="px-[0.5rem] py-[0.25rem] rounded-full bg-[#BFBFBF] not-draggable"
+          className="px-[0.5rem] py-[0.25rem] rounded-full bg-[#BFBFBF] not-draggable "
         >
           <img src={iconGearUrl} alt="Settings" className="w-4 h-4" />
         </button>
@@ -244,9 +242,9 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
           <Editor
             height="100%"
             width="100%"
-            defaultLanguage="javascript"
-            defaultValue={currentMessageCode}
-            onChange={value => setCurrentMessageCode(value)}
+            language="javascript"
+            value={message.code}
+            onChange={value => message.code = value}
             theme="lazy"
             beforeMount={handleEditorWillMount}
             options={{

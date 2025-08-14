@@ -7,8 +7,8 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import iconGearUrl from '../../assets/icon-gear.svg'
 import { Alert, AlertDescription } from '../components/ui/alert'
 import { Textarea } from '../components/ui/textarea'
-import { extractJsonFromCodeApproval, getCodeApprovalMessageBodyWithStdMessage } from '../lib/utils/data.utils'
-import { AuthStatus, ElectronAPI, Message } from '../preload'
+import { AuthStatus, ElectronAPI } from '../preload'
+import { Message } from '../types'
 import './App.css'
 import AuthComponent from './components/AuthComponent'
 import EncryptionKeyManager from './components/EncryptionKeyManager'
@@ -30,7 +30,6 @@ const getEditorOptions = (): monaco.editor.IStandaloneEditorConstructionOptions 
   fontFamily: '"Fira Code", monospace',
   lineNumbersMinChars: 0,
   minimap: { enabled: false },
-  readOnly: true,
 })
 
 const App: React.FC = () => {
@@ -45,38 +44,31 @@ const App: React.FC = () => {
   const [isInitialized, setIsInitialized] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [isSkippingAuth, setIsSkippingAuth] = useState(false)
-  const [currentMessageCode, setCurrentMessageCode] = useState<string | undefined>(undefined)
-  const [currentMessageStdout, setCurrentMessageStdout] = useState<string | undefined>(undefined)
-  const [currentMessageStderr, setCurrentMessageStderr] = useState<string | undefined>(undefined)
 
   // Use refs to track state without causing re-renders
   const authStatusRef = useRef<AuthStatus>({ authenticated: false })
   const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  useEffect(() => {
-    if (currentMessage) {
-      setCurrentMessageCode(currentMessage.code)
+  // useEffect(() => {
+  //   if (currentMessage) {
+  //     setCurrentMessageCode(currentMessage.code)
 
-      const parsedBody = extractJsonFromCodeApproval(currentMessage.body)
-      const { data } = parsedBody
-      let stdout, stderr
-      if (data) {
-        ({ stdout, stderr } = data)
-      }
-      if (stdout) {
-        setCurrentMessageStdout(stdout)
-      }
-      if (stderr) {
-        setCurrentMessageStderr(stderr)
-      }
-    }
-    else {
-      setCurrentMessageCode(undefined)
-      setCurrentMessageStdout(undefined)
-      setCurrentMessageStderr(undefined)
-    }
-  }, [currentMessage])
+  //     const parsedBody = extractJsonFromCodeApproval(currentMessage.body)
+  //     const { data } = parsedBody
+  //     let stdout, stderr
+  //     if (data) {
+  //       ({ stdout, stderr } = data)
+  //     }
+  //     setCurrentMessageStdout(stdout)
+  //     setCurrentMessageStderr(stderr)
+  //   }
+  //   else {
+  //     setCurrentMessageCode(undefined)
+  //     setCurrentMessageStdout(undefined)
+  //     setCurrentMessageStderr(undefined)
+  //   }
+  // }, [currentMessage])
 
   // Debounced connection status update
   const updateConnectionStatus = useCallback((status: 'connected' | 'disconnected' | 'connecting') => {
@@ -233,36 +225,21 @@ const App: React.FC = () => {
   const approveMessage = async () => {
     if (!currentMessage || !authStatusRef.current.authenticated) return
 
-    console.log('=============approveMessage============= ')
-    console.log(currentMessage)
-
-    const overrides = {}
-    switch (currentMessage.title) {
-      case 'Security Evaluation Request':
-        (overrides as { code?: string }).code = currentMessageCode
-        break
-      case 'code response approval':
-        (overrides as { body?: string }).body = getCodeApprovalMessageBodyWithStdMessage({
-          messageBody: currentMessage.body,
-          stdout: currentMessageStdout || '',
-          stderr: currentMessageStderr || '',
-        })
-        break
-      default:
-        break
-    }
-
     try {
-      await window.electronAPI.approveMessage(currentMessage.id, showFeedback ? feedback : undefined, overrides)
+      await window.electronAPI.approveMessage(currentMessage, showFeedback ? feedback : undefined)
 
-      const updatedMessage = {
-        ...currentMessage,
-        status: 'approved' as const,
-        feedback: showFeedback ? feedback : undefined,
-      }
+      currentMessage.status = 'approved'
 
-      setCurrentMessage(updatedMessage)
-      setMessages(prev => prev.map(m => m.id === currentMessage.id ? updatedMessage : m))
+      refreshMessages()
+
+      // const updatedMessage = {
+      //   ...currentMessage,
+      //   status: 'approved' as const,
+      //   feedback: showFeedback ? feedback : undefined,
+      // }
+
+      // setCurrentMessage(updatedMessage)
+      // setMessages(prev => prev.map(m => m.id === currentMessage.id ? updatedMessage : m))
       setFeedback('')
       setShowFeedback(false)
     }
@@ -278,14 +255,18 @@ const App: React.FC = () => {
     try {
       await window.electronAPI.rejectMessage(currentMessage.id, showFeedback ? feedback : undefined)
 
-      const updatedMessage = {
-        ...currentMessage,
-        status: 'rejected' as const,
-        feedback: showFeedback ? feedback : undefined,
-      }
+      currentMessage.status = 'rejected'
 
-      setCurrentMessage(updatedMessage)
-      setMessages(prev => prev.map(m => m.id === currentMessage.id ? updatedMessage : m))
+      refreshMessages()
+
+      // const updatedMessage = {
+      //   ...currentMessage,
+      //   status: 'rejected' as const,
+      //   feedback: showFeedback ? feedback : undefined,
+      // }
+
+      // setCurrentMessage(updatedMessage)
+      // setMessages(prev => prev.map(m => m.id === currentMessage.id ? updatedMessage : m))
       setFeedback('')
       setShowFeedback(false)
     }
@@ -360,26 +341,32 @@ const App: React.FC = () => {
 
   const getCodeBlock = (message: Message) => {
     switch (message.title) {
-      case 'Security Evaluation Request':
-        return (
-          <Tabs defaultValue="code" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="code">Code</TabsTrigger>
-              <TabsTrigger value="explanation">Explanation</TabsTrigger>
-            </TabsList>
-            <TabsContent value="code" className="mt-2">
-              <div className="bg-gray-100 p-4 rounded-lg max-h-96 overflow-auto">
-                <pre className="whitespace-pre-wrap text-sm font-mono">{message.code || 'No code provided'}</pre>
-              </div>
-            </TabsContent>
-            <TabsContent value="explanation" className="mt-2">
-              <div className="bg-gray-100 p-4 rounded-lg max-h-96 overflow-auto">
-                <pre className="whitespace-pre-wrap text-sm">{message.explaination || 'No explanation provided'}</pre>
-              </div>
-            </TabsContent>
-          </Tabs>
-        )
+      // case 'Security Evaluation Request':
+      //   return (
+      //     <Tabs defaultValue="code" className="w-full">
+      //       <TabsList className="grid w-full grid-cols-2">
+      //         <TabsTrigger value="code">Code</TabsTrigger>
+      //         <TabsTrigger value="explanation">Explanation</TabsTrigger>
+      //       </TabsList>
+      //       <TabsContent value="code" className="mt-2">
+      //         <div className="bg-gray-100 p-4 rounded-lg max-h-96 overflow-auto">
+      //           <pre className="whitespace-pre-wrap text-sm font-mono">{message.code || 'No code provided'}</pre>
+      //         </div>
+      //       </TabsContent>
+      //       <TabsContent value="explanation" className="mt-2">
+      //         <div className="bg-gray-100 p-4 rounded-lg max-h-96 overflow-auto">
+      //           <pre className="whitespace-pre-wrap text-sm">{message.explaination || 'No explanation provided'}</pre>
+      //         </div>
+      //       </TabsContent>
+      //     </Tabs>
+      //   )
       case 'code response approval': {
+        if (!currentMessage || !currentMessage.codespaceResponse) return
+        // const parsedBody = extractJsonFromCodeApproval(currentMessage.body)
+        const { codespaceResponse } = currentMessage
+        const { data: codespaceResponseData } = codespaceResponse
+        const hasError = Boolean(codespaceResponseData.stderr)
+
         return (
           <div className="bg-gray-100 p-4 rounded-lg h-96 overflow-hidden flex flex-col">
             {/* Standard Output */}
@@ -389,7 +376,9 @@ const App: React.FC = () => {
                 <Editor
                   height="100%"
                   language="plaintext"
-                  value={currentMessageStdout || 'No output'}
+                  defaultValue="No output"
+                  value={codespaceResponseData.stdout}
+                  onChange={value => codespaceResponseData.stdout = value}
                   theme="lazy"
                   beforeMount={handleEditorWillMount}
                   options={getEditorOptions()}
@@ -398,7 +387,7 @@ const App: React.FC = () => {
             </div>
 
             {/* Error Output */}
-            {currentMessageStderr && (
+            {hasError && (
               <div className="mt-2 flex-grow flex flex-col">
                 <div className="text-sm font-medium text-red-700 mb-1">
                   Error Output (Please review to see if there are any sensitive content):
@@ -407,7 +396,8 @@ const App: React.FC = () => {
                   <Editor
                     height="100%"
                     language="plaintext"
-                    value={currentMessageStderr}
+                    value={codespaceResponseData.stderr}
+                    onChange={value => codespaceResponseData.stderr = value}
                     theme="lazy"
                     beforeMount={handleEditorWillMount}
                     options={getEditorOptions()}
@@ -432,43 +422,21 @@ const App: React.FC = () => {
   const getMessageSummary = (message: Message) => {
     switch (message.title) {
       case 'code response approval': {
-        const parsedBody = extractJsonFromCodeApproval(message.body)
-        const { data } = parsedBody
-        let stdout, stderr
-        if (data) {
-          ({ stdout, stderr } = data)
-        }
-        else {
-          ({ stdout, stderr } = parsedBody)
-        }
+        const { codespaceResponse } = message
+        if (!codespaceResponse) return message.body
+        const { data: codespaceResponseData } = codespaceResponse
+        const { stdout, stderr } = codespaceResponseData
         return (
-          <div className="space-y-2">
-            {stdout && (
-              <div className="border border-gray-200 rounded">
-                <Editor
-                  height="60px"
-                  language="plaintext"
-                  value={stdout}
-                  theme="lazy"
-                  beforeMount={handleEditorWillMount}
-                  options={getEditorOptions()}
-                />
-              </div>
-            )}
+          <>
             {stderr && (
-              <div className="border border-red-200 rounded bg-red-50">
-                <div className="text-xs text-red-600 px-2 pt-1 font-medium">Error:</div>
-                <Editor
-                  height="60px"
-                  language="plaintext"
-                  value={stderr}
-                  theme="lazy"
-                  beforeMount={handleEditorWillMount}
-                  options={getEditorOptions()}
-                />
-              </div>
+              <span className="text-red-500">
+                Error:
+                {' '}
+                {stderr}
+              </span>
             )}
-          </div>
+            {stdout}
+          </>
         )
       }
       case 'Security Evaluation Request':
@@ -477,61 +445,14 @@ const App: React.FC = () => {
     }
   }
 
-  //   const mockMessage = {
-  //     id: '123',
-  //     title: 'Security Evaluation Request',
-  //     body: 'This is a mock message',
-  //     code: `const todos = [
-  //   { id: 1, text: 'Learn JavaScript', completed: false },
-  //   { id: 2, text: 'Build a todo app', completed: true },
-  //   { id: 3, text: 'Master React', completed: false }
-  // ];
-
-  // function addTodo(text) {
-  //   const newTodo = {
-  //     id: Date.now(),
-  //     text: text,
-  //     completed: false
-  //   };
-  //   todos.push(newTodo);
-  //   renderTodos();
-  // }
-
-  // function toggleTodo(id) {
-  //   const todo = todos.find(t => t.id === id);
-  //   if (todo) {
-  //     todo.completed = !todo.completed;
-  //     renderTodos();
-  //   }
-  // }
-
-  // function renderTodos() {
-  //   const todoList = document.getElementById('todo-list');
-  //   todoList.innerHTML = todos.map(todo =>
-  //     \`<li class="\${todo.completed ? 'completed' : ''}">
-  //       \${todo.text}
-  //       <button onclick="toggleTodo(\${todo.id})">Toggle</button>
-  //     </li>\`
-  //   ).join('');
-  // }`,
-  //     explaination: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.',
-  //     status: 'pending' as const,
-  //     sender: 'test@test.com',
-  //     timestamp: new Date().getTime(),
-  //   }
-
   if (currentMessage?.title === 'Security Evaluation Request') {
-  // if (mockMessage?.title === 'Security Evaluation Request') {
     return (
       <ApprovalScreen
-        currentMessageCode={currentMessageCode}
-        // message={mockMessage}
         message={currentMessage}
         onApprove={approveMessage}
         onBack={showMessageList}
         onOptionClick={toggleSettings}
         onReject={rejectMessage}
-        setCurrentMessageCode={setCurrentMessageCode}
         systemStatus="" // todo
       />
     )
@@ -542,7 +463,9 @@ const App: React.FC = () => {
       className="flex flex-col w-full h-screen bg-transparent draggable rounded-[0.5rem] p-[0.63rem] pt-0 items-center text-[0.88rem] text-[#171717]"
     >
       <div className="flex w-full -h-[1.56rem] mx-[1.25rem] my-[0.5rem] justify-between">
-        <div />
+        <div
+          className="px-[0.5rem] py-[0.25rem] w-4 h-4"
+        />
         <div
           className="px-[0.75rem] py-[0.25rem] rounded-full bg-[#BFBFBF] flex items-center gap-[0.63rem]"
         >

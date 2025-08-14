@@ -1326,24 +1326,21 @@ class MenuBarNotificationApp {
     })
 
     // Handle approve message
-    ipcMain.handle('approve-message', (event, messageId: string, feedback?: string, overrides?: Partial<Message>): void => {
-      const message = this.messages.find(msg => msg.id === messageId)
+    ipcMain.handle('approve-message', (event, message: Message, feedback?: string): void => {
+      const existingMessage = this.messages.find(msg => msg.id === message.id)
 
-      if (message) {
-        message.status = 'approved'
-
-        let sendingMessage = _.cloneDeep(message)
-        sendingMessage.feedback = feedback
-        if (overrides) {
-          sendingMessage = _.merge(sendingMessage, overrides)
-        }
+      if (existingMessage) {
+        // Update the existing message with the passed message data
+        _.assign(existingMessage, message)
+        existingMessage.status = 'approved'
+        existingMessage.feedback = feedback
 
         // Update pending count
         this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length
         this.trayManager.updateTrayIcon()
 
         // Send response back through WebSocket if needed
-        this.sendWebSocketResponse(sendingMessage)
+        this.sendWebSocketResponse(existingMessage)
       }
     })
 
