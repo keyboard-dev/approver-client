@@ -11,8 +11,10 @@ export interface Message {
   requiresResponse?: boolean
   codeEval?: boolean
   code?: string
-  explaination?: string
+  explanation?: string
   type?: string
+  risk_level?: 'low' | 'medium' | 'high'
+  codespaceResponse?: { data: Record<string, unknown> & { stdout?: string, stderr?: string } }
 }
 
 export interface AuthTokens {

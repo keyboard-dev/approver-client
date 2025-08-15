@@ -1,11 +1,14 @@
+import Editor from '@monaco-editor/react'
 import { Separator } from '@radix-ui/react-separator'
 import { AlertTriangle, CheckCircle, Clock, Wifi, WifiOff, X, XCircle } from 'lucide-react'
+import * as monaco from 'monaco-editor'
+import lazyTheme from 'monaco-themes/themes/Lazy.json'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import iconGearUrl from '../../assets/icon-gear.svg'
 import { Alert, AlertDescription } from '../components/ui/alert'
 import { Textarea } from '../components/ui/textarea'
-import { extractJsonFromCodeApproval } from '../lib/utils/data.utils'
-import { AuthStatus, ElectronAPI, Message } from '../preload'
+import { AuthStatus, ElectronAPI } from '../preload'
+import { Message } from '../types'
 import './App.css'
 import AuthComponent from './components/AuthComponent'
 import EncryptionKeyManager from './components/EncryptionKeyManager'
@@ -17,6 +20,22 @@ import { Badge } from './components/ui/badge'
 import { Button } from './components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs'
+
+// Monaco Editor configuration for output display
+const handleEditorWillMount = (monacoInstance: typeof monaco) => {
+  monacoInstance.editor.defineTheme('lazy', lazyTheme as monaco.editor.IStandaloneThemeData)
+}
+
+const getEditorOptions = (): monaco.editor.IStandaloneEditorConstructionOptions => ({
+  automaticLayout: true,
+  fontFamily: '"Fira Code", monospace',
+  fontSize: 14,
+  fontWeight: '400',
+  lineHeight: 1.5,
+  lineNumbersMinChars: 0,
+  minimap: { enabled: false },
+  wordWrap: 'on',
+})
 
 const App: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([])
@@ -30,11 +49,50 @@ const App: React.FC = () => {
   const [isInitialized, setIsInitialized] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [isSkippingAuth, setIsSkippingAuth] = useState(false)
+  const [isFontLoaded, setIsFontLoaded] = useState(false)
 
   // Use refs to track state without causing re-renders
   const authStatusRef = useRef<AuthStatus>({ authenticated: false })
   const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Font loading effect
+  useEffect(() => {
+    // Wait for Fira Code font to load before initializing Monaco Editor
+    const checkFontLoaded = async () => {
+      try {
+        await document.fonts.load('400 16px "Fira Code"')
+        // Small delay to ensure font is fully rendered
+        setTimeout(() => setIsFontLoaded(true), 100)
+      }
+      catch (error) {
+        console.warn('Font loading failed, proceeding with fallback:', error)
+        setIsFontLoaded(true)
+      }
+    }
+
+    checkFontLoaded()
+  }, [])
+
+  // useEffect(() => {
+  //   if (currentMessage) {
+  //     setCurrentMessageCode(currentMessage.code)
+
+  //     const parsedBody = extractJsonFromCodeApproval(currentMessage.body)
+  //     const { data } = parsedBody
+  //     let stdout, stderr
+  //     if (data) {
+  //       ({ stdout, stderr } = data)
+  //     }
+  //     setCurrentMessageStdout(stdout)
+  //     setCurrentMessageStderr(stderr)
+  //   }
+  //   else {
+  //     setCurrentMessageCode(undefined)
+  //     setCurrentMessageStdout(undefined)
+  //     setCurrentMessageStderr(undefined)
+  //   }
+  // }, [currentMessage])
 
   // Debounced connection status update
   const updateConnectionStatus = useCallback((status: 'connected' | 'disconnected' | 'connecting') => {
@@ -192,16 +250,20 @@ const App: React.FC = () => {
     if (!currentMessage || !authStatusRef.current.authenticated) return
 
     try {
-      await window.electronAPI.approveMessage(currentMessage.id, showFeedback ? feedback : undefined, currentMessage.body)
+      await window.electronAPI.approveMessage(currentMessage, showFeedback ? feedback : undefined)
 
-      const updatedMessage = {
-        ...currentMessage,
-        status: 'approved' as const,
-        feedback: showFeedback ? feedback : undefined,
-      }
+      currentMessage.status = 'approved'
 
-      setCurrentMessage(updatedMessage)
-      setMessages(prev => prev.map(m => m.id === currentMessage.id ? updatedMessage : m))
+      refreshMessages()
+
+      // const updatedMessage = {
+      //   ...currentMessage,
+      //   status: 'approved' as const,
+      //   feedback: showFeedback ? feedback : undefined,
+      // }
+
+      // setCurrentMessage(updatedMessage)
+      // setMessages(prev => prev.map(m => m.id === currentMessage.id ? updatedMessage : m))
       setFeedback('')
       setShowFeedback(false)
     }
@@ -217,14 +279,18 @@ const App: React.FC = () => {
     try {
       await window.electronAPI.rejectMessage(currentMessage.id, showFeedback ? feedback : undefined)
 
-      const updatedMessage = {
-        ...currentMessage,
-        status: 'rejected' as const,
-        feedback: showFeedback ? feedback : undefined,
-      }
+      currentMessage.status = 'rejected'
 
-      setCurrentMessage(updatedMessage)
-      setMessages(prev => prev.map(m => m.id === currentMessage.id ? updatedMessage : m))
+      refreshMessages()
+
+      // const updatedMessage = {
+      //   ...currentMessage,
+      //   status: 'rejected' as const,
+      //   feedback: showFeedback ? feedback : undefined,
+      // }
+
+      // setCurrentMessage(updatedMessage)
+      // setMessages(prev => prev.map(m => m.id === currentMessage.id ? updatedMessage : m))
       setFeedback('')
       setShowFeedback(false)
     }
@@ -299,42 +365,84 @@ const App: React.FC = () => {
 
   const getCodeBlock = (message: Message) => {
     switch (message.title) {
-      case 'Security Evaluation Request':
-        return (
-          <Tabs defaultValue="code" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="code">Code</TabsTrigger>
-              <TabsTrigger value="explanation">Explanation</TabsTrigger>
-            </TabsList>
-            <TabsContent value="code" className="mt-2">
-              <div className="bg-gray-100 p-4 rounded-lg max-h-96 overflow-auto">
-                <pre className="whitespace-pre-wrap text-sm font-mono">{message.code || 'No code provided'}</pre>
-              </div>
-            </TabsContent>
-            <TabsContent value="explanation" className="mt-2">
-              <div className="bg-gray-100 p-4 rounded-lg max-h-96 overflow-auto">
-                <pre className="whitespace-pre-wrap text-sm">{message.explaination || 'No explanation provided'}</pre>
-              </div>
-            </TabsContent>
-          </Tabs>
-        )
+      // case 'Security Evaluation Request':
+      //   return (
+      //     <Tabs defaultValue="code" className="w-full">
+      //       <TabsList className="grid w-full grid-cols-2">
+      //         <TabsTrigger value="code">Code</TabsTrigger>
+      //         <TabsTrigger value="explanation">Explanation</TabsTrigger>
+      //       </TabsList>
+      //       <TabsContent value="code" className="mt-2">
+      //         <div className="bg-gray-100 p-4 rounded-lg max-h-96 overflow-auto">
+      //           <pre className="whitespace-pre-wrap text-sm font-mono">{message.code || 'No code provided'}</pre>
+      //         </div>
+      //       </TabsContent>
+      //       <TabsContent value="explanation" className="mt-2">
+      //         <div className="bg-gray-100 p-4 rounded-lg max-h-96 overflow-auto">
+      //           <pre className="whitespace-pre-wrap text-sm">{message.explaination || 'No explanation provided'}</pre>
+      //         </div>
+      //       </TabsContent>
+      //     </Tabs>
+      //   )
       case 'code response approval': {
-        const parsedBody = extractJsonFromCodeApproval(message.body)
-        const { data } = parsedBody
-        let stdout, stderr
-        if (data) {
-          ({ stdout, stderr } = data)
-        }
-        else {
-          ({ stdout, stderr } = parsedBody)
-        }
+        if (!currentMessage || !currentMessage.codespaceResponse) return
+        // const parsedBody = extractJsonFromCodeApproval(currentMessage.body)
+        const { codespaceResponse } = currentMessage
+        const { data: codespaceResponseData } = codespaceResponse
+        const hasError = Boolean(codespaceResponseData.stderr)
+
         return (
-          <div className="bg-gray-100 p-4 rounded-lg max-h-96 overflow-auto">
-            <pre className="whitespace-pre-wrap text-sm">{stdout || 'No output'}</pre>
-            {stderr && (
-              <div className="mt-2">
-                <div className="text-sm font-medium text-red-700 mb-1">Error Output (Please review to see if there are any sensitive content):</div>
-                <pre className="whitespace-pre-wrap text-sm text-red-600 bg-red-50 p-2 rounded border border-red-200">{stderr}</pre>
+          <div className="bg-gray-100 p-4 rounded-lg h-96 overflow-hidden flex flex-col">
+            {/* Standard Output */}
+            <div className="mb-2 flex-grow flex flex-col">
+              <div className="text-sm font-medium text-gray-700 mb-1">Output:</div>
+              <div className="border border-gray-200 rounded flex-grow">
+                {isFontLoaded
+                  ? (
+                      <Editor
+                        height="100%"
+                        language="plaintext"
+                        defaultValue="No output"
+                        value={codespaceResponseData.stdout}
+                        onChange={value => codespaceResponseData.stdout = value}
+                        theme="lazy"
+                        beforeMount={handleEditorWillMount}
+                        options={getEditorOptions()}
+                      />
+                    )
+                  : (
+                      <div className="flex items-center justify-center h-full text-gray-500">
+                        Loading editor...
+                      </div>
+                    )}
+              </div>
+            </div>
+
+            {/* Error Output */}
+            {hasError && (
+              <div className="mt-2 flex-grow flex flex-col">
+                <div className="text-sm font-medium text-red-700 mb-1">
+                  Error Output (Please review to see if there are any sensitive content):
+                </div>
+                <div className="border border-red-200 rounded bg-red-50 flex-grow">
+                  {isFontLoaded
+                    ? (
+                        <Editor
+                          height="100%"
+                          language="plaintext"
+                          value={codespaceResponseData.stderr}
+                          onChange={value => codespaceResponseData.stderr = value}
+                          theme="lazy"
+                          beforeMount={handleEditorWillMount}
+                          options={getEditorOptions()}
+                        />
+                      )
+                    : (
+                        <div className="flex items-center justify-center h-full text-red-500">
+                          Loading editor...
+                        </div>
+                      )}
+                </div>
               </div>
             )}
           </div>
@@ -354,15 +462,10 @@ const App: React.FC = () => {
   const getMessageSummary = (message: Message) => {
     switch (message.title) {
       case 'code response approval': {
-        const parsedBody = extractJsonFromCodeApproval(message.body)
-        const { data } = parsedBody
-        let stdout, stderr
-        if (data) {
-          ({ stdout, stderr } = data)
-        }
-        else {
-          ({ stdout, stderr } = parsedBody)
-        }
+        const { codespaceResponse } = message
+        if (!codespaceResponse) return message.body
+        const { data: codespaceResponseData } = codespaceResponse
+        const { stdout, stderr } = codespaceResponseData
         return (
           <>
             {stderr && (
@@ -400,7 +503,9 @@ const App: React.FC = () => {
       className="flex flex-col w-full h-screen bg-transparent draggable rounded-[0.5rem] p-[0.63rem] pt-0 items-center text-[0.88rem] text-[#171717]"
     >
       <div className="flex w-full -h-[1.56rem] mx-[1.25rem] my-[0.5rem] justify-between">
-        <div />
+        <div
+          className="px-[0.5rem] py-[0.25rem] w-4 h-4"
+        />
         <div
           className="px-[0.75rem] py-[0.25rem] rounded-full bg-[#BFBFBF] flex items-center gap-[0.63rem]"
         >

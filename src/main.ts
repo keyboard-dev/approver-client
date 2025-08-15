@@ -1,6 +1,7 @@
 import * as crypto from 'crypto'
 import { app, ipcMain, Notification, shell } from 'electron'
 import * as fs from 'fs'
+import _ from 'lodash'
 import * as os from 'os'
 import * as path from 'path'
 import * as WebSocket from 'ws'
@@ -152,23 +153,23 @@ class MenuBarNotificationApp {
     // Platform-specific protocol handling
     if (process.platform === 'darwin') {
       // Fix: Use helper function for reliable asset path resolution
-      const assetsPath = getAssetsPath()
-      const iconPath = path.join(assetsPath, 'keyboard-dock.png')
+      // const assetsPath = getAssetsPath()
+      // const iconPath = path.join(assetsPath, 'keyboard-dock.png')
 
-      // Check if file exists before setting
-      if (fs.existsSync(iconPath)) {
-        app.dock.setIcon(iconPath)
-      }
-      else {
-        // List what's actually in the assets directory for debugging
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          const files = fs.readdirSync(assetsPath)
-        }
-        catch {
-          console.warn('Could not read assets directory:')
-        }
-      }
+      // // Check if file exists before setting
+      // if (fs.existsSync(iconPath)) {
+      //   app.dock.setIcon(iconPath)
+      // }
+      // else {
+      //   // List what's actually in the assets directory for debugging
+      //   try {
+      //     // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      //     const files = fs.readdirSync(assetsPath)
+      //   }
+      //   catch {
+      //     console.warn('Could not read assets directory:')
+      //   }
+      // }
 
       // Handle macOS open-url events (MUST be before app.whenReady())
       app.on('open-url', (event, url) => {
@@ -1325,18 +1326,21 @@ class MenuBarNotificationApp {
     })
 
     // Handle approve message
-    ipcMain.handle('approve-message', (event, messageId: string, feedback?: string): void => {
-      const message = this.messages.find(msg => msg.id === messageId)
-      if (message) {
-        message.status = 'approved'
-        message.feedback = feedback
+    ipcMain.handle('approve-message', (event, message: Message, feedback?: string): void => {
+      const existingMessage = this.messages.find(msg => msg.id === message.id)
+
+      if (existingMessage) {
+        // Update the existing message with the passed message data
+        _.assign(existingMessage, message)
+        existingMessage.status = 'approved'
+        existingMessage.feedback = feedback
 
         // Update pending count
         this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length
         this.trayManager.updateTrayIcon()
 
         // Send response back through WebSocket if needed
-        this.sendWebSocketResponse(message, 'approved', feedback)
+        this.sendWebSocketResponse(existingMessage)
       }
     })
 
@@ -1352,7 +1356,7 @@ class MenuBarNotificationApp {
         this.trayManager.updateTrayIcon()
 
         // Send response back through WebSocket if needed
-        this.sendWebSocketResponse(message, 'rejected', feedback)
+        this.sendWebSocketResponse(message)
       }
     })
 
@@ -1423,29 +1427,30 @@ class MenuBarNotificationApp {
     })
   }
 
-  private sendWebSocketResponse(message: Message, status: 'approved' | 'rejected', feedback?: string): void {
+  private sendWebSocketResponse(message: Message): void {
     if (this.wsServer && message.requiresResponse) {
-      const response = {
-        id: message.id,
-        status: status,
-        feedback: feedback,
-        timestamp: Date.now(),
-        originalMessage: {
-          id: message.id,
-          title: message.title,
-          body: 'no body',
-        },
-      }
-      if (status === 'approved') {
-        if (message.body) {
-          response.originalMessage.body = message.body
-        }
-      }
+      // const response = {
+      //   id: message.id,
+      //   status: status,
+      //   feedback: feedback,
+      //   timestamp: Date.now(),
+      //   originalMessage: {
+      //     id: message.id,
+      //     title: message.title,
+      //     body: 'no body',
+      //   },
+      // }
+
+      // if (status === 'approved') {
+      //   if (message.body) {
+      //     response.originalMessage.body = message.body
+      //   }
+      // }
 
       // Send response to all connected WebSocket clients
       this.wsServer.clients.forEach((client) => {
         if (client.readyState === WebSocket.OPEN) {
-          client.send(JSON.stringify(response))
+          client.send(JSON.stringify(message))
         }
       })
     }
@@ -1467,7 +1472,7 @@ class MenuBarNotificationApp {
           this.trayManager.updateTrayIcon()
 
           // Send response through WebSocket if needed
-          this.sendWebSocketResponse(message, status, feedback)
+          this.sendWebSocketResponse(message)
 
           return true
         }

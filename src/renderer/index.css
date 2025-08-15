@@ -3,6 +3,39 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Fira Code Font Family */
+@font-face {
+  font-family: 'Fira Code';
+  src: url('../../assets/fonts/FiraCode-Light.woff2') format('woff2');
+  font-weight: 300;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Fira Code';
+  src: url('../../assets/fonts/FiraCode-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Fira Code';
+  src: url('../../assets/fonts/FiraCode-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Fira Code';
+  src: url('../../assets/fonts/FiraCode-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: block;
+}
+
 @layer base {
   :root {
     --background: transparent;
@@ -77,4 +110,17 @@
   .hide-scrollbar::-webkit-scrollbar {
     display: none; /* WebKit */
   }
+}
+
+/* Monaco Editor Font Fixes */
+.monaco-editor .view-line {
+  font-feature-settings: "liga" 1, "calt" 1;
+}
+
+.monaco-editor .cursors-layer .cursor {
+  box-sizing: border-box;
+}
+
+.monaco-editor .view-lines {
+  font-variant-ligatures: common-ligatures;
 }

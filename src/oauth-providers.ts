@@ -1,9 +1,9 @@
 import * as crypto from 'crypto'
 import * as fs from 'fs'
-import * as path from 'path'
 import * as os from 'os'
-import { encrypt, decrypt } from './encryption'
-import { ProviderStorage, OAuthProviderConfig } from './provider-storage'
+import * as path from 'path'
+import { decrypt, encrypt } from './encryption'
+import { OAuthProviderConfig, ProviderStorage } from './provider-storage'
 
 // Legacy interface for backward compatibility
 export interface OAuthProvider {
@@ -453,7 +453,7 @@ export class OAuthProviderManager {
       throw new Error(`No server providers configured and no local client credentials for ${providerId}`)
     }
 
-    let lastError: Error | null = null
+    // const lastError: Error | null = null
 
     for (const server of servers) {
       try {

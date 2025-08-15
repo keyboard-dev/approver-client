@@ -1,22 +1,6 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron'
 import { ServerProviderInfo } from './oauth-providers'
-
-export interface Message {
-  id: string
-  title: string
-  body: string
-  timestamp: number
-  priority?: 'low' | 'normal' | 'high'
-  sender?: string
-  read?: boolean
-  status?: 'pending' | 'approved' | 'rejected'
-  feedback?: string
-  requiresResponse?: boolean
-  codeEval?: boolean
-  code?: string
-  explaination?: string
-  risk_level?: 'low' | 'medium' | 'high'
-}
+import { Message } from './types'
 
 export interface AuthStatus {
   authenticated: boolean
@@ -120,7 +104,7 @@ export interface ElectronAPI {
   getMessages: () => Promise<Message[]>
   markMessageRead: (messageId: string) => Promise<void>
   deleteMessage: (messageId: string) => Promise<void>
-  approveMessage: (messageId: string, feedback?: string, messageBody?: string) => Promise<void>
+  approveMessage: (message: Message, feedback?: string) => Promise<void>
   rejectMessage: (messageId: string, feedback?: string) => Promise<void>
   showMessages: () => void
   onShowMessage: (callback: (event: IpcRendererEvent, message: Message) => void) => void
@@ -177,7 +161,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getMessages: (): Promise<Message[]> => ipcRenderer.invoke('get-messages'),
   markMessageRead: (messageId: string): Promise<void> => ipcRenderer.invoke('mark-message-read', messageId),
   deleteMessage: (messageId: string): Promise<void> => ipcRenderer.invoke('delete-message', messageId),
-  approveMessage: (messageId: string, feedback?: string, messageBody?: string): Promise<void> => ipcRenderer.invoke('approve-message', messageId, feedback, messageBody),
+  approveMessage: (message: Message, feedback?: string): Promise<void> => ipcRenderer.invoke('approve-message', message, feedback),
   rejectMessage: (messageId: string, feedback?: string): Promise<void> => ipcRenderer.invoke('reject-message', messageId, feedback),
   showMessages: (): void => ipcRenderer.send('show-messages'),
 

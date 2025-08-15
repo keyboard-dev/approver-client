@@ -1,4 +1,11 @@
-import { Message } from '../src/preload'
+import { ElectronAPI } from '../src/preload'
+import { Message } from '../src/types'
+
+declare global {
+  interface Window {
+    electronAPI: ElectronAPI
+  }
+}
 
 // Renderer process script
 class MessageViewer {

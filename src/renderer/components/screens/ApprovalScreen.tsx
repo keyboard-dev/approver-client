@@ -1,8 +1,9 @@
-import React, { useState } from 'react'
-import { Prism } from 'react-syntax-highlighter'
-import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism'
+import Editor from '@monaco-editor/react'
+import * as monaco from 'monaco-editor'
+import lazyTheme from 'monaco-themes/themes/Lazy.json'
+import React, { useEffect, useState } from 'react'
 
-import { Message } from '../../../preload'
+import { Message } from '../../../types'
 
 import blueCheckIconUrl from '../../../../assets/icon-check-blue.svg'
 import checkIconUrl from '../../../../assets/icon-check.svg'
@@ -16,8 +17,8 @@ import xIconUrl from '../../../../assets/icon-x.svg'
 interface ApprovalScreenProps {
   message: Message
   // todo reflect status of websocket and user authentication
-  // websocket started
   // user is authenticated
+  // websocket started
   systemStatus: string
   onApprove: () => void
   onBack: () => void
@@ -32,11 +33,34 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
   onOptionClick,
   onReject,
 }) => {
-  const [activeTab, setActiveTab] = useState<'code' | 'explaination'>('explaination')
+  const [activeTab, setActiveTab] = useState<'code' | 'explanation'>('explanation')
+  const [isFontLoaded, setIsFontLoaded] = useState(false)
+
+  useEffect(() => {
+    // Wait for Fira Code font to load before initializing Monaco Editor
+    const checkFontLoaded = async () => {
+      try {
+        await document.fonts.load('400 16px "Fira Code"')
+        // Small delay to ensure font is fully rendered
+        setTimeout(() => setIsFontLoaded(true), 100)
+      }
+      catch (error) {
+        console.warn('Font loading failed, proceeding with fallback:', error)
+        setIsFontLoaded(true)
+      }
+    }
+
+    checkFontLoaded()
+  }, [])
+
+  const handleEditorWillMount = (monacoInstance: typeof monaco) => {
+    // monacoInstance.editor.defineTheme('github', githubTheme as monaco.editor.IStandaloneThemeData)
+    monacoInstance.editor.defineTheme('lazy', lazyTheme as monaco.editor.IStandaloneThemeData)
+  }
 
   const {
     code,
-    explaination,
+    explanation,
     risk_level,
     status,
     timestamp,
@@ -78,7 +102,9 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
       className="flex flex-col w-full h-screen bg-transparent draggable rounded-[0.5rem] p-[0.63rem] pt-0 items-center text-[0.88rem] text-[#171717]"
     >
       <div className="flex w-full -h-[1.56rem] mx-[1.25rem] my-[0.5rem] justify-between">
-        <div />
+        <div
+          className="px-[0.5rem] py-[0.25rem] w-4 h-4"
+        />
         <div
           className="px-[0.75rem] py-[0.25rem] rounded-full bg-[#BFBFBF] flex items-center gap-[0.63rem]"
         >
@@ -97,7 +123,7 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
         </div>
         <button
           onClick={onOptionClick}
-          className="px-[0.5rem] py-[0.25rem] rounded-full bg-[#BFBFBF] not-draggable"
+          className="px-[0.5rem] py-[0.25rem] rounded-full bg-[#BFBFBF] not-draggable "
         >
           <img src={iconGearUrl} alt="Settings" className="w-4 h-4" />
         </button>
@@ -175,10 +201,10 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
           className="flex w-full border border-[#E5E5E5] rounded-[0.38rem] bg-[#F3F3F3] p-[0.25rem] text-[#737373] font-semibold"
         >
           <button
-            onClick={() => setActiveTab('explaination')}
+            onClick={() => setActiveTab('explanation')}
             className="grow basis-0 flex items-center justify-center py-[0.5rem] rounded-[0.25rem] gap-[0.31rem] border-none outline-none"
             style={
-              activeTab === 'explaination'
+              activeTab === 'explanation'
                 ? {
                     backgroundColor: 'white',
                   }
@@ -204,33 +230,45 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
           </button>
         </div>
 
-        {activeTab === 'explaination' && (
+        {activeTab === 'explanation' && (
           <div
             className="p-[0.75rem] border border-[#E5E5E5] rounded-[0.38rem] w-full grow overflow-auto min-h-0"
           >
-            {explaination}
+            {explanation}
           </div>
         )}
 
         {activeTab === 'code' && code && (
-          <Prism
-            className="border border-[#E5E5E5] rounded-[0.38rem] w-full grow min-h-0"
-            language="tsx"
-            style={oneLight}
-            customStyle={{
-              backgroundColor: 'transparent',
-              padding: '0.75rem',
-              margin: 0,
-              fontFamily: 'Fira Code, monospace',
-            }}
-            showLineNumbers
-            lineNumberStyle={{
-              minWidth: '2.5rem',
-            }}
-            wrapLongLines
-          >
-            {code}
-          </Prism>
+          <div className="border border-[#E5E5E5] rounded-[0.38rem] w-full grow min-h-0">
+            {isFontLoaded
+              ? (
+                  <Editor
+                    height="100%"
+                    width="100%"
+                    language="javascript"
+                    value={message.code}
+                    onChange={value => message.code = value}
+                    theme="lazy"
+                    beforeMount={handleEditorWillMount}
+                    options={{
+                      automaticLayout: true,
+                      fontFamily: '"Fira Code", monospace',
+                      fontLigatures: true,
+                      fontSize: 14,
+                      fontWeight: '400',
+                      lineHeight: 1.5,
+                      lineNumbersMinChars: 0,
+                      minimap: { enabled: false },
+                      wordWrap: 'on',
+                    }}
+                  />
+                )
+              : (
+                  <div className="flex items-center justify-center h-full text-[#737373]">
+                    Loading editor...
+                  </div>
+                )}
+          </div>
         )}
 
         {status === 'pending' && (
