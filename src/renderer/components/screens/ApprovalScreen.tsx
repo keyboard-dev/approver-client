@@ -1,7 +1,7 @@
 import Editor from '@monaco-editor/react'
 import * as monaco from 'monaco-editor'
 import lazyTheme from 'monaco-themes/themes/Lazy.json'
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 
 import { Message } from '../../../types'
 
@@ -34,6 +34,24 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
   onReject,
 }) => {
   const [activeTab, setActiveTab] = useState<'code' | 'explanation'>('explanation')
+  const [isFontLoaded, setIsFontLoaded] = useState(false)
+
+  useEffect(() => {
+    // Wait for Fira Code font to load before initializing Monaco Editor
+    const checkFontLoaded = async () => {
+      try {
+        await document.fonts.load('400 16px "Fira Code"')
+        // Small delay to ensure font is fully rendered
+        setTimeout(() => setIsFontLoaded(true), 100)
+      }
+      catch (error) {
+        console.warn('Font loading failed, proceeding with fallback:', error)
+        setIsFontLoaded(true)
+      }
+    }
+
+    checkFontLoaded()
+  }, [])
 
   const handleEditorWillMount = (monacoInstance: typeof monaco) => {
     // monacoInstance.editor.defineTheme('github', githubTheme as monaco.editor.IStandaloneThemeData)
@@ -221,38 +239,36 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
         )}
 
         {activeTab === 'code' && code && (
-          // <Prism
-          //   className="border border-[#E5E5E5] rounded-[0.38rem] w-full grow min-h-0"
-          //   language="tsx"
-          //   style={oneLight}
-          //   customStyle={{
-          //     backgroundColor: 'transparent',
-          //     padding: '0.75rem',
-          //     margin: 0,
-          //     fontFamily: 'Fira Code, monospace',
-          //   }}
-          //   showLineNumbers
-          //   lineNumberStyle={{
-          //     minWidth: '2.5rem',
-          //   }}
-          //   wrapLongLines
-          // >
-          //   {code}
-          // </Prism>
-          <Editor
-            height="100%"
-            width="100%"
-            language="javascript"
-            value={message.code}
-            onChange={value => message.code = value}
-            theme="lazy"
-            beforeMount={handleEditorWillMount}
-            options={{
-              fontFamily: '"Fira Code", monospace',
-              lineNumbersMinChars: 0,
-              minimap: { enabled: false },
-            }}
-          />
+          <div className="border border-[#E5E5E5] rounded-[0.38rem] w-full grow min-h-0">
+            {isFontLoaded
+              ? (
+                  <Editor
+                    height="100%"
+                    width="100%"
+                    language="javascript"
+                    value={message.code}
+                    onChange={value => message.code = value}
+                    theme="lazy"
+                    beforeMount={handleEditorWillMount}
+                    options={{
+                      automaticLayout: true,
+                      fontFamily: '"Fira Code", monospace',
+                      fontLigatures: true,
+                      fontSize: 14,
+                      fontWeight: '400',
+                      lineHeight: 1.5,
+                      lineNumbersMinChars: 0,
+                      minimap: { enabled: false },
+                      wordWrap: 'on',
+                    }}
+                  />
+                )
+              : (
+                  <div className="flex items-center justify-center h-full text-[#737373]">
+                    Loading editor...
+                  </div>
+                )}
+          </div>
         )}
 
         {status === 'pending' && (

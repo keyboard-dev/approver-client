@@ -27,9 +27,14 @@ const handleEditorWillMount = (monacoInstance: typeof monaco) => {
 }
 
 const getEditorOptions = (): monaco.editor.IStandaloneEditorConstructionOptions => ({
+  automaticLayout: true,
   fontFamily: '"Fira Code", monospace',
+  fontSize: 14,
+  fontWeight: '400',
+  lineHeight: 1.5,
   lineNumbersMinChars: 0,
   minimap: { enabled: false },
+  wordWrap: 'on',
 })
 
 const App: React.FC = () => {
@@ -44,11 +49,30 @@ const App: React.FC = () => {
   const [isInitialized, setIsInitialized] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [isSkippingAuth, setIsSkippingAuth] = useState(false)
+  const [isFontLoaded, setIsFontLoaded] = useState(false)
 
   // Use refs to track state without causing re-renders
   const authStatusRef = useRef<AuthStatus>({ authenticated: false })
   const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Font loading effect
+  useEffect(() => {
+    // Wait for Fira Code font to load before initializing Monaco Editor
+    const checkFontLoaded = async () => {
+      try {
+        await document.fonts.load('400 16px "Fira Code"')
+        // Small delay to ensure font is fully rendered
+        setTimeout(() => setIsFontLoaded(true), 100)
+      }
+      catch (error) {
+        console.warn('Font loading failed, proceeding with fallback:', error)
+        setIsFontLoaded(true)
+      }
+    }
+
+    checkFontLoaded()
+  }, [])
 
   // useEffect(() => {
   //   if (currentMessage) {
@@ -373,16 +397,24 @@ const App: React.FC = () => {
             <div className="mb-2 flex-grow flex flex-col">
               <div className="text-sm font-medium text-gray-700 mb-1">Output:</div>
               <div className="border border-gray-200 rounded flex-grow">
-                <Editor
-                  height="100%"
-                  language="plaintext"
-                  defaultValue="No output"
-                  value={codespaceResponseData.stdout}
-                  onChange={value => codespaceResponseData.stdout = value}
-                  theme="lazy"
-                  beforeMount={handleEditorWillMount}
-                  options={getEditorOptions()}
-                />
+                {isFontLoaded
+                  ? (
+                      <Editor
+                        height="100%"
+                        language="plaintext"
+                        defaultValue="No output"
+                        value={codespaceResponseData.stdout}
+                        onChange={value => codespaceResponseData.stdout = value}
+                        theme="lazy"
+                        beforeMount={handleEditorWillMount}
+                        options={getEditorOptions()}
+                      />
+                    )
+                  : (
+                      <div className="flex items-center justify-center h-full text-gray-500">
+                        Loading editor...
+                      </div>
+                    )}
               </div>
             </div>
 
@@ -393,15 +425,23 @@ const App: React.FC = () => {
                   Error Output (Please review to see if there are any sensitive content):
                 </div>
                 <div className="border border-red-200 rounded bg-red-50 flex-grow">
-                  <Editor
-                    height="100%"
-                    language="plaintext"
-                    value={codespaceResponseData.stderr}
-                    onChange={value => codespaceResponseData.stderr = value}
-                    theme="lazy"
-                    beforeMount={handleEditorWillMount}
-                    options={getEditorOptions()}
-                  />
+                  {isFontLoaded
+                    ? (
+                        <Editor
+                          height="100%"
+                          language="plaintext"
+                          value={codespaceResponseData.stderr}
+                          onChange={value => codespaceResponseData.stderr = value}
+                          theme="lazy"
+                          beforeMount={handleEditorWillMount}
+                          options={getEditorOptions()}
+                        />
+                      )
+                    : (
+                        <div className="flex items-center justify-center h-full text-red-500">
+                          Loading editor...
+                        </div>
+                      )}
                 </div>
               </div>
             )}

@@ -153,23 +153,23 @@ class MenuBarNotificationApp {
     // Platform-specific protocol handling
     if (process.platform === 'darwin') {
       // Fix: Use helper function for reliable asset path resolution
-      const assetsPath = getAssetsPath()
-      const iconPath = path.join(assetsPath, 'keyboard-dock.png')
+      // const assetsPath = getAssetsPath()
+      // const iconPath = path.join(assetsPath, 'keyboard-dock.png')
 
-      // Check if file exists before setting
-      if (fs.existsSync(iconPath)) {
-        app.dock.setIcon(iconPath)
-      }
-      else {
-        // List what's actually in the assets directory for debugging
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          const files = fs.readdirSync(assetsPath)
-        }
-        catch {
-          console.warn('Could not read assets directory:')
-        }
-      }
+      // // Check if file exists before setting
+      // if (fs.existsSync(iconPath)) {
+      //   app.dock.setIcon(iconPath)
+      // }
+      // else {
+      //   // List what's actually in the assets directory for debugging
+      //   try {
+      //     // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      //     const files = fs.readdirSync(assetsPath)
+      //   }
+      //   catch {
+      //     console.warn('Could not read assets directory:')
+      //   }
+      // }
 
       // Handle macOS open-url events (MUST be before app.whenReady())
       app.on('open-url', (event, url) => {
