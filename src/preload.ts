@@ -109,6 +109,7 @@ export interface ElectronAPI {
   showMessages: () => void
   onShowMessage: (callback: (event: IpcRendererEvent, message: Message) => void) => void
   onWebSocketMessage: (callback: (event: IpcRendererEvent, message: Message) => void) => void
+  onNavigateTo: (callback: (event: IpcRendererEvent, path: string) => void) => void
   removeAllListeners: (channel: string) => void
   // Legacy OAuth
   startOAuth: () => Promise<void>
@@ -171,6 +172,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   onWebSocketMessage: (callback: (event: IpcRendererEvent, message: Message) => void): void => {
     ipcRenderer.on('websocket-message', callback)
+  },
+  onNavigateTo: (callback: (event: IpcRendererEvent, path: string) => void): void => {
+    ipcRenderer.on('navigate-to', callback)
   },
   removeAllListeners: (channel: string): void => {
     ipcRenderer.removeAllListeners(channel)

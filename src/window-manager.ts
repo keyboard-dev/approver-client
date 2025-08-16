@@ -84,9 +84,9 @@ export class WindowManager {
 
     this.mainWindow.setVisibleOnAllWorkspaces(true)
 
-    this.mainWindow.showInactive() // Show without focusing
-    // this.mainWindow.show();
-    // this.mainWindow.focus();
+    // Show the window with focus
+    this.mainWindow.show()
+    this.mainWindow.focus()
   }
 
   private positionWindowNearTray(trayBounds: Electron.Rectangle): void {

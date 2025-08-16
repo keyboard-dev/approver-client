@@ -44,6 +44,7 @@ interface AuthUser {
 }
 
 // Helper function to find assets directory reliably
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function getAssetsPath(): string {
   const appPath = app.getAppPath()
 
@@ -177,8 +178,55 @@ class MenuBarNotificationApp {
 
         // Only handle our custom protocol URLs, ignore HTTP URLs
         if (url.startsWith(`${this.CUSTOM_PROTOCOL}://`)) {
-          // Custom protocol URLs should only go to legacy OAuth handler
-          this.handleOAuthCallback(url)
+          const urlObj = new URL(url)
+          const path = urlObj.hostname + urlObj.pathname
+
+          // Handle different paths
+          if (path === 'callback' || path.startsWith('callback/')) {
+            // Legacy OAuth callback
+            this.handleOAuthCallback(url)
+          }
+          else if (path === 'settings' || path.startsWith('settings/')) {
+            // Navigate to settings
+            this.windowManager.showWindow()
+            this.windowManager.sendMessage('navigate-to', 'settings')
+          }
+          else if (path === 'approver' || path.startsWith('approver/')) {
+            // Navigate to approver
+            this.windowManager.showWindow()
+            this.windowManager.sendMessage('navigate-to', 'approver')
+          }
+          else if (path === 'oauth-providers' || path.startsWith('oauth-providers/')) {
+            // Check if server providers exist
+            this.windowManager.showWindow()
+            // Check server providers after app is ready
+            if (app.isReady() && this.oauthProviderManager) {
+              this.oauthProviderManager.getServerProviders().then((serverProviders) => {
+                if (serverProviders && serverProviders.length > 0) {
+                  // Server providers exist, show server providers tab instead
+                  this.windowManager.sendMessage('navigate-to', 'server-providers')
+                } else {
+                  this.windowManager.sendMessage('navigate-to', 'oauth-providers')
+                }
+              }).catch((error) => {
+                console.error('Error checking server providers:', error)
+                // Fallback to OAuth providers tab
+                this.windowManager.sendMessage('navigate-to', 'oauth-providers')
+              })
+            } else {
+              // App not ready yet, default to OAuth providers
+              this.windowManager.sendMessage('navigate-to', 'oauth-providers')
+            }
+          }
+          else if (path === 'server-providers' || path.startsWith('server-providers/')) {
+            // Navigate to server providers tab in settings
+            this.windowManager.showWindow()
+            this.windowManager.sendMessage('navigate-to', 'server-providers')
+          }
+          else {
+            // Default: just show the window
+            this.windowManager.showWindow()
+          }
         }
         // else {
         // }
@@ -190,12 +238,62 @@ class MenuBarNotificationApp {
       // Find protocol URL in command line arguments
       const url = commandLine.find(arg => arg.startsWith(`${this.CUSTOM_PROTOCOL}://`))
       if (url) {
-        // Custom protocol URLs should only go to legacy OAuth handler
-        this.handleOAuthCallback(url)
-      }
+        const urlObj = new URL(url)
+        const path = urlObj.hostname + urlObj.pathname
 
-      // Show the window if it exists
-      this.windowManager.showWindow()
+        // Handle different paths
+        if (path === 'callback' || path.startsWith('callback/')) {
+          // Legacy OAuth callback
+          this.handleOAuthCallback(url)
+        }
+        else if (path === 'settings' || path.startsWith('settings/')) {
+          // Navigate to settings
+          this.windowManager.showWindow()
+          this.windowManager.sendMessage('navigate-to', 'settings')
+        }
+        else if (path === 'approver' || path.startsWith('approver/')) {
+          // Navigate to approver
+          this.windowManager.showWindow()
+          this.windowManager.sendMessage('navigate-to', 'approver')
+        }
+        else if (path === 'oauth-providers' || path.startsWith('oauth-providers/')) {
+          // Check if server providers exist
+          this.windowManager.showWindow()
+          
+          // Check server providers after app is ready
+          if (app.isReady() && this.oauthProviderManager) {
+            this.oauthProviderManager.getServerProviders().then(serverProviders => {
+              if (serverProviders && serverProviders.length > 0) {
+                // Server providers exist, show server providers tab instead
+                this.windowManager.sendMessage('navigate-to', 'server-providers')
+              } else {
+                // No server providers, show OAuth providers tab
+                this.windowManager.sendMessage('navigate-to', 'oauth-providers')
+              }
+            }).catch(error => {
+              console.error('Error checking server providers:', error)
+              // Fallback to OAuth providers tab
+              this.windowManager.sendMessage('navigate-to', 'oauth-providers')
+            })
+          } else {
+            // App not ready yet, default to OAuth providers
+            this.windowManager.sendMessage('navigate-to', 'oauth-providers')
+          }
+        }
+        else if (path === 'server-providers' || path.startsWith('server-providers/')) {
+          // Navigate to server providers tab in settings
+          this.windowManager.showWindow()
+          this.windowManager.sendMessage('navigate-to', 'server-providers')
+        }
+        else {
+          // Default: just show the window
+          this.windowManager.showWindow()
+        }
+      }
+      else {
+        // Show the window if it exists (for general second instance activation)
+        this.windowManager.showWindow()
+      }
     })
 
     // STEP 3: Register as default protocol client

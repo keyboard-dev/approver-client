@@ -50,6 +50,8 @@ const App: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false)
   const [isSkippingAuth, setIsSkippingAuth] = useState(false)
   const [isFontLoaded, setIsFontLoaded] = useState(false)
+  const [currentView, setCurrentView] = useState<'messages' | 'settings' | 'approver'>('messages')
+  const [settingsTab, setSettingsTab] = useState<string>('websocket')
 
   // Use refs to track state without causing re-renders
   const authStatusRef = useRef<AuthStatus>({ authenticated: false })
@@ -221,6 +223,36 @@ const App: React.FC = () => {
     window.electronAPI.onShowMessage(handleShowMessage)
     window.electronAPI.onWebSocketMessage(handleWebSocketMessage)
 
+    // Listen for navigation events
+    const handleNavigateTo = (_event: unknown, path: string) => {
+      if (path === 'settings') {
+        setCurrentView('settings')
+        setShowSettings(true)
+        setCurrentMessage(null)
+        setSettingsTab('websocket') // Default to websocket tab
+      } else if (path === 'oauth-providers') {
+        setCurrentView('settings')
+        setShowSettings(true)
+        setCurrentMessage(null)
+        setSettingsTab('oauth') // Navigate to OAuth tab
+      } else if (path === 'server-providers') {
+        setCurrentView('settings')
+        setShowSettings(true)
+        setCurrentMessage(null)
+        setSettingsTab('servers') // Navigate to server providers tab
+      } else if (path === 'approver') {
+        setCurrentView('approver')
+        setShowSettings(false)
+        // You can set a specific message or load messages here
+      } else {
+        setCurrentView('messages')
+        setShowSettings(false)
+        setCurrentMessage(null)
+      }
+    }
+
+    window.electronAPI.onNavigateTo(handleNavigateTo)
+
     // Listen for connection status if available
     if ('onConnectionStatusChange' in window.electronAPI) {
       (window.electronAPI as ElectronAPI & { onConnectionStatusChange?: (handler: typeof handleConnectionStatusChange) => void }).onConnectionStatusChange?.(handleConnectionStatusChange)
@@ -230,6 +262,7 @@ const App: React.FC = () => {
     return () => {
       window.electronAPI.removeAllListeners('show-message')
       window.electronAPI.removeAllListeners('websocket-message')
+      window.electronAPI.removeAllListeners('navigate-to')
 
       if (window.electronAPI.removeAllListeners) {
         window.electronAPI.removeAllListeners('connection-status-change')
@@ -749,7 +782,7 @@ const App: React.FC = () => {
                         ? (
                       // Settings View
                             <div className="space-y-6">
-                              <Tabs defaultValue="websocket" className="w-full">
+                              <Tabs value={settingsTab} onValueChange={setSettingsTab} className="w-full">
                                 <TabsList className="grid w-full grid-cols-4">
                                   <TabsTrigger value="websocket">WebSocket</TabsTrigger>
                                   <TabsTrigger value="encryption">Encryption</TabsTrigger>
