@@ -14,6 +14,7 @@
     "copy-assets": "cp -r assets dist/",
     "build-mac": "npm run build && electron-builder --mac",
     "build-mac-forge": "npm run build && electron-forge make --platform=darwin",
+    "build-mac-universal": "npm run build && electron-forge make --platform=darwin --arch=universal",
     "build-signed": "npm run build && electron-forge make --platform=darwin",
     "build-signed-bg": "nohup npm run build-signed > build.log 2>&1 &",
     "build-signed-ci": "dotenvx run -f .env.ci -- npm run build-signed",

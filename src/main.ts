@@ -259,7 +259,7 @@ class MenuBarNotificationApp {
         else if (path === 'oauth-providers' || path.startsWith('oauth-providers/')) {
           // Check if server providers exist
           this.windowManager.showWindow()
-          
+
           // Check server providers after app is ready
           if (app.isReady() && this.oauthProviderManager) {
             this.oauthProviderManager.getServerProviders().then(serverProviders => {
@@ -1154,17 +1154,28 @@ class MenuBarNotificationApp {
               const providerStatus = await this.perProviderTokenStorage.getProviderStatus()
 
               const tokensAvailable: string[] = []
-
+              const tokenStatus: {
+                providerId: string
+                status: {
+                  authenticated: boolean
+                  expired: boolean
+                }
+              }[] = []
               // Check ALL stored provider tokens (both direct and server provider tokens)
               for (const [providerId, status] of Object.entries(providerStatus)) {
                 if (status && status.authenticated) {
                   tokensAvailable.push(`KEYBOARD_PROVIDER_USER_TOKEN_FOR_${providerId.toUpperCase()}`)
+                  tokenStatus.push({
+                    providerId: providerId,
+                    status,
+                  })
                 }
               }
 
               const statusResponse = {
                 type: 'user-tokens-available',
                 tokensAvailable: tokensAvailable,
+                tokenStatus: tokenStatus,
                 timestamp: Date.now(),
                 requestId: message.requestId,
               }
