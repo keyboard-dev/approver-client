@@ -43,33 +43,6 @@ interface AuthUser {
   profile_picture?: string
 }
 
-// Helper function to find assets directory reliably
-function getAssetsPath(): string {
-  const appPath = app.getAppPath()
-
-  // In development, assets are in project root
-  // In production (packaged), assets should be in app bundle
-  const devAssetsPath = path.join(appPath, '..', 'assets')
-  const prodAssetsPath = path.join(appPath, 'assets')
-
-  // Check development path first
-  if (fs.existsSync(devAssetsPath)) {
-    return devAssetsPath
-  }
-
-  // Fallback to production path
-  if (fs.existsSync(prodAssetsPath)) {
-    return prodAssetsPath
-  }
-
-  // Fallback to project root assets (for Electron Forge)
-  const rootAssetsPath = path.join(process.cwd(), 'assets')
-  if (fs.existsSync(rootAssetsPath)) {
-    return rootAssetsPath
-  }
-  return devAssetsPath // Return something even if not found
-}
-
 class MenuBarNotificationApp {
   private trayManager: TrayManager
   private windowManager: WindowManager
@@ -141,7 +114,6 @@ class MenuBarNotificationApp {
   private initializeApp(): void {
     // STEP 1: Handle single instance FIRST
     const gotTheLock = app.requestSingleInstanceLock()
-    // app.dock.setIcon(path.join(__dirname, 'assets/keyboard-dock.png'))
 
     if (!gotTheLock) {
       app.quit()
@@ -149,28 +121,8 @@ class MenuBarNotificationApp {
     }
 
     // STEP 2: Set up event listeners BEFORE app.whenReady()
-
     // Platform-specific protocol handling
     if (process.platform === 'darwin') {
-      // Fix: Use helper function for reliable asset path resolution
-      // const assetsPath = getAssetsPath()
-      // const iconPath = path.join(assetsPath, 'keyboard-dock.png')
-
-      // // Check if file exists before setting
-      // if (fs.existsSync(iconPath)) {
-      //   app.dock.setIcon(iconPath)
-      // }
-      // else {
-      //   // List what's actually in the assets directory for debugging
-      //   try {
-      //     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      //     const files = fs.readdirSync(assetsPath)
-      //   }
-      //   catch {
-      //     console.warn('Could not read assets directory:')
-      //   }
-      // }
-
       // Handle macOS open-url events (MUST be before app.whenReady())
       app.on('open-url', (event, url) => {
         event.preventDefault()
@@ -1424,6 +1376,11 @@ class MenuBarNotificationApp {
 
     ipcMain.handle('get-encryption-key-info', (): { key: string | null, createdAt: number | null, keyFile: string, source: 'environment' | 'generated' | null } => {
       return this.getEncryptionKeyInfo()
+    })
+
+    // External URL handling
+    ipcMain.handle('open-external-url', async (event, url: string): Promise<void> => {
+      await shell.openExternal(url)
     })
   }
 

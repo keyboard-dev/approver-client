@@ -9,10 +9,10 @@ import blueCheckIconUrl from '../../../../assets/icon-check-blue.svg'
 import checkIconUrl from '../../../../assets/icon-check.svg'
 import clockIconUrl from '../../../../assets/icon-clock.svg'
 import codeIconUrl from '../../../../assets/icon-code.svg'
-import iconGearUrl from '../../../../assets/icon-gear.svg'
 import thinkingIconUrl from '../../../../assets/icon-thinking.svg'
 import greyXIconUrl from '../../../../assets/icon-x-grey.svg'
 import xIconUrl from '../../../../assets/icon-x.svg'
+import { useWindowDimensions } from '../../hooks/useWindowDimensions'
 
 interface ApprovalScreenProps {
   message: Message
@@ -22,7 +22,6 @@ interface ApprovalScreenProps {
   systemStatus: string
   onApprove: () => void
   onBack: () => void
-  onOptionClick: () => void
   onReject: () => void
 }
 
@@ -30,11 +29,12 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
   message,
   onApprove,
   onBack,
-  onOptionClick,
   onReject,
 }) => {
   const [activeTab, setActiveTab] = useState<'code' | 'explanation'>('explanation')
   const [isFontLoaded, setIsFontLoaded] = useState(false)
+
+  const { isThin } = useWindowDimensions()
 
   useEffect(() => {
     // Wait for Fira Code font to load before initializing Monaco Editor
@@ -98,211 +98,177 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
   const createdAt = new Date(timestamp).toLocaleString()
 
   return (
-    <div
-      className="flex flex-col w-full h-screen bg-transparent draggable rounded-[0.5rem] p-[0.63rem] pt-0 items-center text-[0.88rem] text-[#171717]"
-    >
-      <div className="flex w-full -h-[1.56rem] mx-[1.25rem] my-[0.5rem] justify-between">
-        <div
-          className="px-[0.5rem] py-[0.25rem] w-4 h-4"
-        />
-        <div
-          className="px-[0.75rem] py-[0.25rem] rounded-full bg-[#BFBFBF] flex items-center gap-[0.63rem]"
-        >
-          <div
-            className="w-[10px] h-[10px] rounded-full bg-[#7BB750]"
-          />
-          <div
-            className="text-[#737373]"
-          >
-            All systems are
-            {' '}
-            <span className="text-[#7BB750] font-semibold">
-              normal
-            </span>
-          </div>
-        </div>
-        <button
-          onClick={onOptionClick}
-          className="px-[0.5rem] py-[0.25rem] rounded-full bg-[#BFBFBF] not-draggable "
-        >
-          <img src={iconGearUrl} alt="Settings" className="w-4 h-4" />
-        </button>
+    <>
+      <button
+        onClick={onBack}
+        className="py-[0.31rem] mt-[-0.31rem] px-[0.31rem] text-[#737373]"
+      >
+        &lt; All requests
+      </button>
+
+      <div
+        className="text-[1.25rem] font-bold"
+      >
+        Security evaluation request
       </div>
 
       <div
-        className="flex flex-col w-full grow min-h-0 bg-white rounded-[0.5rem] px-[0.63rem] py-[0.75rem] not-draggable gap-[0.63rem] items-start"
+        className="rounded-[0.38rem] border border-[#E5E5E5] w-full px-[0.63rem] py-[0.44rem] flex justify-between"
+      >
+        {risk_level
+          && (
+            <div>
+              <div
+                className="text-[#737373]"
+              >
+                Risk level
+              </div>
+              <div
+                className="rounded-full px-[0.5rem] py-[0.25rem] w-fit capitalize"
+                style={{
+                  color: riskLevelTextColor,
+                  backgroundColor: riskLevelBgColor,
+                }}
+              >
+                {risk_level}
+              </div>
+            </div>
+          )}
+
+        {status
+          && (
+            <div>
+              <div
+                className="text-[#737373]"
+              >
+                Status
+              </div>
+              <div
+                className="flex items-center gap-[0.25rem] capitalize"
+              >
+                <img src={statusIconUrl} alt="Status" className="w-[0.75rem] h-[0.75rem] m-[0.19rem]" />
+                {status}
+              </div>
+            </div>
+          )}
+
+        <div>
+          <div
+            className="text-[#737373]"
+          >
+            Created
+          </div>
+          <div>
+            {createdAt}
+          </div>
+        </div>
+      </div>
+
+      <div
+        className="flex w-full gap-[0.31rem] border border-[#E5E5E5] rounded-[0.38rem] bg-[#F3F3F3] p-[0.25rem] text-[#737373] font-semibold flex-wrap"
+        style={{
+          flexDirection: isThin ? 'column' : 'row',
+        }}
       >
         <button
-          onClick={onBack}
-          className="py-[0.31rem] mt-[-0.31rem] px-[0.31rem] text-[#737373]"
+          onClick={() => setActiveTab('explanation')}
+          className={`grow basis-0 flex items-center justify-center py-[0.5rem] rounded-[0.25rem] gap-[0.31rem] border-none outline-none ${
+            activeTab === 'explanation'
+              ? 'bg-white'
+              : 'hover:bg-[#E6E6E6]'
+          }`}
         >
-          &lt; All requests
+          <img src={thinkingIconUrl} alt="thinking" className="w-[1rem] h-[1rem] m-[0.19rem]" />
+          What the model wants to do
         </button>
-
-        <div
-          className="text-[1.25rem] font-bold"
+        <button
+          onClick={() => setActiveTab('code')}
+          className={`grow basis-0 flex items-center justify-center py-[0.5rem] rounded-[0.25rem] gap-[0.31rem] border-none outline-none ${
+            activeTab === 'code'
+              ? 'bg-white'
+              : 'hover:bg-[#E6E6E6]'
+          }`}
         >
-          Security evaluation request
-        </div>
-
-        <div
-          className="rounded-[0.38rem] border border-[#E5E5E5] w-full px-[0.63rem] py-[0.44rem] flex justify-between"
-        >
-          {risk_level
-            && (
-              <div>
-                <div
-                  className="text-[#737373]"
-                >
-                  Risk level
-                </div>
-                <div
-                  className="rounded-full px-[0.5rem] py-[0.25rem] w-fit capitalize"
-                  style={{
-                    color: riskLevelTextColor,
-                    backgroundColor: riskLevelBgColor,
-                  }}
-                >
-                  {risk_level}
-                </div>
-              </div>
-            )}
-
-          {status
-            && (
-              <div>
-                <div
-                  className="text-[#737373]"
-                >
-                  Status
-                </div>
-                <div
-                  className="flex items-center gap-[0.25rem] capitalize"
-                >
-                  <img src={statusIconUrl} alt="Status" className="w-[0.75rem] h-[0.75rem] m-[0.19rem]" />
-                  {status}
-                </div>
-              </div>
-            )}
-
-          <div>
-            <div
-              className="text-[#737373]"
-            >
-              Created
-            </div>
-            <div>
-              {createdAt}
-            </div>
-          </div>
-        </div>
-
-        <div
-          className="flex w-full border border-[#E5E5E5] rounded-[0.38rem] bg-[#F3F3F3] p-[0.25rem] text-[#737373] font-semibold"
-        >
-          <button
-            onClick={() => setActiveTab('explanation')}
-            className="grow basis-0 flex items-center justify-center py-[0.5rem] rounded-[0.25rem] gap-[0.31rem] border-none outline-none"
-            style={
-              activeTab === 'explanation'
-                ? {
-                    backgroundColor: 'white',
-                  }
-                : {}
-            }
-          >
-            <img src={thinkingIconUrl} alt="thinking" className="w-[1rem] h-[1rem] m-[0.19rem]" />
-            What the model wants to do
-          </button>
-          <button
-            onClick={() => setActiveTab('code')}
-            className="grow basis-0 flex items-center justify-center py-[0.5rem] rounded-[0.25rem] gap-[0.31rem] border-none outline-none"
-            style={
-              activeTab === 'code'
-                ? {
-                    backgroundColor: 'white',
-                  }
-                : {}
-            }
-          >
-            <img src={codeIconUrl} alt="code" className="w-[1rem] h-[1rem] m-[0.19rem]" />
-            Generated script
-          </button>
-        </div>
-
-        {activeTab === 'explanation' && (
-          <div
-            className="p-[0.75rem] border border-[#E5E5E5] rounded-[0.38rem] w-full grow overflow-auto min-h-0"
-          >
-            {explanation}
-          </div>
-        )}
-
-        {activeTab === 'code' && code && (
-          <div className="border border-[#E5E5E5] rounded-[0.38rem] w-full grow min-h-0">
-            {isFontLoaded
-              ? (
-                  <Editor
-                    height="100%"
-                    width="100%"
-                    language="javascript"
-                    value={message.code}
-                    onChange={value => message.code = value}
-                    theme="lazy"
-                    beforeMount={handleEditorWillMount}
-                    options={{
-                      automaticLayout: true,
-                      fontFamily: '"Fira Code", monospace',
-                      fontLigatures: true,
-                      fontSize: 14,
-                      fontWeight: '400',
-                      lineHeight: 1.5,
-                      lineNumbersMinChars: 0,
-                      minimap: { enabled: false },
-                      wordWrap: 'on',
-                    }}
-                  />
-                )
-              : (
-                  <div className="flex items-center justify-center h-full text-[#737373]">
-                    Loading editor...
-                  </div>
-                )}
-          </div>
-        )}
-
-        {status === 'pending' && (
-          <div
-            className="w-full flex flex-col gap-[0.5rem]"
-          >
-            <div
-              className="w-full flex gap-[0.31rem]"
-            >
-              <button
-                className="bg-[#F3F3F3] text-[#737373] grow basis-0 flex gap-[0.31rem] rounded-[0.25rem] p-[0.5rem] items-center justify-center border-none outline-none"
-                onClick={onReject}
-              >
-                <img src={greyXIconUrl} alt="x" className="w-[0.75rem] h-[0.75rem]" />
-                Reject
-              </button>
-
-              <button
-                className="bg-[#5093B726] text-[#5093B7] grow basis-0 flex gap-[0.31rem] rounded-[0.25rem] p-[0.5rem] items-center justify-center border-none outline-none"
-                onClick={onApprove}
-              >
-                <img src={blueCheckIconUrl} alt="check" className="w-[0.75rem] h-[0.75rem]" />
-                Approve
-              </button>
-            </div>
-
-            <div
-              className="text-[#737373] text-[0.75rem] text-center w-full"
-            >
-              AI can make mistakes. Always review before approving.
-            </div>
-          </div>
-        )}
+          <img src={codeIconUrl} alt="code" className="w-[1rem] h-[1rem] m-[0.19rem]" />
+          Generated script
+        </button>
       </div>
-    </div>
+
+      {activeTab === 'explanation' && (
+        <div
+          className="p-[0.75rem] border border-[#E5E5E5] rounded-[0.38rem] w-full grow overflow-auto min-h-0"
+        >
+          {explanation}
+        </div>
+      )}
+
+      {activeTab === 'code' && code && (
+        <div className="border border-[#E5E5E5] rounded-[0.38rem] w-full grow min-h-0">
+          {isFontLoaded
+            ? (
+                <Editor
+                  height="100%"
+                  width="100%"
+                  language="javascript"
+                  value={message.code}
+                  onChange={value => message.code = value}
+                  theme="lazy"
+                  beforeMount={handleEditorWillMount}
+                  options={{
+                    automaticLayout: true,
+                    fontFamily: '"Fira Code", monospace',
+                    fontLigatures: true,
+                    fontSize: 14,
+                    fontWeight: '400',
+                    lineHeight: 1.5,
+                    lineNumbersMinChars: 0,
+                    minimap: { enabled: false },
+                    wordWrap: 'on',
+                  }}
+                />
+              )
+            : (
+                <div className="flex items-center justify-center h-full text-[#737373]">
+                  Loading editor...
+                </div>
+              )}
+        </div>
+      )}
+
+      {status === 'pending' && (
+        <div
+          className="w-full flex flex-col gap-[0.5rem]"
+        >
+          <div
+            className="w-full flex gap-[0.31rem] flex-wrap"
+            style={{
+              flexDirection: isThin ? 'column' : 'row',
+            }}
+          >
+            <button
+              className="bg-[#F3F3F3] hover:bg-[#E6E6E6] active:bg-[#D9D9D9] text-[#737373] grow basis-0 flex gap-[0.31rem] rounded-[0.25rem] p-[0.5rem] items-center justify-center border-none outline-none"
+              onClick={onReject}
+            >
+              <img src={greyXIconUrl} alt="x" className="w-[0.75rem] h-[0.75rem]" />
+              Reject
+            </button>
+
+            <button
+              className="bg-[#E4EBEF] hover:bg-[#D5E0E6] active:bg-[#C5D4DD] text-[#5093B7] grow basis-0 flex gap-[0.31rem] rounded-[0.25rem] p-[0.5rem] items-center justify-center border-none outline-none"
+              onClick={onApprove}
+            >
+              <img src={blueCheckIconUrl} alt="check" className="w-[0.75rem] h-[0.75rem]" />
+              Approve script execution
+            </button>
+          </div>
+
+          <div
+            className="text-[#737373] text-[0.75rem] text-center w-full"
+          >
+            AI can make mistakes. Always review before approving.
+          </div>
+        </div>
+      )}
+    </>
   )
 }
