@@ -43,8 +43,9 @@ export const Share: React.FC<ShareProps> = ({
   onOptionClick,
 }) => {
   const [formData, setFormData] = useState<CollectionRequest>(request)
-  const [activeTab, setActiveTab] = useState<'details' | 'code'>('details')
+  const [activeTab, setActiveTab] = useState<'details' | 'code' | 'schema'>('details')
   const [isFontLoaded, setIsFontLoaded] = useState(false)
+  const [schemaJsonError, setSchemaJsonError] = useState<string | null>(null)
 
   React.useEffect(() => {
     const checkFontLoaded = async () => {
@@ -142,6 +143,13 @@ export const Share: React.FC<ShareProps> = ({
           >
             <img src={codeIconUrl} alt="code" className="w-[1rem] h-[1rem] m-[0.19rem]" />
             Script Code
+          </button>
+          <button
+            onClick={() => setActiveTab('schema')}
+            className="grow basis-0 flex items-center justify-center py-[0.5rem] rounded-[0.25rem] gap-[0.31rem] border-none outline-none"
+            style={activeTab === 'schema' ? { backgroundColor: 'white' } : {}}
+          >
+            Template Schema
           </button>
         </div>
 
@@ -274,6 +282,55 @@ export const Share: React.FC<ShareProps> = ({
                 Loading editor...
               </div>
             )}
+          </div>
+        )}
+
+        {activeTab === 'schema' && (
+          <div className="w-full grow min-h-0 flex flex-col gap-[0.5rem]">
+            <div className="text-[#737373] text-[0.75rem]">
+              Template Variables Schema (JSON)
+            </div>
+            {schemaJsonError && (
+              <div className="px-[0.75rem] py-[0.5rem] bg-[#FEE2E2] text-[#DC2626] rounded-[0.38rem] text-[0.75rem]">
+                {schemaJsonError}
+              </div>
+            )}
+            <div className="border border-[#E5E5E5] rounded-[0.38rem] w-full grow min-h-0">
+              {isFontLoaded ? (
+                <Editor
+                  height="100%"
+                  width="100%"
+                  language="json"
+                  value={JSON.stringify(formData.template_variables_schema, null, 2)}
+                  onChange={(value) => {
+                    try {
+                      const parsed = JSON.parse(value || '{}')
+                      handleInputChange('template_variables_schema', parsed)
+                      setSchemaJsonError(null)
+                    } catch (e) {
+                      setSchemaJsonError(e instanceof Error ? e.message : 'Invalid JSON')
+                    }
+                  }}
+                  theme="lazy"
+                  beforeMount={handleEditorWillMount}
+                  options={{
+                    automaticLayout: true,
+                    fontFamily: '"Fira Code", monospace',
+                    fontLigatures: true,
+                    fontSize: 14,
+                    fontWeight: '400',
+                    lineHeight: 1.5,
+                    lineNumbersMinChars: 0,
+                    minimap: { enabled: false },
+                    wordWrap: 'on',
+                  }}
+                />
+              ) : (
+                <div className="flex items-center justify-center h-full text-[#737373]">
+                  Loading editor...
+                </div>
+              )}
+            </div>
           </div>
         )}
 

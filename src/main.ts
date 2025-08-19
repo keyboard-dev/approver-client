@@ -1422,8 +1422,7 @@ class MenuBarNotificationApp {
         shareMessage.collectionRequest = updatedRequest
 
         // Update pending count
-        this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length + 
-                           this.shareMessages.filter(m => m.status === 'pending' || !m.status).length
+        this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length + this.shareMessages.filter(m => m.status === 'pending' || !m.status).length
         this.trayManager.updateTrayIcon()
 
         // Send response back through WebSocket
@@ -1438,8 +1437,7 @@ class MenuBarNotificationApp {
         shareMessage.status = 'rejected'
 
         // Update pending count
-        this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length + 
-                           this.shareMessages.filter(m => m.status === 'pending' || !m.status).length
+        this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length + this.shareMessages.filter(m => m.status === 'pending' || !m.status).length
         this.trayManager.updateTrayIcon()
 
         // Send response back through WebSocket
