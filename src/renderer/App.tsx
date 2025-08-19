@@ -386,6 +386,17 @@ const App: React.FC = () => {
     refreshMessages() // Refresh to show updated status without loading state
   }
 
+  // Clear all non-pending messages
+  const clearNonPendingMessages = () => {
+    // Filter out messages that are not pending
+    const pendingMessages = messages.filter(msg => msg.status === 'pending' || !msg.status)
+    const pendingShareMessages = shareMessages.filter(msg => msg.status === 'pending' || !msg.status)
+    
+    // Update the state with only pending messages
+    setMessages(pendingMessages)
+    setShareMessages(pendingShareMessages)
+  }
+
   const toggleSettings = () => {
     setShowSettings(!showSettings)
     setCurrentMessage(null)
@@ -817,6 +828,15 @@ const App: React.FC = () => {
                           {showSettings ? 'Settings' : 'Message Approvals'}
                         </h1>
                         <div className="flex items-center space-x-3">
+                          {!showSettings && (messages.length > 0 || shareMessages.length > 0) && (
+                            <Button
+                              variant="outline"
+                              onClick={() => clearNonPendingMessages()}
+                              className="flex items-center space-x-2"
+                            >
+                              <span>Clear Non-Pending</span>
+                            </Button>
+                          )}
                           <Button
                             variant="outline"
                             onClick={toggleSettings}
