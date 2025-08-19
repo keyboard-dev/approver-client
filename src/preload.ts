@@ -153,6 +153,10 @@ export interface ElectronAPI {
   regenerateEncryptionKey: () => Promise<{ key: string, createdAt: number, source: string }>
   getEncryptionKeyInfo: () => Promise<{ key: string | null, createdAt: number | null, keyFile: string, source: 'environment' | 'generated' | null }>
   onEncryptionKeyGenerated: (callback: (event: IpcRendererEvent, data: { key: string, createdAt: number, source: string }) => void) => void
+  // External URL handling
+  openExternalUrl: (url: string) => Promise<void>
+  // OS Notifications
+  showOSNotification: (title: string, body: string) => Promise<void>
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -244,6 +248,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onEncryptionKeyGenerated: (callback: (event: IpcRendererEvent, data: { key: string, createdAt: number, source: string }) => void): void => {
     ipcRenderer.on('encryption-key-generated', callback)
   },
+
+  // External URL handling
+  openExternalUrl: (url: string): Promise<void> => ipcRenderer.invoke('open-external-url', url),
+
+  // OS Notifications
+  showOSNotification: (title: string, body: string): Promise<void> => ipcRenderer.invoke('show-os-notification', title, body),
 } as ElectronAPI)
 
 // Extend the global Window interface

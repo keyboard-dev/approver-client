@@ -16,12 +16,15 @@ export class WindowManager {
   }
 
   public createMainWindow(): void {
+    const iconPath = path.join(__dirname, '../assets/keyboard-dock.icns')
+
     this.mainWindow = new BrowserWindow({
       width: 600, // Larger for reading code
       height: 800, // Taller for explanations
       show: false, // Don't show/focus the window when created
       transparent: true,
       frame: false,
+      icon: iconPath,
       webPreferences: {
         preload: path.join(__dirname, 'preload.js'),
       },
