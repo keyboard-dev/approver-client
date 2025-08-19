@@ -16,6 +16,24 @@ import { TrayManager } from './tray-manager'
 import { AuthorizeResponse, AuthTokens, ErrorResponse, Message, PKCEParams, TokenResponse } from './types'
 import { WindowManager } from './window-manager'
 
+// Helper function to find assets directory reliably
+function getAssetsPath(): string {
+  const appPath = app.getAppPath()
+
+  // In development, assets are in project root
+  // In production (packaged), assets should be in app bundle
+  const devAssetsPath = path.join(appPath, '..', 'assets')
+  const prodAssetsPath = path.join(appPath, 'assets')
+
+  // Check development path first
+  if (fs.existsSync(devAssetsPath)) {
+    return devAssetsPath
+  }
+
+  // Fallback to production path
+  return prodAssetsPath
+}
+
 // Types for WebSocket server configuration
 interface WebSocketVerifyInfo {
   req: {
@@ -157,6 +175,20 @@ class MenuBarNotificationApp {
 
     // STEP 4: App ready event
     app.whenReady().then(async () => {
+      // Set application icon for notifications (especially important for macOS)
+      const assetsPath = getAssetsPath()
+      const iconPath = path.join(assetsPath, 'keyboard-dock.png')
+
+      if (process.platform === 'darwin' && fs.existsSync(iconPath)) {
+        // On macOS, set the dock icon which is used for notifications
+        try {
+          app.dock.setIcon(iconPath)
+        }
+        catch (error) {
+          console.warn('Failed to set dock icon:', error)
+        }
+      }
+
       // Initialize WebSocket security key first
       await this.initializeWebSocketKey()
 
@@ -1085,15 +1117,14 @@ class MenuBarNotificationApp {
     }
 
     try {
-      // Fix: Use helper function for reliable asset path resolution
-      // const assetsPath = getAssetsPath()
-      // const iconPath = path.join(assetsPath, 'keyboard512px.png')
+      const assetsPath = getAssetsPath()
+      const iconPath = path.join(assetsPath, 'keyboard-dock.png')
 
       const notification = new Notification({
         title: message.title,
         body: message.body,
         urgency: message.priority === 'high' ? 'critical' : 'normal',
-        // icon: iconPath, // Add your logo here
+        icon: iconPath,
       })
 
       notification.on('click', () => {
@@ -1104,6 +1135,30 @@ class MenuBarNotificationApp {
     }
     catch (error) {
       console.error('❌ Error showing notification:', error)
+    }
+  }
+
+  private showOSNotification(title: string, body: string): void {
+    if (!Notification.isSupported()) {
+      console.warn('Notifications not supported on this platform')
+      return
+    }
+
+    try {
+      const assetsPath = getAssetsPath()
+      const iconPath = path.join(assetsPath, 'keyboard-dock.png')
+
+      const notification = new Notification({
+        title,
+        body,
+        urgency: 'normal',
+        icon: iconPath,
+      })
+
+      notification.show()
+    }
+    catch (error) {
+      console.error('❌ Error showing OS notification:', error)
     }
   }
 
@@ -1353,6 +1408,11 @@ class MenuBarNotificationApp {
         createdAt,
         keyFile: this.WS_KEY_FILE,
       }
+    })
+
+    // OS Notifications
+    ipcMain.handle('show-os-notification', async (_, title: string, body: string): Promise<void> => {
+      this.showOSNotification(title, body)
     })
 
     // Encryption key management

@@ -6,7 +6,7 @@ import { OAuthProviderManager } from '../../OAuthProviderManager'
 import ServerProviderManager from '../../ServerProviderManager'
 import WebSocketKeyManager from '../../WebSocketKeyManager'
 import { ConnectorPanel } from './panels/ConnectorPanel'
-import { WebSocketPanel } from './panels/WebsocketPanel'
+import { WebSocketPanel } from './panels/WebSocketPanel'
 
 const oldSettings = false
 

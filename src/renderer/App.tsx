@@ -676,7 +676,7 @@ const App: React.FC = () => {
     <div
       className="flex flex-col w-full h-screen bg-transparent draggable rounded-[0.5rem] p-[0.63rem] pt-0 items-center text-[0.88rem] text-[#171717] font-medium"
     >
-      <div className="flex w-full -h-[1.56rem] mx-[1.25rem] my-[0.5rem] justify-between">
+      <div className="flex w-full -h-[1.56rem] mx-[1.25rem] my-[0.5rem] justify-between z-20">
         <div
           className="px-[0.5rem] py-[0.25rem] w-4 h-4"
         />
