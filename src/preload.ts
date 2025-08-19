@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron'
 import { ServerProviderInfo } from './oauth-providers'
-import { Message } from './types'
+import { CollectionRequest, Message, ShareMessage } from './types'
 
 export interface AuthStatus {
   authenticated: boolean
@@ -102,13 +102,18 @@ export interface ProviderStatus {
 
 export interface ElectronAPI {
   getMessages: () => Promise<Message[]>
+  getShareMessages: () => Promise<ShareMessage[]>
   markMessageRead: (messageId: string) => Promise<void>
   deleteMessage: (messageId: string) => Promise<void>
   approveMessage: (message: Message, feedback?: string) => Promise<void>
   rejectMessage: (messageId: string, feedback?: string) => Promise<void>
+  approveCollectionShare: (messageId: string, updatedRequest: CollectionRequest) => Promise<void>
+  rejectCollectionShare: (messageId: string) => Promise<void>
   showMessages: () => void
   onShowMessage: (callback: (event: IpcRendererEvent, message: Message) => void) => void
   onWebSocketMessage: (callback: (event: IpcRendererEvent, message: Message) => void) => void
+  onCollectionShareRequest: (callback: (event: IpcRendererEvent, shareMessage: ShareMessage) => void) => void
+  onShowShareMessage: (callback: (event: IpcRendererEvent, shareMessage: ShareMessage) => void) => void
   removeAllListeners: (channel: string) => void
   // Legacy OAuth
   startOAuth: () => Promise<void>
@@ -159,10 +164,13 @@ export interface ElectronAPI {
 // the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld('electronAPI', {
   getMessages: (): Promise<Message[]> => ipcRenderer.invoke('get-messages'),
+  getShareMessages: (): Promise<ShareMessage[]> => ipcRenderer.invoke('get-share-messages'),
   markMessageRead: (messageId: string): Promise<void> => ipcRenderer.invoke('mark-message-read', messageId),
   deleteMessage: (messageId: string): Promise<void> => ipcRenderer.invoke('delete-message', messageId),
   approveMessage: (message: Message, feedback?: string): Promise<void> => ipcRenderer.invoke('approve-message', message, feedback),
   rejectMessage: (messageId: string, feedback?: string): Promise<void> => ipcRenderer.invoke('reject-message', messageId, feedback),
+  approveCollectionShare: (messageId: string, updatedRequest: CollectionRequest): Promise<void> => ipcRenderer.invoke('approve-collection-share', messageId, updatedRequest),
+  rejectCollectionShare: (messageId: string): Promise<void> => ipcRenderer.invoke('reject-collection-share', messageId),
   showMessages: (): void => ipcRenderer.send('show-messages'),
 
   // Listen for messages from main process
@@ -171,6 +179,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   onWebSocketMessage: (callback: (event: IpcRendererEvent, message: Message) => void): void => {
     ipcRenderer.on('websocket-message', callback)
+  },
+  onCollectionShareRequest: (callback: (event: IpcRendererEvent, shareMessage: ShareMessage) => void): void => {
+    ipcRenderer.on('collection-share-request', callback)
+  },
+  onShowShareMessage: (callback: (event: IpcRendererEvent, shareMessage: ShareMessage) => void): void => {
+    ipcRenderer.on('show-share-message', callback)
   },
   removeAllListeners: (channel: string): void => {
     ipcRenderer.removeAllListeners(channel)

@@ -62,3 +62,34 @@ export interface ErrorResponse {
   error?: string
   error_description?: string
 }
+
+export interface TemplateVariableSchema {
+  type: string
+  description?: string
+  default?: unknown
+  required?: boolean
+}
+
+export interface CollectionRequest {
+  title: string
+  description: string
+  keyboard_api_keys_required: string[]
+  provider_user_tokens_required: string[]
+  api_services: string[]
+  script_code: string
+  template_variables_schema: Record<string, TemplateVariableSchema>
+}
+
+export interface ShareMessage {
+  id: string
+  type: 'collection-share'
+  title: string
+  body: string
+  timestamp: number
+  priority?: 'low' | 'normal' | 'high' | 'urgent'
+  sender?: string
+  read?: boolean
+  status?: 'pending' | 'approved' | 'rejected'
+  requiresResponse?: boolean
+  collectionRequest: CollectionRequest
+}
