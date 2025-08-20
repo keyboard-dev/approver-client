@@ -227,7 +227,7 @@ export const Share: React.FC<ShareProps> = ({
             </div>
 
             <div className="flex flex-col gap-[0.5rem]">
-              <label className="text-[#737373] text-[0.75rem]">API Services</label>
+              <label className="text-[#737373] text-[0.75rem]">Services by Domain Name</label>
               {formData.api_services.map((service, index) => (
                 <div key={index} className="flex gap-[0.5rem]">
                   <input
