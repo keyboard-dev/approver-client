@@ -13,7 +13,7 @@ import { PerProviderTokenStorage } from './per-provider-token-storage'
 import { OAuthProviderConfig } from './provider-storage'
 import { createRestAPIServer } from './rest-api'
 import { TrayManager } from './tray-manager'
-import { AuthorizeResponse, AuthTokens, ErrorResponse, Message, PKCEParams, TokenResponse } from './types'
+import { AuthorizeResponse, AuthTokens, CollectionRequest, ErrorResponse, Message, PKCEParams, ShareMessage, TokenResponse } from './types'
 import { WindowManager } from './window-manager'
 
 // Types for WebSocket server configuration
@@ -76,6 +76,7 @@ class MenuBarNotificationApp {
   private wsServer: WebSocket.Server | null = null
   private restApiServer: RestAPIServerInterface | null = null
   private messages: Message[] = []
+  private shareMessages: ShareMessage[] = []
   private pendingCount: number = 0
   private notificationsEnabled: boolean = true
   private readonly WS_PORT = 8080
@@ -1084,6 +1085,12 @@ class MenuBarNotificationApp {
             return
           }
 
+          // Handle collection share request
+          if (message.type === 'collection-share-request') {
+            this.handleCollectionShareRequest(message)
+            return
+          }
+
           // Handle regular messages
           this.handleIncomingMessage(message)
         }
@@ -1095,6 +1102,39 @@ class MenuBarNotificationApp {
       ws.on('close', () => {
       })
     })
+  }
+
+  private handleCollectionShareRequest(message: any): void {
+    const collectionRequest = message.data as CollectionRequest
+    // Create a share message for the request
+    const shareMessage: ShareMessage = {
+      id: message.id || crypto.randomBytes(16).toString('hex'),
+      type: 'collection-share',
+      title: 'Collection Share Request',
+      body: `share request for "${collectionRequest.title}"`,
+      timestamp: Date.now(),
+      priority: 'high',
+      status: 'pending',
+      requiresResponse: true,
+      collectionRequest: collectionRequest
+    }
+
+    // Show desktop notification
+    this.showShareNotification(shareMessage)
+
+    // Store the share message
+    this.shareMessages.push(shareMessage)
+
+    // Update pending count (include share messages)
+    this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length + 
+                       this.shareMessages.filter(m => m.status === 'pending' || !m.status).length
+    this.trayManager.updateTrayIcon()
+
+    // Send to renderer via collection-share-request event
+    this.windowManager.sendMessage('collection-share-request', shareMessage)
+
+    // Auto-show window for share requests
+    this.windowManager.showWindow()
   }
 
   private handleIncomingMessage(message: Message): void {
@@ -1152,6 +1192,31 @@ class MenuBarNotificationApp {
     }
     catch (error) {
       console.error('❌ Error showing notification:', error)
+    }
+  }
+
+  private showShareNotification(shareMessage: ShareMessage): void {
+    if (!Notification.isSupported()) {
+      return
+    }
+
+    try {
+      const notification = new Notification({
+        title: shareMessage.title,
+        body: shareMessage.body,
+        urgency: shareMessage.priority === 'high' ? 'critical' : 'normal',
+      })
+
+      notification.on('click', () => {
+        this.windowManager.showWindow()
+        // Send share message data to renderer
+        this.windowManager.sendMessage('show-share-message', shareMessage)
+      })
+
+      notification.show()
+    }
+    catch (error) {
+      console.error('❌ Error showing share notification:', error)
     }
   }
 
@@ -1310,6 +1375,11 @@ class MenuBarNotificationApp {
       return this.messages
     })
 
+    // Handle requests for share messages
+    ipcMain.handle('get-share-messages', (): ShareMessage[] => {
+      return this.shareMessages
+    })
+
     // Handle mark as read
     ipcMain.handle('mark-message-read', (event, messageId: string): void => {
       const message = this.messages.find(msg => msg.id === messageId)
@@ -1341,6 +1411,37 @@ class MenuBarNotificationApp {
 
         // Send response back through WebSocket if needed
         this.sendWebSocketResponse(existingMessage)
+      }
+    })
+
+    // Handle approve collection share
+    ipcMain.handle('approve-collection-share', (event, messageId: string, updatedRequest: CollectionRequest): void => {
+      const shareMessage = this.shareMessages.find(msg => msg.id === messageId)
+      if (shareMessage) {
+        shareMessage.status = 'approved'
+        shareMessage.collectionRequest = updatedRequest
+
+        // Update pending count
+        this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length + this.shareMessages.filter(m => m.status === 'pending' || !m.status).length
+        this.trayManager.updateTrayIcon()
+
+        // Send response back through WebSocket
+        this.sendCollectionShareResponse(shareMessage, 'approved', updatedRequest)
+      }
+    })
+
+    // Handle reject collection share
+    ipcMain.handle('reject-collection-share', (event, messageId: string): void => {
+      const shareMessage = this.shareMessages.find(msg => msg.id === messageId)
+      if (shareMessage) {
+        shareMessage.status = 'rejected'
+
+        // Update pending count
+        this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length + this.shareMessages.filter(m => m.status === 'pending' || !m.status).length
+        this.trayManager.updateTrayIcon()
+
+        // Send response back through WebSocket
+        this.sendCollectionShareResponse(shareMessage, 'rejected')
       }
     })
 
@@ -1451,6 +1552,25 @@ class MenuBarNotificationApp {
       this.wsServer.clients.forEach((client) => {
         if (client.readyState === WebSocket.OPEN) {
           client.send(JSON.stringify(message))
+        }
+      })
+    }
+  }
+
+  private sendCollectionShareResponse(shareMessage: ShareMessage, status: 'approved' | 'rejected', updatedRequest?: CollectionRequest): void {
+    if (this.wsServer) {
+      const response = {
+        type: 'collection-share-response',
+        id: shareMessage.id,
+        status: status,
+        timestamp: Date.now(),
+        data: status === 'approved' ? updatedRequest : null
+      }
+
+      // Send response to all connected WebSocket clients
+      this.wsServer.clients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(JSON.stringify(response))
         }
       })
     }
