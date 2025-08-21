@@ -2,72 +2,66 @@ import React, { useEffect, useState } from 'react'
 import greenCheckIconUrl from '../../../../../../assets/icon-check-green.svg'
 import copyIconUrl from '../../../../../../assets/icon-copy.svg'
 import { maskKey } from '../../../../../lib/utils/display.utils'
+import { ButtonDesigned } from '../../../ui/ButtonDesigned'
 import { Confirmation } from '../../../ui/Confirmation'
 
-export const WebSocketPanel: React.FC = () => {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [connectionUrl, setConnectionUrl] = useState<string>('')
-  const [keyInfo, setKeyInfo] = useState<{ key: string | null, createdAt: number | null, keyFile: string } | null>(null)
+export type KeyInfo = { key: string | null, createdAt: number | null, keyFile?: string, source?: 'environment' | 'generated' | null }
 
-  const [isRegenerating, setIsRegenerating] = useState(false)
-  const [showKey, setShowKey] = useState(false)
+export const KeyPanel: React.FC<{
+  confirmationDescription?: string
+  description?: string
+  getKeyInfo: () => Promise<KeyInfo>
+  onKeyGenerated: (callback: (event: Electron.CrossProcessExports.IpcRendererEvent, data: KeyInfo) => void) => void
+  onUnmount: () => void
+  regenerateKey: () => Promise<KeyInfo | undefined>
+  title: string
+}> = ({
+  confirmationDescription,
+  description,
+  getKeyInfo,
+  onKeyGenerated,
+  onUnmount,
+  regenerateKey,
+  title,
+}) => {
   const [isCopyDebouncing, setIsCopyDebouncing] = useState(false)
+  const [isRegenerating, setIsRegenerating] = useState(false)
   const [isRegeneratingConfirmationOpen, setIsRegeneratingConfirmationOpen] = useState(false)
-
-  const loadConnectionUrl = async () => {
-    const url = await window.electronAPI.getWSConnectionUrl()
-    setConnectionUrl(url)
-  }
+  const [keyInfo, setKeyInfo] = useState<KeyInfo | null>(null)
+  const [showKey, setShowKey] = useState(false)
 
   const loadKeyInfo = async () => {
-    const info = await window.electronAPI.getWSKeyInfo()
+    const info = await getKeyInfo()
     setKeyInfo(info)
-    loadConnectionUrl()
   }
 
   useEffect(() => {
     loadKeyInfo()
 
-    const handleKeyGenerated = (_event: unknown, data: { key: string, createdAt: number }) => {
+    const handleKeyGenerated = (_event: unknown, data: KeyInfo) => {
       setKeyInfo(prev => prev
         ? ({
             ...prev,
             ...data,
           })
-        : ({
-            keyFile: '',
-            ...data,
-          }))
-      loadConnectionUrl()
+        : data)
     }
 
-    window.electronAPI.onWSKeyGenerated(handleKeyGenerated)
+    onKeyGenerated(handleKeyGenerated)
 
-    return () => {
-      window.electronAPI.removeAllListeners('ws-key-generated')
-    }
+    return onUnmount
   }, [])
 
   const handleRegenerateKey = async () => {
-    if (isRegenerating) return
+    const data = await regenerateKey()
+    if (!data) return
 
-    setIsRegenerating(true)
-    try {
-      const data = await window.electronAPI.regenerateWSKey()
-      setKeyInfo(prev => prev
-        ? ({
-            ...prev,
-            ...data,
-          })
-        : ({
-            keyFile: '',
-            ...data,
-          }))
-      loadConnectionUrl()
-    }
-    finally {
-      setIsRegenerating(false)
-    }
+    setKeyInfo(prev => prev
+      ? ({
+          ...prev,
+          ...data,
+        })
+      : data)
   }
 
   return (
@@ -75,7 +69,7 @@ export const WebSocketPanel: React.FC = () => {
       <div
         className="px-[0.94rem] text-[1.13rem]"
       >
-        WebSocket
+        {title}
       </div>
 
       <div
@@ -104,12 +98,20 @@ export const WebSocketPanel: React.FC = () => {
 
               {keyInfo?.key
                 && (
-                  <button
+                  // <button
+                  //   onClick={() => setShowKey(!showKey)}
+                  //   className="p-[0.25rem] border border-[#CCC] rounded-[0.25rem] bg-[#F0F0F0]"
+                  // >
+                  //   Show
+                // </button>
+                  <ButtonDesigned
+                    className="p-[0.25rem]"
+                    variant="secondary"
                     onClick={() => setShowKey(!showKey)}
-                    className="p-[0.25rem] border border-[#CCC] rounded-[0.25rem] bg-[#F0F0F0]"
+                    hasBorder
                   >
                     Show
-                  </button>
+                  </ButtonDesigned>
                 )}
             </div>
 
@@ -146,26 +148,45 @@ export const WebSocketPanel: React.FC = () => {
           </div>
         </div>
 
-        <div
-          className="text-[#737373]"
-        >
-          Applications need this key to connect to the approver. Treat it like a password — do not share it. The key is stored securely on your device.
-        </div>
+        {description && (
+          <div
+            className="text-[#737373]"
+          >
+            {description}
+          </div>
+        )}
 
-        <button
-          className="self-end px-[0.63rem] py-[0.38rem] border border-[#CCC] rounded-[0.25rem] bg-[#F7F7F7] text-[#D23535]"
+        {/* <button
+          className="self-end px-[0.63rem] py-[0.38rem] border border-[#CCC] rounded-[0.25rem] bg-[#F7F7F7] hover:bg-[#D23535] text-[#D23535] hover:text-[#FFF]"
           onClick={() => setIsRegeneratingConfirmationOpen(true)}
           disabled={isRegenerating}
         >
           Regenerate key
-        </button>
+        </button> */}
+        <ButtonDesigned
+          className="self-end px-[0.63rem] py-[0.38rem]"
+          disabled={isRegenerating}
+          hasBorder
+          onClick={() => setIsRegeneratingConfirmationOpen(true)}
+          variant="destructive"
+        >
+          Regenerate key
+        </ButtonDesigned>
 
         {isRegeneratingConfirmationOpen && (
           <Confirmation
             confirmText="Yes, regenerate key"
-            description="Submitting this form will generate a new WebSocket key. Be aware that any scripts or applications using this key will need to be updated."
+            description={confirmationDescription}
+            disabled={isRegenerating}
             onCancel={() => setIsRegeneratingConfirmationOpen(false)}
-            onConfirm={handleRegenerateKey}
+            onConfirm={async () => {
+              if (isRegenerating) return
+              setIsRegenerating(true)
+              await handleRegenerateKey()
+              setIsRegenerating(false)
+
+              setIsRegeneratingConfirmationOpen(false)
+            }}
           />
         )}
       </div>

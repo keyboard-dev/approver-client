@@ -150,9 +150,9 @@ export interface ElectronAPI {
   onWSKeyGenerated: (callback: (event: IpcRendererEvent, data: { key: string, createdAt: number }) => void) => void
   // Encryption key management
   getEncryptionKey: () => Promise<string | null>
-  regenerateEncryptionKey: () => Promise<{ key: string, createdAt: number, source: string }>
+  regenerateEncryptionKey: () => Promise<{ key: string, createdAt: number, source: 'environment' | 'generated' | null }>
   getEncryptionKeyInfo: () => Promise<{ key: string | null, createdAt: number | null, keyFile: string, source: 'environment' | 'generated' | null }>
-  onEncryptionKeyGenerated: (callback: (event: IpcRendererEvent, data: { key: string, createdAt: number, source: string }) => void) => void
+  onEncryptionKeyGenerated: (callback: (event: IpcRendererEvent, data: { key: string, createdAt: number, source: 'environment' | 'generated' | null }) => void) => void
   // External URL handling
   openExternalUrl: (url: string) => Promise<void>
   // OS Notifications
@@ -243,9 +243,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Encryption key management
   getEncryptionKey: (): Promise<string | null> => ipcRenderer.invoke('get-encryption-key'),
-  regenerateEncryptionKey: (): Promise<{ key: string, createdAt: number, source: string }> => ipcRenderer.invoke('regenerate-encryption-key'),
+  regenerateEncryptionKey: (): Promise<{ key: string, createdAt: number, source: 'environment' | 'generated' | null }> => ipcRenderer.invoke('regenerate-encryption-key'),
   getEncryptionKeyInfo: (): Promise<{ key: string | null, createdAt: number | null, keyFile: string, source: 'environment' | 'generated' | null }> => ipcRenderer.invoke('get-encryption-key-info'),
-  onEncryptionKeyGenerated: (callback: (event: IpcRendererEvent, data: { key: string, createdAt: number, source: string }) => void): void => {
+  onEncryptionKeyGenerated: (callback: (event: IpcRendererEvent, data: { key: string, createdAt: number, source: 'environment' | 'generated' | null }) => void): void => {
     ipcRenderer.on('encryption-key-generated', callback)
   },
 

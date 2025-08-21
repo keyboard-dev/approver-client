@@ -10,10 +10,11 @@ import { AuthStatus, ElectronAPI } from '../preload'
 import { Message } from '../types'
 import './App.css'
 import AuthComponent from './components/AuthComponent'
-import { ApprovalScreen } from './components/screens/ApprovalScreen'
+import { ApprovalScreen } from './components/screens/ApprovalPanel'
 import { SettingsScreen } from './components/screens/settings/SettingsScreen'
 import { Badge } from './components/ui/badge'
 import { Button } from './components/ui/button'
+import { ButtonDesigned } from './components/ui/ButtonDesigned'
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card'
 
 // Monaco Editor configuration for output display
@@ -696,12 +697,19 @@ const App: React.FC = () => {
             </span>
           </div>
         </div>
-        <button
+        {/* <button
           onClick={toggleSettings}
-          className="px-[0.5rem] py-[0.25rem] rounded-full bg-[#BFBFBF] not-draggable"
+          className="px-[0.5rem] py-[0.25rem] rounded-full bg-[#F7F7F7] hover:bg-[#E4E4E4] active:bg-[#DBDBDB] not-draggable"
         >
           <img src={iconGearUrl} alt="Settings" className="w-4 h-4" />
-        </button>
+        </button> */}
+        <ButtonDesigned
+          className="px-[0.5rem] py-[0.25rem] rounded-full not-draggable"
+          variant="secondary"
+          onClick={toggleSettings}
+        >
+          <img src={iconGearUrl} alt="Settings" className="w-4 h-4" />
+        </ButtonDesigned>
       </div>
 
       <div

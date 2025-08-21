@@ -68,7 +68,6 @@ class MenuBarNotificationApp {
   private restApiServer: RestAPIServerInterface | null = null
   private messages: Message[] = []
   private pendingCount: number = 0
-  private notificationsEnabled: boolean = true
   private readonly WS_PORT = 8080
   private readonly OAUTH_PORT = 8082
   private readonly OAUTH_SERVER_URL = process.env.OAUTH_SERVER_URL || 'https://api.keyboard.dev'
@@ -89,6 +88,10 @@ class MenuBarNotificationApp {
   // Encryption key management
   private encryptionKey: string | null = null
   private readonly ENCRYPTION_KEY_FILE = path.join(os.homedir(), '.keyboard-mcp-encryption-key')
+
+  // Settings management
+  private showNotifications: boolean = true
+  private readonly SETTINGS_FILE = path.join(os.homedir(), '.keyboard-mcp-settings')
 
   constructor() {
     // Initialize HTTP server (doesn't need encryption)
@@ -194,6 +197,9 @@ class MenuBarNotificationApp {
 
       // Initialize encryption key
       await this.initializeEncryptionKey()
+
+      // Initialize app settings
+      await this.initializeSettings()
 
       // NOW initialize OAuth provider system (after encryption is ready)
       await this.initializeOAuthProviderSystem()
@@ -435,6 +441,65 @@ class MenuBarNotificationApp {
 
   public getActiveEncryptionKey(): string | null {
     return this.encryptionKey
+  }
+
+  // Settings Management Methods
+  private async initializeSettings(): Promise<void> {
+    try {
+      // Try to load existing settings
+      if (fs.existsSync(this.SETTINGS_FILE)) {
+        const settingsData = fs.readFileSync(this.SETTINGS_FILE, 'utf8')
+        const parsedData = JSON.parse(settingsData)
+
+        // Apply loaded settings
+        if (typeof parsedData.showNotifications === 'boolean') {
+          this.showNotifications = parsedData.showNotifications
+        }
+      }
+    }
+    catch (error) {
+      console.error('❌ Error initializing settings:', error)
+      // Use defaults if settings file is corrupted
+      this.showNotifications = true
+    }
+  }
+
+  private async saveSettings(): Promise<void> {
+    try {
+      const settingsData = {
+        showNotifications: this.showNotifications,
+        version: '1.0',
+        updatedAt: Date.now(),
+      }
+
+      // Write to file with restricted permissions
+      fs.writeFileSync(this.SETTINGS_FILE, JSON.stringify(settingsData, null, 2), { mode: 0o600 })
+    }
+    catch (error) {
+      console.error('❌ Error saving settings:', error)
+      throw error
+    }
+  }
+
+  private getSettingsInfo(): { showNotifications: boolean, settingsFile: string, updatedAt: number | null } {
+    let updatedAt: number | null = null
+
+    try {
+      if (fs.existsSync(this.SETTINGS_FILE)) {
+        const settingsData = fs.readFileSync(this.SETTINGS_FILE, 'utf8')
+        const parsedData = JSON.parse(settingsData)
+        updatedAt = parsedData.updatedAt
+      }
+    }
+    catch (error) {
+      console.error('Error reading settings file:', error)
+    }
+
+    return {
+      showNotifications: this.showNotifications,
+      settingsFile: this.SETTINGS_FILE,
+      updatedAt,
+    }
   }
 
   private generatePKCE(): PKCEParams {
@@ -1112,7 +1177,7 @@ class MenuBarNotificationApp {
   }
 
   private showNotification(message: Message): void {
-    if (!Notification.isSupported()) {
+    if (!Notification.isSupported() || !this.showNotifications) {
       return
     }
 
@@ -1420,7 +1485,7 @@ class MenuBarNotificationApp {
       return this.encryptionKey
     })
 
-    ipcMain.handle('regenerate-encryption-key', async (): Promise<{ key: string, createdAt: number, source: string }> => {
+    ipcMain.handle('regenerate-encryption-key', async (): Promise<{ key: string, createdAt: number, source: 'environment' | 'generated' | null }> => {
       // Only allow regeneration if not using environment variable
       if (process.env.ENCRYPTION_KEY && this.encryptionKey === process.env.ENCRYPTION_KEY) {
         throw new Error('Cannot regenerate encryption key when using environment variable')
@@ -1441,6 +1506,20 @@ class MenuBarNotificationApp {
     // External URL handling
     ipcMain.handle('open-external-url', async (event, url: string): Promise<void> => {
       await shell.openExternal(url)
+    })
+
+    // Settings management
+    ipcMain.handle('get-settings', (): { showNotifications: boolean, settingsFile: string, updatedAt: number | null } => {
+      return this.getSettingsInfo()
+    })
+
+    ipcMain.handle('set-show-notifications', async (event, show: boolean): Promise<void> => {
+      this.showNotifications = show
+      await this.saveSettings()
+    })
+
+    ipcMain.handle('get-show-notifications', (): boolean => {
+      return this.showNotifications
     })
   }
 
