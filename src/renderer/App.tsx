@@ -697,12 +697,6 @@ const App: React.FC = () => {
             </span>
           </div>
         </div>
-        {/* <button
-          onClick={toggleSettings}
-          className="px-[0.5rem] py-[0.25rem] rounded-full bg-[#F7F7F7] hover:bg-[#E4E4E4] active:bg-[#DBDBDB] not-draggable"
-        >
-          <img src={iconGearUrl} alt="Settings" className="w-4 h-4" />
-        </button> */}
         <ButtonDesigned
           className="px-[0.5rem] py-[0.25rem] rounded-full not-draggable"
           variant="secondary"

@@ -91,6 +91,8 @@ class MenuBarNotificationApp {
 
   // Settings management
   private showNotifications: boolean = true
+  private automaticCodeApproval: 'never' | 'low' | 'medium' | 'high' = 'never'
+  private automaticResponseApproval: boolean = false
   private readonly SETTINGS_FILE = path.join(os.homedir(), '.keyboard-mcp-settings')
 
   constructor() {
@@ -455,12 +457,17 @@ class MenuBarNotificationApp {
         if (typeof parsedData.showNotifications === 'boolean') {
           this.showNotifications = parsedData.showNotifications
         }
+        if (typeof parsedData.automaticCodeApproval === 'string'
+          && ['never', 'low', 'medium', 'high'].includes(parsedData.automaticCodeApproval)) {
+          this.automaticCodeApproval = parsedData.automaticCodeApproval as 'never' | 'low' | 'medium' | 'high'
+        }
       }
     }
     catch (error) {
       console.error('❌ Error initializing settings:', error)
       // Use defaults if settings file is corrupted
       this.showNotifications = true
+      this.automaticCodeApproval = 'never'
     }
   }
 
@@ -468,6 +475,7 @@ class MenuBarNotificationApp {
     try {
       const settingsData = {
         showNotifications: this.showNotifications,
+        automaticCodeApproval: this.automaticCodeApproval,
         version: '1.0',
         updatedAt: Date.now(),
       }
@@ -481,7 +489,7 @@ class MenuBarNotificationApp {
     }
   }
 
-  private getSettingsInfo(): { showNotifications: boolean, settingsFile: string, updatedAt: number | null } {
+  private getSettingsInfo(): { showNotifications: boolean, automaticCodeApproval: 'never' | 'low' | 'medium' | 'high', settingsFile: string, updatedAt: number | null } {
     let updatedAt: number | null = null
 
     try {
@@ -497,6 +505,7 @@ class MenuBarNotificationApp {
 
     return {
       showNotifications: this.showNotifications,
+      automaticCodeApproval: this.automaticCodeApproval,
       settingsFile: this.SETTINGS_FILE,
       updatedAt,
     }
@@ -1204,8 +1213,7 @@ class MenuBarNotificationApp {
   }
 
   private showOSNotification(title: string, body: string): void {
-    if (!Notification.isSupported()) {
-      console.warn('Notifications not supported on this platform')
+    if (!Notification.isSupported() || !this.showNotifications) {
       return
     }
 
@@ -1216,7 +1224,6 @@ class MenuBarNotificationApp {
       const notification = new Notification({
         title,
         body,
-        urgency: 'normal',
         icon: iconPath,
       })
 
@@ -1509,7 +1516,7 @@ class MenuBarNotificationApp {
     })
 
     // Settings management
-    ipcMain.handle('get-settings', (): { showNotifications: boolean, settingsFile: string, updatedAt: number | null } => {
+    ipcMain.handle('get-settings', (): { showNotifications: boolean, automaticCodeApproval: 'never' | 'low' | 'medium' | 'high', settingsFile: string, updatedAt: number | null } => {
       return this.getSettingsInfo()
     })
 
@@ -1521,28 +1528,19 @@ class MenuBarNotificationApp {
     ipcMain.handle('get-show-notifications', (): boolean => {
       return this.showNotifications
     })
+
+    ipcMain.handle('set-automatic-code-approval', async (event, level: 'never' | 'low' | 'medium' | 'high'): Promise<void> => {
+      this.automaticCodeApproval = level
+      await this.saveSettings()
+    })
+
+    ipcMain.handle('get-automatic-code-approval', (): 'never' | 'low' | 'medium' | 'high' => {
+      return this.automaticCodeApproval
+    })
   }
 
   private sendWebSocketResponse(message: Message): void {
     if (this.wsServer && message.requiresResponse) {
-      // const response = {
-      //   id: message.id,
-      //   status: status,
-      //   feedback: feedback,
-      //   timestamp: Date.now(),
-      //   originalMessage: {
-      //     id: message.id,
-      //     title: message.title,
-      //     body: 'no body',
-      //   },
-      // }
-
-      // if (status === 'approved') {
-      //   if (message.body) {
-      //     response.originalMessage.body = message.body
-      //   }
-      // }
-
       // Send response to all connected WebSocket clients
       this.wsServer.clients.forEach((client) => {
         if (client.readyState === WebSocket.OPEN) {

@@ -157,6 +157,12 @@ export interface ElectronAPI {
   openExternalUrl: (url: string) => Promise<void>
   // OS Notifications
   showOSNotification: (title: string, body: string) => Promise<void>
+  // Settings management
+  getSettings: () => Promise<{ showNotifications: boolean, automaticCodeApproval: 'never' | 'low' | 'medium' | 'high', settingsFile: string, updatedAt: number | null }>
+  setShowNotifications: (show: boolean) => Promise<void>
+  getShowNotifications: () => Promise<boolean>
+  setAutomaticCodeApproval: (level: 'never' | 'low' | 'medium' | 'high') => Promise<void>
+  getAutomaticCodeApproval: () => Promise<'never' | 'low' | 'medium' | 'high'>
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -254,6 +260,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // OS Notifications
   showOSNotification: (title: string, body: string): Promise<void> => ipcRenderer.invoke('show-os-notification', title, body),
+
+  // Settings management
+  getSettings: (): Promise<{ showNotifications: boolean, automaticCodeApproval: 'never' | 'low' | 'medium' | 'high', settingsFile: string, updatedAt: number | null }> => ipcRenderer.invoke('get-settings'),
+  setShowNotifications: (show: boolean): Promise<void> => ipcRenderer.invoke('set-show-notifications', show),
+  getShowNotifications: (): Promise<boolean> => ipcRenderer.invoke('get-show-notifications'),
+  setAutomaticCodeApproval: (level: 'never' | 'low' | 'medium' | 'high'): Promise<void> => ipcRenderer.invoke('set-automatic-code-approval', level),
+  getAutomaticCodeApproval: (): Promise<'never' | 'low' | 'medium' | 'high'> => ipcRenderer.invoke('get-automatic-code-approval'),
 } as ElectronAPI)
 
 // Extend the global Window interface

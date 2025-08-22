@@ -156,13 +156,6 @@ export const KeyPanel: React.FC<{
           </div>
         )}
 
-        {/* <button
-          className="self-end px-[0.63rem] py-[0.38rem] border border-[#CCC] rounded-[0.25rem] bg-[#F7F7F7] hover:bg-[#D23535] text-[#D23535] hover:text-[#FFF]"
-          onClick={() => setIsRegeneratingConfirmationOpen(true)}
-          disabled={isRegenerating}
-        >
-          Regenerate key
-        </button> */}
         <ButtonDesigned
           className="self-end px-[0.63rem] py-[0.38rem]"
           disabled={isRegenerating}
