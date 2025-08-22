@@ -42,6 +42,7 @@
     "clsx": "^2.1.1",
     "cors": "^2.8.5",
     "electron-squirrel-startup": "^1.0.1",
+    "electron-updater": "^6.6.2",
     "express": "^4.21.2",
     "lodash": "^4.17.21",
     "lucide-react": "^0.515.0",
@@ -120,6 +121,11 @@
     },
     "linux": {
       "icon": "assets/keyboard-dock.icns"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "keyboard-dev",
+      "repo": "approver-client"
     }
   }
 }

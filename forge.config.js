@@ -47,4 +47,16 @@ module.exports = {
       config: {},
     },
   ],
+  publishers: [
+    {
+      name: '@electron-forge/publisher-github',
+      config: {
+        repository: {
+          owner: 'keyboard-dev',
+          name: 'approver-client',
+        },
+        prerelease: false,
+      },
+    },
+  ],
 }

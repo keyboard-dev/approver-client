@@ -1,5 +1,6 @@
 import * as crypto from 'crypto'
 import { app, ipcMain, Notification, shell } from 'electron'
+import { autoUpdater } from 'electron-updater'
 import * as fs from 'fs'
 import _ from 'lodash'
 import * as os from 'os'
@@ -219,6 +220,9 @@ class MenuBarNotificationApp {
       this.setupWebSocketServer()
       this.setupRestAPI()
       this.setupIPC()
+
+      // Initialize auto-updater
+      this.setupAutoUpdater()
 
       // Request notification permissions on all platforms
       await this.requestNotificationPermissions()
@@ -1231,6 +1235,97 @@ class MenuBarNotificationApp {
     // catch (error) {
     //   console.error('❌ Error requesting notification permissions:', error)
     // }
+  }
+
+  private setupAutoUpdater(): void {
+    // Configure auto-updater
+    autoUpdater.autoDownload = false
+    autoUpdater.autoInstallOnAppQuit = true
+
+    // Set the GitHub releases URL
+    autoUpdater.setFeedURL({
+      provider: 'github',
+      owner: 'keyboard-dev',
+      repo: 'approver-client',
+    })
+
+    // Check for updates on startup
+    autoUpdater.checkForUpdatesAndNotify()
+
+    // Auto-updater event handlers
+    autoUpdater.on('checking-for-update', () => {
+      console.log('Checking for update...')
+    })
+
+    autoUpdater.on('update-available', (info) => {
+      console.log('Update available:', info)
+
+      // Show notification about available update
+      const notification = new Notification({
+        title: 'Update Available',
+        body: `A new version ${info.version} is available. Click to download.`,
+      })
+
+      notification.on('click', () => {
+        // Download the update when user clicks notification
+        autoUpdater.downloadUpdate()
+      })
+
+      notification.show()
+
+      // Also notify the renderer process
+      this.windowManager.sendMessage('update-available', info)
+    })
+
+    autoUpdater.on('update-not-available', (info) => {
+      console.log('Update not available:', info)
+    })
+
+    autoUpdater.on('error', (err) => {
+      console.error('Error in auto-updater:', err)
+    })
+
+    autoUpdater.on('download-progress', (progressObj) => {
+      console.log(`Download speed: ${progressObj.bytesPerSecond}`)
+      console.log(`Downloaded ${progressObj.percent}%`)
+
+      // Send progress to renderer
+      this.windowManager.sendMessage('download-progress', progressObj)
+    })
+
+    autoUpdater.on('update-downloaded', (info) => {
+      console.log('Update downloaded:', info)
+
+      // Show notification that update is ready
+      const notification = new Notification({
+        title: 'Update Ready',
+        body: 'Update has been downloaded. Restart the app to apply.',
+      })
+
+      notification.on('click', () => {
+        // Quit and install the update
+        autoUpdater.quitAndInstall()
+      })
+
+      notification.show()
+
+      // Also notify the renderer process
+      this.windowManager.sendMessage('update-downloaded', info)
+    })
+
+    // Add IPC handlers for manual update checks
+    ipcMain.handle('check-for-updates', async () => {
+      const result = await autoUpdater.checkForUpdatesAndNotify()
+      return result
+    })
+
+    ipcMain.handle('download-update', () => {
+      autoUpdater.downloadUpdate()
+    })
+
+    ipcMain.handle('quit-and-install', () => {
+      autoUpdater.quitAndInstall()
+    })
   }
 
   private openMessageWindow(message?: Message): void {
