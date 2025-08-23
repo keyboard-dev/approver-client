@@ -92,6 +92,7 @@ class MenuBarNotificationApp {
   // Settings management
   private showNotifications: boolean = true
   private automaticCodeApproval: 'never' | 'low' | 'medium' | 'high' = 'never'
+  private CODE_APPROVAL_ORDER = ['never', 'low', 'medium', 'high'] as const
   private automaticResponseApproval: boolean = false
   private readonly SETTINGS_FILE = path.join(os.homedir(), '.keyboard-mcp-settings')
 
@@ -461,6 +462,9 @@ class MenuBarNotificationApp {
           && ['never', 'low', 'medium', 'high'].includes(parsedData.automaticCodeApproval)) {
           this.automaticCodeApproval = parsedData.automaticCodeApproval as 'never' | 'low' | 'medium' | 'high'
         }
+        if (typeof parsedData.automaticResponseApproval === 'boolean') {
+          this.automaticResponseApproval = parsedData.automaticResponseApproval
+        }
       }
     }
     catch (error) {
@@ -468,6 +472,7 @@ class MenuBarNotificationApp {
       // Use defaults if settings file is corrupted
       this.showNotifications = true
       this.automaticCodeApproval = 'never'
+      this.automaticResponseApproval = false
     }
   }
 
@@ -476,6 +481,7 @@ class MenuBarNotificationApp {
       const settingsData = {
         showNotifications: this.showNotifications,
         automaticCodeApproval: this.automaticCodeApproval,
+        automaticResponseApproval: this.automaticResponseApproval,
         version: '1.0',
         updatedAt: Date.now(),
       }
@@ -489,7 +495,7 @@ class MenuBarNotificationApp {
     }
   }
 
-  private getSettingsInfo(): { showNotifications: boolean, automaticCodeApproval: 'never' | 'low' | 'medium' | 'high', settingsFile: string, updatedAt: number | null } {
+  private getSettingsInfo(): { showNotifications: boolean, automaticCodeApproval: 'never' | 'low' | 'medium' | 'high', automaticResponseApproval: boolean, settingsFile: string, updatedAt: number | null } {
     let updatedAt: number | null = null
 
     try {
@@ -506,6 +512,7 @@ class MenuBarNotificationApp {
     return {
       showNotifications: this.showNotifications,
       automaticCodeApproval: this.automaticCodeApproval,
+      automaticResponseApproval: this.automaticResponseApproval,
       settingsFile: this.SETTINGS_FILE,
       updatedAt,
     }
@@ -1166,6 +1173,38 @@ class MenuBarNotificationApp {
       message.status = 'pending'
     }
 
+    switch (message.title) {
+      case 'Security Evaluation Request': {
+        const { risk_level } = message
+        if (!risk_level) break
+
+        const riskLevelIndex = this.CODE_APPROVAL_ORDER.indexOf(risk_level)
+        const automaticCodeApprovalIndex = this.CODE_APPROVAL_ORDER.indexOf(this.automaticCodeApproval)
+        if (riskLevelIndex <= automaticCodeApprovalIndex) {
+          message.status = 'approved'
+        }
+
+        break
+      }
+
+      case 'code response approval': {
+        const { codespaceResponse } = message
+        if (!codespaceResponse) break
+
+        const { data: codespaceResponseData } = codespaceResponse
+        const { stderr } = codespaceResponseData
+        if (!stderr && this.automaticResponseApproval) {
+          message.status = 'approved'
+        }
+
+        break
+      }
+    }
+
+    if (message.status === 'approved') {
+      this.handleApproveMessage(message)
+    }
+
     // Show desktop notification
     this.showNotification(message)
 
@@ -1405,22 +1444,8 @@ class MenuBarNotificationApp {
     })
 
     // Handle approve message
-    ipcMain.handle('approve-message', (event, message: Message, feedback?: string): void => {
-      const existingMessage = this.messages.find(msg => msg.id === message.id)
-
-      if (existingMessage) {
-        // Update the existing message with the passed message data
-        _.assign(existingMessage, message)
-        existingMessage.status = 'approved'
-        existingMessage.feedback = feedback
-
-        // Update pending count
-        this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length
-        this.trayManager.updateTrayIcon()
-
-        // Send response back through WebSocket if needed
-        this.sendWebSocketResponse(existingMessage)
-      }
+    ipcMain.handle('approve-message', (_event, message: Message, feedback?: string): void => {
+      return this.handleApproveMessage(message, feedback)
     })
 
     // Handle reject message
@@ -1516,7 +1541,7 @@ class MenuBarNotificationApp {
     })
 
     // Settings management
-    ipcMain.handle('get-settings', (): { showNotifications: boolean, automaticCodeApproval: 'never' | 'low' | 'medium' | 'high', settingsFile: string, updatedAt: number | null } => {
+    ipcMain.handle('get-settings', (): { showNotifications: boolean, automaticCodeApproval: 'never' | 'low' | 'medium' | 'high', automaticResponseApproval: boolean, settingsFile: string, updatedAt: number | null } => {
       return this.getSettingsInfo()
     })
 
@@ -1537,6 +1562,33 @@ class MenuBarNotificationApp {
     ipcMain.handle('get-automatic-code-approval', (): 'never' | 'low' | 'medium' | 'high' => {
       return this.automaticCodeApproval
     })
+
+    ipcMain.handle('set-automatic-response-approval', async (event, enabled: boolean): Promise<void> => {
+      this.automaticResponseApproval = enabled
+      await this.saveSettings()
+    })
+
+    ipcMain.handle('get-automatic-response-approval', (): boolean => {
+      return this.automaticResponseApproval
+    })
+  }
+
+  private handleApproveMessage(message: Message, feedback?: string): void {
+    const existingMessage = this.messages.find(msg => msg.id === message.id)
+
+    if (!existingMessage) return
+
+    // Update the existing message with the passed message data
+    _.assign(existingMessage, message)
+    existingMessage.status = 'approved'
+    existingMessage.feedback = feedback
+
+    // Update pending count
+    this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length
+    this.trayManager.updateTrayIcon()
+
+    // Send response back through WebSocket if needed
+    this.sendWebSocketResponse(existingMessage)
   }
 
   private sendWebSocketResponse(message: Message): void {

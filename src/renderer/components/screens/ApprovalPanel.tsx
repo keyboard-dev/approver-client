@@ -246,31 +246,19 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
               flexDirection: isThin ? 'column' : 'row',
             }}
           >
-            {/* <button
-              className="bg-[#F3F3F3] hover:bg-[#E6E6E6] active:bg-[#D9D9D9] text-[#737373] grow basis-0 flex gap-[0.31rem] rounded-[0.25rem] p-[0.5rem] items-center justify-center border-none outline-none"
-              onClick={onReject}
-            >
-              <img src={greyXIconUrl} alt="x" className="w-[0.75rem] h-[0.75rem]" />
-              Reject
-            </button> */}
             <ButtonDesigned
               variant="secondary"
               onClick={onReject}
+              className="grow shrink basis-0 min-w-0 flex gap-[0.31rem] items-center justify-center"
             >
               <img src={greyXIconUrl} alt="x" className="w-[0.75rem] h-[0.75rem]" />
               Reject
             </ButtonDesigned>
 
-            {/* <button
-              className="bg-[#E4EBEF] hover:bg-[#D5E0E6] active:bg-[#C5D4DD] text-[#5093B7] grow basis-0 flex gap-[0.31rem] rounded-[0.25rem] p-[0.5rem] items-center justify-center border-none outline-none"
-              onClick={onApprove}
-            >
-              <img src={blueCheckIconUrl} alt="check" className="w-[0.75rem] h-[0.75rem]" />
-              Approve script execution
-            </button> */}
             <ButtonDesigned
               variant="primary"
               onClick={onApprove}
+              className="grow shrink basis-0 min-w-0 flex gap-[0.31rem] items-center justify-center"
             >
               <img src={blueCheckIconUrl} alt="check" className="w-[0.75rem] h-[0.75rem]" />
               Approve script execution

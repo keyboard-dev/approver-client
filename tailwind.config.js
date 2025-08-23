@@ -9,6 +9,8 @@ module.exports = {
   theme: {
     extend: {
       fontFamily: {
+        'inter': ['Inter', 'sans-serif'],
+        'sans': ['Inter', 'sans-serif'],
         'fira-code': ['Fira Code', 'monospace'],
         'mono': ['Fira Code', 'monospace'],
       },

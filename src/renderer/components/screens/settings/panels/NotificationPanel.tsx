@@ -7,6 +7,8 @@ export const NotificationPanel: React.FC = () => {
   const [showNotificationDisabled, setShowNotificationDisabled] = useState(true)
   const [showAutomaticCodeApproval, setShowAutomaticCodeApproval] = useState<'never' | 'low' | 'medium' | 'high'>('never')
   const [showAutomaticCodeApprovalDisabled, setShowAutomaticCodeApprovalDisabled] = useState(true)
+  const [showAutomaticResponseApproval, setShowAutomaticResponseApproval] = useState(false)
+  const [showAutomaticResponseApprovalDisabled, setShowAutomaticResponseApprovalDisabled] = useState(true)
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const loadNotificationSetting = async () => {
@@ -18,6 +20,12 @@ export const NotificationPanel: React.FC = () => {
     const value = await window.electronAPI.getAutomaticCodeApproval()
     setShowAutomaticCodeApproval(value)
     setShowAutomaticCodeApprovalDisabled(false)
+  }
+
+  const loadAutomaticResponseApprovalSetting = async () => {
+    const value = await window.electronAPI.getAutomaticResponseApproval()
+    setShowAutomaticResponseApproval(value)
+    setShowAutomaticResponseApprovalDisabled(false)
   }
 
   const handleChangeNotificationSetting = useCallback(async (checked: boolean) => {
@@ -60,9 +68,30 @@ export const NotificationPanel: React.FC = () => {
     }, 300)
   }, [])
 
+  const handleChangeAutomaticResponseApprovalSetting = useCallback(async (checked: boolean) => {
+    // Execute change immediately
+    await window.electronAPI.setAutomaticResponseApproval(checked)
+    setShowAutomaticResponseApproval(checked) // Update local state immediately for better UX
+
+    // Disable further changes
+    setShowAutomaticResponseApprovalDisabled(true)
+
+    // Clear any existing timeout
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current)
+    }
+
+    // Re-enable after debounce period
+    debounceTimeoutRef.current = setTimeout(async () => {
+      await loadAutomaticResponseApprovalSetting() // Ensure consistency with backend
+      setShowAutomaticResponseApprovalDisabled(false)
+    }, 300)
+  }, [])
+
   useEffect(() => {
     loadNotificationSetting()
     loadAutomaticCodeApprovalSetting()
+    loadAutomaticResponseApprovalSetting()
   }, [])
 
   return (
@@ -78,7 +107,7 @@ export const NotificationPanel: React.FC = () => {
           className="flex gap-[0.63rem]"
         >
           <div
-            className="flex flex-col gap-[0.63rem]"
+            className="flex flex-col gap-[0.63rem] shrink grow basis-0 min-w-0"
           >
             <div>
               Approval requests
@@ -111,7 +140,7 @@ export const NotificationPanel: React.FC = () => {
           className="flex gap-[0.63rem]"
         >
           <div
-            className="flex flex-col gap-[0.63rem]"
+            className="flex flex-col gap-[0.63rem] shrink grow basis-0 min-w-0"
           >
             <div>
               Automatic code approvals
@@ -122,9 +151,6 @@ export const NotificationPanel: React.FC = () => {
               Automatically approve script executions as they are sent to Keyboard.
             </div>
           </div>
-          {/* <div
-            className="px-[0.63rem] py-[0.38rem] border border-[#E5E5E5] rounded-[0.25rem] flex gap-[0.38rem] items-center whitespace-nowrap w-fit h-fit"
-          > */}
           <Dropdown
             options={['never', 'low', 'medium', 'high']}
             value={showAutomaticCodeApproval}
@@ -132,7 +158,39 @@ export const NotificationPanel: React.FC = () => {
             disabled={showAutomaticCodeApprovalDisabled}
             keyPrefix="settings-notification-panel-automatic-code-approval"
           />
-          {/* </div> */}
+        </div>
+
+        <div
+          className="w-full h-[0.06rem] my-[1rem] bg-[#E5E5E5]"
+        />
+
+        <div
+          className="flex gap-[0.63rem]"
+        >
+          <div
+            className="flex flex-col gap-[0.63rem] shrink grow basis-0 min-w-0"
+          >
+            <div>
+              Automatic response approvals
+            </div>
+            <div
+              className="text-[#737373]"
+            >
+              Automatically approve responses if there are no errors.
+            </div>
+          </div>
+          <div
+            className="px-[0.63rem] py-[0.38rem] border border-[#E5E5E5] rounded-[0.25rem] flex gap-[0.38rem] items-center whitespace-nowrap w-fit h-fit"
+          >
+            <div>
+              Allowed
+            </div>
+            <Toggle
+              disabled={showAutomaticResponseApprovalDisabled}
+              isChecked={showAutomaticResponseApproval}
+              onChange={handleChangeAutomaticResponseApprovalSetting}
+            />
+          </div>
         </div>
       </div>
     </>

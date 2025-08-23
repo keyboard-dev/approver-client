@@ -1,8 +1,11 @@
 /* eslint-disable css/no-invalid-properties */
+
+/* Inter font is declared in index.css - no need to redeclare here */
+
 /* App Styles */
 .app {
   height: 100vh;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  font-family: 'Inter', sans-serif;
   background-color: #f8f9fa;
 }
 
@@ -260,7 +263,6 @@
   margin: 0;
   white-space: pre-wrap;
   word-wrap: break-word;
-  font-family: inherit;
   color: #343a40;
   line-height: 1.5;
 }

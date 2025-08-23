@@ -158,11 +158,13 @@ export interface ElectronAPI {
   // OS Notifications
   showOSNotification: (title: string, body: string) => Promise<void>
   // Settings management
-  getSettings: () => Promise<{ showNotifications: boolean, automaticCodeApproval: 'never' | 'low' | 'medium' | 'high', settingsFile: string, updatedAt: number | null }>
+  getSettings: () => Promise<{ showNotifications: boolean, automaticCodeApproval: 'never' | 'low' | 'medium' | 'high', automaticResponseApproval: boolean, settingsFile: string, updatedAt: number | null }>
   setShowNotifications: (show: boolean) => Promise<void>
   getShowNotifications: () => Promise<boolean>
   setAutomaticCodeApproval: (level: 'never' | 'low' | 'medium' | 'high') => Promise<void>
   getAutomaticCodeApproval: () => Promise<'never' | 'low' | 'medium' | 'high'>
+  setAutomaticResponseApproval: (enabled: boolean) => Promise<void>
+  getAutomaticResponseApproval: () => Promise<boolean>
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -262,11 +264,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   showOSNotification: (title: string, body: string): Promise<void> => ipcRenderer.invoke('show-os-notification', title, body),
 
   // Settings management
-  getSettings: (): Promise<{ showNotifications: boolean, automaticCodeApproval: 'never' | 'low' | 'medium' | 'high', settingsFile: string, updatedAt: number | null }> => ipcRenderer.invoke('get-settings'),
+  getSettings: (): Promise<{ showNotifications: boolean, automaticCodeApproval: 'never' | 'low' | 'medium' | 'high', automaticResponseApproval: boolean, settingsFile: string, updatedAt: number | null }> => ipcRenderer.invoke('get-settings'),
   setShowNotifications: (show: boolean): Promise<void> => ipcRenderer.invoke('set-show-notifications', show),
   getShowNotifications: (): Promise<boolean> => ipcRenderer.invoke('get-show-notifications'),
   setAutomaticCodeApproval: (level: 'never' | 'low' | 'medium' | 'high'): Promise<void> => ipcRenderer.invoke('set-automatic-code-approval', level),
   getAutomaticCodeApproval: (): Promise<'never' | 'low' | 'medium' | 'high'> => ipcRenderer.invoke('get-automatic-code-approval'),
+  setAutomaticResponseApproval: (enabled: boolean): Promise<void> => ipcRenderer.invoke('set-automatic-response-approval', enabled),
+  getAutomaticResponseApproval: (): Promise<boolean> => ipcRenderer.invoke('get-automatic-response-approval'),
 } as ElectronAPI)
 
 // Extend the global Window interface
