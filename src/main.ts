@@ -1,5 +1,5 @@
 import * as crypto from 'crypto'
-import { app, ipcMain, Notification, shell } from 'electron'
+import { app, autoUpdater, ipcMain, Notification, shell } from 'electron'
 import * as fs from 'fs'
 import _ from 'lodash'
 import * as os from 'os'
@@ -99,6 +99,7 @@ class MenuBarNotificationApp {
   // Encryption key management
   private encryptionKey: string | null = null
   private readonly ENCRYPTION_KEY_FILE = path.join(os.homedir(), '.keyboard-mcp-encryption-key')
+  private readonly VERSION_TIMESTAMP_FILE = path.join(os.homedir(), '.keyboard-mcp-version-timestamp.json')
 
   constructor() {
     // Initialize HTTP server (doesn't need encryption)
@@ -212,8 +213,52 @@ class MenuBarNotificationApp {
       // Initialize encryption key
       await this.initializeEncryptionKey()
 
+      // Initialize version timestamp tracking
+      await this.getVersionInstallTimestamp()
+
       // NOW initialize OAuth provider system (after encryption is ready)
       await this.initializeOAuthProviderSystem()
+
+      // Configure auto-updater (only on macOS and Windows)
+      if (process.platform === 'darwin' || process.platform === 'win32') {
+        const feedURL = `http://localhost:4000/update/${process.platform}/.0.0.1`
+        autoUpdater.setFeedURL({
+          url: feedURL
+        })
+
+        // Auto-updater event handlers
+        autoUpdater.on('checking-for-update', () => {
+          console.log('Checking for update...')
+        })
+
+        autoUpdater.on('update-available', () => {
+          console.log('Update available')
+        })
+
+        autoUpdater.on('update-not-available', () => {
+          console.log('No update available')
+        })
+
+        autoUpdater.on('update-downloaded', () => {
+          console.log('Update downloaded')
+          // Notify user and ask if they want to restart
+          const notification = new Notification({
+            title: 'Update Ready',
+            body: 'A new version has been downloaded. Restart now to apply the update?'
+          })
+          notification.show()
+          notification.on('click', () => {
+            autoUpdater.quitAndInstall()
+          })
+        })
+
+        autoUpdater.on('error', (error) => {
+          console.error('Update error:', error)
+        })
+
+        // Check for updates
+        autoUpdater.checkForUpdates()
+      }
 
       this.trayManager.createTray()
       this.setupWebSocketServer()
@@ -452,6 +497,40 @@ class MenuBarNotificationApp {
 
   public getActiveEncryptionKey(): string | null {
     return this.encryptionKey
+  }
+
+  private async getVersionInstallTimestamp(): Promise<number | null> {
+    try {
+      const currentVersion = app.getVersion()
+
+      if (fs.existsSync(this.VERSION_TIMESTAMP_FILE)) {
+        const data = JSON.parse(fs.readFileSync(this.VERSION_TIMESTAMP_FILE, 'utf8'))
+
+        if (data.version === currentVersion && data.timestamp) {
+          return data.timestamp
+        }
+      }
+
+      // If no timestamp exists for current version, create one
+      const timestamp = Date.now()
+      fs.writeFileSync(this.VERSION_TIMESTAMP_FILE, JSON.stringify({
+        version: currentVersion,
+        timestamp: timestamp,
+        // Also store human-readable date for debugging
+        date: new Date(timestamp).toISOString(),
+      }, null, 2))
+
+      return timestamp
+    }
+    catch (error) {
+      console.error('Failed to get version install timestamp:', error)
+      return null
+    }
+  }
+
+  public async getCurrentVersionInstallDate(): Promise<Date | null> {
+    const timestamp = await this.getVersionInstallTimestamp()
+    return timestamp ? new Date(timestamp) : null
   }
 
   private generatePKCE(): PKCEParams {
@@ -1262,6 +1341,10 @@ class MenuBarNotificationApp {
         authenticated: !!this.authTokens,
         user: this.authTokens?.user,
       }
+    })
+
+    ipcMain.handle('get-version-install-date', async (): Promise<Date | null> => {
+      return await this.getCurrentVersionInstallDate()
     })
 
     ipcMain.handle('logout', (): void => {
