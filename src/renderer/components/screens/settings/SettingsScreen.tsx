@@ -5,13 +5,14 @@ import EncryptionKeyManager from '../../EncryptionKeyManager'
 import { OAuthProviderManager } from '../../OAuthProviderManager'
 import ServerProviderManager from '../../ServerProviderManager'
 import WebSocketKeyManager from '../../WebSocketKeyManager'
+import { ConnectorPanel } from './panels/ConnectorPanel'
 import { KeyPanel } from './panels/KeyPanel'
 import { NotificationPanel } from './panels/NotificationPanel'
 
 const oldSettings = false
 
 const TABS = [
-  'OAuth Providers',
+  'Connectors',
   'Server Providers',
   'WebSocket',
   'Security',
@@ -25,7 +26,7 @@ export const SettingsScreen: React.FC<{
 }> = ({
   onBack,
 }) => {
-  const [activeTab, setActiveTab] = useState<TabType>('OAuth Providers')
+  const [activeTab, setActiveTab] = useState<TabType>('Connectors')
 
   if (oldSettings) {
     return (
@@ -56,8 +57,9 @@ export const SettingsScreen: React.FC<{
 
   const getPanel = () => {
     switch (activeTab) {
-      case 'OAuth Providers':
-        return <OAuthProviderManager />
+      case 'Connectors':
+        // return <OAuthProviderManager />
+        return <ConnectorPanel />
       case 'Server Providers':
         return <ServerProviderManager />
       case 'WebSocket':
@@ -72,7 +74,7 @@ export const SettingsScreen: React.FC<{
             title="WebSocket"
           />
         )
-      case 'Security':
+      case 'Security': {
         return (
           <KeyPanel
             confirmationDescription="Are you sure you want to regenerate the encryption key? This will invalidate all previously encrypted data."
@@ -90,6 +92,7 @@ export const SettingsScreen: React.FC<{
             title="Security"
           />
         )
+      }
       case 'Notifications':
         return <NotificationPanel />
       default:

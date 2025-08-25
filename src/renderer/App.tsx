@@ -16,6 +16,7 @@ import { Badge } from './components/ui/badge'
 import { Button } from './components/ui/button'
 import { ButtonDesigned } from './components/ui/ButtonDesigned'
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card'
+import { useAuth } from './hooks/useAuth'
 
 // Monaco Editor configuration for output display
 const handleEditorWillMount = (monacoInstance: typeof monaco) => {
@@ -34,6 +35,15 @@ const getEditorOptions = (): monaco.editor.IStandaloneEditorConstructionOptions 
 })
 
 const App: React.FC = () => {
+  // Auth state managed by useAuth hook
+  const {
+    isSkippingAuth,
+    setIsSkippingAuth,
+    authStatusRef,
+    handleAuthChange: authHandleChange,
+    isAuthenticated,
+  } = useAuth()
+
   const [messages, setMessages] = useState<Message[]>([])
   const [currentMessage, setCurrentMessage] = useState<Message | null>(null)
   const [feedback, setFeedback] = useState('')
@@ -41,14 +51,11 @@ const App: React.FC = () => {
   const [showFeedback, setShowFeedback] = useState(false)
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'connecting'>('disconnected')
   // const [isAlertDismissed, setIsAlertDismissed] = useState(false)
-  const [authStatus, setAuthStatus] = useState<AuthStatus>({ authenticated: false })
   const [isInitialized, setIsInitialized] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
-  const [isSkippingAuth, setIsSkippingAuth] = useState(false)
   const [isFontLoaded, setIsFontLoaded] = useState(false)
 
   // Use refs to track state without causing re-renders
-  const authStatusRef = useRef<AuthStatus>({ authenticated: false })
   const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -102,10 +109,10 @@ const App: React.FC = () => {
     }
   }, [])
 
-  // Handle authentication state changes
+  // Handle authentication state changes with message/UI management
   const handleAuthChange = useCallback((newAuthStatus: AuthStatus) => {
-    authStatusRef.current = newAuthStatus
-    setAuthStatus(newAuthStatus)
+    // Update auth state using the hook
+    authHandleChange(newAuthStatus)
 
     // If user logged out, clear messages for security
     if (!newAuthStatus.authenticated) {
@@ -135,7 +142,7 @@ const App: React.FC = () => {
         }
       })()
     }
-  }, [isInitialized, updateLoadingState])
+  }, [authHandleChange, isInitialized, updateLoadingState])
 
   // Refresh messages without showing loading state for better UX
   const refreshMessages = useCallback(async () => {
@@ -453,7 +460,7 @@ const App: React.FC = () => {
               />
 
               {/* Only show main content if authenticated */}
-              {(authStatus.authenticated || isSkippingAuth) && (
+              {isAuthenticated && (
                 <div className="content-fade-in">
                   {currentMessage
                     ? (
@@ -682,17 +689,17 @@ const App: React.FC = () => {
           className="px-[0.5rem] py-[0.25rem] w-4 h-4"
         />
         <div
-          className="px-[0.75rem] py-[0.25rem] rounded-full bg-[#BFBFBF] flex items-center gap-[0.63rem]"
+          className="px-[0.75rem] py-[0.25rem] rounded-full bg-[#EBEBEB] flex items-center gap-[0.63rem]"
         >
           <div
-            className="w-[10px] h-[10px] rounded-full bg-[#7BB750]"
+            className="w-[10px] h-[10px] rounded-full bg-[#0B8A1C]"
           />
           <div
             className="text-[#737373]"
           >
             All systems are
             {' '}
-            <span className="text-[#7BB750] font-semibold">
+            <span className="text-[#0B8A1C] font-semibold">
               normal
             </span>
           </div>

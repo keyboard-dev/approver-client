@@ -1173,6 +1173,12 @@ class MenuBarNotificationApp {
       message.status = 'pending'
     }
 
+    // Show desktop notification
+    this.showNotification(message)
+
+    // Store the message
+    this.messages.push(message)
+
     switch (message.title) {
       case 'Security Evaluation Request': {
         const { risk_level } = message
@@ -1204,12 +1210,6 @@ class MenuBarNotificationApp {
     if (message.status === 'approved') {
       this.handleApproveMessage(message)
     }
-
-    // Show desktop notification
-    this.showNotification(message)
-
-    // Store the message
-    this.messages.push(message)
 
     // Update pending count
     this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length

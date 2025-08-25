@@ -50,7 +50,7 @@ export const KeyPanel: React.FC<{
     onKeyGenerated(handleKeyGenerated)
 
     return onUnmount
-  }, [])
+  }, [getKeyInfo, onKeyGenerated, onUnmount])
 
   const handleRegenerateKey = async () => {
     const data = await regenerateKey()
@@ -158,7 +158,7 @@ export const KeyPanel: React.FC<{
 
         <ButtonDesigned
           className="self-end px-[0.63rem] py-[0.38rem]"
-          disabled={isRegenerating}
+          disabled={keyInfo?.source === 'environment' || isRegenerating}
           hasBorder
           onClick={() => setIsRegeneratingConfirmationOpen(true)}
           variant="destructive"
