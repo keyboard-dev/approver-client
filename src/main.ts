@@ -1,5 +1,5 @@
 import * as crypto from 'crypto'
-import { app, autoUpdater, ipcMain, Notification, shell } from 'electron'
+import { app, autoUpdater, ipcMain, Menu, Notification, shell } from 'electron'
 import * as fs from 'fs'
 import _ from 'lodash'
 import * as os from 'os'
@@ -128,6 +128,9 @@ class MenuBarNotificationApp {
       onQuit: () => {
         app.quit()
       },
+      onCheckForUpdates: () => {
+        this.checkForUpdates()
+      },
       getMessages: () => this.messages,
       getPendingCount: () => this.pendingCount,
     })
@@ -221,7 +224,7 @@ class MenuBarNotificationApp {
 
       // Configure auto-updater (only on macOS and Windows)
       if (process.platform === 'darwin' || process.platform === 'win32') {
-        const feedURL = `http://localhost:4000/update/${process.platform}/.0.0.1`
+        const feedURL = `https://api.keyboard.dev/update/${process.platform}/${app.getVersion()}`
         autoUpdater.setFeedURL({
           url: feedURL
         })
@@ -261,6 +264,7 @@ class MenuBarNotificationApp {
       }
 
       this.trayManager.createTray()
+      this.setupApplicationMenu()
       this.setupWebSocketServer()
       this.setupRestAPI()
       this.setupIPC()
@@ -497,6 +501,125 @@ class MenuBarNotificationApp {
 
   public getActiveEncryptionKey(): string | null {
     return this.encryptionKey
+  }
+
+  private checkForUpdates(): void {
+    if (process.platform === 'darwin' || process.platform === 'win32') {
+      autoUpdater.checkForUpdates()
+      // Show a notification that we're checking
+      const notification = new Notification({
+        title: 'Checking for Updates',
+        body: `Looking for new versions... current version: ${app.getVersion()}`,
+      })
+      notification.show()
+    } else {
+      const notification = new Notification({
+        title: 'Updates Not Supported',
+        body: 'Automatic updates are only available on macOS and Windows.',
+      })
+      notification.show()
+    }
+  }
+
+  private setupApplicationMenu(): void {
+    const template: Electron.MenuItemConstructorOptions[] = []
+
+    // macOS has a different menu structure
+    if (process.platform === 'darwin') {
+      template.push({
+        label: app.getName(),
+        submenu: [
+          { role: 'about' },
+          { type: 'separator' },
+          {
+            label: 'Check for Updates...',
+            click: () => this.checkForUpdates(),
+          },
+          { type: 'separator' },
+          { role: 'services', submenu: [] },
+          { type: 'separator' },
+          { role: 'hide' },
+          { role: 'hideOthers' },
+          { role: 'unhide' },
+          { type: 'separator' },
+          { role: 'quit' },
+        ],
+      })
+    }
+
+    // Edit menu
+    template.push({
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'pasteAndMatchStyle' },
+        { role: 'delete' },
+        { role: 'selectAll' },
+      ],
+    })
+
+    // View menu
+    template.push({
+      label: 'View',
+      submenu: [
+        { role: 'reload' },
+        { role: 'forceReload' },
+        { role: 'toggleDevTools' },
+        { type: 'separator' },
+        { role: 'resetZoom' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' },
+      ],
+    })
+
+    // Window menu
+    template.push({
+      role: 'window',
+      submenu: [
+        { role: 'minimize' },
+        { role: 'close' },
+        ...(process.platform === 'darwin'
+          ? [
+              { type: 'separator' as const },
+              { role: 'front' as const },
+              { type: 'separator' as const },
+              { role: 'window' as const },
+            ]
+          : []),
+      ],
+    })
+
+    // Help menu
+    template.push({
+      role: 'help',
+      submenu: [
+        {
+          label: 'Learn More',
+          click: async () => {
+            await shell.openExternal('https://keyboard.dev')
+          },
+        },
+        ...(process.platform !== 'darwin'
+          ? [
+              { type: 'separator' as const },
+              {
+                label: 'Check for Updates...',
+                click: () => this.checkForUpdates(),
+              },
+            ]
+          : []),
+      ],
+    })
+
+    const menu = Menu.buildFromTemplate(template)
+    Menu.setApplicationMenu(menu)
   }
 
   private async getVersionInstallTimestamp(): Promise<number | null> {
