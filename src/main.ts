@@ -226,7 +226,7 @@ class MenuBarNotificationApp {
       if (process.platform === 'darwin' || process.platform === 'win32') {
         const feedURL = `https://api.keyboard.dev/update/${process.platform}/${app.getVersion()}`
         autoUpdater.setFeedURL({
-          url: feedURL
+          url: feedURL,
         })
 
         // Auto-updater event handlers
@@ -234,8 +234,9 @@ class MenuBarNotificationApp {
           console.log('Checking for update...')
         })
 
-        autoUpdater.on('update-available', () => {
-          console.log('Update available')
+        autoUpdater.on('update-available', (info: any) => {
+          console.log('Update available:', info)
+          // notify user
         })
 
         autoUpdater.on('update-not-available', () => {
@@ -521,6 +522,10 @@ class MenuBarNotificationApp {
     }
   }
 
+  private installUpdate(): void {
+    autoUpdater.quitAndInstall()
+  }
+
   private setupApplicationMenu(): void {
     const template: Electron.MenuItemConstructorOptions[] = []
 
@@ -534,6 +539,10 @@ class MenuBarNotificationApp {
           {
             label: 'Check for Updates...',
             click: () => this.checkForUpdates(),
+          },
+          {
+            label: 'Install Update',
+            click: () => this.installUpdate(),
           },
           { type: 'separator' },
           { role: 'services', submenu: [] },
