@@ -9,7 +9,7 @@ import { OAuthProviderConfig, ProviderStorage } from './provider-storage'
 export interface OAuthProvider {
   id: string
   name: string
-  icon?: string
+  iconSrc?: string
   clientId: string
   clientSecret?: string // Some providers don't require client secret for PKCE
   authorizationUrl: string
@@ -185,40 +185,42 @@ export class OAuthProviderManager {
   /**
    * Get a provider configuration by ID
    */
-  async getProvider(providerId: string): Promise<OAuthProvider | null> {
+  async getProvider(providerId: string): Promise<OAuthProviderConfig | null> {
     const config = await this.providerStorage.getProviderConfig(providerId)
     if (!config) return null
 
+    return config
+
     // Convert to legacy format for backward compatibility
-    return this.configToProvider(config)
+    // return this.configToProvider(config)
   }
 
   /**
    * Convert OAuthProviderConfig to legacy OAuthProvider format
    */
-  private configToProvider(config: OAuthProviderConfig): OAuthProvider {
-    return {
-      id: config.id,
-      name: config.name,
-      icon: config.icon,
-      clientId: config.clientId,
-      clientSecret: config.clientSecret,
-      authorizationUrl: config.authorizationUrl,
-      tokenUrl: config.tokenUrl,
-      userInfoUrl: config.userInfoUrl,
-      scopes: config.scopes,
-      usePKCE: config.usePKCE,
-      redirectUri: config.redirectUri,
-      additionalParams: config.additionalParams,
-    }
-  }
+  // private configToProvider(config: OAuthProviderConfig): OAuthProvider {
+  //   return {
+  //     id: config.id,
+  //     name: config.name,
+  //     iconSrc: config.iconSrc,
+  //     clientId: config.clientId,
+  //     clientSecret: config.clientSecret,
+  //     authorizationUrl: config.authorizationUrl,
+  //     tokenUrl: config.tokenUrl,
+  //     userInfoUrl: config.userInfoUrl,
+  //     scopes: config.scopes,
+  //     usePKCE: config.usePKCE,
+  //     redirectUri: config.redirectUri,
+  //     additionalParams: config.additionalParams,
+  //   }
+  // }
 
   /**
    * Get all available providers that have client IDs configured
    */
-  async getAvailableProviders(): Promise<OAuthProvider[]> {
+  async getAvailableProviders(): Promise<OAuthProviderConfig[]> {
     const configs = await this.providerStorage.getAvailableProviders()
-    return configs.map(config => this.configToProvider(config))
+    return configs
   }
 
   /**

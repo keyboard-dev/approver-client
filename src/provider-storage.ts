@@ -6,7 +6,7 @@ import { decrypt, encrypt } from './encryption'
 export interface OAuthProviderConfig {
   id: string
   name: string
-  icon?: string
+  iconSrc?: string
   clientId: string
   clientSecret?: string
   authorizationUrl: string
@@ -222,7 +222,7 @@ export class ProviderStorage {
       {
         id: 'google',
         name: 'Google',
-        icon: '🔍',
+        iconSrc: '/assets/icon-logo-google.png',
         clientId: process.env.GOOGLE_CLIENT_ID || '',
         clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
         authorizationUrl: 'https://accounts.google.com/o/oauth2/auth',
@@ -249,7 +249,7 @@ export class ProviderStorage {
       {
         id: 'github',
         name: 'GitHub',
-        icon: '🐙',
+        iconSrc: '/assets/icon-logo-github.png',
         clientId: process.env.GITHUB_CLIENT_ID || '',
         clientSecret: process.env.GITHUB_CLIENT_SECRET || '',
         authorizationUrl: 'https://github.com/login/oauth/authorize',
@@ -263,7 +263,7 @@ export class ProviderStorage {
       {
         id: 'microsoft',
         name: 'Microsoft',
-        icon: '🪟',
+        iconSrc: '/assets/icon-logo-microsoft.png',
         clientId: process.env.MICROSOFT_CLIENT_ID || '',
         authorizationUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
         tokenUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',

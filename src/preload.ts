@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron'
 import { ServerProviderInfo } from './oauth-providers'
+import { OAuthProviderConfig } from './provider-storage'
 import { Message } from './types'
 
 export interface AuthStatus {
@@ -132,10 +133,10 @@ export interface ElectronAPI {
   onProviderAuthError: (callback: (event: IpcRendererEvent, error: ProviderAuthErrorData) => void) => void
   onProviderAuthLogout: (callback: (event: IpcRendererEvent, data: ProviderAuthEventData) => void) => void
   // Manual Provider management
-  getAllProviderConfigs: () => Promise<ProviderConfig[]>
-  saveProviderConfig: (config: ProviderConfig) => Promise<void>
+  getAllProviderConfigs: () => Promise<OAuthProviderConfig[]>
+  saveProviderConfig: (config: Omit<OAuthProviderConfig, 'createdAt' | 'updatedAt'>) => Promise<void>
   removeProviderConfig: (providerId: string) => Promise<void>
-  getProviderConfig: (providerId: string) => Promise<ProviderConfig>
+  getProviderConfig: (providerId: string) => Promise<OAuthProviderConfig>
   // Server Provider management
   addServerProvider: (server: ServerProvider) => Promise<void>
   removeServerProvider: (serverId: string) => Promise<void>
@@ -228,10 +229,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   // Manual Provider Management
-  getAllProviderConfigs: (): Promise<ProviderConfig[]> => ipcRenderer.invoke('get-all-provider-configs'),
-  saveProviderConfig: (config: ProviderConfig): Promise<void> => ipcRenderer.invoke('save-provider-config', config),
+  getAllProviderConfigs: (): Promise<OAuthProviderConfig[]> => ipcRenderer.invoke('get-all-provider-configs'),
+  saveProviderConfig: (config: OAuthProviderConfig): Promise<void> => ipcRenderer.invoke('save-provider-config', config),
   removeProviderConfig: (providerId: string): Promise<void> => ipcRenderer.invoke('remove-provider-config', providerId),
-  getProviderConfig: (providerId: string): Promise<ProviderConfig> => ipcRenderer.invoke('get-provider-config', providerId),
+  getProviderConfig: (providerId: string): Promise<OAuthProviderConfig> => ipcRenderer.invoke('get-provider-config', providerId),
 
   // Server Provider management
   addServerProvider: (server: ServerProvider): Promise<void> => ipcRenderer.invoke('add-server-provider', server),

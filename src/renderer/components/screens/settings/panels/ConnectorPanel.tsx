@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import React, { useEffect, useState } from 'react'
-import { OAuthStorageInfo, ProviderConfig, ProviderStatus } from '../../../../../preload'
+import { OAuthStorageInfo, ProviderStatus } from '../../../../../preload'
+import { OAuthProviderConfig } from '../../../../../provider-storage'
 import { useAuth } from '../../../../hooks/useAuth'
 
 interface ProviderAuthEvent {
@@ -23,13 +24,13 @@ export const ConnectorPanel: React.FC = () => {
   //   )
   // }
 
-  const [allProviderConfigs, setAllProviderConfigs] = useState<ProviderConfig[]>([])
+  const [allProviderConfigs, setAllProviderConfigs] = useState<OAuthProviderConfig[]>([])
   const [providerStatus, setProviderStatus] = useState<Record<string, ProviderStatus>>({})
   const [isLoading, setIsLoading] = useState<Record<string, boolean>>({})
   const [error, setError] = useState<string | null>(null)
   const [storageInfo, setStorageInfo] = useState<OAuthStorageInfo | null>(null)
   const [showAddForm, setShowAddForm] = useState(false)
-  const [editingProvider, setEditingProvider] = useState<ProviderConfig | null>(null)
+  const [editingProvider, setEditingProvider] = useState<OAuthProviderConfig | null>(null)
 
   useEffect(() => {
     loadProviders()
@@ -204,7 +205,7 @@ export const ConnectorPanel: React.FC = () => {
     }
   }
 
-  const handleSaveProvider = async (config: ProviderConfig) => {
+  const handleSaveProvider = async (config: OAuthProviderConfig) => {
     try {
       await window.electronAPI.saveProviderConfig(config)
       await loadProviders()
@@ -295,13 +296,17 @@ export const ConnectorPanel: React.FC = () => {
         className="w-full p-[0.94rem] flex flex-col gap-[0.63rem] border border-[#E5E5E5] rounded-[0.38rem]"
       >
 
-        {allProviderConfigs.map(provider => (
-          <div
-            key={provider.id}
-            className="w-full flex justify-between items-start"
-          >
-            {provider.name}
-          </div>
+        {allProviderConfigs.map((provider, index) => (
+          <React.Fragment key={provider.id}>
+            <div
+              className="w-full flex justify-between items-start"
+            >
+              {JSON.stringify(provider, null, 2)}
+            </div>
+            {index < allProviderConfigs.length - 1 && (
+              <div className="w-full h-px bg-[#E5E5E5]" />
+            )}
+          </React.Fragment>
         ))}
 
       </div>
