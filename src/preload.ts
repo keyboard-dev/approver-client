@@ -166,6 +166,8 @@ export interface ElectronAPI {
   getAutomaticCodeApproval: () => Promise<'never' | 'low' | 'medium' | 'high'>
   setAutomaticResponseApproval: (enabled: boolean) => Promise<void>
   getAutomaticResponseApproval: () => Promise<boolean>
+  // Assets path
+  getAssetsPath: () => Promise<string>
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -272,6 +274,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAutomaticCodeApproval: (): Promise<'never' | 'low' | 'medium' | 'high'> => ipcRenderer.invoke('get-automatic-code-approval'),
   setAutomaticResponseApproval: (enabled: boolean): Promise<void> => ipcRenderer.invoke('set-automatic-response-approval', enabled),
   getAutomaticResponseApproval: (): Promise<boolean> => ipcRenderer.invoke('get-automatic-response-approval'),
+
+  // Assets path
+  getAssetsPath: (): Promise<string> => ipcRenderer.invoke('get-assets-path'),
 } as ElectronAPI)
 
 // Extend the global Window interface

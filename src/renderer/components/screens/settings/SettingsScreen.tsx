@@ -13,7 +13,6 @@ const oldSettings = false
 
 const TABS = [
   'Connectors',
-  'Server Providers',
   'WebSocket',
   'Security',
   'Notifications',
@@ -60,8 +59,6 @@ export const SettingsScreen: React.FC<{
       case 'Connectors':
         // return <OAuthProviderManager />
         return <ConnectorPanel />
-      case 'Server Providers':
-        return <ServerProviderManager />
       case 'WebSocket':
         return (
           <KeyPanel

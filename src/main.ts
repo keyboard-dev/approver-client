@@ -17,7 +17,7 @@ import { AuthorizeResponse, AuthTokens, ErrorResponse, Message, PKCEParams, Toke
 import { WindowManager } from './window-manager'
 
 // Helper function to find assets directory reliably
-function getAssetsPath(): string {
+export function getAssetsPath(): string {
   const appPath = app.getAppPath()
 
   // In development, assets are in project root
@@ -1570,6 +1570,10 @@ class MenuBarNotificationApp {
 
     ipcMain.handle('get-automatic-response-approval', (): boolean => {
       return this.automaticResponseApproval
+    })
+
+    ipcMain.handle('get-assets-path', (): string => {
+      return getAssetsPath()
     })
   }
 
