@@ -1,12 +1,13 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import React, { useEffect, useState } from 'react'
-import githubLogoIconUrl from '../../../../../../assets/icon-logo-github.png'
-import googleLogoIconUrl from '../../../../../../assets/icon-logo-google.png'
-import microsoftLogoIconUrl from '../../../../../../assets/icon-logo-microsoft.png'
+import githubLogoIconUrl from '../../../../../../assets/icon-logo-github.svg'
+import googleLogoIconUrl from '../../../../../../assets/icon-logo-google.svg'
+import microsoftLogoIconUrl from '../../../../../../assets/icon-logo-microsoft.svg'
 import { OAuthStorageInfo, ProviderStatus } from '../../../../../preload'
 import { OAuthProviderConfig } from '../../../../../provider-storage'
 import { useAuth } from '../../../../hooks/useAuth'
 import { ButtonDesigned } from '../../../ui/ButtonDesigned'
+import { AddConnectorPopup } from './AddConnectorPopup'
 
 interface ProviderAuthEvent {
   providerId: string
@@ -33,7 +34,7 @@ export const MyConnectors: React.FC = () => {
   const [isLoading, setIsLoading] = useState<Record<string, boolean>>({})
   const [error, setError] = useState<string | null>(null)
   const [storageInfo, setStorageInfo] = useState<OAuthStorageInfo | null>(null)
-  const [showAddForm, setShowAddForm] = useState(false)
+  const [isAddPopupOpen, setIsAddPopupOpen] = useState(false)
   const [editingProvider, setEditingProvider] = useState<OAuthProviderConfig | null>(null)
 
   useEffect(() => {
@@ -209,12 +210,12 @@ export const MyConnectors: React.FC = () => {
     }
   }
 
-  const handleSaveProvider = async (config: OAuthProviderConfig) => {
+  const handleSaveProvider = async (config: Omit<OAuthProviderConfig, 'createdAt' | 'updatedAt'>) => {
     try {
       await window.electronAPI.saveProviderConfig(config)
       await loadProviders()
       await loadAllProviderConfigs()
-      setShowAddForm(false)
+      setIsAddPopupOpen(false)
       setEditingProvider(null)
       setError(null)
     }
@@ -247,7 +248,7 @@ export const MyConnectors: React.FC = () => {
       const config = await window.electronAPI.getProviderConfig(providerId)
       if (config) {
         setEditingProvider(config)
-        setShowAddForm(true)
+        setIsAddPopupOpen(true)
       }
     }
     catch (error) {
@@ -304,6 +305,27 @@ export const MyConnectors: React.FC = () => {
     )
   }
 
+  const getDescriptionText = (providerId: string) => {
+    switch (providerId) {
+      case 'google':
+        return 'Includes Drive, Mail, Sheets, Slides'
+      default:
+        return null
+    }
+  }
+
+  const getDescription = (providerId: string) => {
+    const text = getDescriptionText(providerId)
+    if (!text) return null
+    return (
+      <div
+        className="text-[#737373]"
+      >
+        {text}
+      </div>
+    )
+  }
+
   return (
     <>
       <div
@@ -320,19 +342,21 @@ export const MyConnectors: React.FC = () => {
       <div
         className="flex flex-col gap-[0.63rem]"
       >
-
         {allProviderConfigs.map((provider, index) => (
           <React.Fragment key={`connector-panel-provider-${provider.id}`}>
             <div
               className="w-full flex justify-between items-start"
             >
-              <div
-                className="flex items-center gap-[0.63rem]"
-              >
-                {getIcon(provider.id)}
-                <div>
-                  {provider.name}
+              <div>
+                <div
+                  className="flex items-center gap-[0.63rem]"
+                >
+                  {getIcon(provider.id)}
+                  <div>
+                    {provider.name}
+                  </div>
                 </div>
+                {getDescription(provider.id)}
               </div>
               <ButtonDesigned
                 className="px-[1rem] py-[0.5rem]"
@@ -349,6 +373,22 @@ export const MyConnectors: React.FC = () => {
           </React.Fragment>
         ))}
 
+        <ButtonDesigned
+          className="px-[1rem] py-[0.5rem] self-start"
+          onClick={() => setIsAddPopupOpen(true)}
+          variant="secondary"
+          hasBorder
+        >
+          Add Connector
+        </ButtonDesigned>
+        {isAddPopupOpen && (
+          <AddConnectorPopup
+            onSave={handleSaveProvider}
+            onCancel={() => setIsAddPopupOpen(false)}
+            initialConfig={editingProvider}
+            isEditing={!!editingProvider}
+          />
+        )}
       </div>
 
     </>
