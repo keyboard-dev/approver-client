@@ -9,7 +9,7 @@ import { ConnectorPanel } from './panels/ConnectorPanel'
 import { KeyPanel } from './panels/KeyPanel'
 import { NotificationPanel } from './panels/NotificationPanel'
 
-const oldSettings = false
+const oldSettings = true
 
 const TABS = [
   'Connectors',

@@ -1,7 +1,10 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
 import React, { useState } from 'react'
+import greenCheckIconUrl from '../../../../../../assets/icon-check-green.svg'
+import copyIconUrl from '../../../../../../assets/icon-copy.svg'
 import { OAuthProviderConfig } from '../../../../../provider-storage'
+import { ButtonDesigned } from '../../../ui/ButtonDesigned'
 import { Popup } from '../../../ui/Popup'
 import { Tooltip } from '../../../ui/tooltip'
 
@@ -27,7 +30,6 @@ export const AddConnectorPopup: React.FC<ManualProviderFormProps> = ({
   onSave,
   onCancel,
   initialConfig,
-  isEditing = false,
 }) => {
   const [config, setConfig] = useState({
     id: initialConfig?.id || '',
@@ -46,12 +48,10 @@ export const AddConnectorPopup: React.FC<ManualProviderFormProps> = ({
   })
 
   const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [isCopyDebouncing, setIsCopyDebouncing] = useState(false)
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSubmit = async () => {
     setIsLoading(true)
-    setError(null)
 
     try {
       // Validate required fields
@@ -89,67 +89,9 @@ export const AddConnectorPopup: React.FC<ManualProviderFormProps> = ({
 
       await onSave(providerConfig)
     }
-    catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
-    }
     finally {
       setIsLoading(false)
     }
-  }
-
-  const popularProviders = [
-    {
-      name: 'Google',
-      icon: '🔍',
-      authorizationUrl: 'https://accounts.google.com/o/oauth2/auth',
-      tokenUrl: 'https://oauth2.googleapis.com/token',
-      userInfoUrl: 'https://www.googleapis.com/oauth2/v1/userinfo',
-      scopes: 'openid, email, profile',
-      usePKCE: true,
-      additionalParams: { access_type: 'offline', prompt: 'consent' },
-    },
-    {
-      name: 'GitHub',
-      icon: '🐙',
-      authorizationUrl: 'https://github.com/login/oauth/authorize',
-      tokenUrl: 'https://github.com/login/oauth/access_token',
-      userInfoUrl: 'https://api.github.com/user',
-      scopes: 'user:email, repo',
-      usePKCE: false,
-    },
-    {
-      name: 'Microsoft',
-      icon: '🪟',
-      authorizationUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
-      tokenUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
-      userInfoUrl: 'https://graph.microsoft.com/v1.0/me',
-      scopes: 'openid, profile, email, User.Read',
-      usePKCE: true,
-    },
-    {
-      name: 'Discord',
-      icon: '💬',
-      authorizationUrl: 'https://discord.com/api/oauth2/authorize',
-      tokenUrl: 'https://discord.com/api/oauth2/token',
-      userInfoUrl: 'https://discord.com/api/users/@me',
-      scopes: 'identify, email',
-      usePKCE: true,
-    },
-  ]
-
-  const fillTemplate = (template: ProviderTemplate) => {
-    setConfig(prev => ({
-      ...prev,
-      name: template.name,
-      icon: template.icon,
-      authorizationUrl: template.authorizationUrl,
-      tokenUrl: template.tokenUrl,
-      userInfoUrl: template.userInfoUrl || '',
-      scopes: template.scopes,
-      usePKCE: template.usePKCE,
-      additionalParams: JSON.stringify(template.additionalParams || {}, null, 2),
-      id: prev.id || template.name.toLowerCase(),
-    }))
   }
 
   return (
@@ -246,16 +188,90 @@ export const AddConnectorPopup: React.FC<ManualProviderFormProps> = ({
               onChange={e => setConfig(prev => ({
                 ...prev,
                 clientSecret: e.target.value,
-                usePKCE: e.target.value.trim() === '',
+                usePKCE: Boolean(e.target.value?.trim()),
               }))}
               placeholder="Leave blank if using PKCE."
             />
           </div>
 
+          <div
+            className="flex flex-col gap-[0.38rem]"
+          >
+            <div
+              className="text-[#000]"
+            >
+              Redirect URI (read-only)
+            </div>
+
+            <div
+              className="text-[#737373]"
+            >
+              Add this to your app settings so it can send users back to Keyboard.
+            </div>
+
+            <div
+              className="bg-[#F7F7F7] border border-[#CCC] rounded-[0.38rem] flex items-center justify-between"
+            >
+              <div className="text-[#737373] grow shrink min-w-0 basis-0 px-[0.63rem]">
+                {config.redirectUri}
+              </div>
+
+              <button
+                className="relative px-[1.5rem] py-[0.38rem] border-l border-[#CCC] p-[0.13rem]"
+                disabled={isCopyDebouncing}
+                onClick={async () => {
+                  if (isCopyDebouncing) return
+
+                  setIsCopyDebouncing(true)
+                  await navigator.clipboard.writeText(config.redirectUri)
+
+                  setTimeout(() => {
+                    setIsCopyDebouncing(false)
+                  }, 2000)
+                }}
+              >
+                <div
+                  className="p-[0.13rem]"
+                >
+                  <img
+                    className="w-[1rem] h-[1rem]"
+                    alt={isCopyDebouncing ? 'Copied' : 'Copy'}
+                    src={isCopyDebouncing ? greenCheckIconUrl : copyIconUrl}
+                  />
+                </div>
+
+                {isCopyDebouncing && (
+                  <div
+                    className="absolute top-full -left-1/4 text-[#FFF] bg-[#171717] border border-[#CCC] rounded-[0.25rem] px-[0.63rem] py-[0.38rem] z-10 pointer-events-none whitespace-nowrap"
+                    onClick={e => e.stopPropagation()}
+                  >
+                    Copied!
+                  </div>
+                )}
+              </button>
+            </div>
+          </div>
         </div>
 
-        <div>
-          buttons
+        <div
+          className="flex gap-[1.25rem]"
+        >
+          <ButtonDesigned
+            className="grow shrink basis-0"
+            variant="primary"
+            onClick={handleSubmit}
+            disabled={isLoading}
+          >
+            Connect
+          </ButtonDesigned>
+
+          <ButtonDesigned
+            className="grow shrink basis-0"
+            variant="secondary"
+            onClick={onCancel}
+          >
+            Cancel
+          </ButtonDesigned>
         </div>
       </div>
     </Popup>

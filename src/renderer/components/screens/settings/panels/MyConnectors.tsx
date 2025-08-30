@@ -386,7 +386,6 @@ export const MyConnectors: React.FC = () => {
             onSave={handleSaveProvider}
             onCancel={() => setIsAddPopupOpen(false)}
             initialConfig={editingProvider}
-            isEditing={!!editingProvider}
           />
         )}
       </div>

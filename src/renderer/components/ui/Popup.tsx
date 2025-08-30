@@ -13,7 +13,7 @@ export const Popup: React.FC<{
       onClick={onCancel}
     >
       <div
-        className="max-w-[24.63rem] flex flex-col p-[1.25rem] gap-[1.25rem] border border-[#E5E5E5] bg-[#F7F7F7] rounded-[0.38rem]"
+        className="max-w-[24.63rem] flex flex-col p-[1.25rem] gap-[1.25rem] border border-[#E5E5E5] bg-[#FFF] rounded-[0.38rem]"
         onClick={e => e.stopPropagation()}
       >
         {children}
