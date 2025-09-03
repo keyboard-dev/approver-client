@@ -7,8 +7,9 @@ export const Confirmation: React.FC<{
   confirmText?: string
   description?: string
   disabled?: boolean
-  onCancel: () => void
+  onCancel?: () => void
   onConfirm: () => void
+  relative?: boolean
   title?: string
 }> = ({
   cancelText,
@@ -17,6 +18,7 @@ export const Confirmation: React.FC<{
   disabled,
   onCancel,
   onConfirm,
+  relative,
   title,
 }) => {
   const titleDisplay = title ?? 'Are you sure?'
@@ -26,6 +28,7 @@ export const Confirmation: React.FC<{
   return (
     <Popup
       onCancel={onCancel}
+      relative={relative}
     >
       <div
         className="text-[1rem] text-[#000] font-semibold"
@@ -51,14 +54,17 @@ export const Confirmation: React.FC<{
           {confirmTextDisplay}
         </ButtonDesigned>
 
-        <ButtonDesigned
-          className="basis-0 grow px-[0.63rem] py-[0.38rem]"
-          variant="secondary"
-          onClick={onCancel}
-          hasBorder
-        >
-          {cancelTextDisplay}
-        </ButtonDesigned>
+        {onCancel
+          && (
+            <ButtonDesigned
+              className="basis-0 grow px-[0.63rem] py-[0.38rem]"
+              variant="secondary"
+              onClick={onCancel}
+              hasBorder
+            >
+              {cancelTextDisplay}
+            </ButtonDesigned>
+          )}
       </div>
     </Popup>
   )

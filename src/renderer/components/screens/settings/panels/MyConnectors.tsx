@@ -19,16 +19,6 @@ export const MyConnectors: React.FC = () => {
     isAuthenticated,
   } = useAuth()
 
-  // if (!isAuthenticated) {
-  //   return (
-  //     <div
-  //       className="h-full w-full flex items-center justify-center"
-  //     >
-  //       You are not authenticated. Please authenticate to continue.
-  //     </div>
-  //   )
-  // }
-
   const [allProviderConfigs, setAllProviderConfigs] = useState<OAuthProviderConfig[]>([])
   const [providerStatus, setProviderStatus] = useState<Record<string, ProviderStatus>>({})
   const [isLoading, setIsLoading] = useState<Record<string, boolean>>({})
@@ -38,6 +28,10 @@ export const MyConnectors: React.FC = () => {
   const [editingProvider, setEditingProvider] = useState<OAuthProviderConfig | null>(null)
 
   useEffect(() => {
+    if (!isAuthenticated) {
+      return
+    }
+
     loadProviders()
     loadAllProviderConfigs()
     loadProviderStatus()
@@ -79,7 +73,7 @@ export const MyConnectors: React.FC = () => {
         window.electronAPI.removeAllListeners('provider-auth-logout')
       }
     }
-  }, [])
+  }, [isAuthenticated])
 
   const loadProviders = async () => {
     try {

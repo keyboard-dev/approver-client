@@ -11,6 +11,7 @@ export const KeyPanel: React.FC<{
   confirmationDescription?: string
   description?: string
   getKeyInfo: () => Promise<KeyInfo>
+  keyName: string
   onKeyGenerated: (callback: (event: Electron.CrossProcessExports.IpcRendererEvent, data: KeyInfo) => void) => void
   onUnmount: () => void
   regenerateKey: () => Promise<KeyInfo | undefined>
@@ -19,6 +20,7 @@ export const KeyPanel: React.FC<{
   confirmationDescription,
   description,
   getKeyInfo,
+  keyName,
   onKeyGenerated,
   onUnmount,
   regenerateKey,
@@ -65,7 +67,9 @@ export const KeyPanel: React.FC<{
   }
 
   return (
-    <>
+    <div
+      className="grow shrink min-w-0 h-full py-[0.5rem] flex flex-col gap-[0.63rem]"
+    >
       <div
         className="px-[0.94rem] text-[1.13rem]"
       >
@@ -79,7 +83,7 @@ export const KeyPanel: React.FC<{
           className="flex flex-col gap-[0.5rem]"
         >
           <div>
-            Connection key
+            {keyName}
           </div>
 
           <div className="bg-[#F7F7F7] border border-[#CCC] rounded-[0.25rem] flex">
@@ -221,6 +225,6 @@ export const KeyPanel: React.FC<{
           </div>
         </>
       )}
-    </>
+    </div>
   )
 }

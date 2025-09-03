@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@radix-ui/react-tabs'
 
@@ -13,10 +13,10 @@ import { NotificationPanel } from './panels/NotificationPanel'
 const oldSettings = false
 
 const TABS = [
-  'Connectors',
   'WebSocket',
   'Security',
   'Notifications',
+  'Connectors',
 ] as const
 
 type TabType = typeof TABS[number]
@@ -26,7 +26,9 @@ export const SettingsScreen: React.FC<{
 }> = ({
   onBack,
 }) => {
-  const [activeTab, setActiveTab] = useState<TabType>('Connectors')
+  const [tabsWidth, setTabsWidth] = useState<number>(0)
+
+  const [activeTab, setActiveTab] = useState<TabType>(TABS[0])
 
   if (oldSettings) {
     return (
@@ -55,17 +57,36 @@ export const SettingsScreen: React.FC<{
     )
   }
 
+  useEffect(() => {
+    const tempTabs = document.createElement('div')
+    tempTabs.className = 'flex flex-col items-start shrink-0'
+    tempTabs.style.position = 'absolute'
+    tempTabs.style.visibility = 'hidden'
+    tempTabs.style.whiteSpace = 'nowrap'
+    tempTabs.style.zIndex = '-1000'
+    const button = document.createElement('button')
+    button.className = 'px-[0.63rem] py-[0.5rem] text-left font-semibold'
+    tempTabs.appendChild(button)
+    document.body.appendChild(tempTabs)
+
+    const maxWidth = TABS.reduce((max, tab) => {
+      button.textContent = tab
+      return Math.max(max, tempTabs.offsetWidth)
+    }, 0)
+
+    document.body.removeChild(tempTabs)
+    setTabsWidth(maxWidth)
+  }, [])
+
   const getPanel = () => {
     switch (activeTab) {
-      case 'Connectors':
-        // return <OAuthProviderManager />
-        return <ConnectorPanel />
       case 'WebSocket':
         return (
           <KeyPanel
             confirmationDescription="Submitting this form will generate a new WebSocket key. Be aware that any scripts or applications using this key will need to be updated."
             description="Applications need this key to connect to the approver. Treat it like a password — do not share it. The key is stored securely on your device."
             getKeyInfo={window.electronAPI.getWSKeyInfo}
+            keyName="Connection key"
             onKeyGenerated={window.electronAPI.onWSKeyGenerated}
             onUnmount={() => window.electronAPI.removeAllListeners('ws-key-generated')}
             regenerateKey={window.electronAPI.regenerateWSKey}
@@ -76,7 +97,9 @@ export const SettingsScreen: React.FC<{
         return (
           <KeyPanel
             confirmationDescription="Are you sure you want to regenerate the encryption key? This will invalidate all previously encrypted data."
+            description="The encryption key we use to encrypt data that Keyboard will save for you."
             getKeyInfo={window.electronAPI.getEncryptionKeyInfo}
+            keyName="Encryption key"
             onKeyGenerated={window.electronAPI.onEncryptionKeyGenerated}
             onUnmount={() => window.electronAPI.removeAllListeners('encryption-key-generated')}
             regenerateKey={async () => {
@@ -93,6 +116,8 @@ export const SettingsScreen: React.FC<{
       }
       case 'Notifications':
         return <NotificationPanel />
+      case 'Connectors':
+        return <ConnectorPanel />
       default:
         return <div>Not implemented</div>
     }
@@ -118,6 +143,9 @@ export const SettingsScreen: React.FC<{
       >
         <div
           className="flex flex-col items-start shrink-0"
+          style={{
+            width: tabsWidth,
+          }}
         >
           {TABS.map(tab => (
             <button
@@ -139,11 +167,13 @@ export const SettingsScreen: React.FC<{
             </button>
           ))}
         </div>
-        <div
+
+        {getPanel()}
+        {/* <div
           className="grow shrink min-w-0 h-full py-[0.5rem] flex flex-col gap-[0.63rem]"
         >
           {getPanel()}
-        </div>
+        </div> */}
       </div>
     </>
   )

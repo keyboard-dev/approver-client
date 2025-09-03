@@ -1,139 +1,23 @@
-import React, { useState, useEffect } from 'react'
-import { User, LogOut, Shield, AlertCircle, CheckCircle } from 'lucide-react'
+import { AlertCircle, CheckCircle, LogOut, Shield, User } from 'lucide-react'
+import React, { useState } from 'react'
 
-import { SKIP_AUTH_USER_EMAIL, SKIP_AUTH_USER_FIRST_NAME, SKIP_AUTH_USER_ID, SKIP_AUTH_USER_LAST_NAME } from '../../lib/constants/auth.constants'
-import { AuthStatus, AuthError } from '../../preload'
 import { Alert, AlertDescription } from '../../components/ui/alert'
+import { useAuth } from '../hooks/useAuth'
 import { Badge } from './ui/badge'
 import { Button } from './ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 
-interface AuthComponentProps {
-  isSkippingAuth: boolean
-  onAuthChange: (authStatus: AuthStatus) => void
-  setIsSkippingAuth: (isSkippingAuth: boolean) => void
-}
-
-const AuthComponent: React.FC<AuthComponentProps> = ({
-  isSkippingAuth,
-  onAuthChange,
-  setIsSkippingAuth,
-}) => {
-  const [authStatus, setAuthStatus] = useState<AuthStatus>({ authenticated: false })
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+const AuthComponent: React.FC = () => {
+  const {
+    authStatus,
+    isSkippingAuth,
+    isLoading,
+    error,
+    login,
+    logout,
+    skipAuth,
+  } = useAuth()
   const [showAuthDetails, setShowAuthDetails] = useState(false)
-
-  const handleAuthSuccess = (
-    _event: Electron.CrossProcessExports.IpcRendererEvent | null,
-    data: AuthStatus,
-  ) => {
-    onAuthChange(data)
-    setAuthStatus(data)
-    setError(null)
-    setIsLoading(false)
-  }
-
-  useEffect(() => {
-    loadAuthStatus()
-
-    const handleAuthError = (
-      _event: Electron.CrossProcessExports.IpcRendererEvent | null,
-      errorData: AuthError,
-    ) => {
-      console.error('Auth error:', errorData)
-      setError(errorData.message)
-      setIsLoading(false)
-    }
-
-    const handleAuthLogout = () => {
-      setAuthStatus({ authenticated: false })
-      setError(null)
-      onAuthChange({ authenticated: false })
-    }
-
-    window.electronAPI.onAuthSuccess(handleAuthSuccess)
-    window.electronAPI.onAuthError(handleAuthError)
-    window.electronAPI.onAuthLogout(handleAuthLogout)
-
-    return () => {
-      window.electronAPI.removeAllListeners('auth-success')
-      window.electronAPI.removeAllListeners('auth-error')
-      window.electronAPI.removeAllListeners('auth-logout')
-    }
-  }, [onAuthChange])
-
-  const loadAuthStatus = async () => {
-    try {
-      if (isSkippingAuth) {
-        const skipAuthUser = {
-          id: SKIP_AUTH_USER_ID,
-          email: SKIP_AUTH_USER_EMAIL,
-          firstName: SKIP_AUTH_USER_FIRST_NAME,
-          lastName: SKIP_AUTH_USER_LAST_NAME,
-        }
-        const skipAuthStatus = { authenticated: true, user: skipAuthUser }
-        setAuthStatus(skipAuthStatus)
-        onAuthChange(skipAuthStatus)
-        return
-      }
-
-      const status = await window.electronAPI.getAuthStatus()
-      setAuthStatus(status)
-      onAuthChange(status)
-    }
-    catch (error) {
-      console.error('Error loading auth status:', error)
-    }
-  }
-
-  const handleLogin = async () => {
-    setIsLoading(true)
-    setError(null)
-
-    try {
-      await window.electronAPI.startOAuth()
-      // The actual authentication will be handled by the OAuth flow
-      // and the auth-success event will be triggered
-    }
-    catch (error) {
-      console.error('Error starting OAuth:', error)
-      setError('Failed to start authentication')
-      setIsLoading(false)
-    }
-  }
-
-  const handleSkipAuth = () => {
-    setIsSkippingAuth(true)
-    setError(null)
-
-    const skipAuthStatus = {
-      authenticated: true,
-      user: {
-        id: SKIP_AUTH_USER_ID,
-        email: SKIP_AUTH_USER_EMAIL,
-        firstName: SKIP_AUTH_USER_FIRST_NAME,
-        lastName: SKIP_AUTH_USER_LAST_NAME,
-      },
-    }
-
-    handleAuthSuccess(null, skipAuthStatus)
-  }
-
-  const handleLogout = async () => {
-    if (isSkippingAuth) {
-      setIsSkippingAuth(false)
-    }
-
-    try {
-      await window.electronAPI.logout()
-      // The auth-logout event will be triggered
-    }
-    catch (error) {
-      console.error('Error logging out:', error)
-      setError('Failed to logout')
-    }
-  }
 
   if (authStatus.authenticated || isSkippingAuth) {
     return (
@@ -185,7 +69,7 @@ const AuthComponent: React.FC<AuthComponentProps> = ({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={handleLogout}
+                  onClick={logout}
                   className="text-red-600 border-red-200 hover:bg-red-50"
                 >
                   <LogOut className="h-4 w-4 mr-2" />
@@ -223,7 +107,7 @@ const AuthComponent: React.FC<AuthComponentProps> = ({
 
         <div className="flex flex-col gap-2 justify-center items-center w-40 self-center">
           <Button
-            onClick={handleLogin}
+            onClick={login}
             disabled={isLoading}
             className="bg-gray-200 hover:bg-gray-400 text-gray-800 w-full"
           >
@@ -232,7 +116,7 @@ const AuthComponent: React.FC<AuthComponentProps> = ({
           </Button>
 
           <Button
-            onClick={handleSkipAuth}
+            onClick={skipAuth}
             disabled={isLoading}
             className="bg-gray-600 hover:bg-gray-800 text-white w-full"
           >

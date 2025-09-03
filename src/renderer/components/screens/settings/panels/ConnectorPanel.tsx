@@ -1,7 +1,7 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import React, { useState } from 'react'
 
 import { useAuth } from '../../../../hooks/useAuth'
+import { Confirmation } from '../../../ui/Confirmation'
 import { MyConnectors } from './MyConnectors'
 import SharedConnectors from './SharedConnectors'
 
@@ -17,10 +17,25 @@ export const ConnectorPanel: React.FC = () => {
     isAuthenticated,
   } = useAuth()
 
+  console.log('connector panel')
+  console.log('isAuthenticated', isAuthenticated)
+
   const [activeTab, setActiveTab] = useState<ConnectorTab>(CONNECTOR_TABS[0])
 
   return (
-    <>
+    <div
+      className="relative grow shrink min-w-0 h-full py-[0.5rem] flex flex-col gap-[0.63rem]"
+    >
+      {!isAuthenticated && (
+        <Confirmation
+          confirmText="Authenticate"
+          description="You need to be authenticated to use connectors."
+          onConfirm={window.electronAPI.startOAuth}
+          relative
+          title="Authentication Required"
+        />
+      )}
+
       <div
         className="px-[0.94rem]"
       >
@@ -71,6 +86,6 @@ export const ConnectorPanel: React.FC = () => {
             )}
 
       </div>
-    </>
+    </div>
   )
 }

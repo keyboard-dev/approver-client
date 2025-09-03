@@ -6,9 +6,10 @@ import lazyTheme from 'monaco-themes/themes/Lazy.json'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 
 import iconGearUrl from '../../assets/icon-gear.svg'
-import { Message } from '../types'
+import { Textarea } from '../components/ui/textarea'
 import { AuthStatus, ElectronAPI } from '../preload'
-import { useAuth } from './hooks/useAuth'
+import { Message } from '../types'
+import './App.css'
 import AuthComponent from './components/AuthComponent'
 import { ApprovalScreen } from './components/screens/ApprovalPanel'
 import { SettingsScreen } from './components/screens/settings/SettingsScreen'
@@ -16,8 +17,7 @@ import { Badge } from './components/ui/badge'
 import { Button } from './components/ui/button'
 import { ButtonDesigned } from './components/ui/ButtonDesigned'
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card'
-import { Textarea } from '../components/ui/textarea'
-import './App.css'
+import { AuthProvider, useAuth } from './hooks/useAuth'
 
 const handleEditorWillMount = (monacoInstance: typeof monaco) => {
   monacoInstance.editor.defineTheme('lazy', lazyTheme as monaco.editor.IStandaloneThemeData)
@@ -34,13 +34,10 @@ const getEditorOptions = (): monaco.editor.IStandaloneEditorConstructionOptions 
   wordWrap: 'on',
 })
 
-const App: React.FC = () => {
+const AppContent: React.FC = () => {
   // Auth state managed by useAuth hook
   const {
-    isSkippingAuth,
-    setIsSkippingAuth,
     authStatusRef,
-    handleAuthChange: authHandleChange,
     isAuthenticated,
   } = useAuth()
 
@@ -106,38 +103,33 @@ const App: React.FC = () => {
   }, [])
 
   // Handle authentication state changes with message/UI management
-  const handleAuthChange = useCallback((newAuthStatus: AuthStatus) => {
-    // Update auth state using the hook
-    authHandleChange(newAuthStatus)
-
-    // If user logged out, clear messages for security
-    if (!newAuthStatus.authenticated) {
+  useEffect(() => {
+    if (!isAuthenticated) {
+      // If user logged out, clear messages for security
       setMessages([])
       setCurrentMessage(null)
       setFeedback('')
       setShowFeedback(false)
       setIsInitialized(false)
     }
-    else if (!isInitialized) {
+    else if (!isInitialized && isAuthenticated) {
       setIsInitialized(true);
 
       (async () => {
-        if (newAuthStatus.authenticated) {
-          updateLoadingState(true)
-          try {
-            const loadedMessages = await window.electronAPI.getMessages()
-            setMessages(loadedMessages)
-          }
-          catch (error) {
-            console.error('Error loading messages:', error)
-          }
-          finally {
-            updateLoadingState(false)
-          }
+        updateLoadingState(true)
+        try {
+          const loadedMessages = await window.electronAPI.getMessages()
+          setMessages(loadedMessages)
+        }
+        catch (error) {
+          console.error('Error loading messages:', error)
+        }
+        finally {
+          updateLoadingState(false)
         }
       })()
     }
-  }, [authHandleChange, isInitialized, updateLoadingState])
+  }, [isAuthenticated, isInitialized, updateLoadingState])
 
   // Refresh messages without showing loading state for better UX
   const refreshMessages = useCallback(async () => {
@@ -448,11 +440,7 @@ const App: React.FC = () => {
           >
             <div className="max-w-4xl mx-auto">
               {/* Authentication Component */}
-              <AuthComponent
-                onAuthChange={handleAuthChange}
-                isSkippingAuth={isSkippingAuth}
-                setIsSkippingAuth={setIsSkippingAuth}
-              />
+              <AuthComponent />
 
               {/* Only show main content if authenticated */}
               {isAuthenticated && (
@@ -715,6 +703,21 @@ const App: React.FC = () => {
           : getMessageScreen()}
       </div>
     </div>
+  )
+}
+
+const App: React.FC = () => {
+  // Handle authentication state changes - this callback is called by AuthProvider
+  const handleAuthChange = useCallback((newAuthStatus: AuthStatus) => {
+    console.log('App handleAuthChange:', newAuthStatus)
+    // Additional app-level auth change handling can be added here if needed
+    // The main auth state management and message clearing is handled by AppContent via useEffect
+  }, [])
+
+  return (
+    <AuthProvider onAuthChange={handleAuthChange}>
+      <AppContent />
+    </AuthProvider>
   )
 }
 

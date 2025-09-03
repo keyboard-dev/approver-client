@@ -6,6 +6,7 @@ import googleLogoIconUrl from '../../../../../../assets/icon-logo-google.svg'
 import microsoftLogoIconUrl from '../../../../../../assets/icon-logo-microsoft.svg'
 import xLogoIconUrl from '../../../../../../assets/icon-logo-x.svg'
 import { ServerProviderInfo } from '../../../../../oauth-providers'
+import { useAuth } from '../../../../hooks/useAuth'
 
 const PROVIDER_NAME_TO_ICON_URL: Record<string, string> = {
   github: githubLogoIconUrl,
@@ -54,7 +55,15 @@ export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ cl
     url: '',
   })
 
+  const {
+    isAuthenticated,
+  } = useAuth()
+
   useEffect(() => {
+    if (!isAuthenticated) {
+      return
+    }
+
     loadServerProviders()
     loadProviderStatus()
 
@@ -94,7 +103,7 @@ export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ cl
     return () => {
       // Cleanup - no specific cleanup needed for Electron IPC
     }
-  }, [])
+  }, [isAuthenticated])
 
   const loadServerProviders = async () => {
     try {
