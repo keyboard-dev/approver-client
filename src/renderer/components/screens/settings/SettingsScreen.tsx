@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@radix-ui/react-tabs'
+
 import EncryptionKeyManager from '../../EncryptionKeyManager'
 import { OAuthProviderManager } from '../../OAuthProviderManager'
 import ServerProviderManager from '../../ServerProviderManager'
@@ -9,7 +10,7 @@ import { ConnectorPanel } from './panels/ConnectorPanel'
 import { KeyPanel } from './panels/KeyPanel'
 import { NotificationPanel } from './panels/NotificationPanel'
 
-const oldSettings = true
+const oldSettings = false
 
 const TABS = [
   'Connectors',

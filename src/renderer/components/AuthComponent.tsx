@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react'
-import { Button } from './ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
+import { User, LogOut, Shield, AlertCircle, CheckCircle } from 'lucide-react'
+
+import { SKIP_AUTH_USER_EMAIL, SKIP_AUTH_USER_FIRST_NAME, SKIP_AUTH_USER_ID, SKIP_AUTH_USER_LAST_NAME } from '../../lib/constants/auth.constants'
+import { AuthStatus, AuthError } from '../../preload'
 import { Alert, AlertDescription } from '../../components/ui/alert'
 import { Badge } from './ui/badge'
-import { User, LogOut, Shield, AlertCircle, CheckCircle } from 'lucide-react'
-import { AuthStatus, AuthError } from '../../preload'
-import { SKIP_AUTH_USER_EMAIL, SKIP_AUTH_USER_FIRST_NAME, SKIP_AUTH_USER_ID, SKIP_AUTH_USER_LAST_NAME } from '../../lib/constants/auth.constants'
+import { Button } from './ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 
 interface AuthComponentProps {
   isSkippingAuth: boolean
@@ -33,19 +34,13 @@ const AuthComponent: React.FC<AuthComponentProps> = ({
     setIsLoading(false)
   }
 
-  // Load initial auth status
   useEffect(() => {
     loadAuthStatus()
 
-    // Listen for auth events
-    // const handleAuthSuccess = (event: any, data: AuthStatus) => {
-    //   setAuthStatus(data);
-    //   setError(null);
-    //   setIsLoading(false);
-    //   onAuthChange(data);
-    // };
-
-    const handleAuthError = (_event: Electron.CrossProcessExports.IpcRendererEvent | null, errorData: AuthError) => {
+    const handleAuthError = (
+      _event: Electron.CrossProcessExports.IpcRendererEvent | null,
+      errorData: AuthError,
+    ) => {
       console.error('Auth error:', errorData)
       setError(errorData.message)
       setIsLoading(false)
@@ -71,8 +66,15 @@ const AuthComponent: React.FC<AuthComponentProps> = ({
   const loadAuthStatus = async () => {
     try {
       if (isSkippingAuth) {
-        setAuthStatus({ authenticated: true, user: { id: SKIP_AUTH_USER_ID, email: SKIP_AUTH_USER_EMAIL, firstName: SKIP_AUTH_USER_FIRST_NAME, lastName: SKIP_AUTH_USER_LAST_NAME } })
-        onAuthChange({ authenticated: true, user: { id: SKIP_AUTH_USER_ID, email: SKIP_AUTH_USER_EMAIL, firstName: SKIP_AUTH_USER_FIRST_NAME, lastName: SKIP_AUTH_USER_LAST_NAME } })
+        const skipAuthUser = {
+          id: SKIP_AUTH_USER_ID,
+          email: SKIP_AUTH_USER_EMAIL,
+          firstName: SKIP_AUTH_USER_FIRST_NAME,
+          lastName: SKIP_AUTH_USER_LAST_NAME,
+        }
+        const skipAuthStatus = { authenticated: true, user: skipAuthUser }
+        setAuthStatus(skipAuthStatus)
+        onAuthChange(skipAuthStatus)
         return
       }
 
@@ -105,18 +107,17 @@ const AuthComponent: React.FC<AuthComponentProps> = ({
     setIsSkippingAuth(true)
     setError(null)
 
-    handleAuthSuccess(
-      null,
-      {
-        authenticated: true,
-        user: {
-          id: SKIP_AUTH_USER_ID,
-          email: SKIP_AUTH_USER_EMAIL,
-          firstName: SKIP_AUTH_USER_FIRST_NAME,
-          lastName: SKIP_AUTH_USER_LAST_NAME,
-        },
+    const skipAuthStatus = {
+      authenticated: true,
+      user: {
+        id: SKIP_AUTH_USER_ID,
+        email: SKIP_AUTH_USER_EMAIL,
+        firstName: SKIP_AUTH_USER_FIRST_NAME,
+        lastName: SKIP_AUTH_USER_LAST_NAME,
       },
-    )
+    }
+
+    handleAuthSuccess(null, skipAuthStatus)
   }
 
   const handleLogout = async () => {

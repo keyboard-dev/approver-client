@@ -4,11 +4,11 @@ import { AlertTriangle, CheckCircle, Clock, Wifi, WifiOff, XCircle } from 'lucid
 import * as monaco from 'monaco-editor'
 import lazyTheme from 'monaco-themes/themes/Lazy.json'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+
 import iconGearUrl from '../../assets/icon-gear.svg'
-import { Textarea } from '../components/ui/textarea'
-import { AuthStatus, ElectronAPI } from '../preload'
 import { Message } from '../types'
-import './App.css'
+import { AuthStatus, ElectronAPI } from '../preload'
+import { useAuth } from './hooks/useAuth'
 import AuthComponent from './components/AuthComponent'
 import { ApprovalScreen } from './components/screens/ApprovalPanel'
 import { SettingsScreen } from './components/screens/settings/SettingsScreen'
@@ -16,9 +16,9 @@ import { Badge } from './components/ui/badge'
 import { Button } from './components/ui/button'
 import { ButtonDesigned } from './components/ui/ButtonDesigned'
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card'
-import { useAuth } from './hooks/useAuth'
+import { Textarea } from '../components/ui/textarea'
+import './App.css'
 
-// Monaco Editor configuration for output display
 const handleEditorWillMount = (monacoInstance: typeof monaco) => {
   monacoInstance.editor.defineTheme('lazy', lazyTheme as monaco.editor.IStandaloneThemeData)
 }
@@ -50,7 +50,6 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false)
   const [showFeedback, setShowFeedback] = useState(false)
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'connecting'>('disconnected')
-  // const [isAlertDismissed, setIsAlertDismissed] = useState(false)
   const [isInitialized, setIsInitialized] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [isFontLoaded, setIsFontLoaded] = useState(false)
@@ -85,9 +84,6 @@ const App: React.FC = () => {
 
     connectionTimeoutRef.current = setTimeout(() => {
       setConnectionStatus(status)
-      // if (status === 'connected') {
-      //   setIsAlertDismissed(false)
-      // }
     }, 100) // Small debounce to prevent rapid flickering
   }, [])
 
@@ -123,9 +119,8 @@ const App: React.FC = () => {
       setIsInitialized(false)
     }
     else if (!isInitialized) {
-      // Only load messages on first authentication, not on every auth change
       setIsInitialized(true);
-      // Load messages directly without dependency
+
       (async () => {
         if (newAuthStatus.authenticated) {
           updateLoadingState(true)
@@ -472,7 +467,6 @@ const App: React.FC = () => {
                                 ← Back to Messages
                               </Button>
                               <div className="flex items-center space-x-3">
-                                {/* Connection Status Badge */}
                                 <Badge
                                   variant={connectionStatus === 'connected' ? 'default' : 'destructive'}
                                   className={`connection-status-badge flex items-center space-x-2 px-3 py-2 ${
@@ -482,12 +476,8 @@ const App: React.FC = () => {
                                   }`}
                                 >
                                   {connectionStatus === 'connected'
-                                    ? (
-                                        <Wifi className="h-3 w-3" />
-                                      )
-                                    : (
-                                        <WifiOff className="h-3 w-3" />
-                                      )}
+                                    ? <Wifi className="h-3 w-3" />
+                                    : <WifiOff className="h-3 w-3" />}
                                   <span className="text-xs font-medium">
                                     {connectionStatus === 'connected' ? 'Connected' : 'Disconnected'}
                                   </span>

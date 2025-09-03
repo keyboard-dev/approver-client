@@ -1,7 +1,18 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import React, { useEffect, useState } from 'react'
+
+import githubLogoIconUrl from '../../../../../../assets/icon-logo-github.svg'
+import googleLogoIconUrl from '../../../../../../assets/icon-logo-google.svg'
+import microsoftLogoIconUrl from '../../../../../../assets/icon-logo-microsoft.svg'
+import xLogoIconUrl from '../../../../../../assets/icon-logo-x.svg'
 import { ServerProviderInfo } from '../../../../../oauth-providers'
-import { Button } from '../../../ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../ui/card'
+
+const PROVIDER_NAME_TO_ICON_URL: Record<string, string> = {
+  github: githubLogoIconUrl,
+  google: googleLogoIconUrl,
+  microsoft: microsoftLogoIconUrl,
+  x: xLogoIconUrl,
+}
 
 interface ServerProvider {
   id: string
@@ -262,284 +273,91 @@ export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ cl
   }
 
   return (
-    <div className={`space-y-6 ${className}`}>
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold">Server Providers</h2>
-          <p className="text-muted-foreground">
-            Add OAuth servers to fetch authorization URLs from custom endpoints.
-            All requests are authenticated using your main OAuth access token.
-          </p>
+    <>
+      <div
+        className="flex flex-col gap-[0.5rem]"
+      >
+        <div
+          className="text-[1rem]"
+        >
+          Shared connectors
         </div>
-        <div className="flex gap-2">
-          <Button
-            onClick={() => {
-              loadServerProviders()
-              loadProviderStatus()
-            }}
-            variant="outline"
-            size="sm"
-          >
-            🔄 Server Providers
-          </Button>
-          <Button
-            onClick={() => setShowAddForm(!showAddForm)}
-            className="bg-blue-600 hover:bg-blue-700"
-          >
-            {showAddForm ? 'Cancel' : 'Add Server'}
-          </Button>
+
+        <div
+          className="text-[#737373]"
+        >
+          A shared integration hub where available connectors are controlled by someone else — such as your organization, team admin, or another service.
         </div>
       </div>
 
-      {error && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-          <p className="text-red-800">{error}</p>
-        </div>
-      )}
-
-      {showAddForm && (
-        <Card className="border-blue-200">
-          <CardHeader>
-            <CardTitle>Add Server Provider</CardTitle>
-            <CardDescription>
-              Add a server that provides OAuth authorization URLs via API endpoints.
-              Server authentication uses your main OAuth access token automatically.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+      <div
+        className="flex flex-col gap-[1rem]"
+      >
+        {servers.map(server => (
+          <div
+            key={`settings-shared-connectors-server-${server.id}`}
+            className="flex flex-col gap-[0.63rem]"
+          >
+            <div
+              className="text-[1rem]"
+            >
+              {server.name}
+            </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Server Name</label>
-              <input
-                type="text"
-                value={newServer.name}
-                onChange={e => handleInputChange('name', e.target.value)}
-                placeholder="My OAuth Server"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              Available connectors
             </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-1">Server URL</label>
-              <input
-                type="url"
-                value={newServer.url}
-                onChange={e => handleInputChange('url', e.target.value)}
-                placeholder="http://localhost:4000"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Will be used to call:
-                {' '}
-                {newServer.url}
-                /api/oauth/authorize/google
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2 pt-4">
-              <Button
-                onClick={handleAddServer}
-                disabled={!newServer.name || !newServer.url || isLoading['add']}
-                className="bg-green-600 hover:bg-green-700"
-              >
-                {isLoading['add'] ? 'Adding...' : 'Add Server'}
-              </Button>
-              <Button
-                onClick={() => setShowAddForm(false)}
-                variant="outline"
-              >
-                Cancel
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      <div className="grid gap-4">
-        {servers.length === 0
-          ? (
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="text-center text-gray-500">
-                    <p>No server providers configured.</p>
-                    <p className="text-sm mt-1">Add a server to get started.</p>
-                  </div>
-                </CardContent>
-              </Card>
-            )
-          : (
-              servers.map(server => (
-                <Card key={server.id} className="border-gray-200">
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle className="text-lg">{server.name}</CardTitle>
-                        <CardDescription>{server.url}</CardDescription>
-                      </div>
-                      <Button
-                        onClick={() => handleRemoveServer(server.id)}
-                        disabled={isLoading[server.id]}
-                        variant="outline"
-                        size="sm"
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+            <div
+              className="flex flex-col gap-[0.63rem]"
+            >
+              {serverProviders[server.id]?.map((provider, index) => (
+                <React.Fragment key={`settings-shared-connectors-server-${server.id}-provider-${provider.name}`}>
+                  <div
+                    className="flex items-center justify-between"
+                  >
+                    <div
+                      className="flex items-center gap-[0.63rem]"
+                    >
+                      <div
+                        className="p-[0.31rem] border border-[#E5E5E5] rounded-[0.25rem]"
                       >
-                        Remove
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <p className="text-sm font-medium text-gray-700">Available OAuth Providers:</p>
-                          <Button
-                            onClick={() => fetchProvidersForServer(server.id)}
-                            disabled={isLoading[`fetch-${server.id}`]}
-                            variant="ghost"
-                            size="sm"
-                            className="text-xs"
-                          >
-                            {isLoading[`fetch-${server.id}`] ? 'Refreshing...' : 'Refresh'}
-                          </Button>
-                        </div>
-                        <div className="space-y-3">
-                          {isLoading[`fetch-${server.id}`]
-                            ? (
-                                <div className="text-center text-gray-500 py-4">
-                                  <p>Loading providers...</p>
-                                </div>
-                              )
-                            : serverProviders[server.id]?.length > 0
-                              ? (
-                                  serverProviders[server.id].map((provider) => {
-                                    const isAuthenticated = providerStatus[provider.name]?.authenticated
-                                    const user = providerStatus[provider.name]?.user
-                                    const isExpired = providerStatus[provider.name]?.expired
-
-                                    return (
-                                      <div key={provider.name} className="space-y-2">
-                                        <div className="flex items-center justify-between p-3 border rounded-lg bg-gray-50">
-                                          <div className="flex items-center space-x-2">
-                                            <span className="text-lg">
-                                              {provider.configured ? '🟢' : '🔴'}
-                                            </span>
-                                            <div>
-                                              <div className="font-medium">
-                                                {provider.name.charAt(0).toUpperCase() + provider.name.slice(1)}
-                                              </div>
-                                              {isAuthenticated && user && (
-                                                <div className="text-xs text-gray-600">
-                                                  👤
-                                                  {' '}
-                                                  {user.name || user.email}
-                                                </div>
-                                              )}
-                                            </div>
-                                          </div>
-                                          <div className="flex items-center gap-2">
-                                            {isAuthenticated
-                                              ? (
-                                                  <>
-                                                    <span className={`text-xs px-2 py-1 rounded ${isExpired ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-                                                      {isExpired ? 'Expired' : 'Connected'}
-                                                    </span>
-                                                    {isExpired && (
-                                                      <Button
-                                                        onClick={() => handleRefresh(provider.name)}
-                                                        disabled={isLoading[`refresh-${provider.name}`]}
-                                                        variant="outline"
-                                                        size="sm"
-                                                        className="text-xs text-blue-600 hover:text-blue-700"
-                                                      >
-                                                        {isLoading[`refresh-${provider.name}`] ? '⏳' : '🔄'}
-                                                        {' '}
-                                                        Refresh
-                                                      </Button>
-                                                    )}
-                                                    <Button
-                                                      onClick={() => handleGetToken(provider.name)}
-                                                      variant="outline"
-                                                      size="sm"
-                                                      className="text-xs"
-                                                    >
-                                                      📋 Token
-                                                    </Button>
-                                                    <Button
-                                                      onClick={() => handleDisconnect(provider.name)}
-                                                      variant="outline"
-                                                      size="sm"
-                                                      className="text-xs text-red-600 hover:text-red-700"
-                                                    >
-                                                      ❌ Disconnect
-                                                    </Button>
-                                                  </>
-                                                )
-                                              : (
-                                                  <Button
-                                                    onClick={() => handleStartOAuth(server.id, provider.name)}
-                                                    disabled={!provider.configured || isLoading[`${server.id}-${provider.name}`]}
-                                                    variant="outline"
-                                                    size="sm"
-                                                    className={`${!provider.configured ? 'opacity-50' : ''}`}
-                                                    title={provider.configured
-                                                      ? `Scopes: ${provider.scopes.join(', ')}`
-                                                      : 'Not configured on server'}
-                                                  >
-                                                    {isLoading[`${server.id}-${provider.name}`]
-                                                      ? (
-                                                          'Starting...'
-                                                        )
-                                                      : (
-                                                          '🔗 Connect'
-                                                        )}
-                                                  </Button>
-                                                )}
-                                          </div>
-                                        </div>
-                                      </div>
-                                    )
-                                  })
-                                )
-                              : (
-                                  <div className="text-center text-gray-500 py-4">
-                                    <p>No providers available</p>
-                                    <p className="text-xs">Check server configuration</p>
-                                  </div>
-                                )}
-                        </div>
+                        {PROVIDER_NAME_TO_ICON_URL[provider.name.toLowerCase()]
+                          ? (
+                              <img
+                                src={PROVIDER_NAME_TO_ICON_URL[provider.name]}
+                                alt={provider.name}
+                                className="w-[1.5rem] h-[1.5rem]"
+                              />
+                            )
+                          : (
+                              <div
+                                className="w-[1.5rem] h-[1.5rem] bg-green-300 rounded-full"
+                              />
+                            )}
                       </div>
 
-                      <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded">
-                        <p>
-                          <strong>Providers endpoint:</strong>
-                          {' '}
-                          {server.url}
-                          /api/oauth/providers
-                        </p>
-                        <p>
-                          <strong>Authorize endpoint:</strong>
-                          {' '}
-                          {server.url}
-                          /api/oauth/authorize/
-                          {`{provider}`}
-                        </p>
-                        <p>
-                          <strong>Callback URL:</strong>
-                          {' '}
-                          http://localhost:8082/callback
-                        </p>
-                        <p>
-                          <strong>Authentication:</strong>
-                          {' '}
-                          Bearer token (main OAuth access token)
-                        </p>
+                      <div
+                        className="uppercase"
+                      >
+                        {provider.name}
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
-              ))
-            )}
+
+                    <div>
+                      connected?
+                    </div>
+
+                  </div>
+                  {index < serverProviders[server.id]?.length - 1 && (
+                    <div className="w-full h-px bg-[#E5E5E5]" />
+                  )}
+                </React.Fragment>
+              ))}
+            </div>
+
+          </div>
+        ))}
       </div>
-    </div>
+    </>
   )
 }
 

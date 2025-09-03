@@ -1,7 +1,9 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import React, { useState } from 'react'
+
 import { useAuth } from '../../../../hooks/useAuth'
 import { MyConnectors } from './MyConnectors'
+import SharedConnectors from './SharedConnectors'
 
 const CONNECTOR_TABS = [
   'Shared connectors',
@@ -62,9 +64,7 @@ export const ConnectorPanel: React.FC = () => {
       >
         {activeTab === 'Shared connectors'
           ? (
-              <div>
-                Shared connectors
-              </div>
+              <SharedConnectors />
             )
           : (
               <MyConnectors />
