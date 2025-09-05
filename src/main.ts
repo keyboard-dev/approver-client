@@ -812,10 +812,6 @@ class MenuBarNotificationApp {
   private async logoutProvider(providerId: string): Promise<void> {
     await this.perProviderTokenStorage.removeTokens(providerId)
     this.windowManager.sendMessage('provider-auth-logout', { providerId })
-
-    const provider = await this.oauthProviderManager.getProvider(providerId)
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const providerName = provider?.name || providerId
   }
 
   private async startOAuthFlow(): Promise<void> {
@@ -1326,7 +1322,7 @@ class MenuBarNotificationApp {
       return await this.oauthProviderManager.getAvailableProviders()
     })
 
-    ipcMain.handle('start-provider-oauth', async (event, providerId: string): Promise<void> => {
+    ipcMain.handle('start-provider-oauth', async (_event, providerId: string): Promise<void> => {
       await this.startProviderOAuthFlow(providerId)
     })
 
@@ -1334,19 +1330,19 @@ class MenuBarNotificationApp {
       return await this.perProviderTokenStorage.getProviderStatus()
     })
 
-    ipcMain.handle('get-provider-access-token', async (event, providerId: string): Promise<string | null> => {
+    ipcMain.handle('get-provider-access-token', async (_event, providerId: string): Promise<string | null> => {
       return await this.getValidProviderAccessToken(providerId)
     })
 
-    ipcMain.handle('logout-provider', async (event, providerId: string): Promise<void> => {
+    ipcMain.handle('logout-provider', async (_event, providerId: string): Promise<void> => {
       await this.logoutProvider(providerId)
     })
 
-    ipcMain.handle('get-provider-tokens', async (event, providerId: string): Promise<StoredProviderTokens | null> => {
+    ipcMain.handle('get-provider-tokens', async (_event, providerId: string): Promise<StoredProviderTokens | null> => {
       return await this.perProviderTokenStorage.getTokens(providerId)
     })
 
-    ipcMain.handle('refresh-provider-tokens', async (event, providerId: string): Promise<boolean> => {
+    ipcMain.handle('refresh-provider-tokens', async (_event, providerId: string): Promise<boolean> => {
       try {
         const tokens = await this.perProviderTokenStorage.getTokens(providerId)
         if (!tokens?.refresh_token) {
@@ -1379,15 +1375,15 @@ class MenuBarNotificationApp {
       return await this.oauthProviderManager.getAllProviderConfigs()
     })
 
-    ipcMain.handle('save-provider-config', async (event, config: Omit<OAuthProviderConfig, 'createdAt' | 'updatedAt'>): Promise<void> => {
+    ipcMain.handle('save-provider-config', async (_event, config: Omit<OAuthProviderConfig, 'createdAt' | 'updatedAt'>): Promise<void> => {
       await this.oauthProviderManager.saveProviderConfig(config)
     })
 
-    ipcMain.handle('remove-provider-config', async (event, providerId: string): Promise<void> => {
+    ipcMain.handle('remove-provider-config', async (_event, providerId: string): Promise<void> => {
       await this.oauthProviderManager.removeProviderConfig(providerId)
     })
 
-    ipcMain.handle('get-provider-config', async (event, providerId: string): Promise<OAuthProviderConfig | null> => {
+    ipcMain.handle('get-provider-config', async (_event, providerId: string): Promise<OAuthProviderConfig | null> => {
       const provider = await this.oauthProviderManager.getProvider(providerId)
       if (!provider) return null
 
@@ -1397,11 +1393,11 @@ class MenuBarNotificationApp {
     })
 
     // Server Provider IPC handlers
-    ipcMain.handle('add-server-provider', async (event, server: ServerProvider): Promise<void> => {
+    ipcMain.handle('add-server-provider', async (_event, server: ServerProvider): Promise<void> => {
       await this.oauthProviderManager.addServerProvider(server)
     })
 
-    ipcMain.handle('remove-server-provider', async (event, serverId: string): Promise<void> => {
+    ipcMain.handle('remove-server-provider', async (_event, serverId: string): Promise<void> => {
       await this.oauthProviderManager.removeServerProvider(serverId)
     })
 
@@ -1409,11 +1405,11 @@ class MenuBarNotificationApp {
       return await this.oauthProviderManager.getServerProviders()
     })
 
-    ipcMain.handle('start-server-provider-oauth', async (event, serverId: string, provider: string): Promise<void> => {
+    ipcMain.handle('start-server-provider-oauth', async (_event, serverId: string, provider: string): Promise<void> => {
       await this.startServerProviderOAuthFlow(serverId, provider)
     })
 
-    ipcMain.handle('fetch-server-providers', async (event, serverId: string): Promise<ServerProviderInfo[]> => {
+    ipcMain.handle('fetch-server-providers', async (_event, serverId: string): Promise<ServerProviderInfo[]> => {
       const accessToken = await this.getValidAccessToken()
       const serverProviders = await this.oauthProviderManager.fetchServerProviders(serverId, accessToken || undefined)
       return serverProviders
@@ -1425,7 +1421,7 @@ class MenuBarNotificationApp {
     })
 
     // Handle mark as read
-    ipcMain.handle('mark-message-read', (event, messageId: string): void => {
+    ipcMain.handle('mark-message-read', (_event, messageId: string): void => {
       const message = this.messages.find(msg => msg.id === messageId)
       if (message) {
         message.read = true
@@ -1433,7 +1429,7 @@ class MenuBarNotificationApp {
     })
 
     // Handle delete message
-    ipcMain.handle('delete-message', (event, messageId: string): void => {
+    ipcMain.handle('delete-message', (_event, messageId: string): void => {
       this.messages = this.messages.filter(msg => msg.id !== messageId)
       this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length
       this.trayManager.updateTrayIcon()
@@ -1445,7 +1441,7 @@ class MenuBarNotificationApp {
     })
 
     // Handle reject message
-    ipcMain.handle('reject-message', (event, messageId: string, feedback?: string): void => {
+    ipcMain.handle('reject-message', (_event, messageId: string, feedback?: string): void => {
       const message = this.messages.find(msg => msg.id === messageId)
       if (message) {
         message.status = 'rejected'
@@ -1532,7 +1528,7 @@ class MenuBarNotificationApp {
     })
 
     // External URL handling
-    ipcMain.handle('open-external-url', async (event, url: string): Promise<void> => {
+    ipcMain.handle('open-external-url', async (_event, url: string): Promise<void> => {
       await shell.openExternal(url)
     })
 
@@ -1541,7 +1537,7 @@ class MenuBarNotificationApp {
       return this.getSettingsInfo()
     })
 
-    ipcMain.handle('set-show-notifications', async (event, show: boolean): Promise<void> => {
+    ipcMain.handle('set-show-notifications', async (_event, show: boolean): Promise<void> => {
       this.showNotifications = show
       await this.saveSettings()
     })
@@ -1550,7 +1546,7 @@ class MenuBarNotificationApp {
       return this.showNotifications
     })
 
-    ipcMain.handle('set-automatic-code-approval', async (event, level: 'never' | 'low' | 'medium' | 'high'): Promise<void> => {
+    ipcMain.handle('set-automatic-code-approval', async (_event, level: 'never' | 'low' | 'medium' | 'high'): Promise<void> => {
       this.automaticCodeApproval = level
       await this.saveSettings()
     })
@@ -1559,7 +1555,7 @@ class MenuBarNotificationApp {
       return this.automaticCodeApproval
     })
 
-    ipcMain.handle('set-automatic-response-approval', async (event, enabled: boolean): Promise<void> => {
+    ipcMain.handle('set-automatic-response-approval', async (_event, enabled: boolean): Promise<void> => {
       this.automaticResponseApproval = enabled
       await this.saveSettings()
     })

@@ -7,6 +7,8 @@ import microsoftLogoIconUrl from '../../../../../../assets/icon-logo-microsoft.s
 import xLogoIconUrl from '../../../../../../assets/icon-logo-x.svg'
 import { ServerProviderInfo } from '../../../../../oauth-providers'
 import { useAuth } from '../../../../hooks/useAuth'
+import { ButtonDesigned } from '../../../ui/ButtonDesigned'
+import { AddServerPopup } from './AddServerPopup'
 
 const PROVIDER_NAME_TO_ICON_URL: Record<string, string> = {
   github: githubLogoIconUrl,
@@ -43,7 +45,7 @@ interface ProviderStatus {
   expired?: boolean
 }
 
-export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ className }) => {
+export const SharedConnectors: React.FC<ServerProviderManagerProps> = ({ className }) => {
   const [servers, setServers] = useState<ServerProvider[]>([])
   const [serverProviders, setServerProviders] = useState<Record<string, ServerProviderInfo[]>>({})
   const [providerStatus, setProviderStatus] = useState<Record<string, ProviderStatus>>({})
@@ -54,6 +56,7 @@ export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ cl
     name: '',
     url: '',
   })
+  const [showAddServerPopup, setShowAddServerPopup] = useState(false)
 
   const {
     isAuthenticated,
@@ -281,8 +284,10 @@ export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ cl
     }))
   }
 
-  return (
-    <>
+  if (!servers.length) return (
+    <div
+      className="flex flex-col gap-[1rem] w-full p-[0.94rem] border border-[#E5E5E5] rounded-[0.38rem]"
+    >
       <div
         className="flex flex-col gap-[0.5rem]"
       >
@@ -299,19 +304,58 @@ export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ cl
         </div>
       </div>
 
-      <div
-        className="flex flex-col gap-[1rem]"
+      You are currently not part of any shared server.
+
+      <ButtonDesigned
+        variant="clear"
+        className="px-[1rem] py-[0.5rem] self-start"
+        hasBorder
+        onClick={() => {
+          setShowAddServerPopup(true)
+        }}
       >
-        {servers.map(server => (
+        Join or create a server
+      </ButtonDesigned>
+
+      {showAddServerPopup && (
+        <AddServerPopup
+          onSave={handleAddServer}
+          onCancel={() => setShowAddServerPopup(false)}
+        />
+      )}
+    </div>
+  )
+
+  return (
+    <div
+      className="flex flex-col gap-[0.63rem]"
+    >
+      {servers.map(server => (
+        <div
+          key={`settings-shared-connectors-server-${server.id}`}
+          className="flex flex-col gap-[1rem] w-full p-[0.94rem] border border-[#E5E5E5] rounded-[0.38rem]"
+        >
           <div
-            key={`settings-shared-connectors-server-${server.id}`}
-            className="flex flex-col gap-[0.63rem]"
+            className="flex flex-col gap-[0.5rem]"
           >
             <div
               className="text-[1rem]"
             >
+              Shared connectors -
+              {' '}
               {server.name}
             </div>
+
+            <div
+              className="text-[#737373]"
+            >
+              A shared integration hub where available connectors are controlled by someone else — such as your organization, team admin, or another service.
+            </div>
+          </div>
+
+          <div
+            className="flex flex-col gap-[0.63rem]"
+          >
             <div>
               Available connectors
             </div>
@@ -348,6 +392,8 @@ export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ cl
                         className="uppercase"
                       >
                         {provider.name}
+
+                        {JSON.stringify(provider, null, 2)}
                       </div>
                     </div>
 
@@ -364,10 +410,28 @@ export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ cl
             </div>
 
           </div>
-        ))}
-      </div>
-    </>
+        </div>
+      ))}
+
+      <ButtonDesigned
+        variant="clear"
+        className="px-[1rem] py-[0.5rem] self-start"
+        hasBorder
+        onClick={() => {
+          setShowAddServerPopup(true)
+        }}
+      >
+        Join or create a server
+      </ButtonDesigned>
+
+      {showAddServerPopup && (
+        <AddServerPopup
+          onSave={handleAddServer}
+          onCancel={() => setShowAddServerPopup(false)}
+        />
+      )}
+    </div>
   )
 }
 
-export default ServerProviderManager
+export default SharedConnectors

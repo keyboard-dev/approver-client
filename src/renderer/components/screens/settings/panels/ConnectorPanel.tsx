@@ -15,10 +15,8 @@ type ConnectorTab = typeof CONNECTOR_TABS[number]
 export const ConnectorPanel: React.FC = () => {
   const {
     isAuthenticated,
+    isSkippingAuth,
   } = useAuth()
-
-  console.log('connector panel')
-  console.log('isAuthenticated', isAuthenticated)
 
   const [activeTab, setActiveTab] = useState<ConnectorTab>(CONNECTOR_TABS[0])
 
@@ -26,7 +24,7 @@ export const ConnectorPanel: React.FC = () => {
     <div
       className="relative grow shrink min-w-0 h-full py-[0.5rem] flex flex-col gap-[0.63rem]"
     >
-      {!isAuthenticated && (
+      {(!isAuthenticated || isSkippingAuth) && (
         <Confirmation
           confirmText="Authenticate"
           description="You need to be authenticated to use connectors."
@@ -74,18 +72,13 @@ export const ConnectorPanel: React.FC = () => {
         ))}
       </div>
 
-      <div
-        className="w-full p-[0.94rem] flex flex-col gap-[0.63rem] border border-[#E5E5E5] rounded-[0.38rem]"
-      >
-        {activeTab === 'Shared connectors'
-          ? (
-              <SharedConnectors />
-            )
-          : (
-              <MyConnectors />
-            )}
-
-      </div>
+      {activeTab === 'Shared connectors'
+        ? (
+            <SharedConnectors />
+          )
+        : (
+            <MyConnectors />
+          )}
     </div>
   )
 }

@@ -147,45 +147,6 @@ export const MyConnectors: React.FC = () => {
     }
   }
 
-  const handleRefresh = async (providerId: string) => {
-    setIsLoading(prev => ({ ...prev, [providerId]: true }))
-
-    try {
-      const success = await window.electronAPI.refreshProviderTokens(providerId)
-      if (success) {
-        await loadProviderStatus()
-        setError(null)
-      }
-      else {
-        setError(`Failed to refresh tokens for ${providerId}`)
-      }
-    }
-    catch (error) {
-      console.error(`Failed to refresh tokens for ${providerId}:`, error)
-      setError(`Failed to refresh tokens for ${providerId}`)
-    }
-    finally {
-      setIsLoading(prev => ({ ...prev, [providerId]: false }))
-    }
-  }
-
-  const handleClearAll = async () => {
-    if (!confirm('Are you sure you want to disconnect from all providers? This action cannot be undone.')) {
-      return
-    }
-
-    try {
-      await window.electronAPI.clearAllProviderTokens()
-      await loadProviderStatus()
-      await loadStorageInfo()
-      setError(null)
-    }
-    catch (error) {
-      console.error('Failed to clear all tokens:', error)
-      setError('Failed to clear all tokens')
-    }
-  }
-
   const handleGetToken = async (providerId: string) => {
     try {
       const token = await window.electronAPI.getProviderAccessToken(providerId)
@@ -234,44 +195,6 @@ export const MyConnectors: React.FC = () => {
     catch (error) {
       console.error(`Failed to delete provider ${providerId}:`, error)
       setError(`Failed to delete provider ${providerId}`)
-    }
-  }
-
-  // const handleEditProvider = async (providerId: string) => {
-  //   try {
-  //     const config = await window.electronAPI.getProviderConfig(providerId)
-  //     if (config) {
-  //       setEditingProvider(config)
-  //       setIsAddPopupOpen(true)
-  //     }
-  //   }
-  //   catch (error) {
-  //     console.error(`Failed to load provider config ${providerId}:`, error)
-  //     setError(`Failed to load provider configuration`)
-  //   }
-  // }
-
-  // const formatDate = (timestamp?: number) => {
-  //   if (!timestamp) return 'N/A'
-  //   return new Date(timestamp).toLocaleString()
-  // }
-
-  // const getStatusBadge = (status: ProviderStatus) => {
-  //   if (!status.authenticated) {
-  //     return <Badge variant="secondary">Not Connected</Badge>
-  //   }
-  //   if (status.expired) {
-  //     return <Badge variant="destructive">Expired</Badge>
-  //   }
-  //   return <Badge variant="default">Connected</Badge>
-  // }
-
-  const setConfig = (provider: OAuthProviderConfig) => {
-    switch (providerId) {
-      case 'google':
-        return 'Google'
-      default:
-        return null
     }
   }
 
@@ -330,7 +253,9 @@ export const MyConnectors: React.FC = () => {
   }
 
   return (
-    <>
+    <div
+      className="w-full p-[0.94rem] flex flex-col gap-[0.63rem] border border-[#E5E5E5] rounded-[0.38rem]"
+    >
       <div
         className="text-[1rem]"
       >
@@ -391,12 +316,15 @@ export const MyConnectors: React.FC = () => {
         {isAddPopupOpen && (
           <AddConnectorPopup
             onSave={handleSaveProvider}
-            onCancel={() => setIsAddPopupOpen(false)}
+            onCancel={() => {
+              setIsAddPopupOpen(false)
+              setEditingProvider(null)
+            }}
             initialConfig={editingProvider}
           />
         )}
       </div>
 
-    </>
+    </div>
   )
 }
