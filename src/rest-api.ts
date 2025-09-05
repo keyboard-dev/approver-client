@@ -209,18 +209,16 @@ const createBatchApproveHandler = (
       return
     }
 
-    const approved: string[] = []
-    const failed: string[] = []
-
-    messageIds.forEach((id: string) => {
+    const { approved, failed } = messageIds.reduce<{ approved: string[], failed: string[] }>((acc, id: string) => {
       const success = updateMessageStatus(id, 'approved', feedback)
       if (success) {
-        approved.push(id)
+        acc.approved.push(id)
       }
       else {
-        failed.push(id)
+        acc.failed.push(id)
       }
-    })
+      return acc
+    }, { approved: [], failed: [] })
 
     res.json({
       approved,

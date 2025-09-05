@@ -364,8 +364,8 @@ export class OAuthProviderManager {
           userData = this.normalizeUserData(provider.id, userData as Record<string, unknown>)
         }
       }
-      catch {
-        // Ignore errors
+      catch (error) {
+        console.warn('Failed to fetch user info:', error)
       }
     }
 

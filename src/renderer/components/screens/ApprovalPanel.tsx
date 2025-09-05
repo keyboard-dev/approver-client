@@ -38,12 +38,14 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
   const { isThin } = useWindowDimensions()
 
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout | null = null
+
     // Wait for Fira Code font to load before initializing Monaco Editor
     const checkFontLoaded = async () => {
       try {
         await document.fonts.load('400 16px "Fira Code"')
         // Small delay to ensure font is fully rendered
-        setTimeout(() => setIsFontLoaded(true), 100)
+        timeoutId = setTimeout(() => setIsFontLoaded(true), 100)
       }
       catch (error) {
         console.warn('Font loading failed, proceeding with fallback:', error)
@@ -52,6 +54,12 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
     }
 
     checkFontLoaded()
+
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+      }
+    }
   }, [])
 
   const handleEditorWillMount = (monacoInstance: typeof monaco) => {

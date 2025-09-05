@@ -1120,14 +1120,10 @@ class MenuBarNotificationApp {
             try {
               const providerStatus = await this.perProviderTokenStorage.getProviderStatus()
 
-              const tokensAvailable: string[] = []
-
               // Check ALL stored provider tokens (both direct and server provider tokens)
-              for (const [providerId, status] of Object.entries(providerStatus)) {
-                if (status && status.authenticated) {
-                  tokensAvailable.push(`KEYBOARD_PROVIDER_USER_TOKEN_FOR_${providerId.toUpperCase()}`)
-                }
-              }
+              const tokensAvailable = Object.entries(providerStatus)
+                .filter(([, status]) => status?.authenticated)
+                .map(([providerId]) => `KEYBOARD_PROVIDER_USER_TOKEN_FOR_${providerId.toUpperCase()}`)
 
               const statusResponse = {
                 type: 'user-tokens-available',

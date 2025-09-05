@@ -237,24 +237,24 @@ export const MyConnectors: React.FC = () => {
     }
   }
 
-  const handleEditProvider = async (providerId: string) => {
-    try {
-      const config = await window.electronAPI.getProviderConfig(providerId)
-      if (config) {
-        setEditingProvider(config)
-        setIsAddPopupOpen(true)
-      }
-    }
-    catch (error) {
-      console.error(`Failed to load provider config ${providerId}:`, error)
-      setError(`Failed to load provider configuration`)
-    }
-  }
+  // const handleEditProvider = async (providerId: string) => {
+  //   try {
+  //     const config = await window.electronAPI.getProviderConfig(providerId)
+  //     if (config) {
+  //       setEditingProvider(config)
+  //       setIsAddPopupOpen(true)
+  //     }
+  //   }
+  //   catch (error) {
+  //     console.error(`Failed to load provider config ${providerId}:`, error)
+  //     setError(`Failed to load provider configuration`)
+  //   }
+  // }
 
-  const formatDate = (timestamp?: number) => {
-    if (!timestamp) return 'N/A'
-    return new Date(timestamp).toLocaleString()
-  }
+  // const formatDate = (timestamp?: number) => {
+  //   if (!timestamp) return 'N/A'
+  //   return new Date(timestamp).toLocaleString()
+  // }
 
   // const getStatusBadge = (status: ProviderStatus) => {
   //   if (!status.authenticated) {
@@ -265,6 +265,15 @@ export const MyConnectors: React.FC = () => {
   //   }
   //   return <Badge variant="default">Connected</Badge>
   // }
+
+  const setConfig = (provider: OAuthProviderConfig) => {
+    switch (providerId) {
+      case 'google':
+        return 'Google'
+      default:
+        return null
+    }
+  }
 
   const getIconUrl = (providerId: string) => {
     switch (providerId) {
@@ -348,13 +357,17 @@ export const MyConnectors: React.FC = () => {
                   {getIcon(provider.id)}
                   <div>
                     {provider.name}
+                    {/* {JSON.stringify(provider, null, 2)} */}
                   </div>
                 </div>
                 {getDescription(provider.id)}
               </div>
               <ButtonDesigned
                 className="px-[1rem] py-[0.5rem]"
-                onClick={() => handleConnect(provider.id)}
+                onClick={() => {
+                  setEditingProvider(provider)
+                  setIsAddPopupOpen(true)
+                }}
                 variant="clear"
                 hasBorder
               >

@@ -57,12 +57,14 @@ const AppContent: React.FC = () => {
 
   // Font loading effect
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout | null = null
+
     // Wait for Fira Code font to load before initializing Monaco Editor
     const checkFontLoaded = async () => {
       try {
         await document.fonts.load('400 16px "Fira Code"')
         // Small delay to ensure font is fully rendered
-        setTimeout(() => setIsFontLoaded(true), 100)
+        timeoutId = setTimeout(() => setIsFontLoaded(true), 100)
       }
       catch (error) {
         console.warn('Font loading failed, proceeding with fallback:', error)
@@ -71,6 +73,12 @@ const AppContent: React.FC = () => {
     }
 
     checkFontLoaded()
+
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+      }
+    }
   }, [])
 
   // Debounced connection status update
@@ -113,9 +121,9 @@ const AppContent: React.FC = () => {
       setIsInitialized(false)
     }
     else if (!isInitialized && isAuthenticated) {
-      setIsInitialized(true);
+      setIsInitialized(true)
 
-      (async () => {
+      const loadInitialMessages = async () => {
         updateLoadingState(true)
         try {
           const loadedMessages = await window.electronAPI.getMessages()
@@ -127,7 +135,9 @@ const AppContent: React.FC = () => {
         finally {
           updateLoadingState(false)
         }
-      })()
+      }
+
+      loadInitialMessages()
     }
   }, [isAuthenticated, isInitialized, updateLoadingState])
 
@@ -278,7 +288,7 @@ const AppContent: React.FC = () => {
     setShowFeedback(false)
   }
 
-  const getStatusIcon = (status?: string) => {
+  const getStatusIcon = useCallback((status?: string) => {
     switch (status) {
       case 'approved':
         return <CheckCircle className="h-4 w-4 text-green-500" />
@@ -289,9 +299,9 @@ const AppContent: React.FC = () => {
       default:
         return <AlertTriangle className="h-4 w-4 text-gray-500" />
     }
-  }
+  }, [])
 
-  const getStatusBadge = (status?: string) => {
+  const getStatusBadge = useCallback((status?: string) => {
     switch (status) {
       case 'approved':
         return <Badge variant="default" className="bg-green-100 text-green-800 hover:bg-green-100">Approved</Badge>
@@ -302,9 +312,9 @@ const AppContent: React.FC = () => {
       default:
         return <Badge variant="outline">New</Badge>
     }
-  }
+  }, [])
 
-  const getPriorityBadge = (priority?: string) => {
+  const getPriorityBadge = useCallback((priority?: string) => {
     switch (priority) {
       case 'high':
         return <Badge variant="destructive">High Priority</Badge>
@@ -315,15 +325,16 @@ const AppContent: React.FC = () => {
       default:
         return null
     }
-  }
+  }, [])
 
-  const getCodeBlock = (message: Message) => {
+  const getCodeBlock = useCallback((message: Message) => {
     switch (message.title) {
       case 'code response approval': {
         if (!currentMessage || !currentMessage.codespaceResponse) return
         // const parsedBody = extractJsonFromCodeApproval(currentMessage.body)
         const { codespaceResponse } = currentMessage
         const { data: codespaceResponseData } = codespaceResponse
+        if (!codespaceResponseData) return
         const hasError = Boolean(codespaceResponseData.stderr)
 
         return (
@@ -392,9 +403,9 @@ const AppContent: React.FC = () => {
           </div>
         )
     }
-  }
+  }, [currentMessage, isFontLoaded, handleEditorWillMount, getEditorOptions])
 
-  const getMessageSummary = (message: Message) => {
+  const getMessageSummary = useCallback((message: Message) => {
     switch (message.title) {
       case 'code response approval': {
         const { codespaceResponse } = message
@@ -418,7 +429,7 @@ const AppContent: React.FC = () => {
       default:
         return message.body
     }
-  }
+  }, [])
 
   const getMessageScreen = () => {
     switch (currentMessage?.title) {
