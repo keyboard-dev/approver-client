@@ -1373,9 +1373,10 @@ class MenuBarNotificationApp {
     this.windowManager.sendMessage('websocket-message', message)
 
     // Auto-show window for high priority messages
-    if (message.priority === 'high') {
-      this.windowManager.showWindow()
-    }
+    this.windowManager.showWindow()
+    // if (message.priority === 'high') {
+    //   this.windowManager.showWindow()
+    // }
   }
 
   private showNotification(message: Message): void {
