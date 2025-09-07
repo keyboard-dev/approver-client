@@ -1735,12 +1735,13 @@ class MenuBarNotificationApp {
 
     ipcMain.handle('get-ws-key-info', (): { key: string | null, createdAt: number | null, keyFile: string } => {
       let createdAt: number | null = null
-
+      let key: string | null = null
       try {
         if (fs.existsSync(this.WS_KEY_FILE)) {
           const keyData = fs.readFileSync(this.WS_KEY_FILE, 'utf8')
           const parsedData = JSON.parse(keyData)
           createdAt = parsedData.createdAt
+          key = parsedData.key
         }
       }
       catch (error) {
@@ -1748,7 +1749,7 @@ class MenuBarNotificationApp {
       }
 
       return {
-        key: this.wsConnectionKey,
+        key: key,
         createdAt,
         keyFile: this.WS_KEY_FILE,
       }
