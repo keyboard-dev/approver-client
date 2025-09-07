@@ -17,6 +17,7 @@ import { OAuthProviderManager } from './components/OAuthProviderManager'
 import ServerProviderManager from './components/ServerProviderManager'
 import WebSocketKeyManager from './components/WebSocketKeyManager'
 import { ApprovalScreen } from './components/screens/ApprovalScreen'
+import GitHubOAuthButton from './components/GitHubOAuthButton'
 import { Badge } from './components/ui/badge'
 import { Button } from './components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card'
@@ -828,6 +829,9 @@ const App: React.FC = () => {
                           {showSettings ? 'Settings' : 'Message Approvals'}
                         </h1>
                         <div className="flex items-center space-x-3">
+                          {!showSettings && (
+                            <GitHubOAuthButton />
+                          )}
                           {!showSettings && (messages.length > 0 || shareMessages.length > 0) && (
                             <Button
                               variant="outline"
