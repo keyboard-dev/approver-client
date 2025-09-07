@@ -94,7 +94,7 @@ class MenuBarNotificationApp {
   private oauthHttpServer: OAuthHttpServer
   // WebSocket security
   private wsConnectionKey: string | null = null
-  private readonly WS_KEY_FILE = path.join(os.homedir(), '.keyboard-mcp-ws-key')
+  private readonly WS_KEY_FILE = path.join(os.homedir(), '.keyboard-mcp-ws-key') 
 
   // Encryption key management
   private encryptionKey: string | null = null

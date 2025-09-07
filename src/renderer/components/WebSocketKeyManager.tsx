@@ -43,6 +43,7 @@ const WebSocketKeyManager: React.FC<WebSocketKeyManagerProps> = ({ className = '
   const loadKeyInfo = async () => {
     try {
       const info = await window.electronAPI.getWSKeyInfo()
+      console.log('info', info)
       setKeyInfo(info)
       loadConnectionUrl()
     }
