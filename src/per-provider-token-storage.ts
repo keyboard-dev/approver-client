@@ -379,4 +379,23 @@ export class PerProviderTokenStorage {
   async saveOnboardingTokens(tokens: ProviderTokens): Promise<void> {
     fs.writeFileSync(this.ONBOARDING_KEY_FILE, JSON.stringify(tokens, null, 2), { mode: 0o600 })
   }
+
+  /**
+   * Check if onboarding GitHub token exists and has access_token
+   */
+  async checkOnboardingTokenExists(): Promise<boolean> {
+    try {
+      if (!fs.existsSync(this.ONBOARDING_KEY_FILE)) {
+        return false
+      }
+      
+      const fileContent = fs.readFileSync(this.ONBOARDING_KEY_FILE, 'utf8')
+      const tokens = JSON.parse(fileContent) as ProviderTokens
+      
+      return !!(tokens && tokens.access_token)
+    } catch (error) {
+      console.error('Error checking onboarding token:', error)
+      return false
+    }
+  }
 }

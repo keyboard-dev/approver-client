@@ -148,6 +148,7 @@ export interface ElectronAPI {
   fetchServerProviders: (serverId: string) => Promise<ServerProviderInfo[]>
   startServerProviderOAuth: (serverId: string, provider: string) => Promise<void>
   fetchOnboardingGithubProvider: () => Promise<void>
+  checkOnboardingGithubToken: () => Promise<boolean>
   // WebSocket key management
   getWSConnectionKey: () => Promise<string | null>
   getWSConnectionUrl: () => Promise<string>
@@ -243,6 +244,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   fetchServerProviders: (serverId: string): Promise<ServerProviderInfo[]> => ipcRenderer.invoke('fetch-server-providers', serverId),
   startServerProviderOAuth: (serverId: string, provider: string): Promise<void> => ipcRenderer.invoke('start-server-provider-oauth', serverId, provider),
   fetchOnboardingGithubProvider: (): Promise<void> => ipcRenderer.invoke('fetch-onboarding-github-provider'),
+  checkOnboardingGithubToken: (): Promise<boolean> => ipcRenderer.invoke('check-onboarding-github-token'),
 
   // WebSocket key management
   getWSConnectionKey: (): Promise<string | null> => ipcRenderer.invoke('get-ws-connection-key'),
