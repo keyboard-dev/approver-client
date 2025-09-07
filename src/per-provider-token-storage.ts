@@ -4,6 +4,7 @@ import * as path from 'path'
 import { decrypt, encrypt } from './encryption'
 import { ProviderTokens } from './oauth-providers'
 
+
 export interface UserInfo {
   id: string
   email: string
@@ -23,6 +24,7 @@ export class PerProviderTokenStorage {
   private readonly storageDir: string
   private tokensCache: Map<string, StoredProviderTokens> = new Map()
   private loadedProviders: Set<string> = new Set()
+  private readonly ONBOARDING_KEY_FILE = path.join(os.homedir(), '.keyboard-mcp-onboarding-gh-token')
 
   constructor(customDir?: string) {
     this.storageDir = customDir || path.join(os.homedir(), '.keyboard-mcp')
@@ -372,5 +374,9 @@ export class PerProviderTokenStorage {
       // else {
       // }
     }
+  }
+
+  async saveOnboardingTokens(tokens: ProviderTokens): Promise<void> {
+    fs.writeFileSync(this.ONBOARDING_KEY_FILE, JSON.stringify(tokens, null, 2), { mode: 0o600 })
   }
 }

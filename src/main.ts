@@ -782,12 +782,36 @@ class MenuBarNotificationApp {
     }
   }
 
+  private async fetchOnboardingGithubProvider(): Promise<void> {
+    const provider = 'onboarding'
+ 
+
+    const response = await fetch(`https://api.keyboard.dev/auth/keyboard_github/onboarding`)
+    const data: any = await response.json()
+    const sessionId = data.session_id
+    const authUrl = data.authorization_url
+    const state = data.state
+    this.currentProviderPKCE = {
+      codeVerifier: '',
+      codeChallenge: '',
+      state: state,
+      providerId: provider, // Use just the provider name (e.g., "google")
+      sessionId: sessionId,
+    }
+    await this.oauthHttpServer.startServer((callbackData: OAuthCallbackData) => {
+      this.handleServerOAuthHttpCallback(callbackData, 'onboarding', provider)
+    })
+    if (!authUrl) throw new Error('No authorization URL found')
+    await shell.openExternal(authUrl)
+  }
+
   private async handleServerOAuthHttpCallback(
     callbackData: OAuthCallbackData,
     serverId: string,
     provider: string,
   ): Promise<void> {
     try {
+      console.log('handleServerOAuthHttpCallback', callbackData, serverId, provider)
       if (callbackData.error) {
         throw new Error(`OAuth error: ${callbackData.error} - ${callbackData.error_description || ''}`)
       }
@@ -818,9 +842,11 @@ class MenuBarNotificationApp {
         this.currentProviderPKCE.sessionId!,
         accessToken || undefined,
       )
-
       // Store tokens securely
       await this.perProviderTokenStorage.storeTokens(tokens)
+      if (provider === 'onboarding') {
+        await this.perProviderTokenStorage.saveOnboardingTokens(tokens)
+      }
 
       this.currentProviderPKCE = null
 
@@ -1578,6 +1604,10 @@ class MenuBarNotificationApp {
 
     ipcMain.handle('start-server-provider-oauth', async (event, serverId: string, provider: string): Promise<void> => {
       await this.startServerProviderOAuthFlow(serverId, provider)
+    })
+
+    ipcMain.handle('fetch-onboarding-github-provider', async (event): Promise<void> => {
+      await this.fetchOnboardingGithubProvider()
     })
 
     ipcMain.handle('fetch-server-providers', async (event, serverId: string): Promise<ServerProviderInfo[]> => {
