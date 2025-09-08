@@ -1625,6 +1625,10 @@ class MenuBarNotificationApp {
       return await this.perProviderTokenStorage.checkOnboardingTokenExists()
     })
 
+    ipcMain.handle('clear-onboarding-github-token', async (): Promise<void> => {
+      await this.perProviderTokenStorage.clearOnboardingToken()
+    })
+
     ipcMain.handle('fetch-server-providers', async (event, serverId: string): Promise<ServerProviderInfo[]> => {
       const accessToken = await this.getValidAccessToken()
       const serverProviders = await this.oauthProviderManager.fetchServerProviders(serverId, accessToken || undefined)

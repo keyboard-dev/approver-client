@@ -627,26 +627,6 @@ const App: React.FC = () => {
       <div
         className="flex flex-col w-full grow min-h-0 bg-white rounded-[0.5rem] px-[0.63rem] py-[0.75rem] not-draggable gap-[0.63rem] items-start overflow-auto"
       >
-        {/* Dismissible Connection Alert - Only show when disconnected and not dismissed */}
-        {connectionStatus === 'disconnected' && !isAlertDismissed && authStatus.authenticated && (
-          <div className="fixed top-4 right-4 z-40">
-            <Alert className="w-72 border-red-200 bg-red-50 relative">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription>
-                WebSocket disconnected. Some features may not work properly.
-              </AlertDescription>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="absolute top-2 right-2 h-6 w-6 p-0 hover:bg-red-100"
-                onClick={() => setIsAlertDismissed(true)}
-              >
-                <X className="h-3 w-3" />
-              </Button>
-            </Alert>
-          </div>
-        )}
-
         <div className="max-w-4xl mx-auto">
           {/* Authentication Component */}
           <AuthComponent
