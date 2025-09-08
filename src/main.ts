@@ -89,7 +89,7 @@ class MenuBarNotificationApp {
   private authTokens: AuthTokens | null = null
   // New OAuth provider system (initialized later after encryption is ready)
   private oauthProviderManager!: OAuthProviderManager
-  private githubService: GithubService
+  private githubService!: GithubService
   private oauthTokenStorage!: OAuthTokenStorage
   private perProviderTokenStorage!: PerProviderTokenStorage
   private currentProviderPKCE: NewPKCEParams | null = null
