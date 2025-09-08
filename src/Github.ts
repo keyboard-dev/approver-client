@@ -1,9 +1,8 @@
-import { Octokit } from '@octokit/rest'
 import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
-import * as https from 'https'
-import { createWriteStream } from 'fs'
+
+
 
 interface GitHubToken {
   access_token: string
@@ -12,20 +11,19 @@ interface GitHubToken {
 }
 
 export class GithubService {
-  private octokit: Octokit | null = null
+  private token: string | null = null
   private readonly TOKEN_FILE_PATH = path.join(os.homedir(), '.keyboard-mcp-onboarding-gh-token')
+  private readonly BASE_URL = 'https://api.github.com'
 
   constructor() {
-    this.initializeOctokit()
+    this.initializeToken()
   }
 
-  private initializeOctokit(): void {
+  private initializeToken(): void {
     try {
-      const token = this.readToken()
-      if (token) {
-        this.octokit = new Octokit({
-          auth: token.access_token,
-        })
+      const tokenData = this.readToken()
+      if (tokenData) {
+        this.token = tokenData.access_token
       }
     } catch (error) {
       console.error('Failed to initialize GitHub service:', error)
@@ -55,16 +53,37 @@ export class GithubService {
   }
 
   private ensureAuthenticated(): void {
-    if (!this.octokit) {
+    if (!this.token) {
       throw new Error('GitHub service not authenticated. Please ensure token file exists at ~/.keyboard-mcp-onboarding-gh-token')
     }
+  }
+
+  private async makeRequest(endpoint: string, options: RequestInit = {}): Promise<any> {
+    this.ensureAuthenticated()
+    
+    const url = endpoint.startsWith('http') ? endpoint : `${this.BASE_URL}${endpoint}`
+    
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        'Authorization': `Bearer ${this.token}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'Keyboard-Approver-App',
+        ...options.headers,
+      },
+    })
+
+    if (!response.ok) {
+      const error = await response.text()
+      throw new Error(`GitHub API error (${response.status}): ${error}`)
+    }
+
+    return response.json()
   }
 
   // Repository Operations
 
   async createFork(owner: string, repo: string): Promise<any> {
-    this.ensureAuthenticated()
-    
     try {
       // First, get the authenticated user
       const user = await this.getCurrentUser()
@@ -74,30 +93,25 @@ export class GithubService {
       
       // Check if fork already exists
       try {
-        const existingFork = await this.octokit!.repos.get({
-          owner: user.login,
-          repo: repo,
-        })
+        const existingFork = await this.makeRequest(`/repos/${user.login}/${repo}`)
         
         // If we get here, fork exists - return it
         console.log(`Fork already exists: ${user.login}/${repo}`)
-        return existingFork.data
+        return existingFork
       } catch (error: any) {
         // If fork doesn't exist (404), continue to create it
-        if (error.status !== 404) {
+        if (!error.message.includes('404')) {
           throw error
         }
       }
       
       // Fork doesn't exist, create it
       console.log(`Creating fork: ${owner}/${repo}`)
-      const response = await this.octokit!.repos.createFork({
-        owner,
-        repo,
+      return await this.makeRequest(`/repos/${owner}/${repo}/forks`, {
+        method: 'POST'
       })
-      return response.data
     } catch (error: any) {
-      if (error.status === 404) {
+      if (error.message.includes('404')) {
         throw new Error(`Repository ${owner}/${repo} not found`)
       }
       throw error
@@ -105,24 +119,11 @@ export class GithubService {
   }
 
   async getRepository(owner: string, repo: string): Promise<any> {
-    this.ensureAuthenticated()
-    
-    const response = await this.octokit!.repos.get({
-      owner,
-      repo,
-    })
-    return response.data
+    return await this.makeRequest(`/repos/${owner}/${repo}`)
   }
 
   async listBranches(owner: string, repo: string, perPage: number = 100): Promise<any[]> {
-    this.ensureAuthenticated()
-    
-    const response = await this.octokit!.repos.listBranches({
-      owner,
-      repo,
-      per_page: perPage,
-    })
-    return response.data
+    return await this.makeRequest(`/repos/${owner}/${repo}/branches?per_page=${perPage}`)
   }
 
   // Pull Request Operations
@@ -137,30 +138,24 @@ export class GithubService {
     draft?: boolean
     maintainer_can_modify?: boolean
   }): Promise<any> {
-    this.ensureAuthenticated()
-    
-    const response = await this.octokit!.pulls.create({
-      owner: params.owner,
-      repo: params.repo,
-      title: params.title,
-      body: params.body,
-      head: params.head,
-      base: params.base,
-      draft: params.draft,
-      maintainer_can_modify: params.maintainer_can_modify,
+    return await this.makeRequest(`/repos/${params.owner}/${params.repo}/pulls`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        title: params.title,
+        body: params.body,
+        head: params.head,
+        base: params.base,
+        draft: params.draft,
+        maintainer_can_modify: params.maintainer_can_modify,
+      }),
     })
-    return response.data
   }
 
   async getPullRequest(owner: string, repo: string, pull_number: number): Promise<any> {
-    this.ensureAuthenticated()
-    
-    const response = await this.octokit!.pulls.get({
-      owner,
-      repo,
-      pull_number,
-    })
-    return response.data
+    return await this.makeRequest(`/repos/${owner}/${repo}/pulls/${pull_number}`)
   }
 
   async mergePullRequest(
@@ -173,17 +168,17 @@ export class GithubService {
       merge_method?: 'merge' | 'squash' | 'rebase'
     }
   ): Promise<any> {
-    this.ensureAuthenticated()
-    
-    const response = await this.octokit!.pulls.merge({
-      owner,
-      repo,
-      pull_number,
-      commit_title: options?.commit_title,
-      commit_message: options?.commit_message,
-      merge_method: options?.merge_method,
+    return await this.makeRequest(`/repos/${owner}/${repo}/pulls/${pull_number}/merge`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        commit_title: options?.commit_title,
+        commit_message: options?.commit_message,
+        merge_method: options?.merge_method,
+      }),
     })
-    return response.data
   }
 
   async listPullRequests(
@@ -196,110 +191,50 @@ export class GithubService {
       per_page?: number
     }
   ): Promise<any[]> {
-    this.ensureAuthenticated()
-    
-    const response = await this.octokit!.pulls.list({
-      owner,
-      repo,
+    const params = new URLSearchParams({
       state: options?.state || 'open',
       sort: options?.sort || 'created',
       direction: options?.direction || 'desc',
-      per_page: options?.per_page || 100,
+      per_page: String(options?.per_page || 100),
     })
-    return response.data
+    return await this.makeRequest(`/repos/${owner}/${repo}/pulls?${params}`)
   }
 
   // Release Operations
 
   async getReleaseByTag(owner: string, repo: string, tag: string): Promise<any> {
-    this.ensureAuthenticated()
-    
-    const response = await this.octokit!.repos.getReleaseByTag({
-      owner,
-      repo,
-      tag,
-    })
-    return response.data
+    return await this.makeRequest(`/repos/${owner}/${repo}/releases/tags/${tag}`)
   }
 
   async getLatestRelease(owner: string, repo: string): Promise<any> {
-    this.ensureAuthenticated()
-    
-    const response = await this.octokit!.repos.getLatestRelease({
-      owner,
-      repo,
-    })
-    return response.data
+    return await this.makeRequest(`/repos/${owner}/${repo}/releases/latest`)
   }
 
   async downloadReleaseAsset(assetUrl: string, destPath: string): Promise<void> {
     this.ensureAuthenticated()
     
-    return new Promise((resolve, reject) => {
-      const token = this.readToken()
-      if (!token) {
-        reject(new Error('No GitHub token available'))
-        return
-      }
-
-      const file = createWriteStream(destPath)
-      
-      const urlParts = new URL(assetUrl)
-      const options = {
-        hostname: urlParts.hostname,
-        path: urlParts.pathname + urlParts.search,
-        headers: {
-          'Authorization': `token ${token.access_token}`,
-          'Accept': 'application/octet-stream',
-          'User-Agent': 'Keyboard-Approver-App',
-        },
-      }
-
-      https.get(options, (response) => {
-        if (response.statusCode === 302 || response.statusCode === 307) {
-          // Follow redirect
-          const redirectUrl = response.headers.location
-          if (redirectUrl) {
-            https.get(redirectUrl, (redirectResponse) => {
-              redirectResponse.pipe(file)
-              file.on('finish', () => {
-                file.close()
-                resolve()
-              })
-            }).on('error', reject)
-          } else {
-            reject(new Error('Redirect location not found'))
-          }
-        } else if (response.statusCode === 200) {
-          response.pipe(file)
-          file.on('finish', () => {
-            file.close()
-            resolve()
-          })
-        } else {
-          reject(new Error(`Failed to download asset: ${response.statusCode}`))
-        }
-      }).on('error', reject)
-
-      file.on('error', (err) => {
-        fs.unlink(destPath, () => {})
-        reject(err)
-      })
+    const response = await fetch(assetUrl, {
+      headers: {
+        'Authorization': `Bearer ${this.token}`,
+        'Accept': 'application/octet-stream',
+        'User-Agent': 'Keyboard-Approver-App',
+      },
     })
+
+    if (!response.ok) {
+      throw new Error(`Failed to download asset: ${response.status}`)
+    }
+
+    const arrayBuffer = await response.arrayBuffer()
+    const buffer = Buffer.from(arrayBuffer)
+    fs.writeFileSync(destPath, buffer)
   }
 
   // File Operations
 
   async getFileContent(owner: string, repo: string, path: string, ref?: string): Promise<any> {
-    this.ensureAuthenticated()
-    
-    const response = await this.octokit!.repos.getContent({
-      owner,
-      repo,
-      path,
-      ref,
-    })
-    return response.data
+    const params = ref ? `?ref=${ref}` : ''
+    return await this.makeRequest(`/repos/${owner}/${repo}/contents/${path}${params}`)
   }
 
   async downloadFile(
@@ -333,7 +268,7 @@ export class GithubService {
   // Utility Methods
 
   isAuthenticated(): boolean {
-    return this.octokit !== null
+    return this.token !== null
   }
 
   async getCurrentUser(): Promise<any | null> {
@@ -342,8 +277,7 @@ export class GithubService {
     }
 
     try {
-      const response = await this.octokit!.users.getAuthenticated()
-      return response.data
+      return await this.makeRequest('/user')
     } catch (error) {
       console.error('Failed to get current user:', error)
       return null
