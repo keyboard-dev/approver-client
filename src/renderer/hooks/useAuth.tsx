@@ -1,22 +1,18 @@
+import { IpcRendererEvent } from 'electron'
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { SKIP_AUTH_USER_EMAIL, SKIP_AUTH_USER_FIRST_NAME, SKIP_AUTH_USER_ID, SKIP_AUTH_USER_LAST_NAME } from '../../lib/constants/auth.constants'
 import { AuthError, AuthStatus } from '../../preload'
 
 interface AuthContextType {
   authStatus: AuthStatus
-  setAuthStatus: (status: AuthStatus) => void
   isSkippingAuth: boolean
-  setIsSkippingAuth: (skipping: boolean) => void
   authStatusRef: React.MutableRefObject<AuthStatus>
-  handleAuthChange: (newAuthStatus: AuthStatus) => void
-  updateSkippingAuth: (skipping: boolean) => void
   isAuthenticated: boolean
   isLoading: boolean
   error: string | null
   login: () => Promise<void>
   logout: () => Promise<void>
   skipAuth: () => void
-  loadAuthStatus: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -38,24 +34,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, onAuthChan
     _event: Electron.CrossProcessExports.IpcRendererEvent | null,
     data: AuthStatus,
   ) => {
-    console.log('AuthProvider - handleAuthSuccess', data)
     authStatusRef.current = data
     setAuthStatus(data)
     setError(null)
     setIsLoading(false)
     onAuthChange?.(data)
   }, [onAuthChange])
-
-  const handleAuthChange = useCallback((newAuthStatus: AuthStatus) => {
-    console.log('AuthProvider')
-    console.log('handleAuthChange', newAuthStatus)
-    authStatusRef.current = newAuthStatus
-    setAuthStatus(newAuthStatus)
-  }, [])
-
-  const updateSkippingAuth = useCallback((skipping: boolean) => {
-    setIsSkippingAuth(skipping)
-  }, [])
 
   const loadAuthStatus = useCallback(async () => {
     try {
@@ -148,7 +132,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, onAuthChan
       onAuthChange?.(logoutStatus)
     }
 
-    window.electronAPI.onAuthSuccess(handleAuthSuccess)
+    window.electronAPI.onAuthSuccess((event: IpcRendererEvent, data: AuthStatus) => {
+      setIsSkippingAuth(false)
+      handleAuthSuccess(event, data)
+    })
     window.electronAPI.onAuthError(handleAuthError)
     window.electronAPI.onAuthLogout(handleAuthLogout)
 
@@ -163,19 +150,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, onAuthChan
 
   const contextValue = {
     authStatus,
-    setAuthStatus,
     isSkippingAuth,
-    setIsSkippingAuth,
     authStatusRef,
-    handleAuthChange,
-    updateSkippingAuth,
     isAuthenticated,
     isLoading,
     error,
     login,
     logout,
     skipAuth,
-    loadAuthStatus,
   }
 
   return (

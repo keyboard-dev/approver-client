@@ -579,9 +579,6 @@ export class OAuthProviderManager {
 
       const data = await response.json() as ServerProvidersResponse
 
-      console.log('======================')
-      console.log('data', JSON.stringify(data, null, 2))
-
       if (!data.success) {
         throw new Error('Server returned unsuccessful response')
       }

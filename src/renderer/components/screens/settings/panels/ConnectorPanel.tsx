@@ -18,6 +18,11 @@ export const ConnectorPanel: React.FC = () => {
     isSkippingAuth,
   } = useAuth()
 
+  // const authInfo = useAuth()
+  // console.log('======================')
+  // console.log('authInfo', JSON.stringify(authInfo, null, 2))
+  // console.log('======================')
+
   const [activeTab, setActiveTab] = useState<ConnectorTab>(CONNECTOR_TABS[0])
 
   return (

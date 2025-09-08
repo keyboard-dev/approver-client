@@ -353,63 +353,91 @@ export const SharedConnectors: React.FC<ServerProviderManagerProps> = ({ classNa
             </div>
           </div>
 
-          <div
-            className="flex flex-col gap-[0.63rem]"
-          >
-            <div>
-              Available connectors
-            </div>
-            <div
-              className="flex flex-col gap-[0.63rem]"
-            >
-              {serverProviders[server.id]?.map((provider, index) => (
-                <React.Fragment key={`settings-shared-connectors-server-${server.id}-provider-${provider.name}`}>
-                  <div
-                    className="flex items-center justify-between"
-                  >
-                    <div
-                      className="flex items-center gap-[0.63rem]"
-                    >
-                      <div
-                        className="p-[0.31rem] border border-[#E5E5E5] rounded-[0.25rem]"
-                      >
-                        {PROVIDER_NAME_TO_ICON_URL[provider.name.toLowerCase()]
-                          ? (
-                              <img
-                                src={PROVIDER_NAME_TO_ICON_URL[provider.name]}
-                                alt={provider.name}
-                                className="w-[1.5rem] h-[1.5rem]"
-                              />
-                            )
-                          : (
-                              <div
-                                className="w-[1.5rem] h-[1.5rem] bg-green-300 rounded-full"
-                              />
-                            )}
-                      </div>
+          {serverProviders[server.id]?.length
+            && (
+              <div
+                className="flex flex-col gap-[0.63rem]"
+              >
+                <div>
+                  Available connectors
+                </div>
+                <div
+                  className="flex flex-col gap-[0.63rem]"
+                >
+                  {serverProviders[server.id]?.map((provider, index) => {
+                    if (!providerStatus[provider.name]) {
+                      return (
+                        <div key={`settings-shared-connectors-server-${server.id}-provider-${provider.name}`}>
+                          loading...
+                        </div>
+                      )
+                    }
 
-                      <div
-                        className="uppercase"
-                      >
-                        {provider.name}
+                    const {
+                      authenticated,
+                      user,
+                      expired,
+                    } = providerStatus[provider.name]
 
-                        {JSON.stringify(provider, null, 2)}
-                      </div>
-                    </div>
+                    return (
+                      <React.Fragment key={`settings-shared-connectors-server-${server.id}-provider-${provider.name}`}>
+                        <div
+                          className="flex items-center justify-between"
+                        >
+                          <div
+                            className="flex items-center gap-[0.63rem]"
+                          >
+                            <div
+                              className="p-[0.31rem] border border-[#E5E5E5] rounded-[0.25rem]"
+                            >
+                              {PROVIDER_NAME_TO_ICON_URL[provider.name.toLowerCase()]
+                                ? (
+                                    <img
+                                      src={PROVIDER_NAME_TO_ICON_URL[provider.name]}
+                                      alt={provider.name}
+                                      className="w-[1.5rem] h-[1.5rem]"
+                                    />
+                                  )
+                                : (
+                                    <div
+                                      className="w-[1.5rem] h-[1.5rem] bg-green-300 rounded-full"
+                                    />
+                                  )}
+                            </div>
 
-                    <div>
-                      connected?
-                    </div>
+                            <div
+                              className="uppercase"
+                            >
+                              {provider.name}
+                            </div>
+                          </div>
 
-                  </div>
-                  {index < serverProviders[server.id]?.length - 1 && (
-                    <div className="w-full h-px bg-[#E5E5E5]" />
-                  )}
-                </React.Fragment>
-              ))}
-            </div>
+                          <div>
+                            {authenticated
+                              ? 'Connected'
+                              : (
+                                  <ButtonDesigned
+                                    variant="clear"
+                                    className="px-[1rem] py-[0.5rem]"
+                                    hasBorder
+                                    onClick={() => handleStartOAuth(server.id, provider.name)}
+                                  >
+                                    Connect
+                                  </ButtonDesigned>
+                                )}
+                          </div>
 
-          </div>
+                        </div>
+                        {index < serverProviders[server.id]?.length - 1 && (
+                          <div className="w-full h-px bg-[#E5E5E5]" />
+                        )}
+                      </React.Fragment>
+                    )
+                  })}
+                </div>
+
+              </div>
+            )}
         </div>
       ))}
 
