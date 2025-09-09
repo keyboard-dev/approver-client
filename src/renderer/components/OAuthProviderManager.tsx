@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import type { ProviderStatus } from '../../preload'
 import { OAuthProviderConfig } from '../../provider-storage'
+import { useAuth } from '../hooks/useAuth'
 import { ManualProviderForm } from './ManualProviderForm'
 import { Badge } from './ui/badge'
 import { Button } from './ui/button'
@@ -37,7 +38,16 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingProvider, setEditingProvider] = useState<OAuthProviderConfig | null>(null)
 
+  const {
+    isAuthenticated,
+    isSkippingAuth,
+  } = useAuth()
+
   useEffect(() => {
+    if (!isAuthenticated || isSkippingAuth) {
+      return
+    }
+
     loadProviders()
     loadAllProviderConfigs()
     loadProviderStatus()
@@ -80,7 +90,7 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
         window.electronAPI.removeAllListeners('provider-auth-logout')
       }
     }
-  }, [])
+  }, [isAuthenticated, isSkippingAuth])
 
   const loadProviders = async () => {
     try {

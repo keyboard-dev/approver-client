@@ -7,6 +7,9 @@ export interface WindowManagerOptions {
   onMessageShow: (message: Message) => void
 }
 
+const DEFAULT_WINDOW_WIDTH = 800
+const DEFAULT_WINDOW_HEIGHT = 800
+
 export class WindowManager {
   private mainWindow: BrowserWindow | null = null
   private options: WindowManagerOptions
@@ -19,8 +22,8 @@ export class WindowManager {
     const iconPath = path.join(__dirname, '../assets/keyboard-dock.icns')
 
     this.mainWindow = new BrowserWindow({
-      width: 600, // Larger for reading code
-      height: 800, // Taller for explanations
+      width: DEFAULT_WINDOW_WIDTH, // Larger for reading code
+      height: DEFAULT_WINDOW_HEIGHT, // Taller for explanations
       show: false, // Don't show/focus the window when created
       transparent: true,
       frame: false,
@@ -80,8 +83,8 @@ export class WindowManager {
       this.mainWindow.setBounds({
         x: currentDisplay.bounds.x + 100,
         y: currentDisplay.bounds.y + 100,
-        width: 600,
-        height: 700,
+        width: DEFAULT_WINDOW_WIDTH,
+        height: DEFAULT_WINDOW_HEIGHT,
       })
     }
 

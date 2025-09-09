@@ -4,8 +4,11 @@ import React, { useEffect, useState } from 'react'
 import githubLogoIconUrl from '../../../../../../assets/icon-logo-github.svg'
 import googleLogoIconUrl from '../../../../../../assets/icon-logo-google.svg'
 import microsoftLogoIconUrl from '../../../../../../assets/icon-logo-microsoft.svg'
-import xLogoIconUrl from '../../../../../../assets/icon-logo-x.svg'
+import xLogoIconUrl from '../../../../../../assets/icon-logo-x-black.svg'
+import squaresIconUrl from '../../../../../../assets/icon-squares.svg'
+import redTrashIconUrl from '../../../../../../assets/icon-trash-red.svg'
 import { ServerProviderInfo } from '../../../../../oauth-providers'
+import { ProviderStatus } from '../../../../../preload'
 import { useAuth } from '../../../../hooks/useAuth'
 import { ButtonDesigned } from '../../../ui/ButtonDesigned'
 import { AddServerPopup } from './AddServerPopup'
@@ -36,15 +39,6 @@ interface ProviderAuthData {
   }
 }
 
-interface ProviderStatus {
-  authenticated: boolean
-  user?: {
-    name?: string
-    email?: string
-  }
-  expired?: boolean
-}
-
 export const SharedConnectors: React.FC<ServerProviderManagerProps> = ({ className }) => {
   const [servers, setServers] = useState<ServerProvider[]>([])
   const [serverProviders, setServerProviders] = useState<Record<string, ServerProviderInfo[]>>({})
@@ -60,10 +54,11 @@ export const SharedConnectors: React.FC<ServerProviderManagerProps> = ({ classNa
 
   const {
     isAuthenticated,
+    isSkippingAuth,
   } = useAuth()
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated || isSkippingAuth) {
       return
     }
 
@@ -104,19 +99,20 @@ export const SharedConnectors: React.FC<ServerProviderManagerProps> = ({ classNa
     }
 
     return () => {
-      // Cleanup - no specific cleanup needed for Electron IPC
+      if (window.electronAPI) {
+        window.electronAPI.removeAllListeners('provider-auth-success')
+        window.electronAPI.removeAllListeners('provider-auth-error')
+      }
     }
-  }, [isAuthenticated])
+  }, [isAuthenticated, isSkippingAuth])
 
   const loadServerProviders = async () => {
     try {
       const serverProviders = await window.electronAPI.getServerProviders()
       setServers(serverProviders)
 
-      // Fetch providers for each server
-      for (const server of serverProviders) {
-        await fetchProvidersForServer(server.id)
-      }
+      await Promise.all(serverProviders.map(server => fetchProvidersForServer(server.id),
+      ))
     }
     catch (error) {
       console.error('Failed to load server providers:', error)
@@ -284,6 +280,27 @@ export const SharedConnectors: React.FC<ServerProviderManagerProps> = ({ classNa
     }))
   }
 
+  const getScopesDisplay = (provider: ServerProviderInfo) => {
+    const { name, scopes } = provider
+    switch (name.toLowerCase()) {
+      case 'google':
+        return (
+          <div
+            className="text-[#737373] text-[0.75rem]"
+          >
+            Includes:
+            {' '}
+            {scopes.map((scope) => {
+              const scopeDisplay = scope.replace('https://www.googleapis.com/auth/', '')
+              return scopeDisplay
+            }).join(', ')}
+          </div>
+        )
+      default:
+        return null
+    }
+  }
+
   if (!servers.length) return (
     <div
       className="flex flex-col gap-[1rem] w-full p-[0.94rem] border border-[#E5E5E5] rounded-[0.38rem]"
@@ -339,11 +356,26 @@ export const SharedConnectors: React.FC<ServerProviderManagerProps> = ({ classNa
             className="flex flex-col gap-[0.5rem]"
           >
             <div
-              className="text-[1rem]"
+              className="flex items-center justify-between"
             >
-              Shared connectors -
-              {' '}
-              {server.name}
+              <div
+                className="text-[1rem]"
+              >
+                Shared connectors -
+                {' '}
+                {server.name}
+              </div>
+
+              <button
+                className="p-[0.25rem] shrink-0 grow-0"
+                onClick={() => handleRemoveServer(server.id)}
+              >
+                <img
+                  src={redTrashIconUrl}
+                  alt="Remove"
+                  className="w-[1rem] h-[1rem]"
+                />
+              </button>
             </div>
 
             <div
@@ -354,90 +386,134 @@ export const SharedConnectors: React.FC<ServerProviderManagerProps> = ({ classNa
           </div>
 
           {serverProviders[server.id]?.length
-            && (
-              <div
-                className="flex flex-col gap-[0.63rem]"
-              >
-                <div>
-                  Available connectors
-                </div>
+            ? (
                 <div
                   className="flex flex-col gap-[0.63rem]"
                 >
-                  {serverProviders[server.id]?.map((provider, index) => {
-                    if (!providerStatus[provider.name]) {
+                  <div>
+                    Available connectors
+                  </div>
+                  <div
+                    className="flex flex-col gap-[0.63rem]"
+                  >
+                    {serverProviders[server.id]?.map((provider, index) => {
+                      const {
+                        authenticated,
+                        user,
+                        expired,
+                      } = providerStatus[provider.name] || {
+                        authenticated: false,
+                        user: null,
+                        expired: false,
+                      }
+
+                      const { email } = user || {}
+
                       return (
-                        <div key={`settings-shared-connectors-server-${server.id}-provider-${provider.name}`}>
-                          loading...
-                        </div>
-                      )
-                    }
-
-                    const {
-                      authenticated,
-                      user,
-                      expired,
-                    } = providerStatus[provider.name]
-
-                    return (
-                      <React.Fragment key={`settings-shared-connectors-server-${server.id}-provider-${provider.name}`}>
-                        <div
-                          className="flex items-center justify-between"
-                        >
+                        <React.Fragment key={`settings-shared-connectors-server-${server.id}-provider-${provider.name}`}>
                           <div
-                            className="flex items-center gap-[0.63rem]"
+                            className="flex items-center justify-between"
                           >
                             <div
-                              className="p-[0.31rem] border border-[#E5E5E5] rounded-[0.25rem]"
+                              className="flex items-center gap-[0.63rem]"
+                              style={{
+                                opacity: authenticated ? 1 : 0.5,
+                              }}
                             >
-                              {PROVIDER_NAME_TO_ICON_URL[provider.name.toLowerCase()]
+                              <div
+                                className="p-[0.31rem] border border-[#E5E5E5] rounded-[0.25rem] shrink-0 grow-0"
+                              >
+                                <img
+                                  src={PROVIDER_NAME_TO_ICON_URL[provider.name.toLowerCase()] || squaresIconUrl}
+                                  alt={provider.name}
+                                  className="w-[1.5rem] h-[1.5rem]"
+                                />
+                              </div>
+
+                              <div>
+                                <div
+                                  className="capitalize"
+                                >
+                                  {provider.name}
+                                </div>
+                                {Boolean(email) && (
+                                  <div
+                                    className="text-[#737373] text-[0.75rem]"
+                                  >
+                                    Account:
+                                    {' '}
+                                    {email}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            <div
+                              className="shrink-0 grow-0"
+                            >
+                              {authenticated
                                 ? (
-                                    <img
-                                      src={PROVIDER_NAME_TO_ICON_URL[provider.name]}
-                                      alt={provider.name}
-                                      className="w-[1.5rem] h-[1.5rem]"
-                                    />
+                              // <div className="flex">
+                              //   <div
+                              //     className="bg-[#E5EFF4] border border-[#5093B7] rounded-full flex items-center px-[0.63rem] py-[0.25rem] gap-[0.31rem] text-[#5093B7] shrink-0 grow-0"
+                              //   >
+                              //     <div
+                              //       className="p-[0.25rem]"
+                              //     >
+                              //       <img
+                              //         src={blueCheckIconUrl}
+                              //         alt="Connected"
+                              //         className="w-[1rem] h-[1rem]"
+                              //       />
+                              //     </div>
+
+                              //     Connected
+                              //   </div>
+
+                                    //   <ButtonDesigned
+                                    //     variant="clear"
+                                    //     className="px-[1rem] py-[0.5rem] text-[#D23535] shrink-0 grow-0"
+                                    //     onClick={() => handleDisconnect(provider.name)}
+                                    //   >
+                                    //     Disconnect
+                                    //   </ButtonDesigned>
+                                    // </div>
+                                    <ButtonDesigned
+                                      variant="clear"
+                                      className="px-[1rem] py-[0.5rem] text-[#D23535] shrink-0 grow-0 self-start"
+                                      onClick={() => handleDisconnect(provider.name)}
+                                    >
+                                      Disconnect
+                                    </ButtonDesigned>
                                   )
                                 : (
-                                    <div
-                                      className="w-[1.5rem] h-[1.5rem] bg-green-300 rounded-full"
-                                    />
+                                    <ButtonDesigned
+                                      variant="clear"
+                                      className="px-[1rem] py-[0.5rem] self-start"
+                                      hasBorder
+                                      onClick={() => handleStartOAuth(server.id, provider.name)}
+                                    >
+                                      Connect
+                                    </ButtonDesigned>
                                   )}
                             </div>
 
-                            <div
-                              className="uppercase"
-                            >
-                              {provider.name}
-                            </div>
                           </div>
+                          {index < serverProviders[server.id]?.length - 1 && (
+                            <div className="w-full h-px bg-[#E5E5E5]" />
+                          )}
+                        </React.Fragment>
+                      )
+                    })}
+                  </div>
 
-                          <div>
-                            {authenticated
-                              ? 'Connected'
-                              : (
-                                  <ButtonDesigned
-                                    variant="clear"
-                                    className="px-[1rem] py-[0.5rem]"
-                                    hasBorder
-                                    onClick={() => handleStartOAuth(server.id, provider.name)}
-                                  >
-                                    Connect
-                                  </ButtonDesigned>
-                                )}
-                          </div>
-
-                        </div>
-                        {index < serverProviders[server.id]?.length - 1 && (
-                          <div className="w-full h-px bg-[#E5E5E5]" />
-                        )}
-                      </React.Fragment>
-                    )
-                  })}
                 </div>
-
-              </div>
-            )}
+              )
+            : (
+                <div>
+                  No connectors available
+                </div>
+              )}
         </div>
       ))}
 

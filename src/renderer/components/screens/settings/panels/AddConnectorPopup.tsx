@@ -54,6 +54,10 @@ export const AddConnectorPopup: React.FC<ManualProviderFormProps> = ({
     setIsLoading(true)
 
     try {
+      console.log('===============================================')
+      console.log('config', config)
+      console.log('===============================================')
+
       // Validate required fields
       if (!config.id || !config.name || !config.clientId || !config.authorizationUrl || !config.tokenUrl) {
         throw new Error('Please fill in all required fields')

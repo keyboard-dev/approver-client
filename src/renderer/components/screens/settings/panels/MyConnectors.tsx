@@ -17,6 +17,7 @@ interface ProviderAuthEvent {
 export const MyConnectors: React.FC = () => {
   const {
     isAuthenticated,
+    isSkippingAuth,
   } = useAuth()
 
   const [allProviderConfigs, setAllProviderConfigs] = useState<OAuthProviderConfig[]>([])
@@ -28,7 +29,7 @@ export const MyConnectors: React.FC = () => {
   const [editingProvider, setEditingProvider] = useState<OAuthProviderConfig | null>(null)
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated || isSkippingAuth) {
       return
     }
 
@@ -73,7 +74,7 @@ export const MyConnectors: React.FC = () => {
         window.electronAPI.removeAllListeners('provider-auth-logout')
       }
     }
-  }, [isAuthenticated])
+  }, [isAuthenticated, isSkippingAuth])
 
   const loadProviders = async () => {
     try {
@@ -166,19 +167,12 @@ export const MyConnectors: React.FC = () => {
   }
 
   const handleSaveProvider = async (config: Omit<OAuthProviderConfig, 'createdAt' | 'updatedAt'>) => {
-    try {
-      await window.electronAPI.saveProviderConfig(config)
-      await loadProviders()
-      await loadAllProviderConfigs()
-      setIsAddPopupOpen(false)
-      setEditingProvider(null)
-      setError(null)
-    }
-    catch (error) {
-      console.error('Failed to save provider:', error)
-      setError('Failed to save provider configuration')
-      throw error // Re-throw to let the form handle it
-    }
+    await window.electronAPI.saveProviderConfig(config)
+    await loadProviders()
+    await loadAllProviderConfigs()
+    setIsAddPopupOpen(false)
+    setEditingProvider(null)
+    setError(null)
   }
 
   const handleDeleteProvider = async (providerId: string) => {
@@ -220,7 +214,7 @@ export const MyConnectors: React.FC = () => {
     return (
       <div
         key={`connector-panel-provider-${providerId}-icon`}
-        className="w-[2.13rem] h-[2.13rem] p-[0.31rem]"
+        className="w-[2.13rem] h-[2.13rem] p-[0.31rem] grow-0 shrink-0"
       >
         <img
           src={iconUrl}
@@ -270,40 +264,64 @@ export const MyConnectors: React.FC = () => {
       <div
         className="flex flex-col gap-[0.63rem]"
       >
-        {allProviderConfigs.map((provider, index) => (
-          <React.Fragment key={`connector-panel-provider-${provider.id}`}>
-            <div
-              className="w-full flex justify-between items-start"
-            >
-              <div>
-                <div
-                  className="flex items-center gap-[0.63rem]"
-                >
-                  {getIcon(provider.id)}
-                  <div>
-                    {provider.name}
-                    {/* {JSON.stringify(provider, null, 2)} */}
-                  </div>
-                </div>
-                {getDescription(provider.id)}
-              </div>
-              <ButtonDesigned
-                className="px-[1rem] py-[0.5rem]"
-                onClick={() => {
-                  setEditingProvider(provider)
-                  setIsAddPopupOpen(true)
-                }}
-                variant="clear"
-                hasBorder
+        {allProviderConfigs.map((provider, index) => {
+          const {
+            authenticated,
+            user,
+          } = providerStatus[provider.id] || {
+            authenticated: false,
+            user: null,
+          }
+
+          const { email } = user || {}
+
+          return (
+            <React.Fragment key={`connector-panel-provider-${provider.id}`}>
+              <div
+                className="w-full flex justify-between items-start"
               >
-                Connect
-              </ButtonDesigned>
-            </div>
-            {index < allProviderConfigs.length - 1 && (
-              <div className="w-full h-px bg-[#E5E5E5]" />
-            )}
-          </React.Fragment>
-        ))}
+                <div
+                  style={{
+                    opacity: authenticated ? 1 : 0.5,
+                  }}
+                >
+                  <div
+                    className="flex items-center gap-[0.63rem]"
+                  >
+                    {getIcon(provider.id)}
+                    <div>
+                      {provider.name}
+                      {/* {JSON.stringify(providerStatus[provider.id])} */}
+                    </div>
+                  </div>
+                  {Boolean(email) && (
+                    <div
+                      className="text-[#737373] text-[0.75rem]"
+                    >
+                      Account:
+                      {' '}
+                      {email}
+                    </div>
+                  )}
+                </div>
+                <ButtonDesigned
+                  className="px-[1rem] py-[0.5rem]"
+                  onClick={() => {
+                    setEditingProvider(provider)
+                    setIsAddPopupOpen(true)
+                  }}
+                  variant="clear"
+                  hasBorder
+                >
+                  Connect
+                </ButtonDesigned>
+              </div>
+              {index < allProviderConfigs.length - 1 && (
+                <div className="w-full h-px bg-[#E5E5E5]" />
+              )}
+            </React.Fragment>
+          )
+        })}
 
         <ButtonDesigned
           className="px-[1rem] py-[0.5rem] self-start"

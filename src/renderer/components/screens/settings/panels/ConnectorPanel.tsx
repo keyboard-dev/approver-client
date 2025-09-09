@@ -18,11 +18,6 @@ export const ConnectorPanel: React.FC = () => {
     isSkippingAuth,
   } = useAuth()
 
-  // const authInfo = useAuth()
-  // console.log('======================')
-  // console.log('authInfo', JSON.stringify(authInfo, null, 2))
-  // console.log('======================')
-
   const [activeTab, setActiveTab] = useState<ConnectorTab>(CONNECTOR_TABS[0])
 
   return (
@@ -31,11 +26,11 @@ export const ConnectorPanel: React.FC = () => {
     >
       {(!isAuthenticated || isSkippingAuth) && (
         <Confirmation
-          confirmText="Authenticate"
-          description="You need to be authenticated to use connectors."
+          confirmText="Authticate"
+          description="You must be signed in to use this feature. "
           onConfirm={window.electronAPI.startOAuth}
           relative
-          title="Authentication Required"
+          title="Connectors"
         />
       )}
 

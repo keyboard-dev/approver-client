@@ -845,9 +845,6 @@ class MenuBarNotificationApp {
   }
 
   private async handleOAuthCallback(url: string): Promise<void> {
-    console.log('======================')
-    console.log('handleOAuthCallback', url)
-    console.log('======================')
     try {
       const urlObj = new URL(url)
       const code = urlObj.searchParams.get('code')
