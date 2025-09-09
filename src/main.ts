@@ -15,6 +15,7 @@ import { createRestAPIServer } from './rest-api'
 import { TrayManager } from './tray-manager'
 import { AuthorizeResponse, AuthTokens, CollectionRequest, ErrorResponse, Message, PKCEParams, ShareMessage, TokenResponse } from './types'
 import { WindowManager } from './window-manager'
+import { GithubService } from './Github'
 
 // Types for WebSocket server configuration
 interface WebSocketVerifyInfo {
@@ -88,6 +89,7 @@ class MenuBarNotificationApp {
   private authTokens: AuthTokens | null = null
   // New OAuth provider system (initialized later after encryption is ready)
   private oauthProviderManager!: OAuthProviderManager
+  private githubService!: GithubService
   private oauthTokenStorage!: OAuthTokenStorage
   private perProviderTokenStorage!: PerProviderTokenStorage
   private currentProviderPKCE: NewPKCEParams | null = null
@@ -222,6 +224,9 @@ class MenuBarNotificationApp {
       // NOW initialize OAuth provider system (after encryption is ready)
       await this.initializeOAuthProviderSystem()
 
+      // Initialize GitHub service
+      await this.initializeGithubService()
+
       // Configure auto-updater (only on macOS and Windows)
       if (process.platform === 'darwin' || process.platform === 'win32') {
         const feedURL = `https://api.keyboard.dev/update/${process.platform}/${app.getVersion()}`
@@ -311,6 +316,10 @@ class MenuBarNotificationApp {
       console.error('❌ Failed to initialize OAuth provider system:', error)
       throw error
     }
+  }
+
+  private async initializeGithubService(): Promise<void> {
+    this.githubService = new GithubService()
   }
 
   /**
@@ -846,6 +855,8 @@ class MenuBarNotificationApp {
       await this.perProviderTokenStorage.storeTokens(tokens)
       if (provider === 'onboarding') {
         await this.perProviderTokenStorage.saveOnboardingTokens(tokens)
+        await this.githubService.createFork('keyboard-dev', 'codespace-executor')
+        await this.githubService.createFork('keyboard-dev', 'app-creator')
       }
 
       this.currentProviderPKCE = null
@@ -1612,6 +1623,10 @@ class MenuBarNotificationApp {
 
     ipcMain.handle('check-onboarding-github-token', async (): Promise<boolean> => {
       return await this.perProviderTokenStorage.checkOnboardingTokenExists()
+    })
+
+    ipcMain.handle('clear-onboarding-github-token', async (): Promise<void> => {
+      await this.perProviderTokenStorage.clearOnboardingToken()
     })
 
     ipcMain.handle('fetch-server-providers', async (event, serverId: string): Promise<ServerProviderInfo[]> => {

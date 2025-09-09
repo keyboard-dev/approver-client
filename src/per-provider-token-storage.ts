@@ -398,4 +398,18 @@ export class PerProviderTokenStorage {
       return false
     }
   }
+
+  /**
+   * Clear onboarding GitHub token
+   */
+  async clearOnboardingToken(): Promise<void> {
+    try {
+      if (fs.existsSync(this.ONBOARDING_KEY_FILE)) {
+        fs.unlinkSync(this.ONBOARDING_KEY_FILE)
+      }
+    } catch (error) {
+      console.error('Error clearing onboarding token:', error)
+      throw error
+    }
+  }
 }
