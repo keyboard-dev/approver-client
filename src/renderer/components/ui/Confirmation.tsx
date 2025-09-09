@@ -8,7 +8,7 @@ export const Confirmation: React.FC<{
   description?: string
   disabled?: boolean
   onCancel?: () => void
-  onConfirm: () => void
+  onConfirm?: () => void
   relative?: boolean
   title?: string
 }> = ({
@@ -21,7 +21,6 @@ export const Confirmation: React.FC<{
   relative,
   title,
 }) => {
-  const titleDisplay = title ?? 'Are you sure?'
   const confirmTextDisplay = confirmText ?? 'Confirm'
   const cancelTextDisplay = cancelText ?? 'Cancel'
 
@@ -30,42 +29,50 @@ export const Confirmation: React.FC<{
       onCancel={onCancel}
       relative={relative}
     >
-      <div
-        className="text-[1rem] text-[#000] font-semibold"
-      >
-        {titleDisplay}
-      </div>
-
-      <div
-        className="text-[#000]"
-      >
-        {description}
-      </div>
-
-      <div
-        className="flex gap-[1.25rem]"
-      >
-        <ButtonDesigned
-          className="basis-0 grow px-[0.63rem] py-[0.38rem]"
-          variant="primary"
-          onClick={onConfirm}
-          disabled={disabled}
+      {title && (
+        <div
+          className="text-[1rem] text-[#000] font-semibold"
         >
-          {confirmTextDisplay}
-        </ButtonDesigned>
+          {title}
+        </div>
+      )}
 
-        {onCancel
-          && (
+      {description && (
+        <div
+          className="text-[#000]"
+        >
+          {description}
+        </div>
+      )}
+
+      {(onConfirm || onCancel) && (
+        <div
+          className="flex gap-[1.25rem]"
+        >
+          {onConfirm && (
             <ButtonDesigned
               className="basis-0 grow px-[0.63rem] py-[0.38rem]"
-              variant="secondary"
-              onClick={onCancel}
-              hasBorder
+              variant="primary"
+              onClick={onConfirm}
+              disabled={disabled}
             >
-              {cancelTextDisplay}
+              {confirmTextDisplay}
             </ButtonDesigned>
           )}
-      </div>
+
+          {onCancel
+            && (
+              <ButtonDesigned
+                className="basis-0 grow px-[0.63rem] py-[0.38rem]"
+                variant="secondary"
+                onClick={onCancel}
+                hasBorder
+              >
+                {cancelTextDisplay}
+              </ButtonDesigned>
+            )}
+        </div>
+      )}
     </Popup>
   )
 }

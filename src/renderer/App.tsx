@@ -7,7 +7,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 
 import iconGearUrl from '../../assets/icon-gear.svg'
 import { Textarea } from '../components/ui/textarea'
-import { AuthStatus, ElectronAPI } from '../preload'
+import { ElectronAPI } from '../preload'
 import { Message } from '../types'
 import './App.css'
 import AuthComponent from './components/AuthComponent'
@@ -17,7 +17,8 @@ import { Badge } from './components/ui/badge'
 import { Button } from './components/ui/button'
 import { ButtonDesigned } from './components/ui/ButtonDesigned'
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card'
-import { AuthProvider, useAuth } from './hooks/useAuth'
+import { useAuth } from './hooks/useAuth'
+import { Providers } from './providers/Providers'
 
 const handleEditorWillMount = (monacoInstance: typeof monaco) => {
   monacoInstance.editor.defineTheme('lazy', lazyTheme as monaco.editor.IStandaloneThemeData)
@@ -718,17 +719,10 @@ const AppContent: React.FC = () => {
 }
 
 const App: React.FC = () => {
-  // Handle authentication state changes - this callback is called by AuthProvider
-  const handleAuthChange = useCallback((newAuthStatus: AuthStatus) => {
-    console.log('App handleAuthChange:', newAuthStatus)
-    // Additional app-level auth change handling can be added here if needed
-    // The main auth state management and message clearing is handled by AppContent via useEffect
-  }, [])
-
   return (
-    <AuthProvider onAuthChange={handleAuthChange}>
+    <Providers>
       <AppContent />
-    </AuthProvider>
+    </Providers>
   )
 }
 

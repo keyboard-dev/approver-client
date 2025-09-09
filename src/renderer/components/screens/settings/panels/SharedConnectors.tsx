@@ -10,6 +10,7 @@ import redTrashIconUrl from '../../../../../../assets/icon-trash-red.svg'
 import { ServerProviderInfo } from '../../../../../oauth-providers'
 import { ProviderStatus } from '../../../../../preload'
 import { useAuth } from '../../../../hooks/useAuth'
+import { usePopup } from '../../../../hooks/usePopup'
 import { ButtonDesigned } from '../../../ui/ButtonDesigned'
 import { AddServerPopup } from './AddServerPopup'
 
@@ -40,6 +41,16 @@ interface ProviderAuthData {
 }
 
 export const SharedConnectors: React.FC<ServerProviderManagerProps> = ({ className }) => {
+  const {
+    isAuthenticated,
+    isSkippingAuth,
+  } = useAuth()
+
+  const {
+    showPopup,
+    hidePopup,
+  } = usePopup()
+
   const [servers, setServers] = useState<ServerProvider[]>([])
   const [serverProviders, setServerProviders] = useState<Record<string, ServerProviderInfo[]>>({})
   const [providerStatus, setProviderStatus] = useState<Record<string, ProviderStatus>>({})
@@ -51,11 +62,6 @@ export const SharedConnectors: React.FC<ServerProviderManagerProps> = ({ classNa
     url: '',
   })
   const [showAddServerPopup, setShowAddServerPopup] = useState(false)
-
-  const {
-    isAuthenticated,
-    isSkippingAuth,
-  } = useAuth()
 
   useEffect(() => {
     if (!isAuthenticated || isSkippingAuth) {
@@ -368,7 +374,14 @@ export const SharedConnectors: React.FC<ServerProviderManagerProps> = ({ classNa
 
               <button
                 className="p-[0.25rem] shrink-0 grow-0"
-                onClick={() => handleRemoveServer(server.id)}
+                onClick={() => showPopup({
+                  description: 'Are you sure you want to remove this server?',
+                  onConfirm: () => {
+                    handleRemoveServer(server.id)
+                    hidePopup()
+                  },
+                  onCancel: () => hidePopup(),
+                })}
               >
                 <img
                   src={redTrashIconUrl}
@@ -481,7 +494,14 @@ export const SharedConnectors: React.FC<ServerProviderManagerProps> = ({ classNa
                                     <ButtonDesigned
                                       variant="clear"
                                       className="px-[1rem] py-[0.5rem] text-[#D23535] shrink-0 grow-0 self-start"
-                                      onClick={() => handleDisconnect(provider.name)}
+                                      onClick={() => showPopup({
+                                        description: 'Are you sure you want to disconnect this connector?',
+                                        onConfirm: () => {
+                                          handleDisconnect(provider.name)
+                                          hidePopup()
+                                        },
+                                        onCancel: () => hidePopup(),
+                                      })}
                                     >
                                       Disconnect
                                     </ButtonDesigned>

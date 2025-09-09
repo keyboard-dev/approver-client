@@ -41,7 +41,7 @@ export const ButtonDesigned: React.FC<{
   return (
     <button
       className={cn(
-        'gap-[0.31rem] rounded-[0.25rem] p-[0.5rem] items-center justify-center disabled:cursor-not-allowed',
+        'gap-[0.31rem] rounded-[0.25rem] p-[0.5rem] items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed',
         variantClass,
         borderClass,
         className,

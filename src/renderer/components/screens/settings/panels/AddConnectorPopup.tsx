@@ -58,6 +58,10 @@ export const AddConnectorPopup: React.FC<ManualProviderFormProps> = ({
       console.log('config', config)
       console.log('===============================================')
 
+      if (!config.id) {
+        config.id = config.name
+      }
+
       // Validate required fields
       if (!config.id || !config.name || !config.clientId || !config.authorizationUrl || !config.tokenUrl) {
         throw new Error('Please fill in all required fields')
@@ -204,6 +208,58 @@ export const AddConnectorPopup: React.FC<ManualProviderFormProps> = ({
             <div
               className="text-[#000]"
             >
+              Authorization URL
+              {' '}
+              <span className="text-[#D23535]">
+                *
+              </span>
+            </div>
+
+            <div
+              className="text-[#737373]"
+            >
+              The URL to authorize your app with the service.
+            </div>
+
+            <input
+              className="border border-[#CCC] rounded-[0.38rem] px-[0.63rem] py-[0.38rem]"
+              value={config.authorizationUrl}
+              onChange={e => setConfig(prev => ({ ...prev, authorizationUrl: e.target.value }))}
+            />
+          </div>
+
+          <div
+            className="flex flex-col gap-[0.38rem]"
+          >
+            <div
+              className="text-[#000]"
+            >
+              Token URL
+              {' '}
+              <span className="text-[#D23535]">
+                *
+              </span>
+            </div>
+
+            <div
+              className="text-[#737373]"
+            >
+              The URL to exchange the authorization code for a token.
+            </div>
+
+            <input
+              className="border border-[#CCC] rounded-[0.38rem] px-[0.63rem] py-[0.38rem]"
+              value={config.tokenUrl}
+              onChange={e => setConfig(prev => ({ ...prev, tokenUrl: e.target.value }))}
+            />
+          </div>
+
+          <div
+            className="flex flex-col gap-[0.38rem]"
+          >
+            <div
+              className="text-[#000]"
+            >
               Redirect URI (read-only)
             </div>
 
@@ -264,7 +320,7 @@ export const AddConnectorPopup: React.FC<ManualProviderFormProps> = ({
             className="grow shrink basis-0"
             variant="primary"
             onClick={handleSubmit}
-            disabled={isLoading}
+            disabled={[config.name, config.clientId, config.authorizationUrl, config.tokenUrl].some(val => !val)}
           >
             Connect
           </ButtonDesigned>

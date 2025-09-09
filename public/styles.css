@@ -4,18 +4,19 @@
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+    scrollbar-gutter: none;
 }
 
 body {
     font-family: 'Inter', sans-serif;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: #333;
-    height: 100vh;
+    height: 100%;
     overflow: hidden;
 }
 
 .container {
-    height: 100vh;
+    height: 100%;
     display: flex;
     flex-direction: column;
     background: rgba(255, 255, 255, 0.95);

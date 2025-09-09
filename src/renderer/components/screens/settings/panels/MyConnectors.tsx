@@ -3,9 +3,12 @@ import React, { useEffect, useState } from 'react'
 import githubLogoIconUrl from '../../../../../../assets/icon-logo-github.svg'
 import googleLogoIconUrl from '../../../../../../assets/icon-logo-google.svg'
 import microsoftLogoIconUrl from '../../../../../../assets/icon-logo-microsoft.svg'
+import xLogoIconUrl from '../../../../../../assets/icon-logo-x-black.svg'
+import squaresIconUrl from '../../../../../../assets/icon-squares.svg'
 import { OAuthStorageInfo, ProviderStatus } from '../../../../../preload'
 import { OAuthProviderConfig } from '../../../../../provider-storage'
 import { useAuth } from '../../../../hooks/useAuth'
+import { usePopup } from '../../../../hooks/usePopup'
 import { ButtonDesigned } from '../../../ui/ButtonDesigned'
 import { AddConnectorPopup } from './AddConnectorPopup'
 
@@ -20,13 +23,18 @@ export const MyConnectors: React.FC = () => {
     isSkippingAuth,
   } = useAuth()
 
+  const {
+    showPopup,
+    hidePopup,
+  } = usePopup()
+
   const [allProviderConfigs, setAllProviderConfigs] = useState<OAuthProviderConfig[]>([])
-  const [providerStatus, setProviderStatus] = useState<Record<string, ProviderStatus>>({})
-  const [isLoading, setIsLoading] = useState<Record<string, boolean>>({})
-  const [error, setError] = useState<string | null>(null)
-  const [storageInfo, setStorageInfo] = useState<OAuthStorageInfo | null>(null)
-  const [isAddPopupOpen, setIsAddPopupOpen] = useState(false)
   const [editingProvider, setEditingProvider] = useState<OAuthProviderConfig | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [isAddPopupOpen, setIsAddPopupOpen] = useState(false)
+  const [isLoading, setIsLoading] = useState<Record<string, boolean>>({})
+  const [providerStatus, setProviderStatus] = useState<Record<string, ProviderStatus>>({})
+  const [storageInfo, setStorageInfo] = useState<OAuthStorageInfo | null>(null)
 
   useEffect(() => {
     if (!isAuthenticated || isSkippingAuth) {
@@ -117,19 +125,10 @@ export const MyConnectors: React.FC = () => {
   }
 
   const handleConnect = async (providerId: string) => {
-    setIsLoading(prev => ({ ...prev, [providerId]: true }))
-    setError(null)
+    // setIsLoading(prev => ({ ...prev, [providerId]: true }))
+    // setError(null)
 
-    try {
-      await window.electronAPI.startProviderOAuth(providerId)
-      // The actual connection will be handled by the OAuth flow
-      // and the provider-auth-success event will be triggered
-    }
-    catch (error) {
-      console.error(`Failed to start OAuth for ${providerId}:`, error)
-      setError(`Failed to connect to ${providerId}`)
-      setIsLoading(prev => ({ ...prev, [providerId]: false }))
-    }
+    return window.electronAPI.startProviderOAuth(providerId)
   }
 
   const handleDisconnect = async (providerId: string) => {
@@ -167,19 +166,30 @@ export const MyConnectors: React.FC = () => {
   }
 
   const handleSaveProvider = async (config: Omit<OAuthProviderConfig, 'createdAt' | 'updatedAt'>) => {
-    await window.electronAPI.saveProviderConfig(config)
-    await loadProviders()
-    await loadAllProviderConfigs()
-    setIsAddPopupOpen(false)
-    setEditingProvider(null)
-    setError(null)
+    try {
+      await window.electronAPI.saveProviderConfig(config)
+      await handleConnect(config.id)
+      await loadProviders()
+      await loadAllProviderConfigs()
+    }
+    catch (error) {
+      showPopup({
+        title: 'Failed to connect provider',
+        description: JSON.stringify(error, null, 2),
+        confirmText: 'OK',
+        onConfirm: () => hidePopup(),
+      })
+      handleDeleteProvider(config.id)
+      handleDisconnect(config.id)
+    }
+    finally {
+      setIsAddPopupOpen(false)
+      setEditingProvider(null)
+      setError(null)
+    }
   }
 
   const handleDeleteProvider = async (providerId: string) => {
-    if (!confirm(`Are you sure you want to delete the provider "${providerId}"? This action cannot be undone.`)) {
-      return
-    }
-
     try {
       await window.electronAPI.removeProviderConfig(providerId)
       await loadProviders()
@@ -200,16 +210,15 @@ export const MyConnectors: React.FC = () => {
         return githubLogoIconUrl
       case 'microsoft':
         return microsoftLogoIconUrl
+      case 'x':
+        return xLogoIconUrl
       default:
-        return null
+        return squaresIconUrl
     }
   }
 
   const getIcon = (providerId: string) => {
     const iconUrl = getIconUrl(providerId)
-    if (!iconUrl) return null
-
-    console.log('iconUrl', iconUrl)
 
     return (
       <div
@@ -221,27 +230,6 @@ export const MyConnectors: React.FC = () => {
           alt={providerId}
           className="w-full h-full"
         />
-      </div>
-    )
-  }
-
-  const getDescriptionText = (providerId: string) => {
-    switch (providerId) {
-      case 'google':
-        return 'Includes Drive, Mail, Sheets, Slides'
-      default:
-        return null
-    }
-  }
-
-  const getDescription = (providerId: string) => {
-    const text = getDescriptionText(providerId)
-    if (!text) return null
-    return (
-      <div
-        className="text-[#737373]"
-      >
-        {text}
       </div>
     )
   }
@@ -265,6 +253,8 @@ export const MyConnectors: React.FC = () => {
         className="flex flex-col gap-[0.63rem]"
       >
         {allProviderConfigs.map((provider, index) => {
+          const { isCustom } = provider
+
           const {
             authenticated,
             user,
@@ -278,7 +268,7 @@ export const MyConnectors: React.FC = () => {
           return (
             <React.Fragment key={`connector-panel-provider-${provider.id}`}>
               <div
-                className="w-full flex justify-between items-start"
+                className="w-full flex justify-between items-center"
               >
                 <div
                   style={{
@@ -291,7 +281,7 @@ export const MyConnectors: React.FC = () => {
                     {getIcon(provider.id)}
                     <div>
                       {provider.name}
-                      {/* {JSON.stringify(providerStatus[provider.id])} */}
+                      {/* {JSON.stringify(provider)} */}
                     </div>
                   </div>
                   {Boolean(email) && (
@@ -304,17 +294,37 @@ export const MyConnectors: React.FC = () => {
                     </div>
                   )}
                 </div>
-                <ButtonDesigned
-                  className="px-[1rem] py-[0.5rem]"
-                  onClick={() => {
-                    setEditingProvider(provider)
-                    setIsAddPopupOpen(true)
-                  }}
-                  variant="clear"
-                  hasBorder
-                >
-                  Connect
-                </ButtonDesigned>
+                {(authenticated || isCustom)
+                  ? (
+                      <ButtonDesigned
+                        className="px-[1rem] py-[0.5rem] text-[#D23535]"
+                        onClick={() => showPopup({
+                          description: 'Are you sure you want to disconnect this connector?',
+                          onConfirm: () => {
+                            handleDeleteProvider(provider.id)
+                            handleDisconnect(provider.id)
+                            hidePopup()
+                          },
+                          onCancel: () => hidePopup(),
+                        })}
+                        variant="clear"
+                      >
+                        Disconnect
+                      </ButtonDesigned>
+                    )
+                  : (
+                      <ButtonDesigned
+                        className="px-[1rem] py-[0.5rem]"
+                        onClick={() => {
+                          setEditingProvider(provider)
+                          setIsAddPopupOpen(true)
+                        }}
+                        variant="clear"
+                        hasBorder
+                      >
+                        Connect
+                      </ButtonDesigned>
+                    )}
               </div>
               {index < allProviderConfigs.length - 1 && (
                 <div className="w-full h-px bg-[#E5E5E5]" />

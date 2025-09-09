@@ -559,6 +559,7 @@ class MenuBarNotificationApp {
       console.error(`❌ OAuth flow error for ${providerId}:`, error)
       await this.notifyProviderAuthError(providerId, 'Failed to start authentication')
       this.oauthHttpServer.stopServer() // Clean up on error
+      throw error
     }
   }
 
