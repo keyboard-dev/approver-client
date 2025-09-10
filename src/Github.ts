@@ -12,7 +12,7 @@ interface GitHubToken {
 
 export class GithubService {
   private token: string | null = null
-  private readonly TOKEN_FILE_PATH = path.join(os.homedir(), '.keyboard-mcp-onboarding-gh-token')
+  private readonly TOKEN_FILE_PATH = path.join(os.homedir(), '.keyboard-mcp', '.keyboard-mcp-onboarding-gh-token')
   private readonly BASE_URL = 'https://api.github.com'
 
   constructor() {
@@ -54,7 +54,7 @@ export class GithubService {
 
   private ensureAuthenticated(): void {
     if (!this.token) {
-      throw new Error('GitHub service not authenticated. Please ensure token file exists at ~/.keyboard-mcp-onboarding-gh-token')
+      throw new Error('GitHub service not authenticated. Please ensure token file exists at ~/.keyboard-mcp/.keyboard-mcp-onboarding-gh-token')
     }
   }
 
