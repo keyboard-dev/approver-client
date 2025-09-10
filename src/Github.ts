@@ -54,7 +54,7 @@ export class GithubService {
 
   private ensureAuthenticated(): void {
     if (!this.token) {
-      throw new Error('GitHub service not authenticated. Please ensure token file exists at ~/.keyboard-mcp-onboarding-gh-token')
+      throw new Error('GitHub service not authenticated. Please ensure token file exists at ~/.keyboard-mcp/.keyboard-mcp-onboarding-gh-token')
     }
   }
 
