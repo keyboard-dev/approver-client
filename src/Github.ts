@@ -12,7 +12,7 @@ interface GitHubToken {
 
 export class GithubService {
   private token: string | null = null
-  private readonly TOKEN_FILE_PATH = path.join(os.homedir(), '.keyboard-mcp-onboarding-gh-token')
+  private readonly TOKEN_FILE_PATH = path.join(os.homedir(), '.keyboard-mcp', '.keyboard-mcp-onboarding-gh-token')
   private readonly BASE_URL = 'https://api.github.com'
 
   constructor() {

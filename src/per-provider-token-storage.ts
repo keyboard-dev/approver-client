@@ -24,7 +24,7 @@ export class PerProviderTokenStorage {
   private readonly storageDir: string
   private tokensCache: Map<string, StoredProviderTokens> = new Map()
   private loadedProviders: Set<string> = new Set()
-  private readonly ONBOARDING_KEY_FILE = path.join(os.homedir(), '.keyboard-mcp-onboarding-gh-token')
+  private readonly ONBOARDING_KEY_FILE = path.join(os.homedir(), '.keyboard-mcp', '.keyboard-mcp-onboarding-gh-token')
 
   constructor(customDir?: string) {
     this.storageDir = customDir || path.join(os.homedir(), '.keyboard-mcp')
