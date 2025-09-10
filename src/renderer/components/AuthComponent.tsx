@@ -202,8 +202,8 @@ const AuthComponent: React.FC<AuthComponentProps> = ({
   return (
     <div className="w-full h-full flex flex-col justify-between items-center gap-4">
       <div className="w-full flex-1 px-2.5 py-3 bg-white rounded-lg flex flex-col justify-center items-center gap-4">
-        <div className="w-full flex-1 px-6 sm:px-12 lg:px-24 py-8 sm:py-12 flex flex-col justify-center items-center gap-10">
-          <div className="w-full max-w-md flex flex-col justify-start items-start gap-10">
+        <div className="w-full flex-1 px-6 sm:px-12 lg:px-24 pt-4 pb-8 sm:pt-6 sm:pb-12 flex flex-col justify-center items-center gap-6">
+          <div className="w-full max-w-md flex flex-col justify-start items-start gap-8">
             {/* Logo */}
             <div className="w-16 h-16  flex items-center justify-center">
             <img src={keyboardLogo} alt="Keyboard Logo" />
@@ -258,7 +258,7 @@ const AuthComponent: React.FC<AuthComponentProps> = ({
                     <ChevronRight className="w-4 h-4 text-gray-900" />
                   </div>
                 </button>
-                <span className="text-gray-400 text-xs font-medium font-inter mt-1">Certain features will be limited.</span>
+                <span className="text-gray-400 text-xs font-medium font-inter ml-2 mt-1">Certain features will be limited.</span>
               </div>
             </div>
 
