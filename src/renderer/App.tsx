@@ -627,7 +627,7 @@ const App: React.FC = () => {
       <div
         className="flex flex-col w-full grow min-h-0 bg-white rounded-[0.5rem] px-[0.63rem] py-[0.75rem] not-draggable gap-[0.63rem] items-start overflow-auto"
       >
-        <div className="max-w-4xl mx-auto">
+        <div className="w-full grow min-h-0 mx-auto">
           {/* Authentication Component */}
           <AuthComponent
             onAuthChange={handleAuthChange}
