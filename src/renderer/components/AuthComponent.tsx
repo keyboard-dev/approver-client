@@ -3,9 +3,10 @@ import { Button } from './ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Alert, AlertDescription } from '../../components/ui/alert'
 import { Badge } from './ui/badge'
-import { User, LogOut, Shield, AlertCircle, CheckCircle } from 'lucide-react'
+import { User, LogOut, Shield, AlertCircle, CheckCircle, ChevronRight } from 'lucide-react'
 import { AuthStatus, AuthError } from '../../preload'
 import { SKIP_AUTH_USER_EMAIL, SKIP_AUTH_USER_FIRST_NAME, SKIP_AUTH_USER_ID, SKIP_AUTH_USER_LAST_NAME } from '../../lib/constants/auth.constants'
+import keyboardLogo from '../assets/keyboard-logo.png'
 
 interface AuthComponentProps {
   isSkippingAuth: boolean
@@ -199,52 +200,90 @@ const AuthComponent: React.FC<AuthComponentProps> = ({
   }
 
   return (
-    <Card className="w-full mb-4">
-      <CardHeader>
-        <CardTitle className="text-lg flex items-center space-x-2">
-          <AlertCircle className="h-5 w-5 text-orange-600" />
-          <span>Authentication Required</span>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4 flex flex-col items-start">
-        <p className="text-sm text-gray-600">
-          Please authenticate to access the message approval system. This will open your browser for secure login.
-        </p>
+    <div className="w-full h-full flex flex-col justify-between items-center gap-4">
+      <div className="w-full flex-1 px-2.5 py-3 bg-white rounded-lg flex flex-col justify-center items-center gap-4">
+        <div className="w-full flex-1 px-6 sm:px-12 lg:px-24 pt-4 pb-8 sm:pt-6 sm:pb-12 flex flex-col justify-center items-center gap-6">
+          <div className="w-full max-w-md flex flex-col justify-start items-start gap-8">
+            {/* Logo */}
+            <div className="w-16 h-16  flex items-center justify-center">
+            <img src={keyboardLogo} alt="Keyboard Logo" />
+            </div>
+            
 
-        {error && (
-          <Alert className="border-red-200 bg-red-50">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription className="text-red-800">
-              {error}
-            </AlertDescription>
-          </Alert>
-        )}
+            {/* Title */}
+            <div className="flex flex-col justify-start items-start gap-2.5">
+              <h1 className="text-gray-900 text-xl font-semibold font-inter">Get started with Keyboard</h1>
+            </div>
 
-        <div className="flex flex-col gap-2 justify-center items-center w-40 self-center">
-          <Button
-            onClick={handleLogin}
-            disabled={isLoading}
-            className="bg-gray-200 hover:bg-gray-400 text-gray-800 w-full"
-          >
-            {/* <LogIn className="h-4 w-4 mr-2" /> */}
-            {isLoading ? 'Authenticating...' : 'Sign In'}
-          </Button>
+            {/* Main Content */}
+            <div className="self-stretch flex-1 flex flex-col justify-start items-start gap-4">
+              {error && (
+                <Alert className="self-stretch border-red-200 bg-red-50 mb-4">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription className="text-red-800">
+                    {error}
+                  </AlertDescription>
+                </Alert>
+              )}
 
-          <Button
-            onClick={handleSkipAuth}
-            disabled={isLoading}
-            className="bg-gray-600 hover:bg-gray-800 text-white w-full"
-          >
-            Skip Authentication
-          </Button>
+              {/* Sign in button */}
+              <button
+                onClick={handleLogin}
+                disabled={isLoading}
+                className="self-stretch h-10 px-5 py-2 rounded border border-gray-300 hover:border-gray-400 hover:bg-gray-50 disabled:opacity-50 flex justify-center items-center gap-2.5 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-200"
+              >
+                <span className="text-gray-900 text-sm font-medium font-inter">
+                  {isLoading ? 'Authenticating...' : 'Sign in with browser'}
+                </span>
+              </button>
+
+              {/* OR divider */}
+              <div className="self-stretch flex justify-center items-center gap-2.5">
+                <div className="flex-1 h-px border-t border-gray-300"></div>
+                <span className="text-gray-400 text-xs font-medium font-inter">OR</span>
+                <div className="flex-1 h-px border-t border-gray-300"></div>
+              </div>
+
+              {/* Continue without authenticating */}
+              <div className="self-stretch flex flex-col justify-start items-start">
+                <button
+                  onClick={handleSkipAuth}
+                  disabled={isLoading}
+                  className="self-stretch flex justify-between items-center hover:bg-gray-50 p-2 rounded transition-colors disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-gray-200"
+                >
+                  <span className="text-gray-900 text-sm font-medium font-inter text-left">
+                    Continue without authenticating
+                  </span>
+                  <div className="w-6 h-6 flex justify-center items-center">
+                    <ChevronRight className="w-4 h-4 text-gray-900" />
+                  </div>
+                </button>
+                <span className="text-gray-400 text-xs font-medium font-inter ml-2 mt-1">Certain features will be limited.</span>
+              </div>
+            </div>
+
+            {/* Help text */}
+          </div>
         </div>
-
-        <div className="text-xs text-gray-500 text-center self-center">
-          <p>This will open your default browser for secure authentication.</p>
-          <p>You&apos;ll be redirected back to this app after login.</p>
-        </div>
-      </CardContent>
-    </Card>
+      </div>
+      <div className="w-full max-w-md text-center">
+              <span className="text-gray-400 text-sm font-medium font-inter">Need help? </span>
+              <span 
+                className="text-gray-900 text-sm font-medium font-inter cursor-pointer hover:underline"
+                onClick={() => window.electronAPI.openExternal('https://discord.com/invite/UxsRWtV6M2')}
+              >
+                Ask in our Discord
+              </span>
+              <span className="text-gray-400 text-sm font-medium font-inter"> or read the </span>
+              <span 
+                className="text-gray-900 text-sm font-medium font-inter cursor-pointer hover:underline"
+                onClick={() => window.electronAPI.openExternal('https://docs.keyboard.dev')}
+              >
+                docs
+              </span>
+              <span className="text-gray-400 text-sm font-medium font-inter">.</span>
+      </div>
+    </div>
   )
 }
 

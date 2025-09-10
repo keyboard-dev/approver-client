@@ -115,6 +115,8 @@ export interface ElectronAPI {
   onCollectionShareRequest: (callback: (event: IpcRendererEvent, shareMessage: ShareMessage) => void) => void
   onShowShareMessage: (callback: (event: IpcRendererEvent, shareMessage: ShareMessage) => void) => void
   removeAllListeners: (channel: string) => void
+  // Open external links
+  openExternal: (url: string) => Promise<void>
   // Legacy OAuth
   startOAuth: () => Promise<void>
   getAuthStatus: () => Promise<AuthStatus>
@@ -192,6 +194,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   removeAllListeners: (channel: string): void => {
     ipcRenderer.removeAllListeners(channel)
   },
+
+  // Open external links
+  openExternal: (url: string): Promise<void> => ipcRenderer.invoke('open-external', url),
 
   // Legacy OAuth functions
   startOAuth: (): Promise<void> => ipcRenderer.invoke('start-oauth'),
