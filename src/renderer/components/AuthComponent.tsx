@@ -6,6 +6,7 @@ import { Badge } from './ui/badge'
 import { User, LogOut, Shield, AlertCircle, CheckCircle, ChevronRight } from 'lucide-react'
 import { AuthStatus, AuthError } from '../../preload'
 import { SKIP_AUTH_USER_EMAIL, SKIP_AUTH_USER_FIRST_NAME, SKIP_AUTH_USER_ID, SKIP_AUTH_USER_LAST_NAME } from '../../lib/constants/auth.constants'
+import keyboardLogo from '../assets/keyboard-logo.png'
 
 interface AuthComponentProps {
   isSkippingAuth: boolean
@@ -199,14 +200,15 @@ const AuthComponent: React.FC<AuthComponentProps> = ({
   }
 
   return (
-    <div className="w-full h-full p-2.5 flex flex-col justify-between items-center gap-4">
+    <div className="w-full h-full flex flex-col justify-between items-center gap-4">
       <div className="w-full flex-1 px-2.5 py-3 bg-white rounded-lg flex flex-col justify-center items-center gap-4">
         <div className="w-full flex-1 px-6 sm:px-12 lg:px-24 py-8 sm:py-12 flex flex-col justify-center items-center gap-10">
           <div className="w-full max-w-md flex flex-col justify-start items-start gap-10">
             {/* Logo */}
-            <div className="w-16 h-16 bg-black rounded-lg flex items-center justify-center">
-              <span className="text-white text-2xl font-bold font-mono">K</span>
+            <div className="w-16 h-16  flex items-center justify-center">
+            <img src={keyboardLogo} alt="Keyboard Logo" />
             </div>
+            
 
             {/* Title */}
             <div className="flex flex-col justify-start items-start gap-2.5">
