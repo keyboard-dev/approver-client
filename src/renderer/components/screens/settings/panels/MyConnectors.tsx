@@ -281,7 +281,6 @@ export const MyConnectors: React.FC = () => {
                     {getIcon(provider.id)}
                     <div>
                       {provider.name}
-                      {/* {JSON.stringify(provider)} */}
                     </div>
                   </div>
                   {Boolean(email) && (
@@ -294,7 +293,7 @@ export const MyConnectors: React.FC = () => {
                     </div>
                   )}
                 </div>
-                {(authenticated || isCustom)
+                {authenticated
                   ? (
                       <ButtonDesigned
                         className="px-[1rem] py-[0.5rem] text-[#D23535]"
