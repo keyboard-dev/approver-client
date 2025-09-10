@@ -96,6 +96,7 @@ class MenuBarNotificationApp {
   private oauthHttpServer: OAuthHttpServer
   // WebSocket security
   private wsConnectionKey: string | null = null
+  private readonly STORAGE_DIR = path.join(os.homedir(), '.keyboard-mcp')
   private readonly WS_KEY_FILE = path.join(os.homedir(), '.keyboard-mcp', '.keyboard-mcp-ws-key') 
 
   // Encryption key management
@@ -213,6 +214,7 @@ class MenuBarNotificationApp {
     // STEP 4: App ready event
     app.whenReady().then(async () => {
       // Initialize WebSocket security key first
+      await this.initializeStorageDir()
       await this.initializeWebSocketKey()
 
       // Initialize encryption key
@@ -341,6 +343,12 @@ class MenuBarNotificationApp {
     }
   }
 
+  private async initializeStorageDir(): Promise<void> {
+    if (!fs.existsSync(this.STORAGE_DIR)) {
+      fs.mkdirSync(this.STORAGE_DIR, {mode: 0o700 })
+    }
+  }
+
   private async initializeWebSocketKey(): Promise<void> {
     try {
       // Try to load existing key
@@ -381,6 +389,8 @@ class MenuBarNotificationApp {
         createdAt: Date.now(),
         version: '1.0',
       }
+
+ 
 
       // Write to file with restricted permissions
       fs.writeFileSync(this.WS_KEY_FILE, JSON.stringify(keyData, null, 2), { mode: 0o600 })
