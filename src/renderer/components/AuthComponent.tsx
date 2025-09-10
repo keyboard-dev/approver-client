@@ -266,9 +266,9 @@ const AuthComponent: React.FC<AuthComponentProps> = ({
       </div>
       <div className="w-full max-w-md text-center">
               <span className="text-gray-400 text-sm font-medium font-inter">Need help? </span>
-              <span className="text-gray-900 text-sm font-medium font-inter cursor-pointer hover:underline">Contact us</span>
+              <span className="text-gray-900 text-sm font-medium font-inter cursor-pointer hover:underline"><a href="https://discord.com/invite/UxsRWtV6M2" target="_blank" rel="noopener noreferrer">Ask in our Discord</a></span>
               <span className="text-gray-400 text-sm font-medium font-inter"> or read the </span>
-              <span className="text-gray-900 text-sm font-medium font-inter cursor-pointer hover:underline">docs</span>
+              <span className="text-gray-900 text-sm font-medium font-inter cursor-pointer hover:underline"><a href="https://docs.keyboard.dev" target="_blank" rel="noopener noreferrer">docs</a></span>
               <span className="text-gray-400 text-sm font-medium font-inter">.</span>
       </div>
     </div>
