@@ -1,5 +1,7 @@
-import React, { useState, useEffect } from 'react'
+import { IpcRendererEvent } from 'electron'
 import { Check } from 'lucide-react'
+import React, { useEffect, useState } from 'react'
+import { ProviderAuthEventData } from '../../preload'
 import GitHubOAuthButton from './GitHubOAuthButton'
 
 interface OnboardingViewProps {
@@ -16,12 +18,12 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
     }
 
     checkGitHubConnection()
-    
+
     // Set up interval to check periodically
     const interval = setInterval(checkGitHubConnection, 1000)
 
     // Listen for provider auth success specifically for onboarding
-    const handleProviderAuthSuccess = (_event: any, data: any) => {
+    const handleProviderAuthSuccess = (_event: IpcRendererEvent, data: ProviderAuthEventData) => {
       if (data.providerId === 'onboarding') {
         // Immediately check GitHub connection when onboarding OAuth completes
         checkGitHubConnection()
@@ -42,7 +44,7 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
     }
   }, [])
   return (
-    <div className="flex items-start start justify-center min-h-screen w-full p-6 bg-white">
+    <div className="flex items-start justify-center min-h-screen w-full p-6 bg-white">
       <div className="max-w-md w-full space-y-8">
         {/* Header */}
         <div className="text-center space-y-2">
@@ -50,7 +52,7 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
             Welcome! First things first...
           </h1>
           <p className="text-gray-600">
-            Connect to GitHub to use all of Keyboard's features.
+            Connect to GitHub to use all of Keyboard&apos;s features.
           </p>
         </div>
 
@@ -98,22 +100,22 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
 
         {/* Footer */}
         <div className="w-full max-w-md text-center">
-              <span className="text-gray-400 text-sm font-medium font-inter">Need help? </span>
-              <span 
-                className="text-gray-900 text-sm font-medium font-inter cursor-pointer hover:underline"
-                onClick={() => window.electronAPI.openExternal('https://discord.com/invite/UxsRWtV6M2')}
-              >
-                Ask in our Discord
-              </span>
-              <span className="text-gray-400 text-sm font-medium font-inter"> or read the </span>
-              <span 
-                className="text-gray-900 text-sm font-medium font-inter cursor-pointer hover:underline"
-                onClick={() => window.electronAPI.openExternal('https://docs.keyboard.dev')}
-              >
-                docs
-              </span>
-              <span className="text-gray-400 text-sm font-medium font-inter">.</span>
-      </div>
+          <span className="text-gray-400 text-sm font-medium font-inter">Need help? </span>
+          <span
+            className="text-gray-900 text-sm font-medium font-inter cursor-pointer hover:underline"
+            onClick={() => window.electronAPI.openExternal('https://discord.com/invite/UxsRWtV6M2')}
+          >
+            Ask in our Discord
+          </span>
+          <span className="text-gray-400 text-sm font-medium font-inter"> or read the </span>
+          <span
+            className="text-gray-900 text-sm font-medium font-inter cursor-pointer hover:underline"
+            onClick={() => window.electronAPI.openExternal('https://docs.keyboard.dev')}
+          >
+            docs
+          </span>
+          <span className="text-gray-400 text-sm font-medium font-inter">.</span>
+        </div>
       </div>
     </div>
   )
