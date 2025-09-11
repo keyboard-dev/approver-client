@@ -98,6 +98,7 @@ class MenuBarNotificationApp {
   private wsConnectionKey: string | null = null
   private readonly STORAGE_DIR = path.join(os.homedir(), '.keyboard-mcp')
   private readonly WS_KEY_FILE = path.join(os.homedir(), '.keyboard-mcp', '.keyboard-mcp-ws-key') 
+  private readonly ONBOARDING_COMPLETED_FILE = path.join(os.homedir(), '.keyboard-mcp', 'completed-onboarding')
 
   // Encryption key management
   private encryptionKey: string | null = null
@@ -682,6 +683,35 @@ class MenuBarNotificationApp {
   public async getCurrentVersionInstallDate(): Promise<Date | null> {
     const timestamp = await this.getVersionInstallTimestamp()
     return timestamp ? new Date(timestamp) : null
+  }
+
+  private async checkOnboardingCompleted(): Promise<boolean> {
+    try {
+      return fs.existsSync(this.ONBOARDING_COMPLETED_FILE)
+    } catch (error) {
+      console.error('Failed to check onboarding completion:', error)
+      return false
+    }
+  }
+
+  private async markOnboardingCompleted(): Promise<void> {
+    try {
+      // Ensure storage directory exists
+      if (!fs.existsSync(this.STORAGE_DIR)) {
+        fs.mkdirSync(this.STORAGE_DIR, { recursive: true })
+      }
+      
+      // Create completion file with timestamp
+      const completionData = {
+        completed: true,
+        timestamp: Date.now()
+      }
+      
+      fs.writeFileSync(this.ONBOARDING_COMPLETED_FILE, JSON.stringify(completionData, null, 2), { mode: 0o600 })
+    } catch (error) {
+      console.error('Failed to mark onboarding as completed:', error)
+      throw error
+    }
   }
 
   private generatePKCE(): PKCEParams {
@@ -1638,6 +1668,14 @@ class MenuBarNotificationApp {
 
     ipcMain.handle('clear-onboarding-github-token', async (): Promise<void> => {
       await this.perProviderTokenStorage.clearOnboardingToken()
+    })
+
+    ipcMain.handle('check-onboarding-completed', async (): Promise<boolean> => {
+      return await this.checkOnboardingCompleted()
+    })
+
+    ipcMain.handle('mark-onboarding-completed', async (): Promise<void> => {
+      await this.markOnboardingCompleted()
     })
 
     ipcMain.handle('fetch-server-providers', async (event, serverId: string): Promise<ServerProviderInfo[]> => {
