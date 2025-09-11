@@ -66,18 +66,6 @@ export const GitHubOAuthButton: React.FC<GitHubOAuthButtonProps> = ({ className,
 
     try {
       // First, ensure we have a server provider configured for localhost:4000
-      const servers = await window.electronAPI.getServerProviders()
-      let serverId = servers.find(s => s.url === 'https://localhost:4000')?.id
-
-      // If server doesn't exist, add it
-      if (!serverId) {
-        serverId = `github-server-${Date.now()}`
-        await window.electronAPI.addServerProvider({
-          id: serverId,
-          name: 'GitHub OAuth Server',
-          url: 'https://localhost:4000'
-        })
-      }
 
       await window.electronAPI.fetchOnboardingGithubProvider()
       // Re-check connection status after OAuth flow
