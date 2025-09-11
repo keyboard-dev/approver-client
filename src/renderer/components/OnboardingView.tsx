@@ -1,7 +1,5 @@
 import React from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
-import { Alert, AlertDescription } from './ui/alert'
-import { Info } from 'lucide-react'
+import { Check } from 'lucide-react'
 import GitHubOAuthButton from './GitHubOAuthButton'
 
 interface OnboardingViewProps {
@@ -10,41 +8,71 @@ interface OnboardingViewProps {
 
 export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) => {
   return (
-    <div className="flex items-center justify-center min-h-screen p-6">
-      <Card className="max-w-2xl w-full">
-        <CardHeader className="text-center">
-          <CardTitle className="text-3xl font-bold mb-2">Welcome to Keyboard Approver</CardTitle>
-          <p className="text-gray-600">Connect your GitHub account to get started</p>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <Alert className="border-blue-200 bg-blue-50">
-            <Info className="h-4 w-4 text-blue-600" />
-            <AlertDescription className="text-blue-800">
-              <p className="font-semibold mb-2">Why do we need GitHub access?</p>
-              <ul className="list-disc list-inside space-y-1">
-                <li>To start and stop codespaces on public repositories</li>
-                <li>To create forks of the codespace-executor and app-creator repositories</li>
-                <li>To enable secure code execution in isolated environments</li>
-              </ul>
-            </AlertDescription>
-          </Alert>
+    <div className="flex items-center justify-center min-h-screen p-6 bg-white">
+      <div className="max-w-md w-full space-y-8">
+        {/* Header */}
+        <div className="text-center space-y-2">
+          <h1 className="text-2xl font-semibold text-gray-900">
+            Welcome! First things first...
+          </h1>
+          <p className="text-gray-600">
+            Connect to GitHub to use all of Keyboard's features.
+          </p>
+        </div>
 
-          <div className="text-center space-y-4">
-            <p className="text-gray-700">
-              Keyboard uses GitHub Codespaces to execute code in secure, isolated environments. 
-              This ensures your local machine remains protected while still allowing you to approve 
-              and manage code execution requests.
-            </p>
+        {/* Connect Button */}
+        <div className="flex justify-center">
+          <GitHubOAuthButton />
+        </div>
 
-            <GitHubOAuthButton className="flex justify-center" />
+        {/* Permissions List */}
+        <div className="space-y-4">
+          <p className="text-gray-700 text-sm">Permission will allow Keyboard to:</p>
+          <div className="space-y-3">
+            <div className="flex items-start space-x-3">
+              <Check className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
+              <span className="text-gray-700 text-sm">
+                Use script shortcuts to 10x your efficiency
+              </span>
+            </div>
+            <div className="flex items-start space-x-3">
+              <Check className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
+              <span className="text-gray-700 text-sm">
+                Start and stop codespaces on public repos
+              </span>
+            </div>
+            <div className="flex items-start space-x-3">
+              <Check className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
+              <span className="text-gray-700 text-sm">
+                Create a fork of the codespace-executor and app-creator repos
+              </span>
+            </div>
           </div>
+        </div>
 
-          <div className="text-center text-sm text-gray-500 mt-6">
-            <p>By connecting, you agree to our security practices and GitHub's terms of service.</p>
-            <p className="mt-1">Your GitHub credentials are securely managed and never stored on our servers.</p>
-          </div>
-        </CardContent>
-      </Card>
+        {/* Next Button */}
+        <div className="flex justify-center">
+          <button
+            onClick={onComplete}
+            className="px-8 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm font-medium transition-colors"
+          >
+            Next
+          </button>
+        </div>
+
+        {/* Footer */}
+        <div className="text-center text-xs text-gray-500">
+          Need help?{' '}
+          <a href="#" className="text-blue-600 hover:underline">
+            Contact us
+          </a>{' '}
+          or read the{' '}
+          <a href="#" className="text-blue-600 hover:underline">
+            docs
+          </a>
+          .
+        </div>
+      </div>
     </div>
   )
 }
