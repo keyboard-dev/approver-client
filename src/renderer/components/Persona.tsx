@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Check } from 'lucide-react'
-
+import { ProgressIndicator } from './ProgressIndicator'
 interface PersonaProps {
   onNext: () => void
 }
@@ -42,6 +42,11 @@ export const Persona: React.FC<PersonaProps> = ({ onNext }) => {
           <p className="text-gray-600">
             This helps us customize your Keyboard experience.
           </p>
+        </div>
+
+        {/* Progress indicator */}
+        <div className="flex justify-center space-x-2">
+          <ProgressIndicator progress={2} />
         </div>
 
         {/* Persona Selection */}

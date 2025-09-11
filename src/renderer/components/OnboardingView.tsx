@@ -4,6 +4,7 @@ import GitHubOAuthButton from './GitHubOAuthButton'
 import McpSetup from './McpSetup'
 import Persona from './Persona'
 import ConnectApps from './ConnectApps'
+import { ProgressIndicator } from './ProgressIndicator'
 
 interface OnboardingViewProps {
   onComplete?: () => void
@@ -161,6 +162,11 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
           <p className="text-gray-600">
             Connect to GitHub to use all of Keyboard's features.
           </p>
+        </div>
+
+        {/* Progress indicator */}
+        <div className="flex justify-center space-x-2">
+          <ProgressIndicator progress={0} />
         </div>
 
         {/* Connect Button */}

@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Check } from 'lucide-react'
-
+import { ProgressIndicator } from './ProgressIndicator'
 interface ConnectAppsProps {
   onComplete: () => void
 }
@@ -59,6 +59,11 @@ export const ConnectApps: React.FC<ConnectAppsProps> = ({ onComplete }) => {
           <p className="text-gray-600">
             Choose which applications to integrate with Keyboard.
           </p>
+        </div>
+
+        {/* Progress indicator */}
+        <div className="flex justify-center space-x-2">
+          <ProgressIndicator progress={3} />
         </div>
 
         {/* App Selection */}

@@ -1,76 +1,87 @@
 import React from 'react'
-import { Check } from 'lucide-react'
-
+import { Download } from 'lucide-react'
+import { ProgressIndicator } from './ProgressIndicator'
 interface McpSetupProps {
   onNext: () => void
+  onSkip?: () => void
 }
 
-export const McpSetup: React.FC<McpSetupProps> = ({ onNext }) => {
+export const McpSetup: React.FC<McpSetupProps> = ({ onNext, onSkip }) => {
+  const handleDownload = () => {
+    window.electronAPI.openExternal('https://github.com/keyboard-dev/keyboard-mcp/releases/latest')
+  }
+
   return (
-    <div className="flex items-start start justify-center min-h-screen w-full p-6 bg-white">
-      <div className="max-w-md w-full space-y-8">
+    <div className="flex items-start justify-center min-h-screen w-full p-6 bg-white">
+      <div className="max-w-md w-full space-y-6 bg-white rounded-lg p-8 shadow-sm">
         {/* Header */}
         <div className="text-center space-y-2">
-          <h1 className="text-2xl font-semibold text-gray-900">
-            Set up MCP (Model Context Protocol)
+          <h1 className="text-xl font-semibold text-gray-900">
+            Set up your MCP client
           </h1>
-          <p className="text-gray-600">
-            Configure your development environment for enhanced AI assistance.
+          <p className="text-gray-600 text-sm">
+            Make sure you've downloaded our most up-to-date .dxt file.
           </p>
         </div>
 
-        {/* Features List */}
-        <div className="space-y-4">
-          <p className="text-gray-700 text-sm">MCP will enable:</p>
-          <div className="space-y-3">
-            <div className="flex items-start space-x-3">
-              <Check className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
-              <span className="text-gray-700 text-sm">
-                Enhanced code understanding and context awareness
-              </span>
+        {/* Progress indicator */}
+        <div className="flex justify-center space-x-2">
+          <ProgressIndicator progress={1} />
+        </div>
+
+        {/* Instructions */}
+        <div className="space-y-6">
+          <div className="space-y-4">
+            <div>
+              <span className="text-gray-900 font-medium">1. Download the </span>
+              <span className="text-blue-600 font-medium">keyboard-mcp.dxt</span>
+              <span className="text-gray-900 font-medium"> file</span>
             </div>
-            <div className="flex items-start space-x-3">
-              <Check className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
-              <span className="text-gray-700 text-sm">
-                Seamless integration with your development workflow
-              </span>
+            
+            <div className="flex justify-center">
+              <button
+                onClick={handleDownload}
+                className="flex items-center space-x-2 px-6 py-3 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-sm font-medium transition-colors cursor-pointer border border-blue-200"
+              >
+                <Download className="h-4 w-4" />
+                <span>Download file</span>
+              </button>
             </div>
-            <div className="flex items-start space-x-3">
-              <Check className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
-              <span className="text-gray-700 text-sm">
-                Intelligent suggestions and automated assistance
-              </span>
-            </div>
+          </div>
+
+          <div>
+            <span className="text-gray-900 font-medium">2. Install the file as an extension in your MCP client</span>
+            <br />
+            <span className="text-gray-600 text-sm">(Claude, ChatGPT, etc)</span>
           </div>
         </div>
 
-        {/* Next Button */}
-        <div className="flex justify-center">
+        {/* Action Buttons */}
+        <div className="flex justify-between pt-4">
           <button
             onClick={onNext}
-            className="px-8 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm font-medium transition-colors cursor-pointer"
+            className="px-6 py-2 bg-gray-900 hover:bg-gray-800 text-white rounded-md text-sm font-medium transition-colors cursor-pointer"
           >
             Next
           </button>
         </div>
 
         {/* Footer */}
-        <div className="w-full max-w-md text-center">
-          <span className="text-gray-400 text-sm font-medium font-inter">Need help? </span>
+        <div className="text-center pt-4 border-t border-gray-100">
+          <span className="text-gray-400 text-sm">Need help? </span>
           <span 
-            className="text-gray-900 text-sm font-medium font-inter cursor-pointer hover:underline"
+            className="text-gray-900 text-sm cursor-pointer hover:underline"
             onClick={() => window.electronAPI.openExternal('https://discord.com/invite/UxsRWtV6M2')}
           >
-            Ask in our Discord
+            Contact us
           </span>
-          <span className="text-gray-400 text-sm font-medium font-inter"> or read the </span>
+          <span className="text-gray-400 text-sm"> or read the </span>
           <span 
-            className="text-gray-900 text-sm font-medium font-inter cursor-pointer hover:underline"
+            className="text-gray-900 text-sm cursor-pointer hover:underline"
             onClick={() => window.electronAPI.openExternal('https://docs.keyboard.dev')}
           >
             docs
           </span>
-          <span className="text-gray-400 text-sm font-medium font-inter">.</span>
         </div>
       </div>
     </div>
