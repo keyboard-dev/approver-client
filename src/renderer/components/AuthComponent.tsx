@@ -23,6 +23,7 @@ const AuthComponent: React.FC<AuthComponentProps> = ({
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showAuthDetails, setShowAuthDetails] = useState(false)
+  const [isGitHubConnected, setIsGitHubConnected] = useState(false)
 
   const handleAuthSuccess = (
     _event: Electron.CrossProcessExports.IpcRendererEvent | null,
@@ -37,6 +38,7 @@ const AuthComponent: React.FC<AuthComponentProps> = ({
   // Load initial auth status
   useEffect(() => {
     loadAuthStatus()
+    loadOnboardingGitHubStatus()
 
     // Listen for auth events
     // const handleAuthSuccess = (event: any, data: AuthStatus) => {
@@ -68,6 +70,11 @@ const AuthComponent: React.FC<AuthComponentProps> = ({
       window.electronAPI.removeAllListeners('auth-logout')
     }
   }, [onAuthChange])
+
+  const loadOnboardingGitHubStatus = async () => {
+    const connected = await window.electronAPI.checkOnboardingGithubToken()
+    setIsGitHubConnected(connected)
+  }
 
   const loadAuthStatus = async () => {
     try {
