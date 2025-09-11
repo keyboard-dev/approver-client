@@ -84,20 +84,17 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
           </div>
         </div>
 
-        {/* Next Button */}
-        <div className="flex justify-center">
-          <button
-            onClick={onComplete}
-            disabled={!isGitHubConnected}
-            className={`px-8 py-2 rounded-md text-sm font-medium transition-colors ${
-              isGitHubConnected
-                ? 'bg-gray-100 hover:bg-gray-200 text-gray-700 cursor-pointer'
-                : 'bg-gray-50 text-gray-400 cursor-not-allowed'
-            }`}
-          >
-            {isGitHubConnected ? 'Next' : 'Connect GitHub to continue'}
-          </button>
-        </div>
+        {/* Next Button - Only show when GitHub is connected */}
+        {isGitHubConnected && (
+          <div className="flex justify-center">
+            <button
+              onClick={onComplete}
+              className="px-8 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm font-medium transition-colors cursor-pointer"
+            >
+              Next
+            </button>
+          </div>
+        )}
 
         {/* Footer */}
         <div className="text-center text-xs text-gray-500">
