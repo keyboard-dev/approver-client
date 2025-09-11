@@ -17,10 +17,6 @@ import { ButtonDesigned } from '../ui/ButtonDesigned'
 
 interface ApprovalScreenProps {
   message: Message
-  // todo reflect status of websocket and user authentication
-  // user is authenticated
-  // websocket started
-  systemStatus: string
   onApprove: () => void
   onBack: () => void
   onReject: () => void

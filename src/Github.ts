@@ -109,7 +109,7 @@ export class GithubService {
     this.initializeToken()
   }
 
-  private initializeToken(): void {
+  initializeToken(): void {
     try {
       const tokenData = this.readToken()
       if (tokenData) {

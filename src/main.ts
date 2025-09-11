@@ -338,7 +338,7 @@ class MenuBarNotificationApp {
   }
 
   private async initializeGithubService(): Promise<void> {
-    this.githubService = new GithubService()
+    this.githubService = await new GithubService()
   }
 
   /**
@@ -953,6 +953,7 @@ class MenuBarNotificationApp {
       await this.perProviderTokenStorage.storeTokens(tokens)
       if (provider === 'onboarding') {
         await this.perProviderTokenStorage.saveOnboardingTokens(tokens)
+        await this.githubService.initializeToken()
         await this.githubService.createFork('keyboard-dev', 'codespace-executor')
         await this.githubService.createFork('keyboard-dev', 'app-creator')
       }
