@@ -8,7 +8,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import iconGearUrl from '../../assets/icon-gear.svg'
 import { Textarea } from '../components/ui/textarea'
 import { ElectronAPI } from '../preload'
-import { Message, ShareMessage } from '../types'
+import { CollectionRequest, Message, ShareMessage } from '../types'
 import './App.css'
 import AuthComponent from './components/AuthComponent'
 import { ApprovalScreen } from './components/screens/ApprovalPanel'
@@ -44,7 +44,6 @@ const AppContent: React.FC = () => {
   } = useAuth()
 
   const [messages, setMessages] = useState<Message[]>([])
-  const [shareMessages, setShareMessages] = useState<ShareMessage[]>([])
   const [currentMessage, setCurrentMessage] = useState<Message | null>(null)
   const [currentShareMessage, setCurrentShareMessage] = useState<ShareMessage | null>(null)
   const [feedback, setFeedback] = useState('')
@@ -119,7 +118,6 @@ const AppContent: React.FC = () => {
     if (!isAuthenticated) {
       // If user logged out, clear messages for security
       setMessages([])
-      setShareMessages([])
       setCurrentMessage(null)
       setCurrentShareMessage(null)
       setFeedback('')
@@ -154,12 +152,8 @@ const AppContent: React.FC = () => {
     }
 
     try {
-      const [loadedMessages, loadedShareMessages] = await Promise.all([
-        window.electronAPI.getMessages(),
-        window.electronAPI.getShareMessages(),
-      ])
+      const loadedMessages = await window.electronAPI.getMessages()
       setMessages(loadedMessages)
-      setShareMessages(loadedShareMessages)
     }
     catch (error) {
       console.error('Error refreshing messages:', error)
@@ -211,13 +205,7 @@ const AppContent: React.FC = () => {
       }
 
       setCurrentShareMessage(shareMessage)
-      setShareMessages((prev) => {
-        const existing = prev.find(m => m.id === shareMessage.id)
-        if (existing) {
-          return prev.map(m => m.id === shareMessage.id ? shareMessage : m)
-        }
-        return [shareMessage, ...prev]
-      })
+      // Share message stored in currentShareMessage state
       updateConnectionStatus('connected')
     }
 
@@ -310,7 +298,7 @@ const AppContent: React.FC = () => {
   }
 
   // Approve collection share
-  const approveCollectionShare = async (messageId: string, updatedRequest: any) => {
+  const approveCollectionShare = async (messageId: string, updatedRequest: CollectionRequest) => {
     if (!authStatusRef.current.authenticated) return
 
     try {
@@ -345,17 +333,6 @@ const AppContent: React.FC = () => {
     setShowFeedback(false)
     setShowSettings(false)
     refreshMessages() // Refresh to show updated status without loading state
-  }
-
-  // Clear all non-pending messages
-  const clearNonPendingMessages = () => {
-    // Filter out messages that are not pending
-    const pendingMessages = messages.filter(msg => msg.status === 'pending' || !msg.status)
-    const pendingShareMessages = shareMessages.filter(msg => msg.status === 'pending' || !msg.status)
-
-    // Update the state with only pending messages
-    setMessages(pendingMessages)
-    setShareMessages(pendingShareMessages)
   }
 
   const toggleSettings = () => {

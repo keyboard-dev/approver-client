@@ -62,6 +62,30 @@ interface AuthUser {
   profile_picture?: string
 }
 
+// Types for auto-updater info
+interface UpdateInfo {
+  version?: string
+  files?: unknown[]
+  path?: string
+  sha512?: string
+  releaseDate?: string
+}
+
+// Types for onboarding GitHub provider response
+interface OnboardingGitHubResponse {
+  session_id: string
+  authorization_url: string
+  state: string
+}
+
+// Types for WebSocket message with collection request
+interface WebSocketMessage {
+  type: string
+  id?: string
+  data?: CollectionRequest
+  requestId?: string
+}
+
 class MenuBarNotificationApp {
   private trayManager: TrayManager
   private windowManager: WindowManager
@@ -234,7 +258,7 @@ class MenuBarNotificationApp {
           console.log('Checking for update...')
         })
 
-        autoUpdater.on('update-available', (info: any) => {
+        autoUpdater.on('update-available', (info: UpdateInfo) => {
           console.log('Update available:', info)
           // notify user
         })
@@ -870,7 +894,7 @@ class MenuBarNotificationApp {
     const provider = 'onboarding'
 
     const response = await fetch(`https://api.keyboard.dev/auth/keyboard_github/onboarding`)
-    const data: any = await response.json()
+    const data = await response.json() as OnboardingGitHubResponse
     const sessionId = data.session_id
     const authUrl = data.authorization_url
     const state = data.state
@@ -1418,7 +1442,7 @@ class MenuBarNotificationApp {
     })
   }
 
-  private handleCollectionShareRequest(message: any): void {
+  private handleCollectionShareRequest(message: WebSocketMessage): void {
     const collectionRequest = message.data as CollectionRequest
     // Create a share message for the request
     const shareMessage: ShareMessage = {
@@ -1714,7 +1738,7 @@ class MenuBarNotificationApp {
       await this.startServerProviderOAuthFlow(serverId, provider)
     })
 
-    ipcMain.handle('fetch-onboarding-github-provider', async (event): Promise<void> => {
+    ipcMain.handle('fetch-onboarding-github-provider', async (): Promise<void> => {
       await this.fetchOnboardingGithubProvider()
     })
 

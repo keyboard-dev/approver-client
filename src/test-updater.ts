@@ -20,7 +20,7 @@ export class TestUpdater {
       version: '0.0.2',
       releaseDate: new Date().toISOString(),
       releaseName: 'Test Release v0.0.2',
-      releaseNotes: 'This is a test update for development mode'
+      releaseNotes: 'This is a test update for development mode',
     }
 
     console.log('🧪 TEST MODE: Simulating update available', fakeUpdateInfo)
@@ -38,7 +38,7 @@ export class TestUpdater {
         bytesPerSecond: 1024 * 1024 * 2, // 2 MB/s
         percent: progress,
         transferred: (progress / 100) * 50 * 1024 * 1024, // 50MB total
-        total: 50 * 1024 * 1024
+        total: 50 * 1024 * 1024,
       }
 
       console.log(`🧪 TEST MODE: Download progress ${progress}%`)
@@ -62,7 +62,7 @@ export class TestUpdater {
       version: '0.0.2',
       releaseDate: new Date().toISOString(),
       releaseName: 'Test Release v0.0.2',
-      releaseNotes: 'Update has been downloaded and is ready to install'
+      releaseNotes: 'Update has been downloaded and is ready to install',
     }
 
     console.log('🧪 TEST MODE: Simulating update downloaded', fakeUpdateInfo)

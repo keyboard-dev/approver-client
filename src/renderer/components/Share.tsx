@@ -6,13 +6,12 @@ import React, { useState } from 'react'
 import blueCheckIconUrl from '../../../assets/icon-check-blue.svg'
 import codeIconUrl from '../../../assets/icon-code.svg'
 import greyXIconUrl from '../../../assets/icon-x-grey.svg'
-import { CollectionRequest } from '../../types'
+import { CollectionRequest, TemplateVariableSchema } from '../../types'
 interface ShareProps {
   request: CollectionRequest
   onApprove: (updatedRequest: CollectionRequest) => void
   onReject: () => void
   onBack: () => void
-  onOptionClick: () => void
 }
 
 export const Share: React.FC<ShareProps> = ({
@@ -20,7 +19,6 @@ export const Share: React.FC<ShareProps> = ({
   onApprove,
   onReject,
   onBack,
-  onOptionClick,
 }) => {
   const [formData, setFormData] = useState<CollectionRequest>(request)
   const [activeTab, setActiveTab] = useState<'details' | 'code' | 'schema'>('details')
@@ -45,7 +43,7 @@ export const Share: React.FC<ShareProps> = ({
     monacoInstance.editor.defineTheme('lazy', lazyTheme as monaco.editor.IStandaloneThemeData)
   }
 
-  const handleInputChange = (field: keyof CollectionRequest, value: any) => {
+  const handleInputChange = (field: keyof CollectionRequest, value: string | boolean | string[] | Record<string, TemplateVariableSchema>) => {
     setFormData(prev => ({ ...prev, [field]: value }))
   }
 

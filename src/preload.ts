@@ -101,6 +101,20 @@ export interface ProviderStatus {
   updatedAt?: number
 }
 
+export interface UpdateInfo {
+  version: string
+  releaseDate?: string
+  releaseName?: string
+  releaseNotes?: string
+}
+
+export interface ProgressInfo {
+  bytesPerSecond: number
+  percent: number
+  transferred: number
+  total: number
+}
+
 export interface ElectronAPI {
   getMessages: () => Promise<Message[]>
   getShareMessages: () => Promise<ShareMessage[]>
@@ -177,6 +191,18 @@ export interface ElectronAPI {
   getAutomaticResponseApproval: () => Promise<boolean>
   // Assets path
   getAssetsPath: () => Promise<string>
+
+  // Auto-updater methods
+  onUpdateAvailable: (callback: (event: IpcRendererEvent, updateInfo: UpdateInfo) => void) => void
+  onDownloadProgress: (callback: (event: IpcRendererEvent, progressInfo: ProgressInfo) => void) => void
+  onUpdateDownloaded: (callback: (event: IpcRendererEvent, updateInfo: UpdateInfo) => void) => void
+  checkForUpdates: () => Promise<void>
+  downloadUpdate: () => Promise<void>
+  quitAndInstall: () => Promise<void>
+
+  // Test methods for development
+  testUpdateAvailable: () => Promise<void>
+  invoke: (channel: string, ...args: unknown[]) => Promise<unknown>
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -298,6 +324,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Assets path
   getAssetsPath: (): Promise<string> => ipcRenderer.invoke('get-assets-path'),
+
+  // Auto-updater methods
+  onUpdateAvailable: (callback: (event: IpcRendererEvent, updateInfo: UpdateInfo) => void): void => {
+    ipcRenderer.on('update-available', callback)
+  },
+  onDownloadProgress: (callback: (event: IpcRendererEvent, progressInfo: ProgressInfo) => void): void => {
+    ipcRenderer.on('download-progress', callback)
+  },
+  onUpdateDownloaded: (callback: (event: IpcRendererEvent, updateInfo: UpdateInfo) => void): void => {
+    ipcRenderer.on('update-downloaded', callback)
+  },
+  checkForUpdates: (): Promise<void> => ipcRenderer.invoke('check-for-updates'),
+  downloadUpdate: (): Promise<void> => ipcRenderer.invoke('download-update'),
+  quitAndInstall: (): Promise<void> => ipcRenderer.invoke('quit-and-install'),
+
+  // Test methods for development
+  testUpdateAvailable: (): Promise<void> => ipcRenderer.invoke('test-update-available'),
+  invoke: (channel: string, ...args: unknown[]): Promise<unknown> => ipcRenderer.invoke(channel, ...args),
 } as ElectronAPI)
 
 // Extend the global Window interface
