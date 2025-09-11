@@ -19,7 +19,7 @@ export class GithubService {
     this.initializeToken()
   }
 
-  private initializeToken(): void {
+  initializeToken(): void {
     try {
       const tokenData = this.readToken()
       if (tokenData) {
@@ -83,7 +83,7 @@ export class GithubService {
 
   // Repository Operations
 
-  async createFork(owner: string, repo: string): Promise<any> {
+  async createFork(owner: string, repo: string, options = {}): Promise<any> {
     try {
       // First, get the authenticated user
       const user = await this.getCurrentUser()

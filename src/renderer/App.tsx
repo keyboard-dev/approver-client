@@ -18,6 +18,7 @@ import ServerProviderManager from './components/ServerProviderManager'
 import WebSocketKeyManager from './components/WebSocketKeyManager'
 import { ApprovalScreen } from './components/screens/ApprovalScreen'
 import GitHubOAuthButton from './components/GitHubOAuthButton'
+import OnboardingView from './components/OnboardingView'
 import { Badge } from './components/ui/badge'
 import { Button } from './components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card'
@@ -54,11 +55,26 @@ const App: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false)
   const [isSkippingAuth, setIsSkippingAuth] = useState(false)
   const [isFontLoaded, setIsFontLoaded] = useState(false)
+  const [isGitHubConnected, setIsGitHubConnected] = useState(false)
+  const [isCheckingGitHub, setIsCheckingGitHub] = useState(true)
 
   // Use refs to track state without causing re-renders
   const authStatusRef = useRef<AuthStatus>({ authenticated: false })
   const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Check GitHub connection status
+  const checkGitHubConnection = useCallback(async () => {
+    try {
+      const connected = await window.electronAPI.checkOnboardingGithubToken()
+      setIsGitHubConnected(connected)
+    } catch (error) {
+      console.error('Failed to check GitHub connection:', error)
+      setIsGitHubConnected(false)
+    } finally {
+      setIsCheckingGitHub(false)
+    }
+  }, [])
 
   // Font loading effect
   useEffect(() => {
@@ -77,6 +93,13 @@ const App: React.FC = () => {
 
     checkFontLoaded()
   }, [])
+
+  // Check GitHub connection on mount and when auth status changes
+  useEffect(() => {
+    if (authStatus.authenticated || isSkippingAuth) {
+      checkGitHubConnection()
+    }
+  }, [authStatus.authenticated, isSkippingAuth, checkGitHubConnection])
 
   // useEffect(() => {
   //   if (currentMessage) {
@@ -635,8 +658,25 @@ const App: React.FC = () => {
             setIsSkippingAuth={setIsSkippingAuth}
           />
 
-          {/* Only show main content if authenticated */}
-          {(authStatus.authenticated || isSkippingAuth) && (
+          {/* Show loading while checking GitHub connection */}
+          {(authStatus.authenticated || isSkippingAuth) && isCheckingGitHub && (
+            <div className="flex items-center justify-center min-h-screen">
+              <Card className="p-6">
+                <CardContent className="flex items-center space-x-4">
+                  <Clock className="h-6 w-6 text-gray-400 animate-pulse" />
+                  <p className="text-gray-600">Checking GitHub connection...</p>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Show onboarding if authenticated but GitHub not connected */}
+          {(authStatus.authenticated || isSkippingAuth) && !isCheckingGitHub && !isGitHubConnected && (
+            <OnboardingView onComplete={checkGitHubConnection} />
+          )}
+
+          {/* Only show main content if authenticated and GitHub connected */}
+          {(authStatus.authenticated || isSkippingAuth) && isGitHubConnected && (
             <div className="content-fade-in">
               {currentMessage
                 ? (

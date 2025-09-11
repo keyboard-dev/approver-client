@@ -12,9 +12,10 @@ import {
 
 interface GitHubOAuthButtonProps {
   className?: string
+  isConnected?: boolean
 }
 
-export const GitHubOAuthButton: React.FC<GitHubOAuthButtonProps> = ({ className }) => {
+export const GitHubOAuthButton: React.FC<GitHubOAuthButtonProps> = ({ className, isConnected: isConnectedProp }) => {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isConnected, setIsConnected] = useState(false)
@@ -30,29 +31,34 @@ export const GitHubOAuthButton: React.FC<GitHubOAuthButtonProps> = ({ className 
   }
 
   useEffect(() => {
-    // Check status on mount
-    checkConnectionStatus()
+    // If prop is provided, use it
+    if (isConnectedProp !== undefined) {
+      setIsConnected(isConnectedProp)
+    } else {
+      // Otherwise check status on mount
+      checkConnectionStatus()
 
-    // Set up intersection observer for visibility detection
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) {
-          checkConnectionStatus()
-        }
-      },
-      { threshold: 0.1 }
-    )
+      // Set up intersection observer for visibility detection
+      const observer = new IntersectionObserver(
+        (entries) => {
+          if (entries[0].isIntersecting) {
+            checkConnectionStatus()
+          }
+        },
+        { threshold: 0.1 }
+      )
 
-    if (buttonRef.current) {
-      observer.observe(buttonRef.current)
-    }
-
-    return () => {
       if (buttonRef.current) {
-        observer.unobserve(buttonRef.current)
+        observer.observe(buttonRef.current)
+      }
+
+      return () => {
+        if (buttonRef.current) {
+          observer.unobserve(buttonRef.current)
+        }
       }
     }
-  }, [])
+  }, [isConnectedProp])
 
   const handleGitHubOAuth = async () => {
     setIsLoading(true)
