@@ -713,7 +713,14 @@ export class OAuthProviderManager {
     accessToken?: string,
   ): Promise<ProviderTokens> {
     await this.ensureLoaded()
-    const server = this.serverProviders.get(serverId)
+    let server = this.serverProviders.get(serverId)
+    if (provider === 'onboarding') {
+      server = {
+        id: serverId,
+        name: 'Onboarding',
+        url: 'https://api.keyboard.dev',
+      }
+    }
     if (!server) {
       throw new Error(`Server provider ${serverId} not found`)
     }
@@ -743,6 +750,8 @@ export class OAuthProviderManager {
         headers,
         body: JSON.stringify(body),
       })
+
+      console.log('response', response)
 
       if (!response.ok) {
         const errorText = await response.text()

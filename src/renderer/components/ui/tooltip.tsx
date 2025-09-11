@@ -1,74 +1,28 @@
-import React, { useState } from 'react'
-import informationIconUrl from '../../../../assets/icon-information.svg'
+import * as TooltipPrimitive from '@radix-ui/react-tooltip'
+import * as React from 'react'
+
 import { cn } from '../../lib/utils'
 
-export const Tooltip: React.FC<{
-  children?: React.ReactNode
-  className?: string
-  position?: 'top' | 'bottom' | 'left' | 'right' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
-  tooltipClassName?: string
-  tooltipText: string | React.ReactNode
-}> = ({
-  children,
-  className,
-  position = 'bottom',
-  tooltipText,
-  tooltipClassName,
-}) => {
-  const [isTooltipVisible, setIsTooltipVisible] = useState(false)
+const TooltipProvider = TooltipPrimitive.Provider
 
-  const getTooltipStylePositionClasses = () => {
-    switch (position) {
-      case 'top':
-        return 'bottom-full left-1/2 -translate-x-1/2 mb-2'
-      case 'bottom':
-        return 'top-full left-1/2 -translate-x-1/2 mt-2'
-      case 'left':
-        return 'right-full top-1/2 -translate-y-1/2 mr-2'
-      case 'right':
-        return 'left-full top-1/2 -translate-y-1/2 ml-2'
-      case 'top-left':
-        return 'bottom-full right-0 mb-2'
-      case 'top-right':
-        return 'bottom-full left-0 mb-2'
-      case 'bottom-left':
-        return 'top-full right-0 mt-2'
-      case 'bottom-right':
-        return 'top-full left-0 mt-2'
-      default:
-        return 'top-full left-1/2 -translate-x-1/2 mt-2'
-    }
-  }
+const Tooltip = TooltipPrimitive.Root
 
-  return (
-    <div
-      className={cn(
-        'relative w-[1rem] h-[1rem] p-[0.13rem] text-[#737373]',
-        className,
-      )}
-      onMouseEnter={() => setIsTooltipVisible(true)}
-      onMouseLeave={() => setIsTooltipVisible(false)}
-      onClick={() => setIsTooltipVisible(!isTooltipVisible)}
-    >
-      {children || (
-        <img
-          src={informationIconUrl}
-          alt="Information"
-          className="w-full h-full"
-        />
-      )}
+const TooltipTrigger = TooltipPrimitive.Trigger
 
-      {isTooltipVisible && (
-        <div
-          className={cn(
-            'absolute bg-[#FFF] border border-[#E5E5E5] rounded-[0.38rem] p-[0.63rem] text-[#171717] z-10',
-            getTooltipStylePositionClasses(),
-            tooltipClassName,
-          )}
-        >
-          {tooltipText}
-        </div>
-      )}
-    </div>
-  )
-}
+const TooltipContent = React.forwardRef<
+  React.ElementRef<typeof TooltipPrimitive.Content>,
+  React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>
+>(({ className, sideOffset = 4, ...props }, ref) => (
+  <TooltipPrimitive.Content
+    ref={ref}
+    sideOffset={sideOffset}
+    className={cn(
+      'z-50 overflow-hidden rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 origin-[--radix-tooltip-content-transform-origin]',
+      className,
+    )}
+    {...props}
+  />
+))
+TooltipContent.displayName = TooltipPrimitive.Content.displayName
+
+export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger }

@@ -6,7 +6,7 @@ import copyIconUrl from '../../../../../../assets/icon-copy.svg'
 import { OAuthProviderConfig } from '../../../../../provider-storage'
 import { ButtonDesigned } from '../../../ui/ButtonDesigned'
 import { Popup } from '../../../ui/Popup'
-import { Tooltip } from '../../../ui/tooltip'
+import { TooltipDesigned } from '../../../ui/TooltipDesigned'
 
 interface ProviderTemplate {
   name: string
@@ -177,7 +177,7 @@ export const AddConnectorPopup: React.FC<ManualProviderFormProps> = ({
               className="text-[#000] flex gap-[0.25rem] items-center"
             >
               Client secret (optional for PKCE flows)
-              <Tooltip
+              <TooltipDesigned
                 position="bottom"
                 tooltipText="PKCE (Proof Key for Code Exchange) is a security method that doesn’t require storing a client secret."
                 tooltipClassName="w-[15.75rem]"

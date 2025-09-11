@@ -8,11 +8,12 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import iconGearUrl from '../../assets/icon-gear.svg'
 import { Textarea } from '../components/ui/textarea'
 import { ElectronAPI } from '../preload'
-import { Message } from '../types'
+import { Message, ShareMessage } from '../types'
 import './App.css'
 import AuthComponent from './components/AuthComponent'
 import { ApprovalScreen } from './components/screens/ApprovalPanel'
 import { SettingsScreen } from './components/screens/settings/SettingsScreen'
+import { Share } from './components/Share'
 import { Badge } from './components/ui/badge'
 import { Button } from './components/ui/button'
 import { ButtonDesigned } from './components/ui/ButtonDesigned'
@@ -43,7 +44,9 @@ const AppContent: React.FC = () => {
   } = useAuth()
 
   const [messages, setMessages] = useState<Message[]>([])
+  const [shareMessages, setShareMessages] = useState<ShareMessage[]>([])
   const [currentMessage, setCurrentMessage] = useState<Message | null>(null)
+  const [currentShareMessage, setCurrentShareMessage] = useState<ShareMessage | null>(null)
   const [feedback, setFeedback] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [showFeedback, setShowFeedback] = useState(false)
@@ -116,7 +119,9 @@ const AppContent: React.FC = () => {
     if (!isAuthenticated) {
       // If user logged out, clear messages for security
       setMessages([])
+      setShareMessages([])
       setCurrentMessage(null)
+      setCurrentShareMessage(null)
       setFeedback('')
       setShowFeedback(false)
       setIsInitialized(false)
@@ -149,8 +154,12 @@ const AppContent: React.FC = () => {
     }
 
     try {
-      const loadedMessages = await window.electronAPI.getMessages()
+      const [loadedMessages, loadedShareMessages] = await Promise.all([
+        window.electronAPI.getMessages(),
+        window.electronAPI.getShareMessages(),
+      ])
       setMessages(loadedMessages)
+      setShareMessages(loadedShareMessages)
     }
     catch (error) {
       console.error('Error refreshing messages:', error)
@@ -194,6 +203,29 @@ const AppContent: React.FC = () => {
       updateConnectionStatus('connected')
     }
 
+    // Listen for collection share requests
+    const handleCollectionShareRequest = (_event: unknown, shareMessage: ShareMessage) => {
+      // Only handle messages if authenticated
+      if (!authStatusRef.current.authenticated) {
+        return
+      }
+
+      setCurrentShareMessage(shareMessage)
+      setShareMessages((prev) => {
+        const existing = prev.find(m => m.id === shareMessage.id)
+        if (existing) {
+          return prev.map(m => m.id === shareMessage.id ? shareMessage : m)
+        }
+        return [shareMessage, ...prev]
+      })
+      updateConnectionStatus('connected')
+    }
+
+    // Listen for show share message
+    const handleShowShareMessage = (_event: unknown, shareMessage: ShareMessage) => {
+      setCurrentShareMessage(shareMessage)
+    }
+
     // Listen for connection status changes
     const handleConnectionStatusChange = (_event: unknown, status: 'connected' | 'disconnected' | 'connecting') => {
       updateConnectionStatus(status)
@@ -201,6 +233,8 @@ const AppContent: React.FC = () => {
 
     window.electronAPI.onShowMessage(handleShowMessage)
     window.electronAPI.onWebSocketMessage(handleWebSocketMessage)
+    window.electronAPI.onCollectionShareRequest(handleCollectionShareRequest)
+    window.electronAPI.onShowShareMessage(handleShowShareMessage)
 
     // Listen for connection status if available
     if ('onConnectionStatusChange' in window.electronAPI) {
@@ -211,6 +245,8 @@ const AppContent: React.FC = () => {
     return () => {
       window.electronAPI.removeAllListeners('show-message')
       window.electronAPI.removeAllListeners('websocket-message')
+      window.electronAPI.removeAllListeners('collection-share-request')
+      window.electronAPI.removeAllListeners('show-share-message')
 
       if (window.electronAPI.removeAllListeners) {
         window.electronAPI.removeAllListeners('connection-status-change')
@@ -273,13 +309,53 @@ const AppContent: React.FC = () => {
     setShowFeedback(false)
   }
 
+  // Approve collection share
+  const approveCollectionShare = async (messageId: string, updatedRequest: any) => {
+    if (!authStatusRef.current.authenticated) return
+
+    try {
+      await window.electronAPI.approveCollectionShare(messageId, updatedRequest)
+      setCurrentShareMessage(null)
+      refreshMessages() // Refresh to show updated status
+    }
+    catch (error) {
+      console.error('Error approving collection share:', error)
+    }
+  }
+
+  // Reject collection share
+  const rejectCollectionShare = async (messageId: string) => {
+    if (!authStatusRef.current.authenticated) return
+
+    try {
+      await window.electronAPI.rejectCollectionShare(messageId)
+      setCurrentShareMessage(null)
+      refreshMessages() // Refresh to show updated status
+    }
+    catch (error) {
+      console.error('Error rejecting collection share:', error)
+    }
+  }
+
   // Go back to message list
   const showMessageList = () => {
     setCurrentMessage(null)
+    setCurrentShareMessage(null)
     setFeedback('')
     setShowFeedback(false)
     setShowSettings(false)
     refreshMessages() // Refresh to show updated status without loading state
+  }
+
+  // Clear all non-pending messages
+  const clearNonPendingMessages = () => {
+    // Filter out messages that are not pending
+    const pendingMessages = messages.filter(msg => msg.status === 'pending' || !msg.status)
+    const pendingShareMessages = shareMessages.filter(msg => msg.status === 'pending' || !msg.status)
+
+    // Update the state with only pending messages
+    setMessages(pendingMessages)
+    setShareMessages(pendingShareMessages)
   }
 
   const toggleSettings = () => {
@@ -433,6 +509,18 @@ const AppContent: React.FC = () => {
   }, [])
 
   const getMessageScreen = () => {
+    if (currentShareMessage) {
+      return (
+        <Share
+          request={currentShareMessage.collectionRequest}
+          onApprove={updatedRequest => approveCollectionShare(currentShareMessage.id, updatedRequest)}
+          onReject={() => rejectCollectionShare(currentShareMessage.id)}
+          onBack={showMessageList}
+          onOptionClick={toggleSettings}
+        />
+      )
+    }
+
     switch (currentMessage?.title) {
       case 'Security Evaluation Request':
         return (
@@ -459,7 +547,7 @@ const AppContent: React.FC = () => {
                 <div className="content-fade-in">
                   {currentMessage
                     ? (
-                  // Message Detail View
+                      // Message Detail View
                         <Card className="w-full">
                           <CardHeader>
                             <div className="flex items-center justify-between">
@@ -469,10 +557,9 @@ const AppContent: React.FC = () => {
                               <div className="flex items-center space-x-3">
                                 <Badge
                                   variant={connectionStatus === 'connected' ? 'default' : 'destructive'}
-                                  className={`connection-status-badge flex items-center space-x-2 px-3 py-2 ${
-                                    connectionStatus === 'connected'
-                                      ? 'bg-green-100 text-green-800 border-green-200 hover:bg-green-100'
-                                      : 'bg-red-100 text-red-800 border-red-200 hover:bg-red-100'
+                                  className={`connection-status-badge flex items-center space-x-2 px-3 py-2 ${connectionStatus === 'connected'
+                                    ? 'bg-green-100 text-green-800 border-green-200 hover:bg-green-100'
+                                    : 'bg-red-100 text-red-800 border-red-200 hover:bg-red-100'
                                   }`}
                                 >
                                   {connectionStatus === 'connected'
@@ -594,7 +681,7 @@ const AppContent: React.FC = () => {
                         </Card>
                       )
                     : (
-                  // Message List View
+                      // Message List View
                         <div className="space-y-4">
                           <div className="flex items-center justify-between">
                             <h1 className="text-3xl font-bold">

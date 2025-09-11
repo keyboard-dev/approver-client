@@ -1,0 +1,9 @@
+version: 0.0.2
+files:
+  - url: https://github.com/keyboard-dev/approver-client/releases/download/v0.0.2/keyboard-approver.App-darwin-universal-0.0.2.zip
+    sha512: UPDATE_WITH_ACTUAL_SHA512
+    size: UPDATE_WITH_ACTUAL_SIZE
+path: keyboard-approver.App-darwin-universal-0.0.2.zip
+sha512: UPDATE_WITH_ACTUAL_SHA512
+releaseDate: '2024-08-22T00:00:00.000Z'
+EOF < /dev/null

@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron'
 import { ServerProviderInfo } from './oauth-providers'
 import { OAuthProviderConfig } from './provider-storage'
-import { Message } from './types'
+import { CollectionRequest, Message, ShareMessage } from './types'
 
 export interface AuthStatus {
   authenticated: boolean
@@ -103,14 +103,21 @@ export interface ProviderStatus {
 
 export interface ElectronAPI {
   getMessages: () => Promise<Message[]>
+  getShareMessages: () => Promise<ShareMessage[]>
   markMessageRead: (messageId: string) => Promise<void>
   deleteMessage: (messageId: string) => Promise<void>
   approveMessage: (message: Message, feedback?: string) => Promise<void>
   rejectMessage: (messageId: string, feedback?: string) => Promise<void>
+  approveCollectionShare: (messageId: string, updatedRequest: CollectionRequest) => Promise<void>
+  rejectCollectionShare: (messageId: string) => Promise<void>
   showMessages: () => void
   onShowMessage: (callback: (event: IpcRendererEvent, message: Message) => void) => void
   onWebSocketMessage: (callback: (event: IpcRendererEvent, message: Message) => void) => void
+  onCollectionShareRequest: (callback: (event: IpcRendererEvent, shareMessage: ShareMessage) => void) => void
+  onShowShareMessage: (callback: (event: IpcRendererEvent, shareMessage: ShareMessage) => void) => void
   removeAllListeners: (channel: string) => void
+  // Open external links
+  openExternal: (url: string) => Promise<void>
   // Legacy OAuth
   startOAuth: () => Promise<void>
   getAuthStatus: () => Promise<AuthStatus>
@@ -143,6 +150,9 @@ export interface ElectronAPI {
   getServerProviders: () => Promise<ServerProvider[]>
   fetchServerProviders: (serverId: string) => Promise<ServerProviderInfo[]>
   startServerProviderOAuth: (serverId: string, provider: string) => Promise<void>
+  fetchOnboardingGithubProvider: () => Promise<void>
+  checkOnboardingGithubToken: () => Promise<boolean>
+  clearOnboardingGithubToken: () => Promise<void>
   // WebSocket key management
   getWSConnectionKey: () => Promise<string | null>
   getWSConnectionUrl: () => Promise<string>
@@ -156,8 +166,7 @@ export interface ElectronAPI {
   onEncryptionKeyGenerated: (callback: (event: IpcRendererEvent, data: { key: string, createdAt: number, source: 'environment' | 'generated' | null }) => void) => void
   // External URL handling
   openExternalUrl: (url: string) => Promise<void>
-  // OS Notifications
-  showOSNotification: (title: string, body: string) => Promise<void>
+
   // Settings management
   getSettings: () => Promise<{ showNotifications: boolean, automaticCodeApproval: 'never' | 'low' | 'medium' | 'high', automaticResponseApproval: boolean, settingsFile: string, updatedAt: number | null }>
   setShowNotifications: (show: boolean) => Promise<void>
@@ -174,10 +183,13 @@ export interface ElectronAPI {
 // the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld('electronAPI', {
   getMessages: (): Promise<Message[]> => ipcRenderer.invoke('get-messages'),
+  getShareMessages: (): Promise<ShareMessage[]> => ipcRenderer.invoke('get-share-messages'),
   markMessageRead: (messageId: string): Promise<void> => ipcRenderer.invoke('mark-message-read', messageId),
   deleteMessage: (messageId: string): Promise<void> => ipcRenderer.invoke('delete-message', messageId),
   approveMessage: (message: Message, feedback?: string): Promise<void> => ipcRenderer.invoke('approve-message', message, feedback),
   rejectMessage: (messageId: string, feedback?: string): Promise<void> => ipcRenderer.invoke('reject-message', messageId, feedback),
+  approveCollectionShare: (messageId: string, updatedRequest: CollectionRequest): Promise<void> => ipcRenderer.invoke('approve-collection-share', messageId, updatedRequest),
+  rejectCollectionShare: (messageId: string): Promise<void> => ipcRenderer.invoke('reject-collection-share', messageId),
   showMessages: (): void => ipcRenderer.send('show-messages'),
 
   // Listen for messages from main process
@@ -187,9 +199,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onWebSocketMessage: (callback: (event: IpcRendererEvent, message: Message) => void): void => {
     ipcRenderer.on('websocket-message', callback)
   },
+  onCollectionShareRequest: (callback: (event: IpcRendererEvent, shareMessage: ShareMessage) => void): void => {
+    ipcRenderer.on('collection-share-request', callback)
+  },
+  onShowShareMessage: (callback: (event: IpcRendererEvent, shareMessage: ShareMessage) => void): void => {
+    ipcRenderer.on('show-share-message', callback)
+  },
   removeAllListeners: (channel: string): void => {
     ipcRenderer.removeAllListeners(channel)
   },
+
+  // Open external links
+  openExternal: (url: string): Promise<void> => ipcRenderer.invoke('open-external', url),
 
   // Legacy OAuth functions
   startOAuth: (): Promise<void> => ipcRenderer.invoke('start-oauth'),
@@ -242,6 +263,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getServerProviders: (): Promise<ServerProvider[]> => ipcRenderer.invoke('get-server-providers'),
   fetchServerProviders: (serverId: string): Promise<ServerProviderInfo[]> => ipcRenderer.invoke('fetch-server-providers', serverId),
   startServerProviderOAuth: (serverId: string, provider: string): Promise<void> => ipcRenderer.invoke('start-server-provider-oauth', serverId, provider),
+  fetchOnboardingGithubProvider: (): Promise<void> => ipcRenderer.invoke('fetch-onboarding-github-provider'),
+  checkOnboardingGithubToken: (): Promise<boolean> => ipcRenderer.invoke('check-onboarding-github-token'),
+  clearOnboardingGithubToken: (): Promise<void> => ipcRenderer.invoke('clear-onboarding-github-token'),
 
   // WebSocket key management
   getWSConnectionKey: (): Promise<string | null> => ipcRenderer.invoke('get-ws-connection-key'),
@@ -262,9 +286,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // External URL handling
   openExternalUrl: (url: string): Promise<void> => ipcRenderer.invoke('open-external-url', url),
-
-  // OS Notifications
-  showOSNotification: (title: string, body: string): Promise<void> => ipcRenderer.invoke('show-os-notification', title, body),
 
   // Settings management
   getSettings: (): Promise<{ showNotifications: boolean, automaticCodeApproval: 'never' | 'low' | 'medium' | 'high', automaticResponseApproval: boolean, settingsFile: string, updatedAt: number | null }> => ipcRenderer.invoke('get-settings'),

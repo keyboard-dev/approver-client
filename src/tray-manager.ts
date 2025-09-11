@@ -37,6 +37,7 @@ export interface TrayManagerOptions {
   onShowWindow: () => void
   onClearAllMessages: () => void
   onQuit: () => void
+  onCheckForUpdates: () => void
   getMessages: () => Message[]
   getPendingCount: () => number
 }
@@ -287,6 +288,11 @@ export class TrayManager {
         label: 'Clear All',
         click: () => this.options.onClearAllMessages(),
         enabled: messages.length > 0,
+      },
+      { type: 'separator' },
+      {
+        label: 'Check for Updates...',
+        click: () => this.options.onCheckForUpdates(),
       },
       { type: 'separator' },
       {
