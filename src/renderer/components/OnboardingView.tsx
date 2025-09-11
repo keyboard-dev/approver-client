@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { Check } from 'lucide-react'
 import GitHubOAuthButton from './GitHubOAuthButton'
 
@@ -7,6 +7,40 @@ interface OnboardingViewProps {
 }
 
 export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) => {
+  const [isGitHubConnected, setIsGitHubConnected] = useState(false)
+
+  useEffect(() => {
+    const checkGitHubConnection = async () => {
+      const connected = await window.electronAPI.checkOnboardingGithubToken()
+      setIsGitHubConnected(connected)
+    }
+
+    checkGitHubConnection()
+    
+    // Set up interval to check periodically
+    const interval = setInterval(checkGitHubConnection, 1000)
+
+    // Listen for provider auth success specifically for onboarding
+    const handleProviderAuthSuccess = (_event: any, data: any) => {
+      if (data.providerId === 'onboarding') {
+        // Immediately check GitHub connection when onboarding OAuth completes
+        checkGitHubConnection()
+      }
+    }
+
+    // Add event listener
+    if (window.electronAPI.onProviderAuthSuccess) {
+      window.electronAPI.onProviderAuthSuccess(handleProviderAuthSuccess)
+    }
+
+    return () => {
+      clearInterval(interval)
+      // Clean up event listener
+      if (window.electronAPI.removeAllListeners) {
+        window.electronAPI.removeAllListeners('provider-auth-success')
+      }
+    }
+  }, [])
   return (
     <div className="flex items-center justify-center min-h-screen p-6 bg-white">
       <div className="max-w-md w-full space-y-8">
@@ -22,7 +56,7 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
 
         {/* Connect Button */}
         <div className="flex justify-center">
-          <GitHubOAuthButton />
+          <GitHubOAuthButton isConnected={isGitHubConnected} />
         </div>
 
         {/* Permissions List */}
@@ -54,9 +88,14 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
         <div className="flex justify-center">
           <button
             onClick={onComplete}
-            className="px-8 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm font-medium transition-colors"
+            disabled={!isGitHubConnected}
+            className={`px-8 py-2 rounded-md text-sm font-medium transition-colors ${
+              isGitHubConnected
+                ? 'bg-gray-100 hover:bg-gray-200 text-gray-700 cursor-pointer'
+                : 'bg-gray-50 text-gray-400 cursor-not-allowed'
+            }`}
           >
-            Next
+            {isGitHubConnected ? 'Next' : 'Connect GitHub to continue'}
           </button>
         </div>
 
