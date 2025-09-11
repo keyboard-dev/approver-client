@@ -7,7 +7,8 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 
 import iconGearUrl from '../../assets/icon-gear.svg'
 import { Textarea } from '../components/ui/textarea'
-import { Message } from '../types'
+import { ElectronAPI } from '../preload'
+import { CollectionRequest, Message, ShareMessage } from '../types'
 import './App.css'
 import AuthComponent from './components/AuthComponent'
 import GitHubOAuthButton from './components/GitHubOAuthButton'
@@ -38,38 +39,31 @@ const getEditorOptions = (): monaco.editor.IStandaloneEditorConstructionOptions 
 })
 
 const AppContent: React.FC = () => {
-  // All auth-related state and logic centralized in useAuth hook
+  // Auth state from useAuth hook (clean separation)
   const {
+    authStatusRef,
     authStatus,
     isAuthenticated,
     isSkippingAuth,
-    isLoading,
-    isGitHubConnected,
-    isCheckingGitHub,
-    checkGitHubConnection,
-    messages,
-    shareMessages,
-    currentMessage,
-    currentShareMessage,
-    refreshMessages,
-    clearNonPendingMessages,
-    connectionStatus,
-    approveMessage: approveMessageFromAuth,
-    rejectMessage: rejectMessageFromAuth,
-    showMessageDetail,
-    approveCollectionShare,
-    rejectCollectionShare,
-    setCurrentMessage,
-    setCurrentShareMessage,
   } = useAuth()
 
-  // Local UI state (not auth-related)
+  // Message and app state (moved back from auth hook)
+  const [messages, setMessages] = useState<Message[]>([])
+  const [shareMessages, setShareMessages] = useState<ShareMessage[]>([])
+  const [currentMessage, setCurrentMessage] = useState<Message | null>(null)
+  const [currentShareMessage, setCurrentShareMessage] = useState<ShareMessage | null>(null)
   const [feedback, setFeedback] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
   const [showFeedback, setShowFeedback] = useState(false)
+  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'connecting'>('disconnected')
+  const [isInitialized, setIsInitialized] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [isFontLoaded, setIsFontLoaded] = useState(false)
+  const [isGitHubConnected, setIsGitHubConnected] = useState(false)
+  const [isCheckingGitHub, setIsCheckingGitHub] = useState(true)
 
-  // Refs for non-auth related debouncing
+  // Use refs to track state without causing re-renders
+  const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Font loading effect
@@ -98,46 +92,290 @@ const AppContent: React.FC = () => {
     }
   }, [])
 
-  // Handle UI-specific state changes when auth changes
+  // Check GitHub connection status
+  const checkGitHubConnection = useCallback(async () => {
+    try {
+      const connected = await window.electronAPI.checkOnboardingGithubToken()
+      setIsGitHubConnected(connected)
+    }
+    catch (error) {
+      console.error('Failed to check GitHub connection:', error)
+      setIsGitHubConnected(false)
+    }
+    finally {
+      setIsCheckingGitHub(false)
+    }
+  }, [])
+
+  // Check GitHub connection on mount and when auth status changes
+  useEffect(() => {
+    if (authStatus.authenticated || isSkippingAuth) {
+      checkGitHubConnection()
+    }
+  }, [authStatus.authenticated, isSkippingAuth, checkGitHubConnection])
+
+  // Debounced connection status update
+  const updateConnectionStatus = useCallback((status: 'connected' | 'disconnected' | 'connecting') => {
+    if (connectionTimeoutRef.current) {
+      clearTimeout(connectionTimeoutRef.current)
+    }
+
+    connectionTimeoutRef.current = setTimeout(() => {
+      setConnectionStatus(status)
+    }, 100) // Small debounce to prevent rapid flickering
+  }, [])
+
+  // Debounced loading state update
+  const updateLoadingState = useCallback((loading: boolean) => {
+    if (loadingTimeoutRef.current) {
+      clearTimeout(loadingTimeoutRef.current)
+    }
+
+    if (loading) {
+      // Show loading immediately
+      setIsLoading(true)
+    }
+    else {
+      // Delay hiding loading to prevent flicker
+      loadingTimeoutRef.current = setTimeout(() => {
+        setIsLoading(false)
+      }, 200)
+    }
+  }, [])
+
+  // Refresh messages without showing loading state for better UX
+  const refreshMessages = useCallback(async () => {
+    if (!authStatusRef.current.authenticated) {
+      return
+    }
+
+    try {
+      const [loadedMessages, loadedShareMessages] = await Promise.all([
+        window.electronAPI.getMessages(),
+        window.electronAPI.getShareMessages(),
+      ])
+      setMessages(loadedMessages)
+      setShareMessages(loadedShareMessages)
+    }
+    catch (error) {
+      console.error('Error refreshing messages:', error)
+    }
+  }, [authStatusRef])
+
+  // Clear non-pending messages
+  const clearNonPendingMessages = useCallback(async () => {
+    try {
+      const nonPendingMessages = messages.filter(m => m.status !== 'pending' && m.status)
+      for (const message of nonPendingMessages) {
+        await window.electronAPI.deleteMessage(message.id)
+      }
+      refreshMessages()
+    }
+    catch (error) {
+      console.error('Error clearing messages:', error)
+    }
+  }, [messages, refreshMessages])
+
+  // Handle authentication state changes with message/UI management
   useEffect(() => {
     if (!isAuthenticated) {
-      // Clear UI state on logout
+      // If user logged out, clear messages for security
+      setMessages([])
+      setShareMessages([])
+      setCurrentMessage(null)
+      setCurrentShareMessage(null)
       setFeedback('')
       setShowFeedback(false)
+      setIsInitialized(false)
     }
-  }, [isAuthenticated])
+    else if (!isInitialized && isAuthenticated) {
+      setIsInitialized(true)
 
-  // Clean up loading timeout on unmount
+      const loadInitialMessages = async () => {
+        updateLoadingState(true)
+        try {
+          const [loadedMessages, loadedShareMessages] = await Promise.all([
+            window.electronAPI.getMessages(),
+            window.electronAPI.getShareMessages(),
+          ])
+          setMessages(loadedMessages)
+          setShareMessages(loadedShareMessages)
+        }
+        catch (error) {
+          console.error('Error loading messages:', error)
+        }
+        finally {
+          updateLoadingState(false)
+        }
+      }
+
+      loadInitialMessages()
+    }
+  }, [isAuthenticated, isInitialized, updateLoadingState])
+
+  // Initialize event listeners only once
   useEffect(() => {
+    // Listen for regular messages from main process
+    const handleShowMessage = (_event: unknown, message: Message) => {
+      // Only handle messages if authenticated
+      if (!authStatusRef.current.authenticated) {
+        return
+      }
+
+      setCurrentMessage(message)
+      setMessages((prev) => {
+        const existing = prev.find(m => m.id === message.id)
+        if (existing) {
+          return prev.map(m => m.id === message.id ? message : m)
+        }
+        return [message, ...prev]
+      })
+    }
+
+    // Listen for websocket messages
+    const handleWebSocketMessage = (_event: unknown, message: Message) => {
+      // Only handle messages if authenticated
+      if (!authStatusRef.current.authenticated) {
+        return
+      }
+
+      setCurrentMessage(message)
+      setMessages((prev) => {
+        const existing = prev.find(m => m.id === message.id)
+        if (existing) {
+          return prev.map(m => m.id === message.id ? message : m)
+        }
+        return [message, ...prev]
+      })
+      updateConnectionStatus('connected')
+    }
+
+    // Listen for collection share requests
+    const handleCollectionShareRequest = (_event: unknown, shareMessage: ShareMessage) => {
+      // Only handle messages if authenticated
+      if (!authStatusRef.current.authenticated) {
+        return
+      }
+
+      setCurrentShareMessage(shareMessage)
+      // Share message stored in currentShareMessage state
+      updateConnectionStatus('connected')
+    }
+
+    // Listen for show share message
+    const handleShowShareMessage = (_event: unknown, shareMessage: ShareMessage) => {
+      setCurrentShareMessage(shareMessage)
+    }
+
+    // Listen for connection status changes
+    const handleConnectionStatusChange = (_event: unknown, status: 'connected' | 'disconnected' | 'connecting') => {
+      updateConnectionStatus(status)
+    }
+
+    window.electronAPI.onShowMessage(handleShowMessage)
+    window.electronAPI.onWebSocketMessage(handleWebSocketMessage)
+    window.electronAPI.onCollectionShareRequest(handleCollectionShareRequest)
+    window.electronAPI.onShowShareMessage(handleShowShareMessage)
+
+    // Listen for connection status if available
+    if ('onConnectionStatusChange' in window.electronAPI) {
+      (window.electronAPI as ElectronAPI & { onConnectionStatusChange?: (handler: typeof handleConnectionStatusChange) => void }).onConnectionStatusChange?.(handleConnectionStatusChange)
+    }
+
+    // Cleanup listeners on unmount
     return () => {
+      window.electronAPI.removeAllListeners('show-message')
+      window.electronAPI.removeAllListeners('websocket-message')
+      window.electronAPI.removeAllListeners('collection-share-request')
+      window.electronAPI.removeAllListeners('show-share-message')
+
+      if (window.electronAPI.removeAllListeners) {
+        window.electronAPI.removeAllListeners('connection-status-change')
+      }
+
+      // Clean up timeouts
+      if (connectionTimeoutRef.current) {
+        clearTimeout(connectionTimeoutRef.current)
+      }
       if (loadingTimeoutRef.current) {
         clearTimeout(loadingTimeoutRef.current)
       }
     }
-  }, [])
+  }, [updateConnectionStatus, authStatusRef]) // Only depend on the stable callbacks
 
-  // Local wrappers for message actions that handle local UI state
+  // Approve message
   const approveMessage = async () => {
-    if (!currentMessage) return
+    if (!currentMessage || !authStatusRef.current.authenticated) return
 
-    await approveMessageFromAuth(currentMessage, showFeedback ? feedback : undefined)
-    setFeedback('')
-    setShowFeedback(false)
+    try {
+      await window.electronAPI.approveMessage(currentMessage, showFeedback ? feedback : undefined)
+
+      currentMessage.status = 'approved'
+
+      refreshMessages()
+
+      setFeedback('')
+      setShowFeedback(false)
+    }
+    catch (error) {
+      console.error('Error approving message:', error)
+    }
   }
 
+  // Reject message
   const rejectMessage = async () => {
-    if (!currentMessage) return
+    if (!currentMessage || !authStatusRef.current.authenticated) return
 
-    await rejectMessageFromAuth(currentMessage.id, showFeedback ? feedback : undefined)
-    setFeedback('')
-    setShowFeedback(false)
+    try {
+      await window.electronAPI.rejectMessage(currentMessage.id, showFeedback ? feedback : undefined)
+
+      currentMessage.status = 'rejected'
+
+      refreshMessages()
+
+      setFeedback('')
+      setShowFeedback(false)
+    }
+    catch (error) {
+      console.error('Error rejecting message:', error)
+    }
   }
 
-  // Enhanced showMessageDetail that also handles feedback
-  const handleShowMessageDetail = (message: Message) => {
-    showMessageDetail(message)
+  // Show message detail
+  const showMessageDetail = (message: Message) => {
+    if (!authStatusRef.current.authenticated) return
+
+    setCurrentMessage(message)
     setFeedback(message.feedback || '')
     setShowFeedback(false)
+  }
+
+  // Approve collection share
+  const approveCollectionShare = async (messageId: string, updatedRequest: CollectionRequest) => {
+    if (!authStatusRef.current.authenticated) return
+
+    try {
+      await window.electronAPI.approveCollectionShare(messageId, updatedRequest)
+      setCurrentShareMessage(null)
+      refreshMessages() // Refresh to show updated status
+    }
+    catch (error) {
+      console.error('Error approving collection share:', error)
+    }
+  }
+
+  // Reject collection share
+  const rejectCollectionShare = async (messageId: string) => {
+    if (!authStatusRef.current.authenticated) return
+
+    try {
+      await window.electronAPI.rejectCollectionShare(messageId)
+      setCurrentShareMessage(null)
+      refreshMessages() // Refresh to show updated status
+    }
+    catch (error) {
+      console.error('Error rejecting collection share:', error)
+    }
   }
 
   // Go back to message list
@@ -576,7 +814,7 @@ const AppContent: React.FC = () => {
                                   <Card
                                     key={message.id}
                                     className="cursor-pointer hover:shadow-md transition-shadow"
-                                    onClick={() => handleShowMessageDetail(message)}
+                                    onClick={() => showMessageDetail(message)}
                                   >
                                     <CardContent className="p-4">
                                       <div className="flex items-center justify-between mb-2">
