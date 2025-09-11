@@ -1,12 +1,22 @@
 import React, { useState } from 'react'
 import { Check } from 'lucide-react'
 import { ProgressIndicator } from './ProgressIndicator'
+import { Widget } from '@typeform/embed-react'
 interface PersonaProps {
-  onNext: () => void
+  onComplete: () => void
 }
 
-export const Persona: React.FC<PersonaProps> = ({ onNext }) => {
+export const Persona: React.FC<PersonaProps> = ({ onComplete }) => {
   const [selectedPersona, setSelectedPersona] = useState<string>('')
+
+  const handleComplete = async () => {
+    try {
+      await window.electronAPI.markOnboardingCompleted()
+      onComplete()
+    } catch (error) {
+      console.error('Error completing onboarding:', error)
+    }
+  }
 
   const personas = [
     {
@@ -50,47 +60,25 @@ export const Persona: React.FC<PersonaProps> = ({ onNext }) => {
         </div>
 
         {/* Persona Selection */}
-        <div className="space-y-3">
-          {personas.map((persona) => (
-            <div
-              key={persona.id}
-              className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                selectedPersona === persona.id
-                  ? 'border-gray-400 bg-gray-50'
-                  : 'border-gray-200 hover:border-gray-300'
-              }`}
-              onClick={() => setSelectedPersona(persona.id)}
-            >
-              <div className="flex items-start space-x-3">
-                <div className={`w-4 h-4 rounded-full border-2 mt-1 ${
-                  selectedPersona === persona.id
-                    ? 'border-gray-600 bg-gray-600'
-                    : 'border-gray-300'
-                }`}>
-                  {selectedPersona === persona.id && (
-                    <Check className="h-3 w-3 text-white" />
-                  )}
-                </div>
-                <div>
-                  <h3 className="text-sm font-medium text-gray-900">{persona.title}</h3>
-                  <p className="text-sm text-gray-600 mt-1">{persona.description}</p>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+        <Widget id="qKw2fNDB" style={{ width: '100%', height: '45em' }} className="my-form" />
 
         {/* Next Button */}
-        {selectedPersona && (
-          <div className="flex justify-center">
+          {/* <div className="flex justify-center">
             <button
               onClick={onNext}
               className="px-8 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm font-medium transition-colors cursor-pointer"
             >
               Next
             </button>
-          </div>
-        )}
+          </div> */}
+        <div className="flex justify-center">
+          <button
+            onClick={handleComplete}
+            className="px-8 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm font-medium transition-colors cursor-pointer"
+          >
+            Complete Setup
+          </button>
+        </div>
 
         {/* Footer */}
         <div className="w-full max-w-md text-center">

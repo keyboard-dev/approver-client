@@ -3,7 +3,6 @@ import { Check } from 'lucide-react'
 import GitHubOAuthButton from './GitHubOAuthButton'
 import McpSetup from './McpSetup'
 import Persona from './Persona'
-import ConnectApps from './ConnectApps'
 import { ProgressIndicator } from './ProgressIndicator'
 
 interface OnboardingViewProps {
@@ -114,9 +113,6 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
       case 'mcp-setup':
         setCurrentStep('persona')
         break
-      case 'persona':
-        setCurrentStep('connect-apps')
-        break
       default:
         break
     }
@@ -143,12 +139,10 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
   }
 
   if (currentStep === 'persona') {
-    return <Persona onNext={handleNextStep} />
+    return <Persona onComplete={handleCompleteOnboarding} />
   }
 
-  if (currentStep === 'connect-apps') {
-    return <ConnectApps onComplete={handleCompleteOnboarding} />
-  }
+ 
 
   // Default: GitHub connection step
   return (
