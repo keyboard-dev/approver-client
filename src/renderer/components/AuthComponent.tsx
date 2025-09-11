@@ -146,7 +146,7 @@ const AuthComponent: React.FC<AuthComponentProps> = ({
     return (
       <Card className="w-full mb-4">
         <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
+          <div className="flex items-start justify-between">
             <CardTitle className="text-lg flex items-center space-x-2">
               <Shield className="h-5 w-5 text-green-600" />
               {isSkippingAuth ? 'Skipping Authentication' : 'Authenticated'}

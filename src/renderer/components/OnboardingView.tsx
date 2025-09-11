@@ -42,7 +42,7 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
     }
   }, [])
   return (
-    <div className="flex items-center justify-center min-h-screen p-6 bg-white">
+    <div className="flex items-start start justify-center min-h-screen w-full p-6 bg-white">
       <div className="max-w-md w-full space-y-8">
         {/* Header */}
         <div className="text-center space-y-2">
@@ -97,17 +97,23 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
         )}
 
         {/* Footer */}
-        <div className="text-center text-xs text-gray-500">
-          Need help?{' '}
-          <a href="#" className="text-blue-600 hover:underline">
-            Contact us
-          </a>{' '}
-          or read the{' '}
-          <a href="#" className="text-blue-600 hover:underline">
-            docs
-          </a>
-          .
-        </div>
+        <div className="w-full max-w-md text-center">
+              <span className="text-gray-400 text-sm font-medium font-inter">Need help? </span>
+              <span 
+                className="text-gray-900 text-sm font-medium font-inter cursor-pointer hover:underline"
+                onClick={() => window.electronAPI.openExternal('https://discord.com/invite/UxsRWtV6M2')}
+              >
+                Ask in our Discord
+              </span>
+              <span className="text-gray-400 text-sm font-medium font-inter"> or read the </span>
+              <span 
+                className="text-gray-900 text-sm font-medium font-inter cursor-pointer hover:underline"
+                onClick={() => window.electronAPI.openExternal('https://docs.keyboard.dev')}
+              >
+                docs
+              </span>
+              <span className="text-gray-400 text-sm font-medium font-inter">.</span>
+      </div>
       </div>
     </div>
   )
