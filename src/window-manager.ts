@@ -19,7 +19,7 @@ export class WindowManager {
     this.mainWindow = new BrowserWindow({
       width: 600, // Larger for reading code
       height: 800, // Taller for explanations
-      show: false, // Don't show/focus the window when created
+      // show: false, // Don't show/focus the window when created
       transparent: true,
       frame: false,
       webPreferences: {
@@ -36,15 +36,15 @@ export class WindowManager {
     this.mainWindow.loadFile(path.join(__dirname, '../public/index.html'))
 
     // Hide window when it loses focus
-    this.mainWindow.on('blur', () => {
-      if (this.mainWindow?.isVisible()) {
-        setTimeout(() => {
-          if (this.mainWindow?.isVisible() && !this.mainWindow?.isFocused()) {
-            this.mainWindow.hide()
-          }
-        }, 100)
-      }
-    })
+    // this.mainWindow.on('blur', () => {
+    //   if (this.mainWindow?.isVisible()) {
+    //     setTimeout(() => {
+    //       if (this.mainWindow?.isVisible() && !this.mainWindow?.isFocused()) {
+    //         this.mainWindow.hide()
+    //       }
+    //     }, 100)
+    //   }
+    // })
 
     this.mainWindow.on('closed', () => {
       this.mainWindow = null
@@ -84,7 +84,7 @@ export class WindowManager {
 
     this.mainWindow.setVisibleOnAllWorkspaces(true)
 
-    this.mainWindow.showInactive() // Show without focusing
+    // this.mainWindow.showInactive() // Show without focusing
     // this.mainWindow.show();
     // this.mainWindow.focus();
   }
