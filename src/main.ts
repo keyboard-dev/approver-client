@@ -2000,10 +2000,7 @@ class MenuBarNotificationApp {
     // Send response back through WebSocket if needed
     this.sendWebSocketResponse(existingMessage)
 
-    // Open external links
-    ipcMain.handle('open-external', async (event, url: string): Promise<void> => {
-      await shell.openExternal(url)
-    })
+    
   }
 
   private sendWebSocketResponse(message: Message): void {
