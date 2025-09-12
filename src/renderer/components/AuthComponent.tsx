@@ -7,6 +7,8 @@ import { User, LogOut, Shield, AlertCircle, CheckCircle, ChevronRight } from 'lu
 import { AuthStatus, AuthError } from '../../preload'
 import { SKIP_AUTH_USER_EMAIL, SKIP_AUTH_USER_FIRST_NAME, SKIP_AUTH_USER_ID, SKIP_AUTH_USER_LAST_NAME } from '../../lib/constants/auth.constants'
 import keyboardLogo from '../assets/keyboard-logo.png'
+import advancedSettingsImg from '../assets/advanced-settings.png'
+import installExtensionImg from '../assets/install-extension.png'
 
 interface AuthComponentProps {
   isSkippingAuth: boolean
@@ -214,6 +216,8 @@ const AuthComponent: React.FC<AuthComponentProps> = ({
             {/* Logo */}
             <div className="w-16 h-16  flex items-center justify-center">
             <img src={keyboardLogo} alt="Keyboard Logo" />
+            <img src={advancedSettingsImg} alt="Advanced Settings" />
+            <img src={installExtensionImg} alt="Install Extension" />
             </div>
             
 

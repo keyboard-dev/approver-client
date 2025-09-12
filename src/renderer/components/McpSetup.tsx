@@ -1,19 +1,23 @@
 import React from 'react'
 import { Download } from 'lucide-react'
 import { ProgressIndicator } from './ProgressIndicator'
+import { Footer } from './Footer'
+
 interface McpSetupProps {
   onNext: () => void
   onSkip?: () => void
 }
 
 export const McpSetup: React.FC<McpSetupProps> = ({ onNext, onSkip }) => {
+  const advancedSettingsImg = 'https://res.cloudinary.com/dt29hglkk/image/upload/v1757699431/advanced-settings_prlpa6.png'
+  const installExtensionImg = 'https://res.cloudinary.com/dt29hglkk/image/upload/v1757699537/install-extension_qbtjua.png'
   const handleDownload = () => {
     window.electronAPI.openExternal('https://github.com/keyboard-dev/keyboard-mcp/releases/latest')
   }
 
   return (
     <div className="flex items-start justify-center min-h-screen w-full p-6 bg-white">
-      <div className="max-w-md w-full space-y-6 bg-white rounded-lg p-8 shadow-sm">
+      <div style={{ height: '70vh', display: 'flex', flexDirection: 'column'}} className="max-w-md w-full space-y-6 bg-white rounded-lg p-8 shadow-sm">
         {/* Header */}
         <div className="text-center space-y-2">
           <h1 className="text-xl font-semibold text-gray-900">
@@ -33,8 +37,8 @@ export const McpSetup: React.FC<McpSetupProps> = ({ onNext, onSkip }) => {
         <div className="space-y-6">
           <div className="space-y-4">
             <div>
-              <span className="text-gray-900 font-medium">1. Download the </span>
-              <span className="text-blue-600 font-medium">keyboard-mcp.dxt</span>
+              <span className="text-gray-900 font-medium">Download the </span>
+              <span className="text-gray-900 font-medium">keyboard-mcp.dxt</span>
               <span className="text-gray-900 font-medium"> file</span>
             </div>
             
@@ -49,40 +53,61 @@ export const McpSetup: React.FC<McpSetupProps> = ({ onNext, onSkip }) => {
             </div>
           </div>
 
+          {/* Claude Desktop Setup */}
+          <div className="space-y-4">
+            <div className="text-gray-900 font-medium">For Claude Desktop:</div>
+            
+            <div className="space-y-3">
+              <div className="text-sm text-gray-700">
+                <span className="font-medium">Step 1:</span> Find the advanced settings
+              </div>
+              <div className="flex justify-center">
+                <img 
+                  src={advancedSettingsImg} 
+                  alt="Advanced Settings" 
+                  className="max-w-full h-auto rounded-lg border border-gray-200 shadow-sm"
+                />
+              </div>
+              
+              <div className="text-sm text-gray-700">
+                <span className="font-medium">Step 2:</span> Install the extension and upload the file
+              </div>
+              <div className="flex justify-center">
+                <img 
+                  src={installExtensionImg} 
+                  alt="Install Extension" 
+                  className="max-w-full h-auto rounded-lg border border-gray-200 shadow-sm"
+                />
+              </div>
+            </div>
+          </div>
+
           <div>
-            <span className="text-gray-900 font-medium">2. Install the file as an extension in your MCP client</span>
             <br />
-            <span className="text-gray-600 text-sm">(Claude, ChatGPT, etc)</span>
+            <div className='flex justify-center'>
+            <span className="text-gray-900 font-medium">For other MCP clients:</span>
+            <span
+                className="pl-2 text-blue-600 text-sm font-medium font-inter cursor-pointer hover:underline"
+                onClick={() => window.electronAPI.openExternal('https://docs.keyboard.dev/getting-started/other-mcp-clients')}
+            >
+                Follow this document
+            </span>
+            </div>
           </div>
         </div>
 
         {/* Action Buttons */}
-        <div className="flex justify-between pt-4">
+        <div className="flex justify-end pt-4">
           <button
             onClick={onNext}
-            className="px-6 py-2 bg-gray-900 hover:bg-gray-800 text-white rounded-md text-sm font-medium transition-colors cursor-pointer"
+            className="px-8 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm font-medium transition-colors cursor-pointer"
           >
             Next
           </button>
         </div>
 
         {/* Footer */}
-        <div className="text-center pt-4 border-t border-gray-100">
-          <span className="text-gray-400 text-sm">Need help? </span>
-          <span 
-            className="text-gray-900 text-sm cursor-pointer hover:underline"
-            onClick={() => window.electronAPI.openExternal('https://discord.com/invite/UxsRWtV6M2')}
-          >
-            Contact us
-          </span>
-          <span className="text-gray-400 text-sm"> or read the </span>
-          <span 
-            className="text-gray-900 text-sm cursor-pointer hover:underline"
-            onClick={() => window.electronAPI.openExternal('https://docs.keyboard.dev')}
-          >
-            docs
-          </span>
-        </div>
+        <Footer />
       </div>
     </div>
   )

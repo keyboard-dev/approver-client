@@ -4,7 +4,7 @@ import GitHubOAuthButton from './GitHubOAuthButton'
 import McpSetup from './McpSetup'
 import Persona from './Persona'
 import { ProgressIndicator } from './ProgressIndicator'
-
+import { Footer } from './Footer'
 interface OnboardingViewProps {
   onComplete?: () => void
 }
@@ -21,10 +21,10 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
     const initializeStep = async () => {
       const connected = await window.electronAPI.checkOnboardingGithubToken()
       const completed = await window.electronAPI.checkOnboardingCompleted()
-      
+
       setIsGitHubConnected(connected)
       setIsOnboardingCompleted(completed)
-      
+
       // Only set initial step, don't interfere with manual navigation
       if (!connected) {
         setCurrentStep('github')
@@ -43,12 +43,12 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
   // Check status periodically when on GitHub step
   useEffect(() => {
     let timeoutId: NodeJS.Timeout | null = null
-    
+
     const checkGitHubConnection = async () => {
       if (currentStep === 'github') {
         const connected = await window.electronAPI.checkOnboardingGithubToken()
         setIsGitHubConnected(connected)
-        
+
         // If connected, move to next step
         if (connected) {
           setCurrentStep('mcp-setup')
@@ -58,31 +58,31 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
         }
       }
     }
-    
+
     // Start checking if we're on GitHub step
     if (currentStep === 'github') {
       checkGitHubConnection()
     }
-    
+
     // Listen for provider auth success specifically for onboarding
     const handleProviderAuthSuccess = async (_event: any, data: any) => {
       if (data.providerId === 'onboarding') {
         // Check status when onboarding OAuth completes
         const connected = await window.electronAPI.checkOnboardingGithubToken()
         const completed = await window.electronAPI.checkOnboardingCompleted()
-        
+
         setIsGitHubConnected(connected)
         setIsOnboardingCompleted(completed)
-        
+
         // If onboarding is already completed, proceed to main app
         if (completed && connected) {
           onComplete?.()
           return
         }
-        if(!connected) {
+        if (!connected) {
           setCurrentStep('github')
         }
-        
+
         // If GitHub just got connected and we're on the github step, move to next step
         if (connected && currentStep === 'github') {
           setCurrentStep('mcp-setup')
@@ -100,7 +100,7 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
       if (timeoutId) {
         clearTimeout(timeoutId)
       }
-      
+
       // Clean up event listener
       if (window.electronAPI.removeAllListeners) {
         window.electronAPI.removeAllListeners('provider-auth-success')
@@ -142,12 +142,12 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
     return <Persona onComplete={handleCompleteOnboarding} />
   }
 
- 
+
 
   // Default: GitHub connection step
   return (
     <div className="flex items-start start justify-center min-h-screen w-full p-6 bg-white">
-      <div className="max-w-md w-full space-y-8">
+      <div style={{ height: '70vh', display: 'flex', flexDirection: 'column' }} className="max-w-md w-full space-y-8">
         {/* Header */}
         <div className="text-center space-y-2">
           <h1 className="text-2xl font-semibold text-gray-900">
@@ -208,23 +208,7 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
         )}
 
         {/* Footer */}
-        <div className="w-full max-w-md text-center">
-              <span className="text-gray-400 text-sm font-medium font-inter">Need help? </span>
-              <span 
-                className="text-gray-900 text-sm font-medium font-inter cursor-pointer hover:underline"
-                onClick={() => window.electronAPI.openExternal('https://discord.com/invite/UxsRWtV6M2')}
-              >
-                Ask in our Discord
-              </span>
-              <span className="text-gray-400 text-sm font-medium font-inter"> or read the </span>
-              <span 
-                className="text-gray-900 text-sm font-medium font-inter cursor-pointer hover:underline"
-                onClick={() => window.electronAPI.openExternal('https://docs.keyboard.dev')}
-              >
-                docs
-              </span>
-              <span className="text-gray-400 text-sm font-medium font-inter">.</span>
-      </div>
+        <Footer />
       </div>
     </div>
   )
