@@ -92,6 +92,8 @@ const AuthComponent: React.FC = () => {
             {/* Logo */}
             <div className="w-16 h-16  flex items-center justify-center">
               <img src={keyboardLogo} alt="Keyboard Logo" />
+              {/* <img src={advancedSettingsImg} alt="Advanced Settings" />
+              <img src={installExtensionImg} alt="Install Extension" /> */}
             </div>
 
             {/* Title */}

@@ -29,6 +29,11 @@ export default tseslint.config([
         version: 'detect',
       },
     },
+    rules: {
+      // Disable this rule since we're using the new JSX transform (React 17+)
+      // With "jsx": "react-jsx", React doesn't need to be imported explicitly
+      'react/react-in-jsx-scope': 'off',
+    },
   },
   {
     files: ['**/*.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],

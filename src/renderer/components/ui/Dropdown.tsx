@@ -1,5 +1,3 @@
-/* eslint-disable react/react-in-jsx-scope */
-
 import { useEffect, useRef, useState } from 'react'
 import downArrowIconUrl from '../../../../assets/icon-arrow-down.svg'
 import { cn } from '../../lib/utils'

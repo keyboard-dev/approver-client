@@ -167,6 +167,8 @@ export interface ElectronAPI {
   fetchOnboardingGithubProvider: () => Promise<void>
   checkOnboardingGithubToken: () => Promise<boolean>
   clearOnboardingGithubToken: () => Promise<void>
+  checkOnboardingCompleted: () => Promise<boolean>
+  markOnboardingCompleted: () => Promise<void>
   // WebSocket key management
   getWSConnectionKey: () => Promise<string | null>
   getWSConnectionUrl: () => Promise<string>
@@ -292,6 +294,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   fetchOnboardingGithubProvider: (): Promise<void> => ipcRenderer.invoke('fetch-onboarding-github-provider'),
   checkOnboardingGithubToken: (): Promise<boolean> => ipcRenderer.invoke('check-onboarding-github-token'),
   clearOnboardingGithubToken: (): Promise<void> => ipcRenderer.invoke('clear-onboarding-github-token'),
+  checkOnboardingCompleted: (): Promise<boolean> => ipcRenderer.invoke('check-onboarding-completed'),
+  markOnboardingCompleted: (): Promise<void> => ipcRenderer.invoke('mark-onboarding-completed'),
 
   // WebSocket key management
   getWSConnectionKey: (): Promise<string | null> => ipcRenderer.invoke('get-ws-connection-key'),

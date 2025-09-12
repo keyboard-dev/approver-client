@@ -1,32 +1,101 @@
 import { IpcRendererEvent } from 'electron'
 import { Check } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
-import { ProviderAuthEventData } from '../../preload'
+import { Footer } from './Footer'
 import GitHubOAuthButton from './GitHubOAuthButton'
+import McpSetup from './McpSetup'
+import Persona from './Persona'
+import { ProgressIndicator } from './ProgressIndicator'
 
 interface OnboardingViewProps {
   onComplete?: () => void
 }
 
+interface ProviderAuthEventData {
+  providerId: string
+}
+
+type OnboardingStep = 'github' | 'mcp-setup' | 'persona' | 'connect-apps'
+
 export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) => {
   const [isGitHubConnected, setIsGitHubConnected] = useState(false)
+  const [isOnboardingCompleted, setIsOnboardingCompleted] = useState(false)
+  const [currentStep, setCurrentStep] = useState<OnboardingStep>('github')
 
+  // Initial status check and step determination (only on mount)
   useEffect(() => {
-    const checkGitHubConnection = async () => {
+    const initializeStep = async () => {
       const connected = await window.electronAPI.checkOnboardingGithubToken()
+      const completed = await window.electronAPI.checkOnboardingCompleted()
+
       setIsGitHubConnected(connected)
+      setIsOnboardingCompleted(completed)
+
+      // Only set initial step, don't interfere with manual navigation
+      if (!connected) {
+        setCurrentStep('github')
+      }
+      else if (!completed) {
+        setCurrentStep('mcp-setup')
+      }
+      else {
+        // Onboarding is complete, proceed to main app
+        onComplete?.()
+        return
+      }
     }
 
-    checkGitHubConnection()
+    initializeStep()
+  }, [onComplete])
 
-    // Set up interval to check periodically
-    const interval = setInterval(checkGitHubConnection, 1000)
+  // Check status periodically when on GitHub step
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout | null = null
+
+    const checkGitHubConnection = async () => {
+      if (currentStep === 'github') {
+        const connected = await window.electronAPI.checkOnboardingGithubToken()
+        setIsGitHubConnected(connected)
+
+        // If connected, move to next step
+        if (connected) {
+          setCurrentStep('mcp-setup')
+        }
+        else {
+          // Check again in a few seconds if still on GitHub step
+          timeoutId = setTimeout(checkGitHubConnection, 2000)
+        }
+      }
+    }
+
+    // Start checking if we're on GitHub step
+    if (currentStep === 'github') {
+      checkGitHubConnection()
+    }
 
     // Listen for provider auth success specifically for onboarding
-    const handleProviderAuthSuccess = (_event: IpcRendererEvent, data: ProviderAuthEventData) => {
+    const handleProviderAuthSuccess = async (_event: IpcRendererEvent, data: ProviderAuthEventData) => {
       if (data.providerId === 'onboarding') {
-        // Immediately check GitHub connection when onboarding OAuth completes
-        checkGitHubConnection()
+        // Check status when onboarding OAuth completes
+        const connected = await window.electronAPI.checkOnboardingGithubToken()
+        const completed = await window.electronAPI.checkOnboardingCompleted()
+
+        setIsGitHubConnected(connected)
+        setIsOnboardingCompleted(completed)
+
+        // If onboarding is already completed, proceed to main app
+        if (completed && connected) {
+          onComplete?.()
+          return
+        }
+        if (!connected) {
+          setCurrentStep('github')
+        }
+
+        // If GitHub just got connected and we're on the github step, move to next step
+        if (connected && currentStep === 'github') {
+          setCurrentStep('mcp-setup')
+        }
       }
     }
 
@@ -36,16 +105,57 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
     }
 
     return () => {
-      clearInterval(interval)
+      // Clear timeout if exists
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+      }
+
       // Clean up event listener
       if (window.electronAPI.removeAllListeners) {
         window.electronAPI.removeAllListeners('provider-auth-success')
       }
     }
-  }, [])
+  }, [currentStep, onComplete])
+
+  const handleNextStep = () => {
+    switch (currentStep) {
+      case 'mcp-setup':
+        setCurrentStep('persona')
+        break
+      default:
+        break
+    }
+  }
+
+  const handleCompleteOnboarding = async () => {
+    try {
+      await window.electronAPI.markOnboardingCompleted()
+      setIsOnboardingCompleted(true)
+      onComplete?.()
+    }
+    catch (error) {
+      console.error('Error completing onboarding:', error)
+    }
+  }
+
+  // If onboarding is completed, don't render anything (let main app show)
+  if (isOnboardingCompleted && isGitHubConnected) {
+    return null
+  }
+
+  // Render different components based on current step
+  if (currentStep === 'mcp-setup') {
+    return <McpSetup onNext={handleNextStep} />
+  }
+
+  if (currentStep === 'persona') {
+    return <Persona onComplete={handleCompleteOnboarding} />
+  }
+
+  // Default: GitHub connection step
   return (
-    <div className="flex items-start justify-center min-h-screen w-full p-6 bg-white">
-      <div className="max-w-md w-full space-y-8">
+    <div className="flex items-start start justify-center min-h-screen w-full p-6 bg-white">
+      <div style={{ height: '70vh', display: 'flex', flexDirection: 'column' }} className="max-w-md w-full space-y-8">
         {/* Header */}
         <div className="text-center space-y-2">
           <h1 className="text-2xl font-semibold text-gray-900">
@@ -54,6 +164,11 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
           <p className="text-gray-600">
             Connect to GitHub to use all of Keyboard&apos;s features.
           </p>
+        </div>
+
+        {/* Progress indicator */}
+        <div className="flex justify-center space-x-2">
+          <ProgressIndicator progress={0} />
         </div>
 
         {/* Connect Button */}
@@ -90,7 +205,9 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
         {isGitHubConnected && (
           <div className="flex justify-center">
             <button
-              onClick={onComplete}
+              onClick={() => {
+                handleNextStep()
+              }}
               className="px-8 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm font-medium transition-colors cursor-pointer"
             >
               Next
@@ -99,23 +216,7 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
         )}
 
         {/* Footer */}
-        <div className="w-full max-w-md text-center">
-          <span className="text-gray-400 text-sm font-medium font-inter">Need help? </span>
-          <span
-            className="text-gray-900 text-sm font-medium font-inter cursor-pointer hover:underline"
-            onClick={() => window.electronAPI.openExternal('https://discord.com/invite/UxsRWtV6M2')}
-          >
-            Ask in our Discord
-          </span>
-          <span className="text-gray-400 text-sm font-medium font-inter"> or read the </span>
-          <span
-            className="text-gray-900 text-sm font-medium font-inter cursor-pointer hover:underline"
-            onClick={() => window.electronAPI.openExternal('https://docs.keyboard.dev')}
-          >
-            docs
-          </span>
-          <span className="text-gray-400 text-sm font-medium font-inter">.</span>
-        </div>
+        <Footer />
       </div>
     </div>
   )
