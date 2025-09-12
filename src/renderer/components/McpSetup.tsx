@@ -2,14 +2,15 @@ import React from 'react'
 import { Download } from 'lucide-react'
 import { ProgressIndicator } from './ProgressIndicator'
 import { Footer } from './Footer'
-import advancedSettingsImg from '../assets/advanced_settings.png'
-import installExtensionImg from '../assets/install_extension.png'
+
 interface McpSetupProps {
   onNext: () => void
   onSkip?: () => void
 }
 
 export const McpSetup: React.FC<McpSetupProps> = ({ onNext, onSkip }) => {
+  const advancedSettingsImg = 'https://res.cloudinary.com/dt29hglkk/image/upload/v1757699431/advanced-settings_prlpa6.png'
+  const installExtensionImg = 'https://res.cloudinary.com/dt29hglkk/image/upload/v1757699537/install-extension_qbtjua.png'
   const handleDownload = () => {
     window.electronAPI.openExternal('https://github.com/keyboard-dev/keyboard-mcp/releases/latest')
   }
@@ -36,8 +37,8 @@ export const McpSetup: React.FC<McpSetupProps> = ({ onNext, onSkip }) => {
         <div className="space-y-6">
           <div className="space-y-4">
             <div>
-              <span className="text-gray-900 font-medium">1. Download the </span>
-              <span className="text-blue-600 font-medium">keyboard-mcp.dxt</span>
+              <span className="text-gray-900 font-medium">Download the </span>
+              <span className="text-gray-900 font-medium">keyboard-mcp.dxt</span>
               <span className="text-gray-900 font-medium"> file</span>
             </div>
             
@@ -54,7 +55,7 @@ export const McpSetup: React.FC<McpSetupProps> = ({ onNext, onSkip }) => {
 
           {/* Claude Desktop Setup */}
           <div className="space-y-4">
-            <div className="text-gray-900 font-medium">2. For Claude Desktop:</div>
+            <div className="text-gray-900 font-medium">For Claude Desktop:</div>
             
             <div className="space-y-3">
               <div className="text-sm text-gray-700">
@@ -69,7 +70,7 @@ export const McpSetup: React.FC<McpSetupProps> = ({ onNext, onSkip }) => {
               </div>
               
               <div className="text-sm text-gray-700">
-                <span className="font-medium">Step 2:</span> Install the extension
+                <span className="font-medium">Step 2:</span> Install the extension and upload the file
               </div>
               <div className="flex justify-center">
                 <img 
@@ -82,9 +83,16 @@ export const McpSetup: React.FC<McpSetupProps> = ({ onNext, onSkip }) => {
           </div>
 
           <div>
-            <span className="text-gray-900 font-medium">3. Install the file as an extension in your MCP client</span>
             <br />
-            <span className="text-gray-600 text-sm">(Claude, ChatGPT, etc)</span>
+            <div className='flex justify-center'>
+            <span className="text-gray-900 font-medium">For other MCP clients:</span>
+            <span
+                className="pl-2 text-blue-600 text-sm font-medium font-inter cursor-pointer hover:underline"
+                onClick={() => window.electronAPI.openExternal('https://docs.keyboard.dev/getting-started/other-mcp-clients')}
+            >
+                Follow this document
+            </span>
+            </div>
           </div>
         </div>
 
