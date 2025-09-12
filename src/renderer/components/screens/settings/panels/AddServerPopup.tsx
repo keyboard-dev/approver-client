@@ -97,7 +97,7 @@ export const AddServerPopup: React.FC<ManualProviderFormProps> = ({
             className="grow shrink basis-0"
             variant="primary"
             onClick={() => onSave({ name, url })}
-            // disabled={isLoading}
+            disabled={!name || !url}
           >
             Connect
           </ButtonDesigned>

@@ -57,10 +57,6 @@ export const SharedConnectors: React.FC<ServerProviderManagerProps> = ({ classNa
   const [isLoading, setIsLoading] = useState<Record<string, boolean>>({})
   const [error, setError] = useState<string | null>(null)
   const [showAddForm, setShowAddForm] = useState(false)
-  const [newServer, setNewServer] = useState({
-    name: '',
-    url: '',
-  })
   const [showAddServerPopup, setShowAddServerPopup] = useState(false)
 
   useEffect(() => {
@@ -160,7 +156,13 @@ export const SharedConnectors: React.FC<ServerProviderManagerProps> = ({ classNa
     }
   }
 
-  const handleAddServer = async () => {
+  const handleAddServer = async ({
+    name,
+    url,
+  }: {
+    name: string
+    url: string
+  }) => {
     setIsLoading(prev => ({ ...prev, add: true }))
     setError(null)
 
@@ -169,8 +171,8 @@ export const SharedConnectors: React.FC<ServerProviderManagerProps> = ({ classNa
 
       const serverConfig = {
         id: serverId,
-        name: newServer.name,
-        url: newServer.url,
+        name,
+        url,
       }
 
       await window.electronAPI.addServerProvider(serverConfig)
@@ -179,10 +181,6 @@ export const SharedConnectors: React.FC<ServerProviderManagerProps> = ({ classNa
       // Fetch providers for the newly added server
       await fetchProvidersForServer(serverId)
       setShowAddForm(false)
-      setNewServer({
-        name: '',
-        url: '',
-      })
     }
     catch (error) {
       console.error('Failed to add server provider:', error)
@@ -190,6 +188,7 @@ export const SharedConnectors: React.FC<ServerProviderManagerProps> = ({ classNa
     }
     finally {
       setIsLoading(prev => ({ ...prev, add: false }))
+      setShowAddServerPopup(false)
     }
   }
 
@@ -277,13 +276,6 @@ export const SharedConnectors: React.FC<ServerProviderManagerProps> = ({ classNa
     finally {
       setIsLoading(prev => ({ ...prev, [loadingKey]: false }))
     }
-  }
-
-  const handleInputChange = (field: string, value: string) => {
-    setNewServer(prev => ({
-      ...prev,
-      [field]: value,
-    }))
   }
 
   const getScopesDisplay = (provider: ServerProviderInfo) => {
