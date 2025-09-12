@@ -1,6 +1,7 @@
 import React from 'react'
 import { Download } from 'lucide-react'
 import { ProgressIndicator } from './ProgressIndicator'
+import { Footer } from './Footer'
 interface McpSetupProps {
   onNext: () => void
   onSkip?: () => void
@@ -13,7 +14,7 @@ export const McpSetup: React.FC<McpSetupProps> = ({ onNext, onSkip }) => {
 
   return (
     <div className="flex items-start justify-center min-h-screen w-full p-6 bg-white">
-      <div className="max-w-md w-full space-y-6 bg-white rounded-lg p-8 shadow-sm">
+      <div style={{ height: '70vh', display: 'flex', flexDirection: 'column'}} className="max-w-md w-full space-y-6 bg-white rounded-lg p-8 shadow-sm">
         {/* Header */}
         <div className="text-center space-y-2">
           <h1 className="text-xl font-semibold text-gray-900">
@@ -57,32 +58,17 @@ export const McpSetup: React.FC<McpSetupProps> = ({ onNext, onSkip }) => {
         </div>
 
         {/* Action Buttons */}
-        <div className="flex justify-between pt-4">
+        <div className="flex justify-end pt-4">
           <button
             onClick={onNext}
-            className="px-6 py-2 bg-gray-900 hover:bg-gray-800 text-white rounded-md text-sm font-medium transition-colors cursor-pointer"
+            className="px-8 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm font-medium transition-colors cursor-pointer"
           >
             Next
           </button>
         </div>
 
         {/* Footer */}
-        <div className="text-center pt-4 border-t border-gray-100">
-          <span className="text-gray-400 text-sm">Need help? </span>
-          <span 
-            className="text-gray-900 text-sm cursor-pointer hover:underline"
-            onClick={() => window.electronAPI.openExternal('https://discord.com/invite/UxsRWtV6M2')}
-          >
-            Contact us
-          </span>
-          <span className="text-gray-400 text-sm"> or read the </span>
-          <span 
-            className="text-gray-900 text-sm cursor-pointer hover:underline"
-            onClick={() => window.electronAPI.openExternal('https://docs.keyboard.dev')}
-          >
-            docs
-          </span>
-        </div>
+        <Footer />
       </div>
     </div>
   )
