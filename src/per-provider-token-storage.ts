@@ -4,7 +4,6 @@ import * as path from 'path'
 import { decrypt, encrypt } from './encryption'
 import { ProviderTokens } from './oauth-providers'
 
-
 export interface UserInfo {
   id: string
   email: string
@@ -388,12 +387,13 @@ export class PerProviderTokenStorage {
       if (!fs.existsSync(this.ONBOARDING_KEY_FILE)) {
         return false
       }
-      
+
       const fileContent = fs.readFileSync(this.ONBOARDING_KEY_FILE, 'utf8')
       const tokens = JSON.parse(fileContent) as ProviderTokens
-      
+
       return !!(tokens && tokens.access_token)
-    } catch (error) {
+    }
+    catch (error) {
       console.error('Error checking onboarding token:', error)
       return false
     }
@@ -407,7 +407,8 @@ export class PerProviderTokenStorage {
       if (fs.existsSync(this.ONBOARDING_KEY_FILE)) {
         fs.unlinkSync(this.ONBOARDING_KEY_FILE)
       }
-    } catch (error) {
+    }
+    catch (error) {
       console.error('Error clearing onboarding token:', error)
       throw error
     }

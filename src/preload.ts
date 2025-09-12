@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron'
 import { ServerProviderInfo } from './oauth-providers'
+import { OAuthProviderConfig } from './provider-storage'
 import { CollectionRequest, Message, ShareMessage } from './types'
 
 export interface AuthStatus {
@@ -100,6 +101,20 @@ export interface ProviderStatus {
   updatedAt?: number
 }
 
+export interface UpdateInfo {
+  version: string
+  releaseDate?: string
+  releaseName?: string
+  releaseNotes?: string
+}
+
+export interface ProgressInfo {
+  bytesPerSecond: number
+  percent: number
+  transferred: number
+  total: number
+}
+
 export interface ElectronAPI {
   getMessages: () => Promise<Message[]>
   getShareMessages: () => Promise<ShareMessage[]>
@@ -139,10 +154,10 @@ export interface ElectronAPI {
   onProviderAuthError: (callback: (event: IpcRendererEvent, error: ProviderAuthErrorData) => void) => void
   onProviderAuthLogout: (callback: (event: IpcRendererEvent, data: ProviderAuthEventData) => void) => void
   // Manual Provider management
-  getAllProviderConfigs: () => Promise<ProviderConfig[]>
-  saveProviderConfig: (config: ProviderConfig) => Promise<void>
+  getAllProviderConfigs: () => Promise<OAuthProviderConfig[]>
+  saveProviderConfig: (config: Omit<OAuthProviderConfig, 'createdAt' | 'updatedAt'>) => Promise<void>
   removeProviderConfig: (providerId: string) => Promise<void>
-  getProviderConfig: (providerId: string) => Promise<ProviderConfig>
+  getProviderConfig: (providerId: string) => Promise<OAuthProviderConfig>
   // Server Provider management
   addServerProvider: (server: ServerProvider) => Promise<void>
   removeServerProvider: (serverId: string) => Promise<void>
@@ -162,9 +177,34 @@ export interface ElectronAPI {
   onWSKeyGenerated: (callback: (event: IpcRendererEvent, data: { key: string, createdAt: number }) => void) => void
   // Encryption key management
   getEncryptionKey: () => Promise<string | null>
-  regenerateEncryptionKey: () => Promise<{ key: string, createdAt: number, source: string }>
+  regenerateEncryptionKey: () => Promise<{ key: string, createdAt: number, source: 'environment' | 'generated' | null }>
   getEncryptionKeyInfo: () => Promise<{ key: string | null, createdAt: number | null, keyFile: string, source: 'environment' | 'generated' | null }>
-  onEncryptionKeyGenerated: (callback: (event: IpcRendererEvent, data: { key: string, createdAt: number, source: string }) => void) => void
+  onEncryptionKeyGenerated: (callback: (event: IpcRendererEvent, data: { key: string, createdAt: number, source: 'environment' | 'generated' | null }) => void) => void
+  // External URL handling
+  openExternalUrl: (url: string) => Promise<void>
+
+  // Settings management
+  getSettings: () => Promise<{ showNotifications: boolean, automaticCodeApproval: 'never' | 'low' | 'medium' | 'high', automaticResponseApproval: boolean, settingsFile: string, updatedAt: number | null }>
+  setShowNotifications: (show: boolean) => Promise<void>
+  getShowNotifications: () => Promise<boolean>
+  setAutomaticCodeApproval: (level: 'never' | 'low' | 'medium' | 'high') => Promise<void>
+  getAutomaticCodeApproval: () => Promise<'never' | 'low' | 'medium' | 'high'>
+  setAutomaticResponseApproval: (enabled: boolean) => Promise<void>
+  getAutomaticResponseApproval: () => Promise<boolean>
+  // Assets path
+  getAssetsPath: () => Promise<string>
+
+  // Auto-updater methods
+  onUpdateAvailable: (callback: (event: IpcRendererEvent, updateInfo: UpdateInfo) => void) => void
+  onDownloadProgress: (callback: (event: IpcRendererEvent, progressInfo: ProgressInfo) => void) => void
+  onUpdateDownloaded: (callback: (event: IpcRendererEvent, updateInfo: UpdateInfo) => void) => void
+  checkForUpdates: () => Promise<void>
+  downloadUpdate: () => Promise<void>
+  quitAndInstall: () => Promise<void>
+
+  // Test methods for development
+  testUpdateAvailable: () => Promise<void>
+  invoke: (channel: string, ...args: unknown[]) => Promise<unknown>
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -240,10 +280,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   // Manual Provider Management
-  getAllProviderConfigs: (): Promise<ProviderConfig[]> => ipcRenderer.invoke('get-all-provider-configs'),
-  saveProviderConfig: (config: ProviderConfig): Promise<void> => ipcRenderer.invoke('save-provider-config', config),
+  getAllProviderConfigs: (): Promise<OAuthProviderConfig[]> => ipcRenderer.invoke('get-all-provider-configs'),
+  saveProviderConfig: (config: OAuthProviderConfig): Promise<void> => ipcRenderer.invoke('save-provider-config', config),
   removeProviderConfig: (providerId: string): Promise<void> => ipcRenderer.invoke('remove-provider-config', providerId),
-  getProviderConfig: (providerId: string): Promise<ProviderConfig> => ipcRenderer.invoke('get-provider-config', providerId),
+  getProviderConfig: (providerId: string): Promise<OAuthProviderConfig> => ipcRenderer.invoke('get-provider-config', providerId),
 
   // Server Provider management
   addServerProvider: (server: ServerProvider): Promise<void> => ipcRenderer.invoke('add-server-provider', server),
@@ -268,11 +308,44 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Encryption key management
   getEncryptionKey: (): Promise<string | null> => ipcRenderer.invoke('get-encryption-key'),
-  regenerateEncryptionKey: (): Promise<{ key: string, createdAt: number, source: string }> => ipcRenderer.invoke('regenerate-encryption-key'),
+  regenerateEncryptionKey: (): Promise<{ key: string, createdAt: number, source: 'environment' | 'generated' | null }> => ipcRenderer.invoke('regenerate-encryption-key'),
   getEncryptionKeyInfo: (): Promise<{ key: string | null, createdAt: number | null, keyFile: string, source: 'environment' | 'generated' | null }> => ipcRenderer.invoke('get-encryption-key-info'),
-  onEncryptionKeyGenerated: (callback: (event: IpcRendererEvent, data: { key: string, createdAt: number, source: string }) => void): void => {
+  onEncryptionKeyGenerated: (callback: (event: IpcRendererEvent, data: { key: string, createdAt: number, source: 'environment' | 'generated' | null }) => void): void => {
     ipcRenderer.on('encryption-key-generated', callback)
   },
+
+  // External URL handling
+  openExternalUrl: (url: string): Promise<void> => ipcRenderer.invoke('open-external-url', url),
+
+  // Settings management
+  getSettings: (): Promise<{ showNotifications: boolean, automaticCodeApproval: 'never' | 'low' | 'medium' | 'high', automaticResponseApproval: boolean, settingsFile: string, updatedAt: number | null }> => ipcRenderer.invoke('get-settings'),
+  setShowNotifications: (show: boolean): Promise<void> => ipcRenderer.invoke('set-show-notifications', show),
+  getShowNotifications: (): Promise<boolean> => ipcRenderer.invoke('get-show-notifications'),
+  setAutomaticCodeApproval: (level: 'never' | 'low' | 'medium' | 'high'): Promise<void> => ipcRenderer.invoke('set-automatic-code-approval', level),
+  getAutomaticCodeApproval: (): Promise<'never' | 'low' | 'medium' | 'high'> => ipcRenderer.invoke('get-automatic-code-approval'),
+  setAutomaticResponseApproval: (enabled: boolean): Promise<void> => ipcRenderer.invoke('set-automatic-response-approval', enabled),
+  getAutomaticResponseApproval: (): Promise<boolean> => ipcRenderer.invoke('get-automatic-response-approval'),
+
+  // Assets path
+  getAssetsPath: (): Promise<string> => ipcRenderer.invoke('get-assets-path'),
+
+  // Auto-updater methods
+  onUpdateAvailable: (callback: (event: IpcRendererEvent, updateInfo: UpdateInfo) => void): void => {
+    ipcRenderer.on('update-available', callback)
+  },
+  onDownloadProgress: (callback: (event: IpcRendererEvent, progressInfo: ProgressInfo) => void): void => {
+    ipcRenderer.on('download-progress', callback)
+  },
+  onUpdateDownloaded: (callback: (event: IpcRendererEvent, updateInfo: UpdateInfo) => void): void => {
+    ipcRenderer.on('update-downloaded', callback)
+  },
+  checkForUpdates: (): Promise<void> => ipcRenderer.invoke('check-for-updates'),
+  downloadUpdate: (): Promise<void> => ipcRenderer.invoke('download-update'),
+  quitAndInstall: (): Promise<void> => ipcRenderer.invoke('quit-and-install'),
+
+  // Test methods for development
+  testUpdateAvailable: (): Promise<void> => ipcRenderer.invoke('test-update-available'),
+  invoke: (channel: string, ...args: unknown[]): Promise<unknown> => ipcRenderer.invoke(channel, ...args),
 } as ElectronAPI)
 
 // Extend the global Window interface

@@ -9,7 +9,7 @@ import { OAuthProviderConfig, ProviderStorage } from './provider-storage'
 export interface OAuthProvider {
   id: string
   name: string
-  icon?: string
+  iconSrc?: string
   clientId: string
   clientSecret?: string // Some providers don't require client secret for PKCE
   authorizationUrl: string
@@ -185,40 +185,19 @@ export class OAuthProviderManager {
   /**
    * Get a provider configuration by ID
    */
-  async getProvider(providerId: string): Promise<OAuthProvider | null> {
+  async getProvider(providerId: string): Promise<OAuthProviderConfig | null> {
     const config = await this.providerStorage.getProviderConfig(providerId)
     if (!config) return null
 
-    // Convert to legacy format for backward compatibility
-    return this.configToProvider(config)
-  }
-
-  /**
-   * Convert OAuthProviderConfig to legacy OAuthProvider format
-   */
-  private configToProvider(config: OAuthProviderConfig): OAuthProvider {
-    return {
-      id: config.id,
-      name: config.name,
-      icon: config.icon,
-      clientId: config.clientId,
-      clientSecret: config.clientSecret,
-      authorizationUrl: config.authorizationUrl,
-      tokenUrl: config.tokenUrl,
-      userInfoUrl: config.userInfoUrl,
-      scopes: config.scopes,
-      usePKCE: config.usePKCE,
-      redirectUri: config.redirectUri,
-      additionalParams: config.additionalParams,
-    }
+    return config
   }
 
   /**
    * Get all available providers that have client IDs configured
    */
-  async getAvailableProviders(): Promise<OAuthProvider[]> {
+  async getAvailableProviders(): Promise<OAuthProviderConfig[]> {
     const configs = await this.providerStorage.getAvailableProviders()
-    return configs.map(config => this.configToProvider(config))
+    return configs
   }
 
   /**
@@ -302,6 +281,23 @@ export class OAuthProviderManager {
   }
 
   /**
+   * Safely parse token response data with type checking
+   */
+  private parseTokenData(data: Record<string, unknown>): { access_token: string, refresh_token?: string, token_type: string, expires_in?: number, scope?: string } {
+    if (typeof data.access_token !== 'string' || !data.access_token) {
+      throw new Error('Invalid token response: missing or invalid access_token')
+    }
+
+    return {
+      access_token: data.access_token,
+      refresh_token: typeof data.refresh_token === 'string' ? data.refresh_token : undefined,
+      token_type: typeof data.token_type === 'string' ? data.token_type : 'Bearer',
+      expires_in: typeof data.expires_in === 'number' ? data.expires_in : undefined,
+      scope: typeof data.scope === 'string' ? data.scope : undefined,
+    }
+  }
+
+  /**
    * Exchange authorization code for tokens
    */
   async exchangeCodeForTokens(
@@ -345,7 +341,8 @@ export class OAuthProviderManager {
       throw new Error(`Token exchange failed: ${response.status} ${errorText}`)
     }
 
-    const tokenData = await response.json() as Record<string, unknown>
+    const rawTokenData = await response.json() as Record<string, unknown>
+    const tokenData = this.parseTokenData(rawTokenData)
 
     // Fetch user info if userInfoUrl is provided
     let userData = null
@@ -362,19 +359,20 @@ export class OAuthProviderManager {
           userData = this.normalizeUserData(provider.id, userData as Record<string, unknown>)
         }
       }
-      catch {
-        // Ignore errors
+      catch (error) {
+        console.warn('Failed to fetch user info:', error)
       }
     }
 
+    const expires_in = tokenData.expires_in || 3600
     return {
       providerId: provider.id,
-      access_token: tokenData.access_token as string,
-      refresh_token: tokenData.refresh_token as string | undefined,
-      token_type: tokenData.token_type as string || 'Bearer',
-      expires_in: tokenData.expires_in as number || 3600,
-      expires_at: Date.now() + ((tokenData.expires_in as number || 3600) * 1000),
-      scope: tokenData.scope as string | undefined,
+      access_token: tokenData.access_token,
+      refresh_token: tokenData.refresh_token,
+      token_type: tokenData.token_type,
+      expires_in,
+      expires_at: Date.now() + (expires_in * 1000),
+      scope: tokenData.scope,
       user: userData as ProviderTokens['user'],
     }
   }
@@ -390,8 +388,8 @@ export class OAuthProviderManager {
       try {
         return await this.refreshTokensDirect(providerId, refreshToken, provider)
       }
-      catch {
-        // Ignore error
+      catch (error) {
+        console.debug(`Direct token refresh failed for provider ${providerId}, falling back to server refresh:`, error)
       }
     }
 
@@ -402,7 +400,7 @@ export class OAuthProviderManager {
   /**
    * Refresh tokens directly with the provider (requires local client credentials)
    */
-  private async refreshTokensDirect(providerId: string, refreshToken: string, provider: OAuthProvider): Promise<ProviderTokens> {
+  private async refreshTokensDirect(_providerId: string, refreshToken: string, provider: OAuthProvider): Promise<ProviderTokens> {
     const body: Record<string, string> = {
       client_id: provider.clientId,
       refresh_token: refreshToken,
@@ -427,16 +425,18 @@ export class OAuthProviderManager {
       throw new Error(`Direct token refresh failed: ${response.status} ${errorText}`)
     }
 
-    const tokenData = await response.json() as Record<string, unknown>
+    const rawTokenData = await response.json() as Record<string, unknown>
+    const tokenData = this.parseTokenData(rawTokenData)
 
+    const expires_in = tokenData.expires_in || 3600
     return {
       providerId: provider.id,
-      access_token: tokenData.access_token as string,
-      refresh_token: tokenData.refresh_token as string | undefined,
-      token_type: tokenData.token_type as string || 'Bearer',
-      expires_in: tokenData.expires_in as number || 3600,
-      expires_at: Date.now() + ((tokenData.expires_in as number || 3600) * 1000),
-      scope: tokenData.scope as string | undefined,
+      access_token: tokenData.access_token,
+      refresh_token: tokenData.refresh_token,
+      token_type: tokenData.token_type,
+      expires_in,
+      expires_at: Date.now() + (expires_in * 1000),
+      scope: tokenData.scope,
     }
   }
 
@@ -487,24 +487,28 @@ export class OAuthProviderManager {
           throw new Error(`Server refresh failed: ${response.status} ${errorText}`)
         }
 
-        const tokenData = await response.json() as Record<string, unknown>
+        const rawTokenData = await response.json() as Record<string, unknown>
 
-        if (!tokenData.success) {
+        if (!rawTokenData.success) {
           throw new Error('Server token refresh was unsuccessful')
         }
 
+        const tokenData = this.parseTokenData(rawTokenData)
+        const expires_in = tokenData.expires_in || 3600
+
         return {
           providerId: providerId,
-          access_token: tokenData.access_token as string,
-          refresh_token: tokenData.refresh_token as string | undefined,
-          token_type: tokenData.token_type as string || 'Bearer',
-          expires_in: tokenData.expires_in as number || 3600,
-          expires_at: Date.now() + ((tokenData.expires_in as number || 3600) * 1000),
-          scope: tokenData.scope as string | undefined,
-          user: tokenData.user as ProviderTokens['user'],
+          access_token: tokenData.access_token,
+          refresh_token: tokenData.refresh_token,
+          token_type: tokenData.token_type,
+          expires_in,
+          expires_at: Date.now() + (expires_in * 1000),
+          scope: tokenData.scope,
+          user: rawTokenData.user as ProviderTokens['user'],
         }
       }
-      catch {
+      catch (error) {
+        console.debug(`Server ${server.name} failed to refresh tokens:`, error)
         continue // Try next server
       }
     }
@@ -754,21 +758,24 @@ export class OAuthProviderManager {
         throw new Error(`Token exchange failed: ${response.status} ${errorText}`)
       }
 
-      const tokenData = await response.json() as Record<string, unknown>
+      const rawTokenData = await response.json() as Record<string, unknown>
 
-      if (!tokenData.success) {
+      if (!rawTokenData.success) {
         throw new Error('Server token exchange was unsuccessful')
       }
 
+      const tokenData = this.parseTokenData(rawTokenData)
+      const expires_in = tokenData.expires_in || 3600
+
       return {
         providerId: provider, // Use just the provider name (e.g., "google") instead of combined ID
-        access_token: tokenData.access_token as string,
-        refresh_token: tokenData.refresh_token as string | undefined,
-        token_type: tokenData.token_type as string || 'Bearer',
-        expires_in: tokenData.expires_in as number || 3600,
-        expires_at: Date.now() + ((tokenData.expires_in as number || 3600) * 1000),
-        scope: tokenData.scope as string | undefined,
-        user: tokenData.user as ProviderTokens['user'],
+        access_token: tokenData.access_token,
+        refresh_token: tokenData.refresh_token,
+        token_type: tokenData.token_type,
+        expires_in,
+        expires_at: Date.now() + (expires_in * 1000),
+        scope: tokenData.scope,
+        user: rawTokenData.user as ProviderTokens['user'],
       }
     }
     catch (error) {

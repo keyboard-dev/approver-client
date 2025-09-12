@@ -1,30 +1,28 @@
 import Editor from '@monaco-editor/react'
 import { Separator } from '@radix-ui/react-separator'
-import { AlertTriangle, CheckCircle, Clock, Wifi, WifiOff, X, XCircle } from 'lucide-react'
+import { AlertTriangle, CheckCircle, Clock, Wifi, WifiOff, XCircle } from 'lucide-react'
 import * as monaco from 'monaco-editor'
 import lazyTheme from 'monaco-themes/themes/Lazy.json'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+
 import iconGearUrl from '../../assets/icon-gear.svg'
-import { Alert, AlertDescription } from '../components/ui/alert'
 import { Textarea } from '../components/ui/textarea'
-import { AuthStatus, ElectronAPI } from '../preload'
-import { Message, ShareMessage } from '../types'
+import { ElectronAPI } from '../preload'
+import { CollectionRequest, Message, ShareMessage } from '../types'
 import './App.css'
 import AuthComponent from './components/AuthComponent'
-import { Share } from './components/Share'
-import EncryptionKeyManager from './components/EncryptionKeyManager'
-import { OAuthProviderManager } from './components/OAuthProviderManager'
-import ServerProviderManager from './components/ServerProviderManager'
-import WebSocketKeyManager from './components/WebSocketKeyManager'
-import { ApprovalScreen } from './components/screens/ApprovalScreen'
 import GitHubOAuthButton from './components/GitHubOAuthButton'
 import OnboardingView from './components/OnboardingView'
+import { ApprovalScreen } from './components/screens/ApprovalPanel'
+import { SettingsScreen } from './components/screens/settings/SettingsScreen'
+import { Share } from './components/Share'
 import { Badge } from './components/ui/badge'
 import { Button } from './components/ui/button'
+import { ButtonDesigned } from './components/ui/ButtonDesigned'
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs'
+import { useAuth } from './hooks/useAuth'
+import { Providers } from './providers/Providers'
 
-// Monaco Editor configuration for output display
 const handleEditorWillMount = (monacoInstance: typeof monaco) => {
   monacoInstance.editor.defineTheme('lazy', lazyTheme as monaco.editor.IStandaloneThemeData)
 }
@@ -40,7 +38,16 @@ const getEditorOptions = (): monaco.editor.IStandaloneEditorConstructionOptions 
   wordWrap: 'on',
 })
 
-const App: React.FC = () => {
+const AppContent: React.FC = () => {
+  // Auth state from useAuth hook (clean separation)
+  const {
+    authStatusRef,
+    authStatus,
+    isAuthenticated,
+    isSkippingAuth,
+  } = useAuth()
+
+  // Message and app state (moved back from auth hook)
   const [messages, setMessages] = useState<Message[]>([])
   const [shareMessages, setShareMessages] = useState<ShareMessage[]>([])
   const [currentMessage, setCurrentMessage] = useState<Message | null>(null)
@@ -49,41 +56,26 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false)
   const [showFeedback, setShowFeedback] = useState(false)
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'connecting'>('disconnected')
-  const [isAlertDismissed, setIsAlertDismissed] = useState(false)
-  const [authStatus, setAuthStatus] = useState<AuthStatus>({ authenticated: false })
   const [isInitialized, setIsInitialized] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
-  const [isSkippingAuth, setIsSkippingAuth] = useState(false)
   const [isFontLoaded, setIsFontLoaded] = useState(false)
   const [isGitHubConnected, setIsGitHubConnected] = useState(false)
   const [isCheckingGitHub, setIsCheckingGitHub] = useState(true)
 
   // Use refs to track state without causing re-renders
-  const authStatusRef = useRef<AuthStatus>({ authenticated: false })
   const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Check GitHub connection status
-  const checkGitHubConnection = useCallback(async () => {
-    try {
-      const connected = await window.electronAPI.checkOnboardingGithubToken()
-      setIsGitHubConnected(connected)
-    } catch (error) {
-      console.error('Failed to check GitHub connection:', error)
-      setIsGitHubConnected(false)
-    } finally {
-      setIsCheckingGitHub(false)
-    }
-  }, [])
-
   // Font loading effect
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout | null = null
+
     // Wait for Fira Code font to load before initializing Monaco Editor
     const checkFontLoaded = async () => {
       try {
         await document.fonts.load('400 16px "Fira Code"')
         // Small delay to ensure font is fully rendered
-        setTimeout(() => setIsFontLoaded(true), 100)
+        timeoutId = setTimeout(() => setIsFontLoaded(true), 100)
       }
       catch (error) {
         console.warn('Font loading failed, proceeding with fallback:', error)
@@ -92,6 +84,27 @@ const App: React.FC = () => {
     }
 
     checkFontLoaded()
+
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+      }
+    }
+  }, [])
+
+  // Check GitHub connection status
+  const checkGitHubConnection = useCallback(async () => {
+    try {
+      const connected = await window.electronAPI.checkOnboardingGithubToken()
+      setIsGitHubConnected(connected)
+    }
+    catch (error) {
+      console.error('Failed to check GitHub connection:', error)
+      setIsGitHubConnected(false)
+    }
+    finally {
+      setIsCheckingGitHub(false)
+    }
   }, [])
 
   // Check GitHub connection on mount and when auth status changes
@@ -101,26 +114,6 @@ const App: React.FC = () => {
     }
   }, [authStatus.authenticated, isSkippingAuth, checkGitHubConnection])
 
-  // useEffect(() => {
-  //   if (currentMessage) {
-  //     setCurrentMessageCode(currentMessage.code)
-
-  //     const parsedBody = extractJsonFromCodeApproval(currentMessage.body)
-  //     const { data } = parsedBody
-  //     let stdout, stderr
-  //     if (data) {
-  //       ({ stdout, stderr } = data)
-  //     }
-  //     setCurrentMessageStdout(stdout)
-  //     setCurrentMessageStderr(stderr)
-  //   }
-  //   else {
-  //     setCurrentMessageCode(undefined)
-  //     setCurrentMessageStdout(undefined)
-  //     setCurrentMessageStderr(undefined)
-  //   }
-  // }, [currentMessage])
-
   // Debounced connection status update
   const updateConnectionStatus = useCallback((status: 'connected' | 'disconnected' | 'connecting') => {
     if (connectionTimeoutRef.current) {
@@ -129,9 +122,6 @@ const App: React.FC = () => {
 
     connectionTimeoutRef.current = setTimeout(() => {
       setConnectionStatus(status)
-      if (status === 'connected') {
-        setIsAlertDismissed(false)
-      }
     }, 100) // Small debounce to prevent rapid flickering
   }, [])
 
@@ -153,47 +143,6 @@ const App: React.FC = () => {
     }
   }, [])
 
-  // Handle authentication state changes
-  const handleAuthChange = useCallback((newAuthStatus: AuthStatus) => {
-    authStatusRef.current = newAuthStatus
-    setAuthStatus(newAuthStatus)
-
-    // If user logged out, clear messages for security
-    if (!newAuthStatus.authenticated) {
-      setMessages([])
-      setShareMessages([])
-      setCurrentMessage(null)
-      setCurrentShareMessage(null)
-      setFeedback('')
-      setShowFeedback(false)
-      setIsInitialized(false)
-    }
-    else if (!isInitialized) {
-      // Only load messages on first authentication, not on every auth change
-      setIsInitialized(true);
-      // Load messages directly without dependency
-      (async () => {
-        if (newAuthStatus.authenticated) {
-          updateLoadingState(true)
-          try {
-            const [loadedMessages, loadedShareMessages] = await Promise.all([
-              window.electronAPI.getMessages(),
-              window.electronAPI.getShareMessages()
-            ])
-            setMessages(loadedMessages)
-            setShareMessages(loadedShareMessages)
-          }
-          catch (error) {
-            console.error('Error loading messages:', error)
-          }
-          finally {
-            updateLoadingState(false)
-          }
-        }
-      })()
-    }
-  }, [isInitialized, updateLoadingState])
-
   // Refresh messages without showing loading state for better UX
   const refreshMessages = useCallback(async () => {
     if (!authStatusRef.current.authenticated) {
@@ -203,7 +152,7 @@ const App: React.FC = () => {
     try {
       const [loadedMessages, loadedShareMessages] = await Promise.all([
         window.electronAPI.getMessages(),
-        window.electronAPI.getShareMessages()
+        window.electronAPI.getShareMessages(),
       ])
       setMessages(loadedMessages)
       setShareMessages(loadedShareMessages)
@@ -211,7 +160,58 @@ const App: React.FC = () => {
     catch (error) {
       console.error('Error refreshing messages:', error)
     }
-  }, [])
+  }, [authStatusRef])
+
+  // Clear non-pending messages
+  const clearNonPendingMessages = useCallback(async () => {
+    try {
+      const nonPendingMessages = messages.filter(m => m.status !== 'pending' && m.status)
+      for (const message of nonPendingMessages) {
+        await window.electronAPI.deleteMessage(message.id)
+      }
+      refreshMessages()
+    }
+    catch (error) {
+      console.error('Error clearing messages:', error)
+    }
+  }, [messages, refreshMessages])
+
+  // Handle authentication state changes with message/UI management
+  useEffect(() => {
+    if (!isAuthenticated) {
+      // If user logged out, clear messages for security
+      setMessages([])
+      setShareMessages([])
+      setCurrentMessage(null)
+      setCurrentShareMessage(null)
+      setFeedback('')
+      setShowFeedback(false)
+      setIsInitialized(false)
+    }
+    else if (!isInitialized && isAuthenticated) {
+      setIsInitialized(true)
+
+      const loadInitialMessages = async () => {
+        updateLoadingState(true)
+        try {
+          const [loadedMessages, loadedShareMessages] = await Promise.all([
+            window.electronAPI.getMessages(),
+            window.electronAPI.getShareMessages(),
+          ])
+          setMessages(loadedMessages)
+          setShareMessages(loadedShareMessages)
+        }
+        catch (error) {
+          console.error('Error loading messages:', error)
+        }
+        finally {
+          updateLoadingState(false)
+        }
+      }
+
+      loadInitialMessages()
+    }
+  }, [isAuthenticated, isInitialized, updateLoadingState])
 
   // Initialize event listeners only once
   useEffect(() => {
@@ -258,13 +258,7 @@ const App: React.FC = () => {
       }
 
       setCurrentShareMessage(shareMessage)
-      setShareMessages((prev) => {
-        const existing = prev.find(m => m.id === shareMessage.id)
-        if (existing) {
-          return prev.map(m => m.id === shareMessage.id ? shareMessage : m)
-        }
-        return [shareMessage, ...prev]
-      })
+      // Share message stored in currentShareMessage state
       updateConnectionStatus('connected')
     }
 
@@ -307,7 +301,7 @@ const App: React.FC = () => {
         clearTimeout(loadingTimeoutRef.current)
       }
     }
-  }, [updateConnectionStatus]) // Only depend on the stable callback
+  }, [updateConnectionStatus, authStatusRef]) // Only depend on the stable callbacks
 
   // Approve message
   const approveMessage = async () => {
@@ -320,14 +314,6 @@ const App: React.FC = () => {
 
       refreshMessages()
 
-      // const updatedMessage = {
-      //   ...currentMessage,
-      //   status: 'approved' as const,
-      //   feedback: showFeedback ? feedback : undefined,
-      // }
-
-      // setCurrentMessage(updatedMessage)
-      // setMessages(prev => prev.map(m => m.id === currentMessage.id ? updatedMessage : m))
       setFeedback('')
       setShowFeedback(false)
     }
@@ -347,14 +333,6 @@ const App: React.FC = () => {
 
       refreshMessages()
 
-      // const updatedMessage = {
-      //   ...currentMessage,
-      //   status: 'rejected' as const,
-      //   feedback: showFeedback ? feedback : undefined,
-      // }
-
-      // setCurrentMessage(updatedMessage)
-      // setMessages(prev => prev.map(m => m.id === currentMessage.id ? updatedMessage : m))
       setFeedback('')
       setShowFeedback(false)
     }
@@ -373,7 +351,7 @@ const App: React.FC = () => {
   }
 
   // Approve collection share
-  const approveCollectionShare = async (messageId: string, updatedRequest: any) => {
+  const approveCollectionShare = async (messageId: string, updatedRequest: CollectionRequest) => {
     if (!authStatusRef.current.authenticated) return
 
     try {
@@ -407,18 +385,7 @@ const App: React.FC = () => {
     setFeedback('')
     setShowFeedback(false)
     setShowSettings(false)
-    refreshMessages() // Refresh to show updated status without loading state
-  }
-
-  // Clear all non-pending messages
-  const clearNonPendingMessages = () => {
-    // Filter out messages that are not pending
-    const pendingMessages = messages.filter(msg => msg.status === 'pending' || !msg.status)
-    const pendingShareMessages = shareMessages.filter(msg => msg.status === 'pending' || !msg.status)
-    
-    // Update the state with only pending messages
-    setMessages(pendingMessages)
-    setShareMessages(pendingShareMessages)
+    refreshMessages() // Refresh to show updated status
   }
 
   const toggleSettings = () => {
@@ -428,7 +395,7 @@ const App: React.FC = () => {
     setShowFeedback(false)
   }
 
-  const getStatusIcon = (status?: string) => {
+  const getStatusIcon = useCallback((status?: string) => {
     switch (status) {
       case 'approved':
         return <CheckCircle className="h-4 w-4 text-green-500" />
@@ -439,9 +406,9 @@ const App: React.FC = () => {
       default:
         return <AlertTriangle className="h-4 w-4 text-gray-500" />
     }
-  }
+  }, [])
 
-  const getStatusBadge = (status?: string) => {
+  const getStatusBadge = useCallback((status?: string) => {
     switch (status) {
       case 'approved':
         return <Badge variant="default" className="bg-green-100 text-green-800 hover:bg-green-100">Approved</Badge>
@@ -452,9 +419,9 @@ const App: React.FC = () => {
       default:
         return <Badge variant="outline">New</Badge>
     }
-  }
+  }, [])
 
-  const getPriorityBadge = (priority?: string) => {
+  const getPriorityBadge = useCallback((priority?: string) => {
     switch (priority) {
       case 'high':
         return <Badge variant="destructive">High Priority</Badge>
@@ -465,34 +432,16 @@ const App: React.FC = () => {
       default:
         return null
     }
-  }
+  }, [])
 
-  const getCodeBlock = (message: Message) => {
+  const getCodeBlock = useCallback((message: Message) => {
     switch (message.title) {
-      // case 'Security Evaluation Request':
-      //   return (
-      //     <Tabs defaultValue="code" className="w-full">
-      //       <TabsList className="grid w-full grid-cols-2">
-      //         <TabsTrigger value="code">Code</TabsTrigger>
-      //         <TabsTrigger value="explanation">Explanation</TabsTrigger>
-      //       </TabsList>
-      //       <TabsContent value="code" className="mt-2">
-      //         <div className="bg-gray-100 p-4 rounded-lg max-h-96 overflow-auto">
-      //           <pre className="whitespace-pre-wrap text-sm font-mono">{message.code || 'No code provided'}</pre>
-      //         </div>
-      //       </TabsContent>
-      //       <TabsContent value="explanation" className="mt-2">
-      //         <div className="bg-gray-100 p-4 rounded-lg max-h-96 overflow-auto">
-      //           <pre className="whitespace-pre-wrap text-sm">{message.explaination || 'No explanation provided'}</pre>
-      //         </div>
-      //       </TabsContent>
-      //     </Tabs>
-      //   )
       case 'code response approval': {
         if (!currentMessage || !currentMessage.codespaceResponse) return
         // const parsedBody = extractJsonFromCodeApproval(currentMessage.body)
         const { codespaceResponse } = currentMessage
         const { data: codespaceResponseData } = codespaceResponse
+        if (!codespaceResponseData) return
         const hasError = Boolean(codespaceResponseData.stderr)
 
         return (
@@ -561,9 +510,9 @@ const App: React.FC = () => {
           </div>
         )
     }
-  }
+  }, [currentMessage, isFontLoaded, handleEditorWillMount, getEditorOptions])
 
-  const getMessageSummary = (message: Message) => {
+  const getMessageSummary = useCallback((message: Message) => {
     switch (message.title) {
       case 'code response approval': {
         const { codespaceResponse } = message
@@ -587,407 +536,377 @@ const App: React.FC = () => {
       default:
         return message.body
     }
-  }
+  }, [])
 
-  // Show Share component for collection share messages
-  if (currentShareMessage) {
-    return (
-      <Share
-        request={currentShareMessage.collectionRequest}
-        onApprove={(updatedRequest) => approveCollectionShare(currentShareMessage.id, updatedRequest)}
-        onReject={() => rejectCollectionShare(currentShareMessage.id)}
-        onBack={showMessageList}
-        onOptionClick={toggleSettings}
-      />
-    )
-  }
+  const getMessageScreen = () => {
+    if (currentShareMessage) {
+      return (
+        <Share
+          request={currentShareMessage.collectionRequest}
+          onApprove={updatedRequest => approveCollectionShare(currentShareMessage.id, updatedRequest)}
+          onReject={() => rejectCollectionShare(currentShareMessage.id)}
+          onBack={showMessageList}
+        />
+      )
+    }
 
-  if (currentMessage?.title === 'Security Evaluation Request') {
-    return (
-      <ApprovalScreen
-        message={currentMessage}
-        onApprove={approveMessage}
-        onBack={showMessageList}
-        onOptionClick={toggleSettings}
-        onReject={rejectMessage}
-        systemStatus="" // todo
-      />
-    )
+    switch (currentMessage?.title) {
+      case 'Security Evaluation Request':
+        return (
+          <ApprovalScreen
+            message={currentMessage}
+            onApprove={approveMessage}
+            onBack={showMessageList}
+            onReject={rejectMessage}
+          />
+        )
+
+      default:
+        return (
+          <div className="w-full grow min-h-0 mx-auto">
+            {/* Authentication Component */}
+            <AuthComponent />
+
+            {/* Show loading while checking GitHub connection */}
+            {(authStatus.authenticated || isSkippingAuth) && isCheckingGitHub && (
+              <div className="flex items-center justify-center min-h-screen">
+                <Card className="p-6">
+                  <CardContent className="flex items-center space-x-4">
+                    <Clock className="h-6 w-6 text-gray-400 animate-pulse" />
+                    <p className="text-gray-600">Checking GitHub connection...</p>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* Show onboarding if authenticated but GitHub not connected */}
+            {(authStatus.authenticated || isSkippingAuth) && !isCheckingGitHub && !isGitHubConnected && (
+              <OnboardingView onComplete={checkGitHubConnection} />
+            )}
+
+            {/* Only show main content if authenticated and GitHub connected */}
+            {(authStatus.authenticated || isSkippingAuth) && isGitHubConnected && (
+              <div className="content-fade-in">
+                {currentMessage
+                  ? (
+                // Message Detail View
+                      <Card className="w-full">
+                        <CardHeader>
+                          <div className="flex items-center justify-between">
+                            <Button variant="outline" onClick={showMessageList}>
+                              ← Back to Messages
+                            </Button>
+                            <div className="flex items-center space-x-3">
+                              {/* Connection Status Badge */}
+                              <Badge
+                                variant={connectionStatus === 'connected' ? 'default' : 'destructive'}
+                                className={`connection-status-badge flex items-center space-x-2 px-3 py-2 ${
+                                  connectionStatus === 'connected'
+                                    ? 'bg-green-100 text-green-800 border-green-200 hover:bg-green-100'
+                                    : 'bg-red-100 text-red-800 border-red-200 hover:bg-red-100'
+                                }`}
+                              >
+                                {connectionStatus === 'connected'
+                                  ? (
+                                      <Wifi className="h-3 w-3" />
+                                    )
+                                  : (
+                                      <WifiOff className="h-3 w-3" />
+                                    )}
+                                <span className="text-xs font-medium">
+                                  {connectionStatus === 'connected' ? 'Connected' : 'Disconnected'}
+                                </span>
+                              </Badge>
+                              <div className="flex items-center space-x-2">
+                                {getStatusIcon(currentMessage.status)}
+                                {getStatusBadge(currentMessage.status)}
+                              </div>
+                            </div>
+                          </div>
+                          <CardTitle className="text-2xl font-bold mt-4">
+                            {currentMessage.title}
+                          </CardTitle>
+                          <div className="flex items-center space-x-4 text-sm text-gray-500">
+                            <span>
+                              From:
+                              {currentMessage.sender || 'Unknown'}
+                            </span>
+                            <span>•</span>
+                            <span>{new Date(currentMessage.timestamp).toLocaleString()}</span>
+                            {currentMessage.priority && (
+                              <>
+                                <span>•</span>
+                                {getPriorityBadge(currentMessage.priority)}
+                              </>
+                            )}
+                          </div>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                          {/* Message Body - Show tabs if codeEval is true, otherwise show regular body */}
+                          <div>
+                            <h3 className="text-lg font-semibold mb-2">Request Details</h3>
+                            {getCodeBlock(currentMessage)}
+                          </div>
+
+                          <Separator />
+
+                          {/* Action Buttons */}
+                          {currentMessage.status === 'pending' || !currentMessage.status
+                            ? (
+                                <div className="space-y-4">
+                                  <h3 className="text-lg font-semibold">Actions Required</h3>
+
+                                  {/* Feedback Section Toggle */}
+                                  <div className="flex items-center space-x-2">
+                                    <input
+                                      type="checkbox"
+                                      id="show-feedback"
+                                      checked={showFeedback}
+                                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                                        setShowFeedback(e.target.checked)}
+                                      className="rounded"
+                                    />
+                                    <label htmlFor="show-feedback" className="text-sm">
+                                      Add feedback/comments
+                                    </label>
+                                  </div>
+
+                                  {/* Feedback Textarea */}
+                                  {showFeedback && (
+                                    <div className="space-y-2">
+                                      <label className="text-sm font-medium">Feedback</label>
+                                      <Textarea
+                                        placeholder="Enter your feedback or comments..."
+                                        value={feedback}
+                                        onChange={e => setFeedback(e.target.value)}
+                                        className="min-h-[100px]"
+                                      />
+                                    </div>
+                                  )}
+
+                                  {/* Action Buttons */}
+                                  <div className="flex space-x-4">
+                                    <Button
+                                      onClick={approveMessage}
+                                      className="bg-green-600 hover:bg-green-700 text-white"
+                                    >
+                                      <CheckCircle className="mr-2 h-4 w-4" />
+                                      Approve
+                                    </Button>
+                                    <Button
+                                      onClick={rejectMessage}
+                                      variant="destructive"
+                                    >
+                                      <XCircle className="mr-2 h-4 w-4" />
+                                      Reject
+                                    </Button>
+                                  </div>
+                                </div>
+                              )
+                            : (
+                                <div className="space-y-4">
+                                  <h3 className="text-lg font-semibold">Status</h3>
+                                  <div className="flex items-center space-x-2">
+                                    {getStatusIcon(currentMessage.status)}
+                                    <span className="text-sm">
+                                      This request has been
+                                      {' '}
+                                      {currentMessage.status}
+                                    </span>
+                                  </div>
+
+                                  {currentMessage.feedback && (
+                                    <div className="space-y-2">
+                                      <label className="text-sm font-medium">Feedback</label>
+                                      <div className="bg-gray-100 p-3 rounded-lg text-sm">
+                                        {currentMessage.feedback}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                        </CardContent>
+                      </Card>
+                    )
+                  : (
+                // Message List View
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h1 className="text-3xl font-bold">
+                            {showSettings ? 'Settings' : 'Message Approvals'}
+                          </h1>
+                          <div className="flex items-center space-x-3">
+                            {!showSettings && (
+                              <GitHubOAuthButton />
+                            )}
+                            {!showSettings && (messages.length > 0 || shareMessages.length > 0) && (
+                              <Button
+                                variant="outline"
+                                onClick={() => clearNonPendingMessages()}
+                                className="flex items-center space-x-2"
+                              >
+                                <span>Clear Non-Pending</span>
+                              </Button>
+                            )}
+                            <Button
+                              variant="outline"
+                              onClick={toggleSettings}
+                              className="flex items-center space-x-2"
+                            >
+                              <span>{showSettings ? 'Back to Messages' : 'Settings'}</span>
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Message List View */}
+                        {(messages.length === 0 && shareMessages.length === 0)
+                          ? (
+                              <Card>
+                                <CardContent className="p-8 text-center">
+                                  <Clock className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                                  <p className="text-gray-500">
+                                    {isLoading ? 'Loading messages...' : 'No messages to approve. Waiting for WebSocket messages...'}
+                                  </p>
+                                </CardContent>
+                              </Card>
+                            )
+                          : (
+                              <div className={`grid gap-4 ${isLoading ? 'loading-fade' : ''}`}>
+                                {/* Share Messages */}
+                                {shareMessages.map(shareMessage => (
+                                  <Card
+                                    key={shareMessage.id}
+                                    className="cursor-pointer hover:shadow-md transition-shadow border-l-4 border-l-blue-500"
+                                    onClick={() => setCurrentShareMessage(shareMessage)}
+                                  >
+                                    <CardContent className="p-4">
+                                      <div className="flex items-center justify-between mb-2">
+                                        <h3 className="text-lg font-semibold truncate">{shareMessage.title}</h3>
+                                        <div className="flex items-center space-x-2">
+                                          {getStatusIcon(shareMessage.status)}
+                                          {getStatusBadge(shareMessage.status)}
+                                        </div>
+                                      </div>
+                                      <p className="text-gray-600 text-sm mb-2 line-clamp-2">
+                                        {shareMessage.body}
+                                      </p>
+                                      <div className="flex items-center justify-between text-xs text-gray-500">
+                                        <span>
+                                          From:
+                                          {' '}
+                                          {shareMessage.sender || 'Unknown'}
+                                          {' '}
+                                          • Collection Share
+                                        </span>
+                                        <span>{new Date(shareMessage.timestamp).toLocaleString()}</span>
+                                      </div>
+                                      {shareMessage.priority && (
+                                        <div className="mt-2">
+                                          {getPriorityBadge(shareMessage.priority)}
+                                        </div>
+                                      )}
+                                    </CardContent>
+                                  </Card>
+                                ))}
+
+                                {/* Regular Messages */}
+                                {messages.map(message => (
+                                  <Card
+                                    key={message.id}
+                                    className="cursor-pointer hover:shadow-md transition-shadow"
+                                    onClick={() => showMessageDetail(message)}
+                                  >
+                                    <CardContent className="p-4">
+                                      <div className="flex items-center justify-between mb-2">
+                                        <h3 className="text-lg font-semibold truncate">{message.title}</h3>
+                                        <div className="flex items-center space-x-2">
+                                          {getStatusIcon(message.status)}
+                                          {getStatusBadge(message.status)}
+                                        </div>
+                                      </div>
+                                      <p className="text-gray-600 text-sm mb-2 line-clamp-2">
+                                        {getMessageSummary(message)}
+                                      </p>
+                                      <div className="flex items-center justify-between text-xs text-gray-500">
+                                        <span>
+                                          From:
+                                          {message.sender || 'Unknown'}
+                                        </span>
+                                        <span>{new Date(message.timestamp).toLocaleString()}</span>
+                                      </div>
+                                      {message.priority && (
+                                        <div className="mt-2">
+                                          {getPriorityBadge(message.priority)}
+                                        </div>
+                                      )}
+                                    </CardContent>
+                                  </Card>
+                                ))}
+                              </div>
+                            )}
+
+                      </div>
+                    )}
+              </div>
+            )}
+          </div>
+        )
+    }
   }
 
   return (
     <div
-      className="flex flex-col w-full h-screen bg-transparent draggable rounded-[0.5rem] p-[0.63rem] pt-0 items-center text-[0.88rem] text-[#171717]"
+      className="flex flex-col w-full h-screen bg-transparent draggable rounded-[0.5rem] p-[0.63rem] pt-0 items-center text-[0.88rem] text-[#171717] font-medium font-inter"
     >
-      <div className="flex w-full -h-[1.56rem] mx-[1.25rem] my-[0.5rem] justify-between">
+      <div className="flex w-full -h-[1.56rem] mx-[1.25rem] my-[0.5rem] justify-between z-20">
         <div
           className="px-[0.5rem] py-[0.25rem] w-4 h-4"
         />
         <div
-          className="px-[0.75rem] py-[0.25rem] rounded-full bg-[#BFBFBF] flex items-center gap-[0.63rem]"
+          className="px-[0.75rem] py-[0.25rem] rounded-full bg-[#EBEBEB] flex items-center gap-[0.63rem]"
         >
           <div
-            className="w-[10px] h-[10px] rounded-full bg-[#7BB750]"
+            className="w-[10px] h-[10px] rounded-full bg-[#0B8A1C]"
           />
           <div
             className="text-[#737373]"
           >
             All systems are
             {' '}
-            <span className="text-[#7BB750] font-semibold">
+            <span className="text-[#0B8A1C] font-semibold">
               normal
             </span>
           </div>
         </div>
-        <button
+        <ButtonDesigned
+          className="px-[0.5rem] py-[0.25rem] rounded-full not-draggable"
+          variant="secondary"
           onClick={toggleSettings}
-          className="px-[0.5rem] py-[0.25rem] rounded-full bg-[#BFBFBF] not-draggable"
         >
           <img src={iconGearUrl} alt="Settings" className="w-4 h-4" />
-        </button>
+        </ButtonDesigned>
       </div>
 
       <div
-        className="flex flex-col w-full grow min-h-0 bg-white rounded-[0.5rem] px-[0.63rem] py-[0.75rem] not-draggable gap-[0.63rem] items-start overflow-auto"
+        className="flex flex-col w-full min-w-0 grow min-h-0 bg-white rounded-[0.5rem] px-[0.63rem] py-[0.75rem] not-draggable gap-[0.63rem] items-start overflow-auto"
       >
-        <div className="w-full grow min-h-0 mx-auto">
-          {/* Authentication Component */}
-          <AuthComponent
-            onAuthChange={handleAuthChange}
-            isSkippingAuth={isSkippingAuth}
-            setIsSkippingAuth={setIsSkippingAuth}
-          />
-
-          {/* Show loading while checking GitHub connection */}
-          {(authStatus.authenticated || isSkippingAuth) && isCheckingGitHub && (
-            <div className="flex items-center justify-center min-h-screen">
-              <Card className="p-6">
-                <CardContent className="flex items-center space-x-4">
-                  <Clock className="h-6 w-6 text-gray-400 animate-pulse" />
-                  <p className="text-gray-600">Checking GitHub connection...</p>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
-          {/* Show onboarding if authenticated but GitHub not connected */}
-          {(authStatus.authenticated || isSkippingAuth) && !isCheckingGitHub && !isGitHubConnected && (
-            <OnboardingView onComplete={checkGitHubConnection} />
-          )}
-
-          {/* Only show main content if authenticated and GitHub connected */}
-          {(authStatus.authenticated || isSkippingAuth) && isGitHubConnected && (
-            <div className="content-fade-in">
-              {currentMessage
-                ? (
-              // Message Detail View
-                    <Card className="w-full">
-                      <CardHeader>
-                        <div className="flex items-center justify-between">
-                          <Button variant="outline" onClick={showMessageList}>
-                            ← Back to Messages
-                          </Button>
-                          <div className="flex items-center space-x-3">
-                            {/* Connection Status Badge */}
-                            <Badge
-                              variant={connectionStatus === 'connected' ? 'default' : 'destructive'}
-                              className={`connection-status-badge flex items-center space-x-2 px-3 py-2 ${
-                                connectionStatus === 'connected'
-                                  ? 'bg-green-100 text-green-800 border-green-200 hover:bg-green-100'
-                                  : 'bg-red-100 text-red-800 border-red-200 hover:bg-red-100'
-                              }`}
-                            >
-                              {connectionStatus === 'connected'
-                                ? (
-                                    <Wifi className="h-3 w-3" />
-                                  )
-                                : (
-                                    <WifiOff className="h-3 w-3" />
-                                  )}
-                              <span className="text-xs font-medium">
-                                {connectionStatus === 'connected' ? 'Connected' : 'Disconnected'}
-                              </span>
-                            </Badge>
-                            <div className="flex items-center space-x-2">
-                              {getStatusIcon(currentMessage.status)}
-                              {getStatusBadge(currentMessage.status)}
-                            </div>
-                          </div>
-                        </div>
-                        <CardTitle className="text-2xl font-bold mt-4">
-                          {currentMessage.title}
-                        </CardTitle>
-                        <div className="flex items-center space-x-4 text-sm text-gray-500">
-                          <span>
-                            From:
-                            {currentMessage.sender || 'Unknown'}
-                          </span>
-                          <span>•</span>
-                          <span>{new Date(currentMessage.timestamp).toLocaleString()}</span>
-                          {currentMessage.priority && (
-                            <>
-                              <span>•</span>
-                              {getPriorityBadge(currentMessage.priority)}
-                            </>
-                          )}
-                        </div>
-                      </CardHeader>
-                      <CardContent className="space-y-6">
-                        {/* Message Body - Show tabs if codeEval is true, otherwise show regular body */}
-                        <div>
-                          <h3 className="text-lg font-semibold mb-2">Request Details</h3>
-                          {getCodeBlock(currentMessage)}
-                          {/* {currentMessage.codeEval ? (
-                        <Tabs defaultValue="code" className="w-full">
-                          <TabsList className="grid w-full grid-cols-2">
-                            <TabsTrigger value="code">Code</TabsTrigger>
-                            <TabsTrigger value="explanation">Explanation</TabsTrigger>
-                          </TabsList>
-                          <TabsContent value="code" className="mt-2">
-                            <div className="bg-gray-100 p-4 rounded-lg">
-                              <pre className="whitespace-pre-wrap text-sm font-mono">{currentMessage.code || 'No code provided'}</pre>
-                            </div>
-                          </TabsContent>
-                          <TabsContent value="explanation" className="mt-2">
-                            <div className="bg-gray-100 p-4 rounded-lg">
-                              <pre className="whitespace-pre-wrap text-sm">{currentMessage.explaination || 'No explanation provided'}</pre>
-                            </div>
-                          </TabsContent>
-                        </Tabs>
-                      ) : (
-                        <div className="bg-gray-100 p-4 rounded-lg">
-                          <pre className="whitespace-pre-wrap text-sm">{currentMessage.body}</pre>
-                        </div>
-                      )} */}
-                        </div>
-
-                        <Separator />
-
-                        {/* Action Buttons */}
-                        {currentMessage.status === 'pending' || !currentMessage.status
-                          ? (
-                              <div className="space-y-4">
-                                <h3 className="text-lg font-semibold">Actions Required</h3>
-
-                                {/* Feedback Section Toggle */}
-                                <div className="flex items-center space-x-2">
-                                  <input
-                                    type="checkbox"
-                                    id="show-feedback"
-                                    checked={showFeedback}
-                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                                      setShowFeedback(e.target.checked)}
-                                    className="rounded"
-                                  />
-                                  <label htmlFor="show-feedback" className="text-sm">
-                                    Add feedback/comments
-                                  </label>
-                                </div>
-
-                                {/* Feedback Textarea */}
-                                {showFeedback && (
-                                  <div className="space-y-2">
-                                    <label className="text-sm font-medium">Feedback</label>
-                                    <Textarea
-                                      placeholder="Enter your feedback or comments..."
-                                      value={feedback}
-                                      onChange={e => setFeedback(e.target.value)}
-                                      className="min-h-[100px]"
-                                    />
-                                  </div>
-                                )}
-
-                                {/* Action Buttons */}
-                                <div className="flex space-x-4">
-                                  <Button
-                                    onClick={approveMessage}
-                                    className="bg-green-600 hover:bg-green-700 text-white"
-                                  >
-                                    <CheckCircle className="mr-2 h-4 w-4" />
-                                    Approve
-                                  </Button>
-                                  <Button
-                                    onClick={rejectMessage}
-                                    variant="destructive"
-                                  >
-                                    <XCircle className="mr-2 h-4 w-4" />
-                                    Reject
-                                  </Button>
-                                </div>
-                              </div>
-                            )
-                          : (
-                              <div className="space-y-4">
-                                <h3 className="text-lg font-semibold">Status</h3>
-                                <div className="flex items-center space-x-2">
-                                  {getStatusIcon(currentMessage.status)}
-                                  <span className="text-sm">
-                                    This request has been
-                                    {' '}
-                                    {currentMessage.status}
-                                  </span>
-                                </div>
-
-                                {currentMessage.feedback && (
-                                  <div className="space-y-2">
-                                    <label className="text-sm font-medium">Feedback</label>
-                                    <div className="bg-gray-100 p-3 rounded-lg text-sm">
-                                      {currentMessage.feedback}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                      </CardContent>
-                    </Card>
-                  )
-                : (
-              // Message List View
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <h1 className="text-3xl font-bold">
-                          {showSettings ? 'Settings' : 'Message Approvals'}
-                        </h1>
-                        <div className="flex items-center space-x-3">
-                          {!showSettings && (
-                            <GitHubOAuthButton />
-                          )}
-                          {!showSettings && (messages.length > 0 || shareMessages.length > 0) && (
-                            <Button
-                              variant="outline"
-                              onClick={() => clearNonPendingMessages()}
-                              className="flex items-center space-x-2"
-                            >
-                              <span>Clear Non-Pending</span>
-                            </Button>
-                          )}
-                          <Button
-                            variant="outline"
-                            onClick={toggleSettings}
-                            className="flex items-center space-x-2"
-                          >
-                            <span>{showSettings ? 'Back to Messages' : 'Settings'}</span>
-                          </Button>
-                        </div>
-                      </div>
-
-                      {showSettings
-                        ? (
-                      // Settings View
-                            <div className="space-y-6">
-                              <Tabs defaultValue="websocket" className="w-full">
-                                <TabsList className="grid w-full grid-cols-4">
-                                  <TabsTrigger value="websocket">WebSocket</TabsTrigger>
-                                  <TabsTrigger value="encryption">Encryption</TabsTrigger>
-                                  <TabsTrigger value="oauth">OAuth Providers</TabsTrigger>
-                                  <TabsTrigger value="servers">Server Providers</TabsTrigger>
-                                </TabsList>
-                                <TabsContent value="websocket" className="mt-6">
-                                  <WebSocketKeyManager />
-                                </TabsContent>
-                                <TabsContent value="encryption" className="mt-6">
-                                  <EncryptionKeyManager />
-                                </TabsContent>
-                                <TabsContent value="oauth" className="mt-6">
-                                  <OAuthProviderManager />
-                                </TabsContent>
-                                <TabsContent value="servers" className="mt-6">
-                                  <ServerProviderManager />
-                                </TabsContent>
-                              </Tabs>
-                            </div>
-                          )
-                        : (
-                      // Message List View
-                            (messages.length === 0 && shareMessages.length === 0)
-                              ? (
-                                  <Card>
-                                    <CardContent className="p-8 text-center">
-                                      <Clock className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                                      <p className="text-gray-500">
-                                        {isLoading ? 'Loading messages...' : 'No messages to approve. Waiting for WebSocket messages...'}
-                                      </p>
-                                    </CardContent>
-                                  </Card>
-                                )
-                              : (
-                                  <div className={`grid gap-4 ${isLoading ? 'loading-fade' : ''}`}>
-                                    {/* Share Messages */}
-                                    {shareMessages.map(shareMessage => (
-                                      <Card
-                                        key={shareMessage.id}
-                                        className="cursor-pointer hover:shadow-md transition-shadow border-l-4 border-l-blue-500"
-                                        onClick={() => setCurrentShareMessage(shareMessage)}
-                                      >
-                                        <CardContent className="p-4">
-                                          <div className="flex items-center justify-between mb-2">
-                                            <h3 className="text-lg font-semibold truncate">{shareMessage.title}</h3>
-                                            <div className="flex items-center space-x-2">
-                                              {getStatusIcon(shareMessage.status)}
-                                              {getStatusBadge(shareMessage.status)}
-                                            </div>
-                                          </div>
-                                          <p className="text-gray-600 text-sm mb-2 line-clamp-2">
-                                            {shareMessage.body}
-                                          </p>
-                                          <div className="flex items-center justify-between text-xs text-gray-500">
-                                            <span>
-                                              From: {shareMessage.sender || 'Unknown'} • Collection Share
-                                            </span>
-                                            <span>{new Date(shareMessage.timestamp).toLocaleString()}</span>
-                                          </div>
-                                          {shareMessage.priority && (
-                                            <div className="mt-2">
-                                              {getPriorityBadge(shareMessage.priority)}
-                                            </div>
-                                          )}
-                                        </CardContent>
-                                      </Card>
-                                    ))}
-                                    
-                                    {/* Regular Messages */}
-                                    {messages.map(message => (
-                                      <Card
-                                        key={message.id}
-                                        className="cursor-pointer hover:shadow-md transition-shadow"
-                                        onClick={() => showMessageDetail(message)}
-                                      >
-                                        <CardContent className="p-4">
-                                          <div className="flex items-center justify-between mb-2">
-                                            <h3 className="text-lg font-semibold truncate">{message.title}</h3>
-                                            <div className="flex items-center space-x-2">
-                                              {getStatusIcon(message.status)}
-                                              {getStatusBadge(message.status)}
-                                            </div>
-                                          </div>
-                                          <p className="text-gray-600 text-sm mb-2 line-clamp-2">
-                                            {getMessageSummary(message)}
-                                          </p>
-                                          <div className="flex items-center justify-between text-xs text-gray-500">
-                                            <span>
-                                              From:
-                                              {message.sender || 'Unknown'}
-                                            </span>
-                                            <span>{new Date(message.timestamp).toLocaleString()}</span>
-                                          </div>
-                                          {message.priority && (
-                                            <div className="mt-2">
-                                              {getPriorityBadge(message.priority)}
-                                            </div>
-                                          )}
-                                        </CardContent>
-                                      </Card>
-                                    ))}
-                                  </div>
-                                )
-                          )}
-                    </div>
-                  )}
-            </div>
-          )}
-        </div>
+        {showSettings
+          ? (
+              <SettingsScreen
+                onBack={showMessageList}
+              />
+            )
+          : getMessageScreen()}
       </div>
     </div>
+  )
+}
+
+const App: React.FC = () => {
+  return (
+    <Providers>
+      <AppContent />
+    </Providers>
   )
 }
 

@@ -1,23 +1,24 @@
 import React, { useState } from 'react'
-import { Card } from './ui/card'
-import { Button } from './ui/button'
 import { Textarea } from '../../components/ui/textarea'
+import { OAuthProviderConfig } from '../../provider-storage'
+import { Button } from './ui/button'
+import { Card } from './ui/card'
 
-interface ProviderConfig {
-  id: string
-  name: string
-  icon: string
-  clientId: string
-  clientSecret?: string
-  authorizationUrl: string
-  tokenUrl: string
-  userInfoUrl?: string
-  scopes: string[]
-  usePKCE: boolean
-  redirectUri: string
-  additionalParams?: Record<string, unknown>
-  isCustom: boolean
-}
+// interface ProviderConfig {
+//   id: string
+//   name: string
+//   icon: string
+//   clientId: string
+//   clientSecret?: string
+//   authorizationUrl: string
+//   tokenUrl: string
+//   userInfoUrl?: string
+//   scopes: string[]
+//   usePKCE: boolean
+//   redirectUri: string
+//   additionalParams?: Record<string, unknown>
+//   isCustom: boolean
+// }
 
 interface ProviderTemplate {
   name: string
@@ -31,9 +32,9 @@ interface ProviderTemplate {
 }
 
 interface ManualProviderFormProps {
-  onSave: (config: ProviderConfig) => Promise<void>
+  onSave: (config: Omit<OAuthProviderConfig, 'createdAt' | 'updatedAt'>) => Promise<void>
   onCancel: () => void
-  initialConfig?: ProviderConfig
+  initialConfig?: OAuthProviderConfig
   isEditing?: boolean
 }
 
@@ -46,7 +47,7 @@ export const ManualProviderForm: React.FC<ManualProviderFormProps> = ({
   const [config, setConfig] = useState({
     id: initialConfig?.id || '',
     name: initialConfig?.name || '',
-    icon: initialConfig?.icon || '🔗',
+    icon: initialConfig?.iconSrc || '🔗',
     clientId: initialConfig?.clientId || '',
     clientSecret: initialConfig?.clientSecret || '',
     authorizationUrl: initialConfig?.authorizationUrl || '',
@@ -88,7 +89,7 @@ export const ManualProviderForm: React.FC<ManualProviderFormProps> = ({
       const providerConfig = {
         id: config.id,
         name: config.name,
-        icon: config.icon,
+        iconSrc: config.icon,
         clientId: config.clientId,
         clientSecret: config.clientSecret || undefined,
         authorizationUrl: config.authorizationUrl,

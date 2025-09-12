@@ -1,12 +1,12 @@
+import css from '@eslint/css'
 import js from '@eslint/js'
-import globals from 'globals'
-import tseslint from 'typescript-eslint'
-import pluginReact from 'eslint-plugin-react'
 import json from '@eslint/json'
 import markdown from '@eslint/markdown'
-import css from '@eslint/css'
 import stylistic from '@stylistic/eslint-plugin'
 import gitignore from 'eslint-config-flat-gitignore'
+import pluginReact from 'eslint-plugin-react'
+import globals from 'globals'
+import tseslint from 'typescript-eslint'
 
 export default tseslint.config([
   gitignore(),
@@ -28,6 +28,11 @@ export default tseslint.config([
       react: {
         version: 'detect',
       },
+    },
+    rules: {
+      // Disable this rule since we're using the new JSX transform (React 17+)
+      // With "jsx": "react-jsx", React doesn't need to be imported explicitly
+      'react/react-in-jsx-scope': 'off',
     },
   },
   {

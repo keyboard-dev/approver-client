@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
-import { Card } from './ui/card'
+
 import { Button } from './ui/button'
+import { Card } from './ui/card'
 
 interface WebSocketKeyInfo {
   key: string | null
@@ -19,11 +20,9 @@ const WebSocketKeyManager: React.FC<WebSocketKeyManagerProps> = ({ className = '
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle')
   const [showFullKey, setShowFullKey] = useState(false)
 
-  // Load initial key info
   useEffect(() => {
     loadKeyInfo()
 
-    // Listen for key generation events
     const handleKeyGenerated = (_event: unknown, data: { key: string, createdAt: number }) => {
       setKeyInfo(prev => ({
         ...prev,
@@ -62,7 +61,11 @@ const WebSocketKeyManager: React.FC<WebSocketKeyManagerProps> = ({ className = '
   }
 
   const handleRegenerateKey = async () => {
-    if (!confirm('Are you sure you want to regenerate the WebSocket key? This will invalidate all existing connections.')) {
+    const confirmRegenerate = confirm(
+      'Are you sure you want to regenerate the WebSocket key? This will invalidate all existing connections.',
+    )
+
+    if (!confirmRegenerate) {
       return
     }
 

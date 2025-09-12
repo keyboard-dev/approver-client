@@ -1,12 +1,18 @@
-import React, { useState, useEffect } from 'react'
+import { IpcRendererEvent } from 'electron'
 import { Check } from 'lucide-react'
+import React, { useEffect, useState } from 'react'
+import { Footer } from './Footer'
 import GitHubOAuthButton from './GitHubOAuthButton'
 import McpSetup from './McpSetup'
 import Persona from './Persona'
 import { ProgressIndicator } from './ProgressIndicator'
-import { Footer } from './Footer'
+
 interface OnboardingViewProps {
   onComplete?: () => void
+}
+
+interface ProviderAuthEventData {
+  providerId: string
 }
 
 type OnboardingStep = 'github' | 'mcp-setup' | 'persona' | 'connect-apps'
@@ -28,9 +34,11 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
       // Only set initial step, don't interfere with manual navigation
       if (!connected) {
         setCurrentStep('github')
-      } else if (!completed) {
+      }
+      else if (!completed) {
         setCurrentStep('mcp-setup')
-      } else {
+      }
+      else {
         // Onboarding is complete, proceed to main app
         onComplete?.()
         return
@@ -52,7 +60,8 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
         // If connected, move to next step
         if (connected) {
           setCurrentStep('mcp-setup')
-        } else {
+        }
+        else {
           // Check again in a few seconds if still on GitHub step
           timeoutId = setTimeout(checkGitHubConnection, 2000)
         }
@@ -65,7 +74,7 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
     }
 
     // Listen for provider auth success specifically for onboarding
-    const handleProviderAuthSuccess = async (_event: any, data: any) => {
+    const handleProviderAuthSuccess = async (_event: IpcRendererEvent, data: ProviderAuthEventData) => {
       if (data.providerId === 'onboarding') {
         // Check status when onboarding OAuth completes
         const connected = await window.electronAPI.checkOnboardingGithubToken()
@@ -123,7 +132,8 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
       await window.electronAPI.markOnboardingCompleted()
       setIsOnboardingCompleted(true)
       onComplete?.()
-    } catch (error) {
+    }
+    catch (error) {
       console.error('Error completing onboarding:', error)
     }
   }
@@ -142,8 +152,6 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
     return <Persona onComplete={handleCompleteOnboarding} />
   }
 
-
-
   // Default: GitHub connection step
   return (
     <div className="flex items-start start justify-center min-h-screen w-full p-6 bg-white">
@@ -154,7 +162,7 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
             Welcome! First things first...
           </h1>
           <p className="text-gray-600">
-            Connect to GitHub to use all of Keyboard's features.
+            Connect to GitHub to use all of Keyboard&apos;s features.
           </p>
         </div>
 

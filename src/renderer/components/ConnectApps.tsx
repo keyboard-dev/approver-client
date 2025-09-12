@@ -12,30 +12,30 @@ export const ConnectApps: React.FC<ConnectAppsProps> = ({ onComplete }) => {
     {
       id: 'vscode',
       title: 'Visual Studio Code',
-      description: 'Integrate with VS Code for enhanced development experience'
+      description: 'Integrate with VS Code for enhanced development experience',
     },
     {
       id: 'slack',
       title: 'Slack',
-      description: 'Get notifications and collaborate with your team'
+      description: 'Get notifications and collaborate with your team',
     },
     {
       id: 'notion',
       title: 'Notion',
-      description: 'Sync your notes and documentation'
+      description: 'Sync your notes and documentation',
     },
     {
       id: 'linear',
       title: 'Linear',
-      description: 'Track issues and project progress'
-    }
+      description: 'Track issues and project progress',
+    },
   ]
 
   const toggleApp = (appId: string) => {
-    setSelectedApps(prev => 
-      prev.includes(appId) 
+    setSelectedApps(prev =>
+      prev.includes(appId)
         ? prev.filter(id => id !== appId)
-        : [...prev, appId]
+        : [...prev, appId],
     )
   }
 
@@ -43,7 +43,8 @@ export const ConnectApps: React.FC<ConnectAppsProps> = ({ onComplete }) => {
     try {
       await window.electronAPI.markOnboardingCompleted()
       onComplete()
-    } catch (error) {
+    }
+    catch (error) {
       console.error('Error completing onboarding:', error)
     }
   }
@@ -68,7 +69,7 @@ export const ConnectApps: React.FC<ConnectAppsProps> = ({ onComplete }) => {
 
         {/* App Selection */}
         <div className="space-y-3">
-          {apps.map((app) => (
+          {apps.map(app => (
             <div
               key={app.id}
               className={`p-4 border rounded-lg cursor-pointer transition-colors ${
@@ -83,7 +84,8 @@ export const ConnectApps: React.FC<ConnectAppsProps> = ({ onComplete }) => {
                   selectedApps.includes(app.id)
                     ? 'border-gray-600 bg-gray-600'
                     : 'border-gray-300'
-                }`}>
+                }`}
+                >
                   {selectedApps.includes(app.id) && (
                     <Check className="h-3 w-3 text-white" />
                   )}
@@ -116,14 +118,14 @@ export const ConnectApps: React.FC<ConnectAppsProps> = ({ onComplete }) => {
         {/* Footer */}
         <div className="w-full max-w-md text-center">
           <span className="text-gray-400 text-sm font-medium font-inter">Need help? </span>
-          <span 
+          <span
             className="text-gray-900 text-sm font-medium font-inter cursor-pointer hover:underline"
             onClick={() => window.electronAPI.openExternal('https://discord.com/invite/UxsRWtV6M2')}
           >
             Ask in our Discord
           </span>
           <span className="text-gray-400 text-sm font-medium font-inter"> or read the </span>
-          <span 
+          <span
             className="text-gray-900 text-sm font-medium font-inter cursor-pointer hover:underline"
             onClick={() => window.electronAPI.openExternal('https://docs.keyboard.dev')}
           >

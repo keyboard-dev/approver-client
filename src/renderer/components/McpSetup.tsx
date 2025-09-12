@@ -1,14 +1,13 @@
-import React from 'react'
 import { Download } from 'lucide-react'
-import { ProgressIndicator } from './ProgressIndicator'
+import React from 'react'
 import { Footer } from './Footer'
+import { ProgressIndicator } from './ProgressIndicator'
 
 interface McpSetupProps {
   onNext: () => void
-  onSkip?: () => void
 }
 
-export const McpSetup: React.FC<McpSetupProps> = ({ onNext, onSkip }) => {
+export const McpSetup: React.FC<McpSetupProps> = ({ onNext }) => {
   const advancedSettingsImg = 'https://res.cloudinary.com/dt29hglkk/image/upload/v1757699431/advanced-settings_prlpa6.png'
   const installExtensionImg = 'https://res.cloudinary.com/dt29hglkk/image/upload/v1757699537/install-extension_qbtjua.png'
   const handleDownload = () => {
@@ -17,7 +16,7 @@ export const McpSetup: React.FC<McpSetupProps> = ({ onNext, onSkip }) => {
 
   return (
     <div className="flex items-start justify-center min-h-screen w-full p-6 bg-white">
-      <div style={{ height: '70vh', display: 'flex', flexDirection: 'column'}} className="max-w-md w-full space-y-6 bg-white rounded-lg p-8 shadow-sm">
+      <div style={{ height: '70vh', display: 'flex', flexDirection: 'column' }} className="max-w-md w-full space-y-6 bg-white rounded-lg p-8 shadow-sm">
         {/* Header */}
         <div className="text-center space-y-2">
           <h1 className="text-xl font-semibold text-gray-900">
@@ -41,7 +40,7 @@ export const McpSetup: React.FC<McpSetupProps> = ({ onNext, onSkip }) => {
               <span className="text-gray-900 font-medium">keyboard-mcp.dxt</span>
               <span className="text-gray-900 font-medium"> file</span>
             </div>
-            
+
             <div className="flex justify-center">
               <button
                 onClick={handleDownload}
@@ -56,26 +55,30 @@ export const McpSetup: React.FC<McpSetupProps> = ({ onNext, onSkip }) => {
           {/* Claude Desktop Setup */}
           <div className="space-y-4">
             <div className="text-gray-900 font-medium">For Claude Desktop:</div>
-            
+
             <div className="space-y-3">
               <div className="text-sm text-gray-700">
-                <span className="font-medium">Step 1:</span> Find the advanced settings
+                <span className="font-medium">Step 1:</span>
+                {' '}
+                Find the advanced settings
               </div>
               <div className="flex justify-center">
-                <img 
-                  src={advancedSettingsImg} 
-                  alt="Advanced Settings" 
+                <img
+                  src={advancedSettingsImg}
+                  alt="Advanced Settings"
                   className="max-w-full h-auto rounded-lg border border-gray-200 shadow-sm"
                 />
               </div>
-              
+
               <div className="text-sm text-gray-700">
-                <span className="font-medium">Step 2:</span> Install the extension and upload the file
+                <span className="font-medium">Step 2:</span>
+                {' '}
+                Install the extension and upload the file
               </div>
               <div className="flex justify-center">
-                <img 
-                  src={installExtensionImg} 
-                  alt="Install Extension" 
+                <img
+                  src={installExtensionImg}
+                  alt="Install Extension"
                   className="max-w-full h-auto rounded-lg border border-gray-200 shadow-sm"
                 />
               </div>
@@ -84,14 +87,14 @@ export const McpSetup: React.FC<McpSetupProps> = ({ onNext, onSkip }) => {
 
           <div>
             <br />
-            <div className='flex justify-center'>
-            <span className="text-gray-900 font-medium">For other MCP clients:</span>
-            <span
+            <div className="flex justify-center">
+              <span className="text-gray-900 font-medium">For other MCP clients:</span>
+              <span
                 className="pl-2 text-blue-600 text-sm font-medium font-inter cursor-pointer hover:underline"
                 onClick={() => window.electronAPI.openExternal('https://docs.keyboard.dev/getting-started/other-mcp-clients')}
-            >
+              >
                 Follow this document
-            </span>
+              </span>
             </div>
           </div>
         </div>

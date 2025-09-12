@@ -6,6 +6,7 @@ import * as os from 'os'
 import * as path from 'path'
 import * as WebSocket from 'ws'
 import { setEncryptionKeyProvider } from './encryption'
+import { GithubService } from './Github'
 import { OAuthCallbackData, OAuthHttpServer } from './oauth-http-server'
 import { PKCEParams as NewPKCEParams, OAuthProvider, OAuthProviderManager, ProviderTokens, ServerProvider, ServerProviderInfo } from './oauth-providers'
 import { OAuthTokenStorage, StoredProviderTokens } from './oauth-token-storage'
@@ -15,7 +16,24 @@ import { createRestAPIServer } from './rest-api'
 import { TrayManager } from './tray-manager'
 import { AuthorizeResponse, AuthTokens, CollectionRequest, ErrorResponse, Message, PKCEParams, ShareMessage, TokenResponse } from './types'
 import { WindowManager } from './window-manager'
-import { GithubService } from './Github'
+
+// Helper function to find assets directory reliably
+export function getAssetsPath(): string {
+  const appPath = app.getAppPath()
+
+  // In development, assets are in project root
+  // In production (packaged), assets should be in app bundle
+  const devAssetsPath = path.join(appPath, '..', 'assets')
+  const prodAssetsPath = path.join(appPath, 'assets')
+
+  // Check development path first
+  if (fs.existsSync(devAssetsPath)) {
+    return devAssetsPath
+  }
+
+  // Fallback to production path
+  return prodAssetsPath
+}
 
 // Types for WebSocket server configuration
 interface WebSocketVerifyInfo {
@@ -44,31 +62,28 @@ interface AuthUser {
   profile_picture?: string
 }
 
-// Helper function to find assets directory reliably
-function getAssetsPath(): string {
-  const appPath = app.getAppPath()
+// Types for auto-updater info
+interface UpdateInfo {
+  version?: string
+  files?: unknown[]
+  path?: string
+  sha512?: string
+  releaseDate?: string
+}
 
-  // In development, assets are in project root
-  // In production (packaged), assets should be in app bundle
-  const devAssetsPath = path.join(appPath, '..', 'assets')
-  const prodAssetsPath = path.join(appPath, 'assets')
+// Types for onboarding GitHub provider response
+interface OnboardingGitHubResponse {
+  session_id: string
+  authorization_url: string
+  state: string
+}
 
-  // Check development path first
-  if (fs.existsSync(devAssetsPath)) {
-    return devAssetsPath
-  }
-
-  // Fallback to production path
-  if (fs.existsSync(prodAssetsPath)) {
-    return prodAssetsPath
-  }
-
-  // Fallback to project root assets (for Electron Forge)
-  const rootAssetsPath = path.join(process.cwd(), 'assets')
-  if (fs.existsSync(rootAssetsPath)) {
-    return rootAssetsPath
-  }
-  return devAssetsPath // Return something even if not found
+// Types for WebSocket message with collection request
+interface WebSocketMessage {
+  type: string
+  id?: string
+  data?: CollectionRequest
+  requestId?: string
 }
 
 class MenuBarNotificationApp {
@@ -79,7 +94,6 @@ class MenuBarNotificationApp {
   private messages: Message[] = []
   private shareMessages: ShareMessage[] = []
   private pendingCount: number = 0
-  private notificationsEnabled: boolean = true
   private readonly WS_PORT = 8080
   private readonly OAUTH_PORT = 8082
   private readonly OAUTH_SERVER_URL = process.env.OAUTH_SERVER_URL || 'https://api.keyboard.dev'
@@ -97,13 +111,20 @@ class MenuBarNotificationApp {
   // WebSocket security
   private wsConnectionKey: string | null = null
   private readonly STORAGE_DIR = path.join(os.homedir(), '.keyboard-mcp')
-  private readonly WS_KEY_FILE = path.join(os.homedir(), '.keyboard-mcp', '.keyboard-mcp-ws-key') 
+  private readonly WS_KEY_FILE = path.join(os.homedir(), '.keyboard-mcp', '.keyboard-mcp-ws-key')
   private readonly ONBOARDING_COMPLETED_FILE = path.join(os.homedir(), '.keyboard-mcp', 'completed-onboarding')
 
   // Encryption key management
   private encryptionKey: string | null = null
   private readonly ENCRYPTION_KEY_FILE = path.join(os.homedir(), '.keyboard-mcp-encryption-key')
   private readonly VERSION_TIMESTAMP_FILE = path.join(os.homedir(), '.keyboard-mcp-version-timestamp.json')
+
+  // Settings management
+  private showNotifications: boolean = true
+  private automaticCodeApproval: 'never' | 'low' | 'medium' | 'high' = 'never'
+  private CODE_APPROVAL_ORDER = ['never', 'low', 'medium', 'high'] as const
+  private automaticResponseApproval: boolean = false
+  private readonly SETTINGS_FILE = path.join(os.homedir(), '.keyboard-mcp-settings')
 
   constructor() {
     // Initialize HTTP server (doesn't need encryption)
@@ -150,7 +171,6 @@ class MenuBarNotificationApp {
   private initializeApp(): void {
     // STEP 1: Handle single instance FIRST
     const gotTheLock = app.requestSingleInstanceLock()
-    // app.dock.setIcon(path.join(__dirname, 'assets/keyboard-dock.png'))
 
     if (!gotTheLock) {
       app.quit()
@@ -158,28 +178,8 @@ class MenuBarNotificationApp {
     }
 
     // STEP 2: Set up event listeners BEFORE app.whenReady()
-
     // Platform-specific protocol handling
     if (process.platform === 'darwin') {
-      // Fix: Use helper function for reliable asset path resolution
-      // const assetsPath = getAssetsPath()
-      // const iconPath = path.join(assetsPath, 'keyboard-dock.png')
-
-      // // Check if file exists before setting
-      // if (fs.existsSync(iconPath)) {
-      //   app.dock.setIcon(iconPath)
-      // }
-      // else {
-      //   // List what's actually in the assets directory for debugging
-      //   try {
-      //     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      //     const files = fs.readdirSync(assetsPath)
-      //   }
-      //   catch {
-      //     console.warn('Could not read assets directory:')
-      //   }
-      // }
-
       // Handle macOS open-url events (MUST be before app.whenReady())
       app.on('open-url', (event, url) => {
         event.preventDefault()
@@ -214,12 +214,29 @@ class MenuBarNotificationApp {
 
     // STEP 4: App ready event
     app.whenReady().then(async () => {
+      // Set application icon for notifications (especially important for macOS)
+      const assetsPath = getAssetsPath()
+      const iconPath = path.join(assetsPath, 'keyboard-dock.png')
+
+      if (process.platform === 'darwin' && fs.existsSync(iconPath)) {
+        // On macOS, set the dock icon which is used for notifications
+        try {
+          app.dock.setIcon(iconPath)
+        }
+        catch (error) {
+          console.warn('Failed to set dock icon:', error)
+        }
+      }
+
       // Initialize WebSocket security key first
       await this.initializeStorageDir()
       await this.initializeWebSocketKey()
 
       // Initialize encryption key
       await this.initializeEncryptionKey()
+
+      // Initialize app settings
+      await this.initializeSettings()
 
       // Initialize version timestamp tracking
       await this.getVersionInstallTimestamp()
@@ -242,7 +259,7 @@ class MenuBarNotificationApp {
           console.log('Checking for update...')
         })
 
-        autoUpdater.on('update-available', (info: any) => {
+        autoUpdater.on('update-available', (info: UpdateInfo) => {
           console.log('Update available:', info)
           // notify user
         })
@@ -256,7 +273,7 @@ class MenuBarNotificationApp {
           // Notify user and ask if they want to restart
           const notification = new Notification({
             title: 'Update Ready',
-            body: 'A new version has been downloaded. Restart now to apply the update?'
+            body: 'A new version has been downloaded. Restart now to apply the update?',
           })
           notification.show()
           notification.on('click', () => {
@@ -346,7 +363,7 @@ class MenuBarNotificationApp {
 
   private async initializeStorageDir(): Promise<void> {
     if (!fs.existsSync(this.STORAGE_DIR)) {
-      fs.mkdirSync(this.STORAGE_DIR, {mode: 0o700 })
+      fs.mkdirSync(this.STORAGE_DIR, { mode: 0o700 })
     }
   }
 
@@ -390,8 +407,6 @@ class MenuBarNotificationApp {
         createdAt: Date.now(),
         version: '1.0',
       }
-
- 
 
       // Write to file with restricted permissions
       fs.writeFileSync(this.WS_KEY_FILE, JSON.stringify(keyData, null, 2), { mode: 0o600 })
@@ -524,6 +539,78 @@ class MenuBarNotificationApp {
     return this.encryptionKey
   }
 
+  // Settings Management Methods
+  private async initializeSettings(): Promise<void> {
+    try {
+      // Try to load existing settings
+      if (fs.existsSync(this.SETTINGS_FILE)) {
+        const settingsData = fs.readFileSync(this.SETTINGS_FILE, 'utf8')
+        const parsedData = JSON.parse(settingsData)
+
+        // Apply loaded settings
+        if (typeof parsedData.showNotifications === 'boolean') {
+          this.showNotifications = parsedData.showNotifications
+        }
+        if (typeof parsedData.automaticCodeApproval === 'string'
+          && ['never', 'low', 'medium', 'high'].includes(parsedData.automaticCodeApproval)) {
+          this.automaticCodeApproval = parsedData.automaticCodeApproval as 'never' | 'low' | 'medium' | 'high'
+        }
+        if (typeof parsedData.automaticResponseApproval === 'boolean') {
+          this.automaticResponseApproval = parsedData.automaticResponseApproval
+        }
+      }
+    }
+    catch (error) {
+      console.error('❌ Error initializing settings:', error)
+      // Use defaults if settings file is corrupted
+      this.showNotifications = true
+      this.automaticCodeApproval = 'never'
+      this.automaticResponseApproval = false
+    }
+  }
+
+  private async saveSettings(): Promise<void> {
+    try {
+      const settingsData = {
+        showNotifications: this.showNotifications,
+        automaticCodeApproval: this.automaticCodeApproval,
+        automaticResponseApproval: this.automaticResponseApproval,
+        version: '1.0',
+        updatedAt: Date.now(),
+      }
+
+      // Write to file with restricted permissions
+      fs.writeFileSync(this.SETTINGS_FILE, JSON.stringify(settingsData, null, 2), { mode: 0o600 })
+    }
+    catch (error) {
+      console.error('❌ Error saving settings:', error)
+      throw error
+    }
+  }
+
+  private getSettingsInfo(): { showNotifications: boolean, automaticCodeApproval: 'never' | 'low' | 'medium' | 'high', automaticResponseApproval: boolean, settingsFile: string, updatedAt: number | null } {
+    let updatedAt: number | null = null
+
+    try {
+      if (fs.existsSync(this.SETTINGS_FILE)) {
+        const settingsData = fs.readFileSync(this.SETTINGS_FILE, 'utf8')
+        const parsedData = JSON.parse(settingsData)
+        updatedAt = parsedData.updatedAt
+      }
+    }
+    catch (error) {
+      console.error('Error reading settings file:', error)
+    }
+
+    return {
+      showNotifications: this.showNotifications,
+      automaticCodeApproval: this.automaticCodeApproval,
+      automaticResponseApproval: this.automaticResponseApproval,
+      settingsFile: this.SETTINGS_FILE,
+      updatedAt,
+    }
+  }
+
   private checkForUpdates(): void {
     if (process.platform === 'darwin' || process.platform === 'win32') {
       autoUpdater.checkForUpdates()
@@ -533,7 +620,8 @@ class MenuBarNotificationApp {
         body: `Looking for new versions... current version: ${app.getVersion()}`,
       })
       notification.show()
-    } else {
+    }
+    else {
       const notification = new Notification({
         title: 'Updates Not Supported',
         body: 'Automatic updates are only available on macOS and Windows.',
@@ -688,7 +776,8 @@ class MenuBarNotificationApp {
   private async checkOnboardingCompleted(): Promise<boolean> {
     try {
       return fs.existsSync(this.ONBOARDING_COMPLETED_FILE)
-    } catch (error) {
+    }
+    catch (error) {
       console.error('Failed to check onboarding completion:', error)
       return false
     }
@@ -700,15 +789,16 @@ class MenuBarNotificationApp {
       if (!fs.existsSync(this.STORAGE_DIR)) {
         fs.mkdirSync(this.STORAGE_DIR, { recursive: true })
       }
-      
+
       // Create completion file with timestamp
       const completionData = {
         completed: true,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       }
-      
+
       fs.writeFileSync(this.ONBOARDING_COMPLETED_FILE, JSON.stringify(completionData, null, 2), { mode: 0o600 })
-    } catch (error) {
+    }
+    catch (error) {
       console.error('Failed to mark onboarding as completed:', error)
       throw error
     }
@@ -755,6 +845,7 @@ class MenuBarNotificationApp {
       console.error(`❌ OAuth flow error for ${providerId}:`, error)
       await this.notifyProviderAuthError(providerId, 'Failed to start authentication')
       this.oauthHttpServer.stopServer() // Clean up on error
+      throw error
     }
   }
 
@@ -833,10 +924,9 @@ class MenuBarNotificationApp {
 
   private async fetchOnboardingGithubProvider(): Promise<void> {
     const provider = 'onboarding'
- 
 
     const response = await fetch(`https://api.keyboard.dev/auth/keyboard_github/onboarding`)
-    const data: any = await response.json()
+    const data = await response.json() as OnboardingGitHubResponse
     const sessionId = data.session_id
     const authUrl = data.authorization_url
     const state = data.state
@@ -1037,10 +1127,6 @@ class MenuBarNotificationApp {
   private async logoutProvider(providerId: string): Promise<void> {
     await this.perProviderTokenStorage.removeTokens(providerId)
     this.windowManager.sendMessage('provider-auth-logout', { providerId })
-
-    const provider = await this.oauthProviderManager.getProvider(providerId)
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const providerName = provider?.name || providerId
   }
 
   private async startOAuthFlow(): Promise<void> {
@@ -1345,14 +1431,10 @@ class MenuBarNotificationApp {
             try {
               const providerStatus = await this.perProviderTokenStorage.getProviderStatus()
 
-              const tokensAvailable: string[] = []
-
               // Check ALL stored provider tokens (both direct and server provider tokens)
-              for (const [providerId, status] of Object.entries(providerStatus)) {
-                if (status && status.authenticated) {
-                  tokensAvailable.push(`KEYBOARD_PROVIDER_USER_TOKEN_FOR_${providerId.toUpperCase()}`)
-                }
-              }
+              const tokensAvailable = Object.entries(providerStatus)
+                .filter(([, status]) => status?.authenticated)
+                .map(([providerId]) => `KEYBOARD_PROVIDER_USER_TOKEN_FOR_${providerId.toUpperCase()}`)
 
               const statusResponse = {
                 type: 'user-tokens-available',
@@ -1393,7 +1475,7 @@ class MenuBarNotificationApp {
     })
   }
 
-  private handleCollectionShareRequest(message: any): void {
+  private handleCollectionShareRequest(message: WebSocketMessage): void {
     const collectionRequest = message.data as CollectionRequest
     // Create a share message for the request
     const shareMessage: ShareMessage = {
@@ -1405,7 +1487,7 @@ class MenuBarNotificationApp {
       priority: 'high',
       status: 'pending',
       requiresResponse: true,
-      collectionRequest: collectionRequest
+      collectionRequest: collectionRequest,
     }
 
     // Show desktop notification
@@ -1415,8 +1497,8 @@ class MenuBarNotificationApp {
     this.shareMessages.push(shareMessage)
 
     // Update pending count (include share messages)
-    this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length + 
-                       this.shareMessages.filter(m => m.status === 'pending' || !m.status).length
+    this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length
+      + this.shareMessages.filter(m => m.status === 'pending' || !m.status).length
     this.trayManager.updateTrayIcon()
 
     // Send to renderer via collection-share-request event
@@ -1443,6 +1525,38 @@ class MenuBarNotificationApp {
     // Store the message
     this.messages.push(message)
 
+    switch (message.title) {
+      case 'Security Evaluation Request': {
+        const { risk_level } = message
+        if (!risk_level) break
+
+        const riskLevelIndex = this.CODE_APPROVAL_ORDER.indexOf(risk_level)
+        const automaticCodeApprovalIndex = this.CODE_APPROVAL_ORDER.indexOf(this.automaticCodeApproval)
+        if (riskLevelIndex <= automaticCodeApprovalIndex) {
+          message.status = 'approved'
+        }
+
+        break
+      }
+
+      case 'code response approval': {
+        const { codespaceResponse } = message
+        if (!codespaceResponse) break
+
+        const { data: codespaceResponseData } = codespaceResponse
+        const { stderr } = codespaceResponseData
+        if (!stderr && this.automaticResponseApproval) {
+          message.status = 'approved'
+        }
+
+        break
+      }
+    }
+
+    if (message.status === 'approved') {
+      this.handleApproveMessage(message)
+    }
+
     // Update pending count
     this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length
     this.trayManager.updateTrayIcon()
@@ -1458,20 +1572,19 @@ class MenuBarNotificationApp {
   }
 
   private showNotification(message: Message): void {
-    if (!Notification.isSupported()) {
+    if (!Notification.isSupported() || !this.showNotifications) {
       return
     }
 
     try {
-      // Fix: Use helper function for reliable asset path resolution
-      // const assetsPath = getAssetsPath()
-      // const iconPath = path.join(assetsPath, 'keyboard512px.png')
+      const assetsPath = getAssetsPath()
+      const iconPath = path.join(assetsPath, 'keyboard-dock.png')
 
       const notification = new Notification({
         title: message.title,
         body: message.body,
         urgency: message.priority === 'high' ? 'critical' : 'normal',
-        // icon: iconPath, // Add your logo here
+        icon: iconPath,
       })
 
       notification.on('click', () => {
@@ -1486,7 +1599,7 @@ class MenuBarNotificationApp {
   }
 
   private showShareNotification(shareMessage: ShareMessage): void {
-    if (!Notification.isSupported()) {
+    if (!Notification.isSupported() || !this.showNotifications) {
       return
     }
 
@@ -1571,7 +1684,7 @@ class MenuBarNotificationApp {
       return await this.oauthProviderManager.getAvailableProviders()
     })
 
-    ipcMain.handle('start-provider-oauth', async (event, providerId: string): Promise<void> => {
+    ipcMain.handle('start-provider-oauth', async (_event, providerId: string): Promise<void> => {
       await this.startProviderOAuthFlow(providerId)
     })
 
@@ -1579,19 +1692,19 @@ class MenuBarNotificationApp {
       return await this.perProviderTokenStorage.getProviderStatus()
     })
 
-    ipcMain.handle('get-provider-access-token', async (event, providerId: string): Promise<string | null> => {
+    ipcMain.handle('get-provider-access-token', async (_event, providerId: string): Promise<string | null> => {
       return await this.getValidProviderAccessToken(providerId)
     })
 
-    ipcMain.handle('logout-provider', async (event, providerId: string): Promise<void> => {
+    ipcMain.handle('logout-provider', async (_event, providerId: string): Promise<void> => {
       await this.logoutProvider(providerId)
     })
 
-    ipcMain.handle('get-provider-tokens', async (event, providerId: string): Promise<StoredProviderTokens | null> => {
+    ipcMain.handle('get-provider-tokens', async (_event, providerId: string): Promise<StoredProviderTokens | null> => {
       return await this.perProviderTokenStorage.getTokens(providerId)
     })
 
-    ipcMain.handle('refresh-provider-tokens', async (event, providerId: string): Promise<boolean> => {
+    ipcMain.handle('refresh-provider-tokens', async (_event, providerId: string): Promise<boolean> => {
       try {
         const tokens = await this.perProviderTokenStorage.getTokens(providerId)
         if (!tokens?.refresh_token) {
@@ -1624,15 +1737,15 @@ class MenuBarNotificationApp {
       return await this.oauthProviderManager.getAllProviderConfigs()
     })
 
-    ipcMain.handle('save-provider-config', async (event, config: Omit<OAuthProviderConfig, 'createdAt' | 'updatedAt'>): Promise<void> => {
+    ipcMain.handle('save-provider-config', async (_event, config: Omit<OAuthProviderConfig, 'createdAt' | 'updatedAt'>): Promise<void> => {
       await this.oauthProviderManager.saveProviderConfig(config)
     })
 
-    ipcMain.handle('remove-provider-config', async (event, providerId: string): Promise<void> => {
+    ipcMain.handle('remove-provider-config', async (_event, providerId: string): Promise<void> => {
       await this.oauthProviderManager.removeProviderConfig(providerId)
     })
 
-    ipcMain.handle('get-provider-config', async (event, providerId: string): Promise<OAuthProviderConfig | null> => {
+    ipcMain.handle('get-provider-config', async (_event, providerId: string): Promise<OAuthProviderConfig | null> => {
       const provider = await this.oauthProviderManager.getProvider(providerId)
       if (!provider) return null
 
@@ -1642,11 +1755,11 @@ class MenuBarNotificationApp {
     })
 
     // Server Provider IPC handlers
-    ipcMain.handle('add-server-provider', async (event, server: ServerProvider): Promise<void> => {
+    ipcMain.handle('add-server-provider', async (_event, server: ServerProvider): Promise<void> => {
       await this.oauthProviderManager.addServerProvider(server)
     })
 
-    ipcMain.handle('remove-server-provider', async (event, serverId: string): Promise<void> => {
+    ipcMain.handle('remove-server-provider', async (_event, serverId: string): Promise<void> => {
       await this.oauthProviderManager.removeServerProvider(serverId)
     })
 
@@ -1654,11 +1767,11 @@ class MenuBarNotificationApp {
       return await this.oauthProviderManager.getServerProviders()
     })
 
-    ipcMain.handle('start-server-provider-oauth', async (event, serverId: string, provider: string): Promise<void> => {
+    ipcMain.handle('start-server-provider-oauth', async (_event, serverId: string, provider: string): Promise<void> => {
       await this.startServerProviderOAuthFlow(serverId, provider)
     })
 
-    ipcMain.handle('fetch-onboarding-github-provider', async (event): Promise<void> => {
+    ipcMain.handle('fetch-onboarding-github-provider', async (): Promise<void> => {
       await this.fetchOnboardingGithubProvider()
     })
 
@@ -1695,7 +1808,7 @@ class MenuBarNotificationApp {
     })
 
     // Handle mark as read
-    ipcMain.handle('mark-message-read', (event, messageId: string): void => {
+    ipcMain.handle('mark-message-read', (_event, messageId: string): void => {
       const message = this.messages.find(msg => msg.id === messageId)
       if (message) {
         message.read = true
@@ -1703,29 +1816,15 @@ class MenuBarNotificationApp {
     })
 
     // Handle delete message
-    ipcMain.handle('delete-message', (event, messageId: string): void => {
+    ipcMain.handle('delete-message', (_event, messageId: string): void => {
       this.messages = this.messages.filter(msg => msg.id !== messageId)
       this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length
       this.trayManager.updateTrayIcon()
     })
 
     // Handle approve message
-    ipcMain.handle('approve-message', (event, message: Message, feedback?: string): void => {
-      const existingMessage = this.messages.find(msg => msg.id === message.id)
-
-      if (existingMessage) {
-        // Update the existing message with the passed message data
-        _.assign(existingMessage, message)
-        existingMessage.status = 'approved'
-        existingMessage.feedback = feedback
-
-        // Update pending count
-        this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length
-        this.trayManager.updateTrayIcon()
-
-        // Send response back through WebSocket if needed
-        this.sendWebSocketResponse(existingMessage)
-      }
+    ipcMain.handle('approve-message', (_event, message: Message, feedback?: string): void => {
+      return this.handleApproveMessage(message, feedback)
     })
 
     // Handle approve collection share
@@ -1760,7 +1859,7 @@ class MenuBarNotificationApp {
     })
 
     // Handle reject message
-    ipcMain.handle('reject-message', (event, messageId: string, feedback?: string): void => {
+    ipcMain.handle('reject-message', (_event, messageId: string, feedback?: string): void => {
       const message = this.messages.find(msg => msg.id === messageId)
       if (message) {
         message.status = 'rejected'
@@ -1824,7 +1923,7 @@ class MenuBarNotificationApp {
       return this.encryptionKey
     })
 
-    ipcMain.handle('regenerate-encryption-key', async (): Promise<{ key: string, createdAt: number, source: string }> => {
+    ipcMain.handle('regenerate-encryption-key', async (): Promise<{ key: string, createdAt: number, source: 'environment' | 'generated' | null }> => {
       // Only allow regeneration if not using environment variable
       if (process.env.ENCRYPTION_KEY && this.encryptionKey === process.env.ENCRYPTION_KEY) {
         throw new Error('Cannot regenerate encryption key when using environment variable')
@@ -1842,32 +1941,70 @@ class MenuBarNotificationApp {
       return this.getEncryptionKeyInfo()
     })
 
-    // Open external links
-    ipcMain.handle('open-external', async (event, url: string): Promise<void> => {
+    // External URL handling
+    ipcMain.handle('open-external-url', async (_event, url: string): Promise<void> => {
       await shell.openExternal(url)
     })
+
+    // Settings management
+    ipcMain.handle('get-settings', (): { showNotifications: boolean, automaticCodeApproval: 'never' | 'low' | 'medium' | 'high', automaticResponseApproval: boolean, settingsFile: string, updatedAt: number | null } => {
+      return this.getSettingsInfo()
+    })
+
+    ipcMain.handle('set-show-notifications', async (_event, show: boolean): Promise<void> => {
+      this.showNotifications = show
+      await this.saveSettings()
+    })
+
+    ipcMain.handle('get-show-notifications', (): boolean => {
+      return this.showNotifications
+    })
+
+    ipcMain.handle('set-automatic-code-approval', async (_event, level: 'never' | 'low' | 'medium' | 'high'): Promise<void> => {
+      this.automaticCodeApproval = level
+      await this.saveSettings()
+    })
+
+    ipcMain.handle('get-automatic-code-approval', (): 'never' | 'low' | 'medium' | 'high' => {
+      return this.automaticCodeApproval
+    })
+
+    ipcMain.handle('set-automatic-response-approval', async (_event, enabled: boolean): Promise<void> => {
+      this.automaticResponseApproval = enabled
+      await this.saveSettings()
+    })
+
+    ipcMain.handle('get-automatic-response-approval', (): boolean => {
+      return this.automaticResponseApproval
+    })
+
+    ipcMain.handle('get-assets-path', (): string => {
+      return getAssetsPath()
+    })
+  }
+
+  private handleApproveMessage(message: Message, feedback?: string): void {
+    const existingMessage = this.messages.find(msg => msg.id === message.id)
+
+    if (!existingMessage) return
+
+    // Update the existing message with the passed message data
+    _.assign(existingMessage, message)
+    existingMessage.status = 'approved'
+    existingMessage.feedback = feedback
+
+    // Update pending count
+    this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length
+    this.trayManager.updateTrayIcon()
+
+    // Send response back through WebSocket if needed
+    this.sendWebSocketResponse(existingMessage)
+
+    
   }
 
   private sendWebSocketResponse(message: Message): void {
     if (this.wsServer && message.requiresResponse) {
-      // const response = {
-      //   id: message.id,
-      //   status: status,
-      //   feedback: feedback,
-      //   timestamp: Date.now(),
-      //   originalMessage: {
-      //     id: message.id,
-      //     title: message.title,
-      //     body: 'no body',
-      //   },
-      // }
-
-      // if (status === 'approved') {
-      //   if (message.body) {
-      //     response.originalMessage.body = message.body
-      //   }
-      // }
-
       // Send response to all connected WebSocket clients
       this.wsServer.clients.forEach((client) => {
         if (client.readyState === WebSocket.OPEN) {
@@ -1884,7 +2021,7 @@ class MenuBarNotificationApp {
         id: shareMessage.id,
         status: status,
         timestamp: Date.now(),
-        data: status === 'approved' ? updatedRequest : null
+        data: status === 'approved' ? updatedRequest : null,
       }
 
       // Send response to all connected WebSocket clients

@@ -73,6 +73,8 @@ export interface TemplateVariableSchema {
 export interface CollectionRequest {
   title: string
   description: string
+  community: boolean
+  from_the_team: boolean
   keyboard_api_keys_required: string[]
   provider_user_tokens_required: string[]
   api_services: string[]

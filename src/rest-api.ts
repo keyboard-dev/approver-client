@@ -18,6 +18,18 @@ interface AuthenticatedRequest extends Request {
   token?: string
 }
 
+const safeParseInt = (value: unknown, defaultValue: number): number => {
+  if (typeof value === 'string') {
+    const parsed = parseInt(value, 10)
+    return isNaN(parsed) ? defaultValue : parsed
+  }
+  return defaultValue
+}
+
+const safeParseString = (value: unknown): string | undefined => {
+  return typeof value === 'string' && value.length > 0 ? value : undefined
+}
+
 interface RestAPIConfig {
   port?: number
   host?: string
@@ -106,10 +118,10 @@ const createAuthStatusHandler = (getAuthTokens: () => AuthTokens | null) => {
 
 const createMessagesHandler = (getMessages: () => Message[]) => {
   return (req: AuthenticatedRequest, res: Response) => {
-    const page = parseInt(req.query.page as string) || 1
-    const limit = Math.min(parseInt(req.query.limit as string) || 10, 100)
-    const status = req.query.status as string
-    const priority = req.query.priority as string
+    const page = safeParseInt(req.query.page, 1)
+    const limit = Math.min(safeParseInt(req.query.limit, 10), 100)
+    const status = safeParseString(req.query.status)
+    const priority = safeParseString(req.query.priority)
 
     let messages = getMessages()
 
@@ -209,18 +221,16 @@ const createBatchApproveHandler = (
       return
     }
 
-    const approved: string[] = []
-    const failed: string[] = []
-
-    messageIds.forEach((id: string) => {
+    const { approved, failed } = messageIds.reduce<{ approved: string[], failed: string[] }>((acc, id: string) => {
       const success = updateMessageStatus(id, 'approved', feedback)
       if (success) {
-        approved.push(id)
+        acc.approved.push(id)
       }
       else {
-        failed.push(id)
+        acc.failed.push(id)
       }
-    })
+      return acc
+    }, { approved: [], failed: [] })
 
     res.json({
       approved,
@@ -396,7 +406,8 @@ const setupExpressApp = (deps: RestAPIServerDeps): Application => {
   app.get('/api/scripts', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const token = req.token || ''
-      const tags = req.query.tags ? (req.query.tags as string).split(',') : undefined
+      const tagsString = safeParseString(req.query.tags)
+      const tags = tagsString ? tagsString.split(',') : undefined
 
       const result = await listScriptTemplates(token, tags)
 
@@ -454,7 +465,7 @@ const setupExpressApp = (deps: RestAPIServerDeps): Application => {
   app.get('/api/scripts/search', authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const token = req.token || ''
-      const searchTerm = req.query.q as string
+      const searchTerm = safeParseString(req.query.q)
 
       if (!searchTerm) {
         res.status(400).json({ error: 'Search term (q) is required' })

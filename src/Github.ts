@@ -2,12 +2,102 @@ import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
 
-
-
 interface GitHubToken {
   access_token: string
   token_type?: string
   scope?: string
+}
+
+interface GitHubUser {
+  login: string
+  id: number
+  avatar_url: string
+  name?: string
+  email?: string
+  [key: string]: unknown
+}
+
+interface GitHubRepository {
+  id: number
+  name: string
+  full_name: string
+  owner: GitHubUser
+  private: boolean
+  html_url: string
+  clone_url: string
+  default_branch: string
+  fork: boolean
+  [key: string]: unknown
+}
+
+interface GitHubBranch {
+  name: string
+  commit: {
+    sha: string
+    url: string
+  }
+  protected: boolean
+}
+
+interface GitHubPullRequest {
+  id: number
+  number: number
+  title: string
+  body?: string
+  state: 'open' | 'closed'
+  head: {
+    ref: string
+    sha: string
+    repo: GitHubRepository
+  }
+  base: {
+    ref: string
+    sha: string
+    repo: GitHubRepository
+  }
+  merged: boolean
+  html_url: string
+  [key: string]: unknown
+}
+
+interface GitHubRelease {
+  id: number
+  tag_name: string
+  name: string
+  body?: string
+  draft: boolean
+  prerelease: boolean
+  assets: GitHubReleaseAsset[]
+  html_url: string
+  [key: string]: unknown
+}
+
+interface GitHubReleaseAsset {
+  id: number
+  name: string
+  size: number
+  download_count: number
+  browser_download_url: string
+  [key: string]: unknown
+}
+
+interface GitHubFileContent {
+  type: 'file' | 'dir' | 'symlink' | 'submodule'
+  content?: string
+  encoding?: string
+  size: number
+  name: string
+  path: string
+  sha: string
+  url: string
+  html_url: string
+  download_url?: string
+}
+
+interface GitHubMergeResult {
+  merged: boolean
+  message?: string
+  sha?: string
 }
 
 export class GithubService {
@@ -25,7 +115,8 @@ export class GithubService {
       if (tokenData) {
         this.token = tokenData.access_token
       }
-    } catch (error) {
+    }
+    catch (error) {
       console.error('Failed to initialize GitHub service:', error)
     }
   }
@@ -46,7 +137,8 @@ export class GithubService {
       }
 
       return tokenData
-    } catch (error) {
+    }
+    catch (error) {
       console.error('Error reading GitHub token:', error)
       return null
     }
@@ -58,11 +150,11 @@ export class GithubService {
     }
   }
 
-  private async makeRequest(endpoint: string, options: RequestInit = {}): Promise<any> {
+  private async makeRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     this.ensureAuthenticated()
-    
+
     const url = endpoint.startsWith('http') ? endpoint : `${this.BASE_URL}${endpoint}`
-    
+
     const response = await fetch(url, {
       ...options,
       headers: {
@@ -78,52 +170,54 @@ export class GithubService {
       throw new Error(`GitHub API error (${response.status}): ${error}`)
     }
 
-    return response.json()
+    return response.json() as T
   }
 
   // Repository Operations
 
-  async createFork(owner: string, repo: string, options = {}): Promise<any> {
+  async createFork(owner: string, repo: string): Promise<GitHubRepository> {
     try {
       // First, get the authenticated user
       const user = await this.getCurrentUser()
       if (!user) {
         throw new Error('Could not get authenticated user')
       }
-      
+
       // Check if fork already exists
       try {
-        const existingFork = await this.makeRequest(`/repos/${user.login}/${repo}`)
-        
+        const existingFork = await this.makeRequest<GitHubRepository>(`/repos/${user.login}/${repo}`)
+
         // If we get here, fork exists - return it
         console.log(`Fork already exists: ${user.login}/${repo}`)
         return existingFork
-      } catch (error: any) {
+      }
+      catch (error: unknown) {
         // If fork doesn't exist (404), continue to create it
-        if (!error.message.includes('404')) {
+        if (!(error instanceof Error) || !error.message.includes('404')) {
           throw error
         }
       }
-      
+
       // Fork doesn't exist, create it
       console.log(`Creating fork: ${owner}/${repo}`)
-      return await this.makeRequest(`/repos/${owner}/${repo}/forks`, {
-        method: 'POST'
+      return await this.makeRequest<GitHubRepository>(`/repos/${owner}/${repo}/forks`, {
+        method: 'POST',
       })
-    } catch (error: any) {
-      if (error.message.includes('404')) {
+    }
+    catch (error: unknown) {
+      if (error instanceof Error && error.message.includes('404')) {
         throw new Error(`Repository ${owner}/${repo} not found`)
       }
       throw error
     }
   }
 
-  async getRepository(owner: string, repo: string): Promise<any> {
-    return await this.makeRequest(`/repos/${owner}/${repo}`)
+  async getRepository(owner: string, repo: string): Promise<GitHubRepository> {
+    return await this.makeRequest<GitHubRepository>(`/repos/${owner}/${repo}`)
   }
 
-  async listBranches(owner: string, repo: string, perPage: number = 100): Promise<any[]> {
-    return await this.makeRequest(`/repos/${owner}/${repo}/branches?per_page=${perPage}`)
+  async listBranches(owner: string, repo: string, perPage: number = 100): Promise<GitHubBranch[]> {
+    return await this.makeRequest<GitHubBranch[]>(`/repos/${owner}/${repo}/branches?per_page=${perPage}`)
   }
 
   // Pull Request Operations
@@ -137,8 +231,8 @@ export class GithubService {
     base: string
     draft?: boolean
     maintainer_can_modify?: boolean
-  }): Promise<any> {
-    return await this.makeRequest(`/repos/${params.owner}/${params.repo}/pulls`, {
+  }): Promise<GitHubPullRequest> {
+    return await this.makeRequest<GitHubPullRequest>(`/repos/${params.owner}/${params.repo}/pulls`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -154,21 +248,21 @@ export class GithubService {
     })
   }
 
-  async getPullRequest(owner: string, repo: string, pull_number: number): Promise<any> {
-    return await this.makeRequest(`/repos/${owner}/${repo}/pulls/${pull_number}`)
+  async getPullRequest(owner: string, repo: string, pull_number: number): Promise<GitHubPullRequest> {
+    return await this.makeRequest<GitHubPullRequest>(`/repos/${owner}/${repo}/pulls/${pull_number}`)
   }
 
   async mergePullRequest(
-    owner: string, 
-    repo: string, 
+    owner: string,
+    repo: string,
     pull_number: number,
     options?: {
       commit_title?: string
       commit_message?: string
       merge_method?: 'merge' | 'squash' | 'rebase'
-    }
-  ): Promise<any> {
-    return await this.makeRequest(`/repos/${owner}/${repo}/pulls/${pull_number}/merge`, {
+    },
+  ): Promise<GitHubMergeResult> {
+    return await this.makeRequest<GitHubMergeResult>(`/repos/${owner}/${repo}/pulls/${pull_number}/merge`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -182,37 +276,37 @@ export class GithubService {
   }
 
   async listPullRequests(
-    owner: string, 
+    owner: string,
     repo: string,
     options?: {
       state?: 'open' | 'closed' | 'all'
       sort?: 'created' | 'updated' | 'popularity' | 'long-running'
       direction?: 'asc' | 'desc'
       per_page?: number
-    }
-  ): Promise<any[]> {
+    },
+  ): Promise<GitHubPullRequest[]> {
     const params = new URLSearchParams({
       state: options?.state || 'open',
       sort: options?.sort || 'created',
       direction: options?.direction || 'desc',
       per_page: String(options?.per_page || 100),
     })
-    return await this.makeRequest(`/repos/${owner}/${repo}/pulls?${params}`)
+    return await this.makeRequest<GitHubPullRequest[]>(`/repos/${owner}/${repo}/pulls?${params}`)
   }
 
   // Release Operations
 
-  async getReleaseByTag(owner: string, repo: string, tag: string): Promise<any> {
-    return await this.makeRequest(`/repos/${owner}/${repo}/releases/tags/${tag}`)
+  async getReleaseByTag(owner: string, repo: string, tag: string): Promise<GitHubRelease> {
+    return await this.makeRequest<GitHubRelease>(`/repos/${owner}/${repo}/releases/tags/${tag}`)
   }
 
-  async getLatestRelease(owner: string, repo: string): Promise<any> {
-    return await this.makeRequest(`/repos/${owner}/${repo}/releases/latest`)
+  async getLatestRelease(owner: string, repo: string): Promise<GitHubRelease> {
+    return await this.makeRequest<GitHubRelease>(`/repos/${owner}/${repo}/releases/latest`)
   }
 
   async downloadReleaseAsset(assetUrl: string, destPath: string): Promise<void> {
     this.ensureAuthenticated()
-    
+
     const response = await fetch(assetUrl, {
       headers: {
         'Authorization': `Bearer ${this.token}`,
@@ -232,22 +326,22 @@ export class GithubService {
 
   // File Operations
 
-  async getFileContent(owner: string, repo: string, path: string, ref?: string): Promise<any> {
+  async getFileContent(owner: string, repo: string, path: string, ref?: string): Promise<GitHubFileContent | GitHubFileContent[]> {
     const params = ref ? `?ref=${ref}` : ''
-    return await this.makeRequest(`/repos/${owner}/${repo}/contents/${path}${params}`)
+    return await this.makeRequest<GitHubFileContent | GitHubFileContent[]>(`/repos/${owner}/${repo}/contents/${path}${params}`)
   }
 
   async downloadFile(
-    owner: string, 
-    repo: string, 
-    filePath: string, 
-    destPath: string, 
-    ref?: string
+    owner: string,
+    repo: string,
+    filePath: string,
+    destPath: string,
+    ref?: string,
   ): Promise<void> {
     this.ensureAuthenticated()
-    
+
     const content = await this.getFileContent(owner, repo, filePath, ref)
-    
+
     if (Array.isArray(content)) {
       throw new Error('Path is a directory, not a file')
     }
@@ -271,14 +365,15 @@ export class GithubService {
     return this.token !== null
   }
 
-  async getCurrentUser(): Promise<any | null> {
+  async getCurrentUser(): Promise<GitHubUser | null> {
     if (!this.isAuthenticated()) {
       return null
     }
 
     try {
-      return await this.makeRequest('/user')
-    } catch (error) {
+      return await this.makeRequest<GitHubUser>('/user')
+    }
+    catch (error) {
       console.error('Failed to get current user:', error)
       return null
     }
@@ -292,7 +387,8 @@ export class GithubService {
     try {
       await this.getCurrentUser()
       return true
-    } catch (error) {
+    }
+    catch {
       return false
     }
   }

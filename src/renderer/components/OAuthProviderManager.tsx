@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react'
-import type { OAuthProvider, ProviderStatus } from '../../preload'
+import type { ProviderStatus } from '../../preload'
+import { OAuthProviderConfig } from '../../provider-storage'
+import { useAuth } from '../hooks/useAuth'
 import { ManualProviderForm } from './ManualProviderForm'
 import { Badge } from './ui/badge'
 import { Button } from './ui/button'
@@ -9,17 +11,17 @@ interface OAuthProviderManagerProps {
   className?: string
 }
 
-interface OAuthProviderConfig extends OAuthProvider {
-  isCustom?: boolean
-  createdAt?: number
-  updatedAt?: number
-}
+// interface OAuthProviderConfig extends OAuthProvider {
+//   isCustom?: boolean
+//   createdAt?: number
+//   updatedAt?: number
+// }
 
 interface StorageInfo {
-  filePath: string
-  providersCount: number
-  size?: number
-  permissions?: string
+  totalProviders: number
+  authenticatedProviders: number
+  storageLocation: string
+  [key: string]: unknown
 }
 
 interface ProviderAuthEvent {
@@ -36,7 +38,16 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingProvider, setEditingProvider] = useState<OAuthProviderConfig | null>(null)
 
+  const {
+    isAuthenticated,
+    isSkippingAuth,
+  } = useAuth()
+
   useEffect(() => {
+    if (!isAuthenticated || isSkippingAuth) {
+      return
+    }
+
     loadProviders()
     loadAllProviderConfigs()
     loadProviderStatus()
@@ -79,7 +90,7 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
         window.electronAPI.removeAllListeners('provider-auth-logout')
       }
     }
-  }, [])
+  }, [isAuthenticated, isSkippingAuth])
 
   const loadProviders = async () => {
     try {
@@ -210,7 +221,7 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
     }
   }
 
-  const handleSaveProvider = async (config: OAuthProviderConfig) => {
+  const handleSaveProvider = async (config: Omit<OAuthProviderConfig, 'createdAt' | 'updatedAt'>) => {
     try {
       await window.electronAPI.saveProviderConfig(config)
       await loadProviders()
@@ -314,7 +325,7 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
         </div>
       )}
 
-      {showAddForm && (
+      {showAddForm && editingProvider && (
         <ManualProviderForm
           onSave={handleSaveProvider}
           onCancel={() => {
@@ -349,7 +360,7 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
                   <Card key={config.id} className="p-6">
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-3">
-                        <div className="text-2xl">{config.icon || '🔗'}</div>
+                        <div className="text-2xl">{config.iconSrc || '🔗'}</div>
                         <div>
                           <div className="flex items-center gap-2">
                             <h3 className="text-lg font-semibold">{config.name}</h3>
@@ -470,20 +481,16 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
           <h3 className="text-sm font-semibold mb-2">Storage Info</h3>
           <div className="text-xs text-gray-600 space-y-1">
             <div>
-              📁 File:
-              {storageInfo.filePath}
+              📁 Storage Location:
+              {storageInfo.storageLocation}
             </div>
             <div>
-              📊 Providers:
-              {storageInfo.providersCount}
+              📊 Total Providers:
+              {storageInfo.totalProviders}
             </div>
             <div>
-              💾 Size:
-              {storageInfo.size ? `${storageInfo.size} bytes` : 'N/A'}
-            </div>
-            <div>
-              🔒 Permissions:
-              {storageInfo.permissions || 'N/A'}
+              ✅ Authenticated Providers:
+              {storageInfo.authenticatedProviders}
             </div>
           </div>
         </Card>

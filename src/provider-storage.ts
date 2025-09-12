@@ -3,10 +3,67 @@ import * as os from 'os'
 import * as path from 'path'
 import { decrypt, encrypt } from './encryption'
 
+export const BUILT_IN_PROVIDERS = [
+  {
+    id: 'google',
+    name: 'Google',
+    iconSrc: '/assets/icon-logo-google.png',
+    clientId: process.env.GOOGLE_CLIENT_ID || '',
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
+    authorizationUrl: 'https://accounts.google.com/o/oauth2/auth',
+    tokenUrl: 'https://oauth2.googleapis.com/token',
+    userInfoUrl: 'https://www.googleapis.com/oauth2/v1/userinfo',
+    scopes: [
+      'openid',
+      'email',
+      'profile',
+      'https://www.googleapis.com/auth/drive.readonly',
+      'https://www.googleapis.com/auth/gmail.readonly',
+      'https://www.googleapis.com/auth/spreadsheets',
+      'https://www.googleapis.com/auth/presentations',
+      'https://www.googleapis.com/auth/drive.file',
+    ],
+    usePKCE: true,
+    redirectUri: 'http://localhost:8082/callback',
+    additionalParams: {
+      access_type: 'offline',
+      prompt: 'consent',
+    },
+    isCustom: false,
+  },
+  {
+    id: 'github',
+    name: 'GitHub',
+    iconSrc: '/assets/icon-logo-github.png',
+    clientId: process.env.GITHUB_CLIENT_ID || '',
+    clientSecret: process.env.GITHUB_CLIENT_SECRET || '',
+    authorizationUrl: 'https://github.com/login/oauth/authorize',
+    tokenUrl: 'https://github.com/login/oauth/access_token',
+    userInfoUrl: 'https://api.github.com/user',
+    scopes: ['user:email', 'repo'],
+    usePKCE: false,
+    redirectUri: 'http://localhost:8082/callback',
+    isCustom: false,
+  },
+  {
+    id: 'microsoft',
+    name: 'Microsoft',
+    iconSrc: '/assets/icon-logo-microsoft.png',
+    clientId: process.env.MICROSOFT_CLIENT_ID || '',
+    authorizationUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
+    tokenUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+    userInfoUrl: 'https://graph.microsoft.com/v1.0/me',
+    scopes: ['openid', 'profile', 'email', 'User.Read'],
+    usePKCE: true,
+    redirectUri: 'http://localhost:8082/callback',
+    isCustom: false,
+  },
+]
+
 export interface OAuthProviderConfig {
   id: string
   name: string
-  icon?: string
+  iconSrc?: string
   clientId: string
   clientSecret?: string
   authorizationUrl: string
@@ -153,7 +210,7 @@ export class ProviderStorage {
    */
   async getAllProviderConfigs(): Promise<OAuthProviderConfig[]> {
     await this.ensureLoaded()
-    return Array.from(this.providersCache.values())
+    return Array.from(this.providersCache.values()).sort((a, b) => a.name.localeCompare(b.name))
   }
 
   /**
@@ -177,9 +234,19 @@ export class ProviderStorage {
     }
 
     if (this.providersCache.has(providerId)) {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const provider = this.providersCache.get(providerId)
+      // const provider = this.providersCache.get(providerId)
       this.providersCache.delete(providerId)
+    }
+
+    const builtInProvider = BUILT_IN_PROVIDERS.find(provider => provider.id === providerId)
+    if (builtInProvider) {
+      const now = Date.now()
+      const providerConfig: OAuthProviderConfig = {
+        ...builtInProvider,
+        createdAt: now,
+        updatedAt: now,
+      }
+      this.providersCache.set(providerId, providerConfig)
     }
   }
 
@@ -218,64 +285,7 @@ export class ProviderStorage {
    * Initialize built-in providers if they don't exist
    */
   async initializeBuiltInProviders(): Promise<void> {
-    const builtInProviders = [
-      {
-        id: 'google',
-        name: 'Google',
-        icon: '🔍',
-        clientId: process.env.GOOGLE_CLIENT_ID || '',
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
-        authorizationUrl: 'https://accounts.google.com/o/oauth2/auth',
-        tokenUrl: 'https://oauth2.googleapis.com/token',
-        userInfoUrl: 'https://www.googleapis.com/oauth2/v1/userinfo',
-        scopes: [
-          'openid',
-          'email',
-          'profile',
-          'https://www.googleapis.com/auth/drive.readonly',
-          'https://www.googleapis.com/auth/gmail.readonly',
-          'https://www.googleapis.com/auth/spreadsheets',
-          'https://www.googleapis.com/auth/presentations',
-          'https://www.googleapis.com/auth/drive.file',
-        ],
-        usePKCE: true,
-        redirectUri: 'http://localhost:8082/callback',
-        additionalParams: {
-          access_type: 'offline',
-          prompt: 'consent',
-        },
-        isCustom: false,
-      },
-      {
-        id: 'github',
-        name: 'GitHub',
-        icon: '🐙',
-        clientId: process.env.GITHUB_CLIENT_ID || '',
-        clientSecret: process.env.GITHUB_CLIENT_SECRET || '',
-        authorizationUrl: 'https://github.com/login/oauth/authorize',
-        tokenUrl: 'https://github.com/login/oauth/access_token',
-        userInfoUrl: 'https://api.github.com/user',
-        scopes: ['user:email', 'repo'],
-        usePKCE: false,
-        redirectUri: 'http://localhost:8082/callback',
-        isCustom: false,
-      },
-      {
-        id: 'microsoft',
-        name: 'Microsoft',
-        icon: '🪟',
-        clientId: process.env.MICROSOFT_CLIENT_ID || '',
-        authorizationUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
-        tokenUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
-        userInfoUrl: 'https://graph.microsoft.com/v1.0/me',
-        scopes: ['openid', 'profile', 'email', 'User.Read'],
-        usePKCE: true,
-        redirectUri: 'http://localhost:8082/callback',
-        isCustom: false,
-      },
-    ]
-
-    for (const provider of builtInProviders) {
+    for (const provider of BUILT_IN_PROVIDERS) {
       const exists = await this.hasProvider(provider.id)
       if (!exists) {
         await this.saveProviderConfig(provider)
