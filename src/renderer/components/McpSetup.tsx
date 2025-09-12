@@ -2,6 +2,8 @@ import React from 'react'
 import { Download } from 'lucide-react'
 import { ProgressIndicator } from './ProgressIndicator'
 import { Footer } from './Footer'
+import advancedSettingsImg from '../assets/advanced_settings.png'
+import installExtensionImg from '../assets/install_extension.png'
 interface McpSetupProps {
   onNext: () => void
   onSkip?: () => void
@@ -50,8 +52,37 @@ export const McpSetup: React.FC<McpSetupProps> = ({ onNext, onSkip }) => {
             </div>
           </div>
 
+          {/* Claude Desktop Setup */}
+          <div className="space-y-4">
+            <div className="text-gray-900 font-medium">2. For Claude Desktop:</div>
+            
+            <div className="space-y-3">
+              <div className="text-sm text-gray-700">
+                <span className="font-medium">Step 1:</span> Find the advanced settings
+              </div>
+              <div className="flex justify-center">
+                <img 
+                  src={advancedSettingsImg} 
+                  alt="Advanced Settings" 
+                  className="max-w-full h-auto rounded-lg border border-gray-200 shadow-sm"
+                />
+              </div>
+              
+              <div className="text-sm text-gray-700">
+                <span className="font-medium">Step 2:</span> Install the extension
+              </div>
+              <div className="flex justify-center">
+                <img 
+                  src={installExtensionImg} 
+                  alt="Install Extension" 
+                  className="max-w-full h-auto rounded-lg border border-gray-200 shadow-sm"
+                />
+              </div>
+            </div>
+          </div>
+
           <div>
-            <span className="text-gray-900 font-medium">2. Install the file as an extension in your MCP client</span>
+            <span className="text-gray-900 font-medium">3. Install the file as an extension in your MCP client</span>
             <br />
             <span className="text-gray-600 text-sm">(Claude, ChatGPT, etc)</span>
           </div>
