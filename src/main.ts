@@ -1477,6 +1477,11 @@ class MenuBarNotificationApp {
             return
           }
 
+          if (message.type === 'prompter-request') {
+            this.handlePrompterRequest(message)
+            return
+          }
+
           // Handle regular messages
           this.handleIncomingMessage(message)
         }
@@ -1521,6 +1526,10 @@ class MenuBarNotificationApp {
 
     // Auto-show window for share requests
     this.windowManager.showWindow()
+  }
+
+  private handlePrompterRequest(message: WebSocketMessage): void {
+    this.windowManager.sendMessage('websocket-message', message)
   }
 
   private handleIncomingMessage(message: Message): void {

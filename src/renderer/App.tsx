@@ -22,6 +22,7 @@ import { ButtonDesigned } from './components/ui/ButtonDesigned'
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card'
 import { useAuth } from './hooks/useAuth'
 import { Providers } from './providers/Providers'
+import { Prompter } from './components/Prompter'
 
 const handleEditorWillMount = (monacoInstance: typeof monaco) => {
   monacoInstance.editor.defineTheme('lazy', lazyTheme as monaco.editor.IStandaloneThemeData)
@@ -550,6 +551,7 @@ const AppContent: React.FC = () => {
       )
     }
 
+
     switch (currentMessage?.title) {
       case 'Security Evaluation Request':
         return (
@@ -559,6 +561,10 @@ const AppContent: React.FC = () => {
             onBack={showMessageList}
             onReject={rejectMessage}
           />
+        )
+      case 'prompter-request':
+        return (
+          <Prompter />
         )
 
       default:
