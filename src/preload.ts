@@ -137,6 +137,7 @@ export interface ElectronAPI {
   getAuthStatus: () => Promise<AuthStatus>
   logout: () => Promise<void>
   getAccessToken: () => Promise<string | null>
+  getScripts: () => Promise<any[]>
   onAuthSuccess: (callback: (event: IpcRendererEvent, data: AuthStatus) => void) => void
   onAuthError: (callback: (event: IpcRendererEvent, error: AuthError) => void) => void
   onAuthLogout: (callback: (event: IpcRendererEvent) => void) => void
@@ -245,6 +246,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAuthStatus: (): Promise<AuthStatus> => ipcRenderer.invoke('get-auth-status'),
   logout: (): Promise<void> => ipcRenderer.invoke('logout'),
   getAccessToken: (): Promise<string | null> => ipcRenderer.invoke('get-access-token'),
+  getScripts: (): Promise<any[]> => ipcRenderer.invoke('get-scripts'),
 
   // Legacy OAuth event listeners
   onAuthSuccess: (callback: (event: IpcRendererEvent, data: AuthStatus) => void): void => {

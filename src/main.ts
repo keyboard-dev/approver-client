@@ -1304,6 +1304,21 @@ class MenuBarNotificationApp {
     return this.authTokens.access_token
   }
 
+  private async getScripts(): Promise<any[]> {
+    const accessToken = await this.getValidAccessToken()
+    const response = await fetch(`${this.OAUTH_SERVER_URL}/api/scripts`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+      },
+    })
+
+    if (!response.ok) {
+      throw new Error('Failed to get scripts')
+    }
+
+    return await response.json() as any[]
+  }
+
   private notifyAuthError(message: string): void {
     console.error('🔐 Auth Error:', message)
 
@@ -1677,6 +1692,10 @@ class MenuBarNotificationApp {
 
     ipcMain.handle('get-access-token', async (): Promise<string | null> => {
       return await this.getValidAccessToken()
+    })
+
+    ipcMain.handle('get-scripts', async (): Promise<any[]> => {
+      return await this.getScripts()
     })
 
     // New OAuth Provider IPC handlers
