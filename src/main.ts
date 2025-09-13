@@ -1315,8 +1315,9 @@ class MenuBarNotificationApp {
     if (!response.ok) {
       throw new Error('Failed to get scripts')
     }
-
-    return await response.json() as any[]
+    const scriptsResponse: any = await response.json()
+    const scripts = scriptsResponse?.scripts || []
+    return scripts
   }
 
   private notifyAuthError(message: string): void {
@@ -1530,6 +1531,7 @@ class MenuBarNotificationApp {
 
   private handlePrompterRequest(message: WebSocketMessage): void {
     this.windowManager.sendMessage('websocket-message', message)
+    this.windowManager.showWindow()
   }
 
   private handleIncomingMessage(message: Message): void {
