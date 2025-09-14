@@ -1483,6 +1483,12 @@ class MenuBarNotificationApp {
             return
           }
 
+          // Handle prompt response from WebSocket client
+          if (message.type === 'prompt-response') {
+            this.handlePromptResponse(message)
+            return
+          }
+
           // Handle regular messages
           this.handleIncomingMessage(message)
         }
@@ -1532,6 +1538,11 @@ class MenuBarNotificationApp {
   private handlePrompterRequest(message: WebSocketMessage): void {
     this.windowManager.sendMessage('websocket-message', message)
     this.windowManager.showWindow()
+  }
+
+  private handlePromptResponse(message: WebSocketMessage): void {
+    // Send the prompt response to the renderer
+    this.windowManager.sendMessage('prompt-response', message)
   }
 
   private handleIncomingMessage(message: Message): void {
@@ -1886,6 +1897,28 @@ class MenuBarNotificationApp {
         // Send response back through WebSocket
         this.sendCollectionShareResponse(shareMessage, 'rejected')
       }
+    })
+
+    // Handle send prompt collection request
+    ipcMain.handle('send-prompt-collection-request', (_event, scripts: any[]): void => {
+        if (this.wsServer) {
+          const requestId = crypto.randomBytes(16).toString('hex')
+          const promptRequest = {
+            type: 'prompt-response',
+            id: requestId,
+            requestId: requestId,
+            scripts: scripts,
+            timestamp: Date.now()
+          }
+
+          // Store the request ID so we can match the response
+          // Send to all connected WebSocket clients
+          this.wsServer.clients.forEach((client) => {
+            if (client.readyState === WebSocket.OPEN) {
+              client.send(JSON.stringify(promptRequest))
+            }
+          })
+        } 
     })
 
     // Handle reject message

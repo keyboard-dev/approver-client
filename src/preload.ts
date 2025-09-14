@@ -124,11 +124,13 @@ export interface ElectronAPI {
   rejectMessage: (messageId: string, feedback?: string) => Promise<void>
   approveCollectionShare: (messageId: string, updatedRequest: CollectionRequest) => Promise<void>
   rejectCollectionShare: (messageId: string) => Promise<void>
+  sendPromptCollectionRequest: (scripts: any[]) => Promise<string>
   showMessages: () => void
   onShowMessage: (callback: (event: IpcRendererEvent, message: Message) => void) => void
   onWebSocketMessage: (callback: (event: IpcRendererEvent, message: Message) => void) => void
   onCollectionShareRequest: (callback: (event: IpcRendererEvent, shareMessage: ShareMessage) => void) => void
   onShowShareMessage: (callback: (event: IpcRendererEvent, shareMessage: ShareMessage) => void) => void
+  onPromptResponse: (callback: (event: IpcRendererEvent, message: any) => void) => void
   removeAllListeners: (channel: string) => void
   // Open external links
   openExternal: (url: string) => Promise<void>
@@ -219,6 +221,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   rejectMessage: (messageId: string, feedback?: string): Promise<void> => ipcRenderer.invoke('reject-message', messageId, feedback),
   approveCollectionShare: (messageId: string, updatedRequest: CollectionRequest): Promise<void> => ipcRenderer.invoke('approve-collection-share', messageId, updatedRequest),
   rejectCollectionShare: (messageId: string): Promise<void> => ipcRenderer.invoke('reject-collection-share', messageId),
+  sendPromptCollectionRequest: (scripts: any[]): Promise<string> => ipcRenderer.invoke('send-prompt-collection-request', scripts),
   showMessages: (): void => ipcRenderer.send('show-messages'),
 
   // Listen for messages from main process
@@ -233,6 +236,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   onShowShareMessage: (callback: (event: IpcRendererEvent, shareMessage: ShareMessage) => void): void => {
     ipcRenderer.on('show-share-message', callback)
+  },
+  onPromptResponse: (callback: (event: IpcRendererEvent, message: any) => void): void => {
+    ipcRenderer.on('prompt-response', callback)
   },
   removeAllListeners: (channel: string): void => {
     ipcRenderer.removeAllListeners(channel)

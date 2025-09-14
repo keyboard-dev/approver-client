@@ -564,7 +564,7 @@ const AppContent: React.FC = () => {
         )
       case 'prompter-request':
         return (
-          <Prompter />
+          <Prompter message={currentMessage} />
         )
 
       default:
