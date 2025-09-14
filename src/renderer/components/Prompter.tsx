@@ -5,8 +5,9 @@ import { Button } from './ui/button'
 import { Checkbox } from './ui/checkbox'
 import { Badge } from './ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog'
-import { ChevronDown, ChevronUp, Eye, Play, Search } from 'lucide-react'
+import { ChevronDown, ChevronUp, Eye, Play, Search, Paperclip, X } from 'lucide-react'
 import { Textarea } from "./ui/textarea"
+import { ChatInput } from "./ChatInput"
 
 interface Script {
     id: string
@@ -30,6 +31,8 @@ export const Prompter: React.FC<PrompterProps> = ({ message }) => {
     const [isWaitingForResponse, setIsWaitingForResponse] = useState(false)
     const [currentRequestId, setCurrentRequestId] = useState<string | null>(null)
     const [messagePrompt, setMessagePrompt] = useState(message?.prompt || '')
+    const [attachedFiles, setAttachedFiles] = useState<File[]>([])
+    const [attachedImages, setAttachedImages] = useState<File[]>([])
 
     useEffect(() => {
         const getScripts = async () => {
@@ -103,6 +106,38 @@ export const Prompter: React.FC<PrompterProps> = ({ message }) => {
         script.description.toLowerCase().includes(searchTerm.toLowerCase())
     )
 
+    const handleAttachFile = (file: File) => {
+        setAttachedFiles(prev => [...prev, file])
+    }
+
+    const handleAttachImage = (file: File) => {
+        setAttachedImages(prev => [...prev, file])
+    }
+
+    const removeAttachedFile = (index: number) => {
+        setAttachedFiles(prev => prev.filter((_, i) => i !== index))
+    }
+
+    const removeAttachedImage = (index: number) => {
+        setAttachedImages(prev => prev.filter((_, i) => i !== index))
+    }
+
+    const handleSendMessage = () => {
+        if (messagePrompt.trim() || attachedFiles.length > 0 || attachedImages.length > 0) {
+            // TODO: Implement sending message with attachments
+            console.log('Sending message:', {
+                prompt: messagePrompt,
+                files: attachedFiles,
+                images: attachedImages
+            })
+            
+            // Clear the input and attachments after sending
+            setMessagePrompt('')
+            setAttachedFiles([])
+            setAttachedImages([])
+        }
+    }
+
     const runSelectedScripts = async () => {
         const selected = scripts.filter(script => selectedScripts.has(script.id)).map(script => {
             return {
@@ -131,11 +166,12 @@ export const Prompter: React.FC<PrompterProps> = ({ message }) => {
     }
 
     return (
-        <div className="p-6">
-            <div className="mb-6">
-                <h1 className="text-3xl font-bold mb-2">Script Library</h1>
-                <p className="text-muted-foreground">Select and run scripts to automate your workflow</p>
-            </div>
+        <div className="flex flex-col h-full">
+            <div className="flex-1 overflow-y-auto p-6">
+                <div className="mb-6">
+                    <h1 className="text-3xl font-bold mb-2">Script Library</h1>
+                    <p className="text-muted-foreground">Select and run scripts to automate your workflow</p>
+                </div>
 
             <div className="mb-6 space-y-4">
                 <div className="relative">
@@ -299,19 +335,69 @@ export const Prompter: React.FC<PrompterProps> = ({ message }) => {
                     )
                 })}
             </div>
-            {message.prompt
-                && (
-                    <Textarea
-                        placeholder="Enter your prompt..."
-                        value={messagePrompt}
-                        onChange={(e) => setMessagePrompt(e.target.value)}
-                        className="min-h-[100px]"
-                    />
-                )
-            }
-            {filteredScripts.length === 0 && (
-                <div className="text-center py-12">
-                    <p className="text-muted-foreground">No scripts found matching your search.</p>
+                {filteredScripts.length === 0 && (
+                    <div className="text-center py-12">
+                        <p className="text-muted-foreground">No scripts found matching your search.</p>
+                    </div>
+                )}
+            </div>
+            
+            {/* Sticky chat input at bottom */}
+            {message.prompt && (
+                <div className="sticky bottom-0 bg-white border-t border-gray-200 p-4">
+                    <div className="space-y-4">
+                        <h2 className="text-xl font-semibold">Chat Input</h2>
+                        
+                        {/* Attachment previews */}
+                        {(attachedFiles.length > 0 || attachedImages.length > 0) && (
+                            <div className="space-y-2">
+                                {attachedFiles.map((file, index) => (
+                                    <div key={`file-${index}`} className="flex items-center justify-between p-2 bg-gray-100 rounded-lg">
+                                        <div className="flex items-center space-x-2">
+                                            <Paperclip className="h-4 w-4 text-gray-500" />
+                                            <span className="text-sm text-gray-700">{file.name}</span>
+                                            <span className="text-xs text-gray-500">({(file.size / 1024).toFixed(1)} KB)</span>
+                                        </div>
+                                        <button
+                                            onClick={() => removeAttachedFile(index)}
+                                            className="text-red-500 hover:text-red-700"
+                                        >
+                                            <X className="h-4 w-4" />
+                                        </button>
+                                    </div>
+                                ))}
+                                
+                                {attachedImages.map((file, index) => (
+                                    <div key={`image-${index}`} className="flex items-center justify-between p-2 bg-gray-100 rounded-lg">
+                                        <div className="flex items-center space-x-2">
+                                            <img 
+                                                src={URL.createObjectURL(file)} 
+                                                alt={file.name}
+                                                className="h-8 w-8 object-cover rounded"
+                                            />
+                                            <span className="text-sm text-gray-700">{file.name}</span>
+                                            <span className="text-xs text-gray-500">({(file.size / 1024).toFixed(1)} KB)</span>
+                                        </div>
+                                        <button
+                                            onClick={() => removeAttachedImage(index)}
+                                            className="text-red-500 hover:text-red-700"
+                                        >
+                                            <X className="h-4 w-4" />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        
+                        <ChatInput
+                            value={messagePrompt}
+                            onChange={setMessagePrompt}
+                            onSend={handleSendMessage}
+                            onAttachFile={handleAttachFile}
+                            onAttachImage={handleAttachImage}
+                            placeholder="Type your message here..."
+                        />
+                    </div>
                 </div>
             )}
         </div>
