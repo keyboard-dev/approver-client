@@ -188,9 +188,10 @@ export class PerProviderTokenStorage {
     if (!tokens) return null
 
     // Check if token is expired
-    if (await this.areTokensExpired(providerId)) {
-      if (tokens.refresh_token && refreshCallback) {
+    //if (await this.areTokensExpired(providerId)) {
+      if(tokens.refresh_token && refreshCallback) {
         try {
+          console.log('refreshing tokens for provider', providerId)
           const newTokens = await refreshCallback(providerId, tokens.refresh_token)
           await this.storeTokens(newTokens)
           return newTokens.access_token
@@ -202,10 +203,10 @@ export class PerProviderTokenStorage {
           return null
         }
       }
-      else {
-        return null
-      }
-    }
+      // else {
+      //   return tokens.access_token
+      // }
+    //}
 
     return tokens.access_token
   }

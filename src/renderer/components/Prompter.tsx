@@ -62,6 +62,9 @@ export const Prompter: React.FC<PrompterProps> = ({ message }) => {
                 window.electronAPI.getProviderAuthStatus(),
                 window.electronAPI.getServerProviders()
             ])
+            console.log('configs', configs)
+            console.log('status', status)
+            console.log('serverList', serverList)
             setProviderConfigs(configs)
             setProviderStatus(status)
             setServers(serverList)
