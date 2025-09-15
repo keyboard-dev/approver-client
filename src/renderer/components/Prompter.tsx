@@ -34,6 +34,8 @@ export const Prompter: React.FC<PrompterProps> = ({ message }) => {
     const [attachedFiles, setAttachedFiles] = useState<File[]>([])
     const [attachedImages, setAttachedImages] = useState<File[]>([])
 
+    console.log('message', message)
+
     useEffect(() => {
         const getScripts = async () => {
             try {
@@ -44,6 +46,9 @@ export const Prompter: React.FC<PrompterProps> = ({ message }) => {
                 console.error('Error getting scripts:', error)
                 setScripts([])
             }
+        }
+        if(message?.prompt?.trim() === "true") {
+        setMessagePrompt(true)
         }
         getScripts()
     }, [])
@@ -122,7 +127,7 @@ export const Prompter: React.FC<PrompterProps> = ({ message }) => {
         setAttachedImages(prev => prev.filter((_, i) => i !== index))
     }
 
-    const handleSendMessage = () => {
+    const handleSendMessage = async () => {
         if (messagePrompt.trim() || attachedFiles.length > 0 || attachedImages.length > 0) {
             // TODO: Implement sending message with attachments
             console.log('Sending message:', {
@@ -131,6 +136,7 @@ export const Prompter: React.FC<PrompterProps> = ({ message }) => {
                 images: attachedImages
             })
             
+            await runSelectedScripts()
             // Clear the input and attachments after sending
             setMessagePrompt('')
             setAttachedFiles([])
@@ -151,8 +157,23 @@ export const Prompter: React.FC<PrompterProps> = ({ message }) => {
         try {
             setIsWaitingForResponse(true)
 
+            // Convert File objects to data URLs
+            const dataUrls = await Promise.all(
+                attachedImages.map(async (file) => {
+                    return new Promise<string>((resolve) => {
+                        const reader = new FileReader()
+                        reader.onload = () => resolve(reader.result as string)
+                        reader.readAsDataURL(file)
+                    })
+                })
+            )
+
             // Send the selected scripts to the WebSocket client and get request ID
-            const requestId = await window.electronAPI.sendPromptCollectionRequest(selected)
+            const requestId = await window.electronAPI.sendPromptCollectionRequest({
+                scripts: selected, 
+                prompt: messagePrompt, 
+                images: dataUrls
+            })
             setCurrentRequestId(requestId)
 
             console.log('Prompt request sent with ID:', requestId)
@@ -169,8 +190,8 @@ export const Prompter: React.FC<PrompterProps> = ({ message }) => {
         <div className="flex flex-col h-full">
             <div className="flex-1 overflow-y-auto p-6">
                 <div className="mb-6">
-                    <h1 className="text-3xl font-bold mb-2">Script Library</h1>
-                    <p className="text-muted-foreground">Select and run scripts to automate your workflow</p>
+                    <h1 className="text-3xl font-bold mb-2">Keyboard Shortcuts</h1>
+                    <p className="text-muted-foreground">Select the relevant Keyboard shortucts scripts you want to run</p>
                 </div>
 
             <div className="mb-6 space-y-4">

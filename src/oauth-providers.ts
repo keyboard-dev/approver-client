@@ -283,7 +283,7 @@ export class OAuthProviderManager {
   /**
    * Safely parse token response data with type checking
    */
-  private parseTokenData(data: Record<string, unknown>): { access_token: string, refresh_token?: string, token_type: string, expires_in?: number, scope?: string } {
+  private parseTokenData(data: Record<string, unknown>): { access_token: string, refresh_token?: string, token_type: string, expires_in?: number, scope?: string, exp?: number } {
     if (typeof data.access_token !== 'string' || !data.access_token) {
       throw new Error('Invalid token response: missing or invalid access_token')
     }
@@ -294,6 +294,7 @@ export class OAuthProviderManager {
       token_type: typeof data.token_type === 'string' ? data.token_type : 'Bearer',
       expires_in: typeof data.expires_in === 'number' ? data.expires_in : undefined,
       scope: typeof data.scope === 'string' ? data.scope : undefined,
+      exp: typeof data.exp === 'number' ? data.exp : undefined,
     }
   }
 
@@ -371,7 +372,7 @@ export class OAuthProviderManager {
       refresh_token: tokenData.refresh_token,
       token_type: tokenData.token_type,
       expires_in,
-      expires_at: Date.now() + (expires_in * 1000),
+      expires_at: tokenData.exp | Date.now() + (expires_in * 1000),
       scope: tokenData.scope,
       user: userData as ProviderTokens['user'],
     }

@@ -124,7 +124,7 @@ export interface ElectronAPI {
   rejectMessage: (messageId: string, feedback?: string) => Promise<void>
   approveCollectionShare: (messageId: string, updatedRequest: CollectionRequest) => Promise<void>
   rejectCollectionShare: (messageId: string) => Promise<void>
-  sendPromptCollectionRequest: (scripts: any[]) => Promise<string>
+  sendPromptCollectionRequest: (context: any) => Promise<string>
   showMessages: () => void
   onShowMessage: (callback: (event: IpcRendererEvent, message: Message) => void) => void
   onWebSocketMessage: (callback: (event: IpcRendererEvent, message: Message) => void) => void
@@ -221,7 +221,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   rejectMessage: (messageId: string, feedback?: string): Promise<void> => ipcRenderer.invoke('reject-message', messageId, feedback),
   approveCollectionShare: (messageId: string, updatedRequest: CollectionRequest): Promise<void> => ipcRenderer.invoke('approve-collection-share', messageId, updatedRequest),
   rejectCollectionShare: (messageId: string): Promise<void> => ipcRenderer.invoke('reject-collection-share', messageId),
-  sendPromptCollectionRequest: (scripts: any[]): Promise<string> => ipcRenderer.invoke('send-prompt-collection-request', scripts),
+  sendPromptCollectionRequest: (context: any): Promise<string> => ipcRenderer.invoke('send-prompt-collection-request', context),
   showMessages: (): void => ipcRenderer.send('show-messages'),
 
   // Listen for messages from main process

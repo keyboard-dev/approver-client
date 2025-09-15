@@ -1900,14 +1900,19 @@ class MenuBarNotificationApp {
     })
 
     // Handle send prompt collection request
-    ipcMain.handle('send-prompt-collection-request', (_event, scripts: any[]): void => {
+    ipcMain.handle('send-prompt-collection-request', (_event, context: any): void => {
         if (this.wsServer) {
+          let scripts = context.scripts
+          let prompt = context.prompt
+          let images = context.images
           const requestId = crypto.randomBytes(16).toString('hex')
           const promptRequest = {
             type: 'prompt-response',
             id: requestId,
             requestId: requestId,
             scripts: scripts,
+            prompt: prompt,
+            images: images,
             timestamp: Date.now()
           }
 
