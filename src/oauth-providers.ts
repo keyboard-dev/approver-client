@@ -372,7 +372,7 @@ export class OAuthProviderManager {
       refresh_token: tokenData.refresh_token,
       token_type: tokenData.token_type,
       expires_in,
-      expires_at: tokenData.exp | Date.now() + (expires_in * 1000),
+      expires_at: tokenData.exp || Date.now() + (expires_in * 1000),
       scope: tokenData.scope,
       user: userData as ProviderTokens['user'],
     }

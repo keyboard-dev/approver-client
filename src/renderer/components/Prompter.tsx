@@ -5,9 +5,17 @@ import { Button } from './ui/button'
 import { Checkbox } from './ui/checkbox'
 import { Badge } from './ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog'
-import { ChevronDown, ChevronUp, Eye, Play, Search, Paperclip, X } from 'lucide-react'
+import { ChevronDown, ChevronUp, Eye, Play, Search, Paperclip, X, AlertCircle, CheckCircle, RefreshCw } from 'lucide-react'
 import { Textarea } from "./ui/textarea"
 import { ChatInput } from "./ChatInput"
+import { OAuthProviderConfig } from '../../provider-storage'
+import { ProviderStatus } from '../../preload'
+import { ServerProviderInfo } from '../../oauth-providers'
+import googleLogoIconUrl from '../../../assets/icon-logo-google.svg'
+import githubLogoIconUrl from '../../../assets/icon-logo-github.svg'
+import microsoftLogoIconUrl from '../../../assets/icon-logo-microsoft.svg'
+import xLogoIconUrl from '../../../assets/icon-logo-x-black.svg'
+import squaresIconUrl from '../../../assets/icon-squares.svg'
 
 interface Script {
     id: string
@@ -33,8 +41,115 @@ export const Prompter: React.FC<PrompterProps> = ({ message }) => {
     const [messagePrompt, setMessagePrompt] = useState(message?.prompt || '')
     const [attachedFiles, setAttachedFiles] = useState<File[]>([])
     const [attachedImages, setAttachedImages] = useState<File[]>([])
+    
+    // Provider-related state
+    const [providerConfigs, setProviderConfigs] = useState<OAuthProviderConfig[]>([])
+    const [providerStatus, setProviderStatus] = useState<Record<string, ProviderStatus>>({})
+    const [providerLoading, setProviderLoading] = useState<Record<string, boolean>>({})
+    const [providerError, setProviderError] = useState<string | null>(null)
+    
+    // Server provider state
+    const [servers, setServers] = useState<any[]>([])
+    const [serverProviders, setServerProviders] = useState<Record<string, ServerProviderInfo[]>>({})
 
     console.log('message', message)
+
+    // Load provider configurations and status
+    const loadProviderData = async () => {
+        try {
+            const [configs, status, serverList] = await Promise.all([
+                window.electronAPI.getAllProviderConfigs(),
+                window.electronAPI.getProviderAuthStatus(),
+                window.electronAPI.getServerProviders()
+            ])
+            setProviderConfigs(configs)
+            setProviderStatus(status)
+            setServers(serverList)
+            
+            // Fetch providers for each server
+            await Promise.all(serverList.map(server => fetchProvidersForServer(server.id)))
+        } catch (error) {
+            console.error('Error loading provider data:', error)
+            setProviderError('Failed to load provider information')
+        }
+    }
+    
+    // Fetch providers for a specific server
+    const fetchProvidersForServer = async (serverId: string) => {
+        try {
+            const providers = await window.electronAPI.fetchServerProviders(serverId)
+            setServerProviders(prev => ({
+                ...prev,
+                [serverId]: providers
+            }))
+        } catch (error) {
+            console.error(`Failed to fetch providers for server ${serverId}:`, error)
+            setServerProviders(prev => ({
+                ...prev,
+                [serverId]: []
+            }))
+        }
+    }
+
+    // Get provider icon URL
+    const getProviderIcon = (providerId: string) => {
+        switch (providerId) {
+            case 'google':
+                return googleLogoIconUrl
+            case 'github':
+                return githubLogoIconUrl
+            case 'microsoft':
+                return microsoftLogoIconUrl
+            case 'x':
+                return xLogoIconUrl
+            default:
+                return squaresIconUrl
+        }
+    }
+
+    // Handle provider connect
+    const handleProviderConnect = async (providerId: string) => {
+        setProviderLoading(prev => ({ ...prev, [providerId]: true }))
+        setProviderError(null)
+        
+        try {
+            await window.electronAPI.startProviderOAuth(providerId)
+        } catch (error) {
+            console.error(`Failed to connect ${providerId}:`, error)
+            setProviderError(`Failed to connect to ${providerId}`)
+            setProviderLoading(prev => ({ ...prev, [providerId]: false }))
+        }
+    }
+
+    // Handle provider disconnect
+    const handleProviderDisconnect = async (providerId: string) => {
+        setProviderLoading(prev => ({ ...prev, [providerId]: true }))
+        
+        try {
+            await window.electronAPI.logoutProvider(providerId)
+            await loadProviderData()
+        } catch (error) {
+            console.error(`Failed to disconnect ${providerId}:`, error)
+            setProviderError(`Failed to disconnect from ${providerId}`)
+        } finally {
+            setProviderLoading(prev => ({ ...prev, [providerId]: false }))
+        }
+    }
+    
+    // Handle server provider connect
+    const handleServerProviderConnect = async (serverId: string, providerId: string) => {
+        const loadingKey = `${serverId}-${providerId}`
+        setProviderLoading(prev => ({ ...prev, [loadingKey]: true }))
+        setProviderError(null)
+        
+        try {
+            await window.electronAPI.startServerProviderOAuth(serverId, providerId)
+        } catch (error) {
+            console.error(`Failed to connect ${providerId} via server ${serverId}:`, error)
+            setProviderError(`Failed to connect to ${providerId}`)
+            setProviderLoading(prev => ({ ...prev, [loadingKey]: false }))
+        }
+    }
 
     useEffect(() => {
         const getScripts = async () => {
@@ -51,6 +166,7 @@ export const Prompter: React.FC<PrompterProps> = ({ message }) => {
         setMessagePrompt(true)
         }
         getScripts()
+        loadProviderData()
     }, [])
 
     // Sync messagePrompt state when message prop changes
@@ -85,6 +201,59 @@ export const Prompter: React.FC<PrompterProps> = ({ message }) => {
             window.electronAPI.removeAllListeners('prompt-response')
         }
     }, [currentRequestId])
+
+    // Listen for provider auth events
+    useEffect(() => {
+        const handleProviderAuthSuccess = (event: any, data: any) => {
+            console.log('Provider auth success:', data)
+            loadProviderData()
+            // Clear loading for both direct and server providers
+            setProviderLoading(prev => {
+                const updated = { ...prev }
+                updated[data.providerId] = false
+                // Clear loading for any server-provider combinations
+                Object.keys(updated).forEach(key => {
+                    if (key.includes('-') && key.endsWith(data.providerId)) {
+                        updated[key] = false
+                    }
+                })
+                return updated
+            })
+            setProviderError(null)
+        }
+
+        const handleProviderAuthError = (event: any, data: any) => {
+            console.error('Provider auth error:', data)
+            setProviderError(`${data.providerId}: ${data.message || 'Authentication failed'}`)
+            // Clear loading for both direct and server providers
+            setProviderLoading(prev => {
+                const updated = { ...prev }
+                updated[data.providerId] = false
+                // Clear loading for any server-provider combinations
+                Object.keys(updated).forEach(key => {
+                    if (key.includes('-') && key.endsWith(data.providerId)) {
+                        updated[key] = false
+                    }
+                })
+                return updated
+            })
+        }
+
+        const handleProviderAuthLogout = (event: any, data: any) => {
+            console.log('Provider logout:', data)
+            loadProviderData()
+        }
+
+        window.electronAPI.onProviderAuthSuccess(handleProviderAuthSuccess)
+        window.electronAPI.onProviderAuthError(handleProviderAuthError)
+        window.electronAPI.onProviderAuthLogout(handleProviderAuthLogout)
+
+        return () => {
+            window.electronAPI.removeAllListeners('provider-auth-success')
+            window.electronAPI.removeAllListeners('provider-auth-error')
+            window.electronAPI.removeAllListeners('provider-auth-logout')
+        }
+    }, [])
 
     const toggleScriptSelection = (scriptId: string) => {
         const newSelection = new Set(selectedScripts)
@@ -193,6 +362,193 @@ export const Prompter: React.FC<PrompterProps> = ({ message }) => {
                     <h1 className="text-3xl font-bold mb-2">Keyboard Shortcuts</h1>
                     <p className="text-muted-foreground">Select the relevant Keyboard shortucts scripts you want to run</p>
                 </div>
+
+                {/* Provider Status Section */}
+                {(providerConfigs.length > 0 || servers.length > 0) && (
+                    <Card className="mb-6">
+                        <CardHeader className="pb-4">
+                            <CardTitle className="text-lg">Connected Services</CardTitle>
+                            <CardDescription>Manage your OAuth provider connections</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {providerError && (
+                                <div className="mb-4 p-3 bg-destructive/10 text-destructive rounded-md flex items-center gap-2">
+                                    <AlertCircle className="h-4 w-4" />
+                                    <span className="text-sm">{providerError}</span>
+                                </div>
+                            )}
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                {providerConfigs.map((provider) => {
+                                    const status = providerStatus[provider.id]
+                                    const isAuthenticated = status?.authenticated || false
+                                    const isExpired = status?.expired || false
+                                    const isLoading = providerLoading[provider.id] || false
+                                    const userEmail = status?.user?.email
+
+                                    return (
+                                        <div
+                                            key={provider.id}
+                                            className={`relative flex items-center gap-3 p-4 border-2 rounded-lg transition-all ${
+                                                isAuthenticated && !isExpired
+                                                    ? 'border-green-500/50 bg-green-50/50'
+                                                    : isExpired
+                                                    ? 'border-orange-500/50 bg-orange-50/50'
+                                                    : 'border-gray-200 bg-gray-50/50'
+                                            }`}
+                                        >
+                                            <img
+                                                src={getProviderIcon(provider.id)}
+                                                alt={provider.name}
+                                                className="w-8 h-8"
+                                            />
+                                            <div className="flex-1 min-w-0">
+                                                <div className="font-medium">{provider.name}</div>
+                                                {userEmail && (
+                                                    <div className="text-xs text-muted-foreground truncate">
+                                                        {userEmail}
+                                                    </div>
+                                                )}
+                                                {isExpired && (
+                                                    <div className="text-xs text-orange-600 mt-1">
+                                                        Token expired
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                {isAuthenticated && !isExpired && (
+                                                    <Badge variant="secondary" className="bg-green-100 text-green-700">
+                                                        <CheckCircle className="h-3 w-3 mr-1" />
+                                                        Active
+                                                    </Badge>
+                                                )}
+                                                {isExpired && (
+                                                    <Badge variant="secondary" className="bg-orange-100 text-orange-700">
+                                                        <AlertCircle className="h-3 w-3 mr-1" />
+                                                        Expired
+                                                    </Badge>
+                                                )}
+                                            </div>
+                                            <Button
+                                                size="sm"
+                                                variant={isAuthenticated && !isExpired ? "ghost" : isExpired ? "default" : "outline"}
+                                                onClick={() =>
+                                                    isAuthenticated
+                                                        ? handleProviderDisconnect(provider.id)
+                                                        : handleProviderConnect(provider.id)
+                                                }
+                                                disabled={isLoading}
+                                                className={`ml-auto ${isExpired ? 'bg-orange-600 hover:bg-orange-700' : ''}`}
+                                            >
+                                                {isLoading ? (
+                                                    <RefreshCw className="h-4 w-4 animate-spin" />
+                                                ) : isAuthenticated ? (
+                                                    isExpired ? (
+                                                        <>
+                                                            <RefreshCw className="h-4 w-4 mr-1" />
+                                                            Reconnect
+                                                        </>
+                                                    ) : (
+                                                        'Disconnect'
+                                                    )
+                                                ) : (
+                                                    'Connect'
+                                                )}
+                                            </Button>
+                                        </div>
+                                    )
+                                })}
+                                
+                                {/* Server Providers */}
+                                {servers.map(server => {
+                                    const providers = serverProviders[server.id] || []
+                                    return providers
+                                        .filter(provider => provider.configured)
+                                        .map(provider => {
+                                            const status = providerStatus[provider.name]
+                                            const isAuthenticated = status?.authenticated || false
+                                            const isExpired = status?.expired || false
+                                            const loadingKey = `${server.id}-${provider.name}`
+                                            const isLoading = providerLoading[loadingKey] || false
+                                            const userEmail = status?.user?.email
+
+                                            return (
+                                                <div
+                                                    key={`${server.id}-${provider.name}`}
+                                                    className={`relative flex items-center gap-3 p-4 border-2 rounded-lg transition-all ${
+                                                        isAuthenticated && !isExpired
+                                                            ? 'border-green-500/50 bg-green-50/50'
+                                                            : isExpired
+                                                            ? 'border-orange-500/50 bg-orange-50/50'
+                                                            : 'border-gray-200 bg-gray-50/50'
+                                                    }`}
+                                                >
+                                                    <img
+                                                        src={getProviderIcon(provider.name)}
+                                                        alt={provider.name}
+                                                        className="w-8 h-8"
+                                                    />
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="font-medium">{provider.name}</div>
+                                                        <div className="text-xs text-muted-foreground">via {server.name}</div>
+                                                        {userEmail && (
+                                                            <div className="text-xs text-muted-foreground truncate">
+                                                                {userEmail}
+                                                            </div>
+                                                        )}
+                                                        {isExpired && (
+                                                            <div className="text-xs text-orange-600 mt-1">
+                                                                Token expired
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        {isAuthenticated && !isExpired && (
+                                                            <Badge variant="secondary" className="bg-green-100 text-green-700">
+                                                                <CheckCircle className="h-3 w-3 mr-1" />
+                                                                Active
+                                                            </Badge>
+                                                        )}
+                                                        {isExpired && (
+                                                            <Badge variant="secondary" className="bg-orange-100 text-orange-700">
+                                                                <AlertCircle className="h-3 w-3 mr-1" />
+                                                                Expired
+                                                            </Badge>
+                                                        )}
+                                                    </div>
+                                                    <Button
+                                                        size="sm"
+                                                        variant={isAuthenticated && !isExpired ? "ghost" : isExpired ? "default" : "outline"}
+                                                        onClick={() =>
+                                                            isAuthenticated
+                                                                ? handleProviderDisconnect(provider.name)
+                                                                : handleServerProviderConnect(server.id, provider.name)
+                                                        }
+                                                        disabled={isLoading}
+                                                        className={`ml-auto ${isExpired ? 'bg-orange-600 hover:bg-orange-700' : ''}`}
+                                                    >
+                                                        {isLoading ? (
+                                                            <RefreshCw className="h-4 w-4 animate-spin" />
+                                                        ) : isAuthenticated ? (
+                                                            isExpired ? (
+                                                                <>
+                                                                    <RefreshCw className="h-4 w-4 mr-1" />
+                                                                    Reconnect
+                                                                </>
+                                                            ) : (
+                                                                'Disconnect'
+                                                            )
+                                                        ) : (
+                                                            'Connect'
+                                                        )}
+                                                    </Button>
+                                                </div>
+                                            )
+                                        })
+                                })}
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
 
             <div className="mb-6 space-y-4">
                 <div className="relative">
