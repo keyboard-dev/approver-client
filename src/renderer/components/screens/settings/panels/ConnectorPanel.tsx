@@ -50,7 +50,7 @@ export const ConnectorPanel: React.FC = () => {
           <button
             className="underline"
             // too add link
-            onClick={() => window.electronAPI.openExternalUrl('https://docs.keyboard.dev/')}
+            onClick={() => window.electronAPI.openExternalUrlUrl('https://docs.keyboard.dev/')}
           >
             Learn more
           </button>

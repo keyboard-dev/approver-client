@@ -12,7 +12,7 @@ export const McpSetup: React.FC<McpSetupProps> = ({ onNext }) => {
   const advancedSettingsImg = 'https://res.cloudinary.com/dt29hglkk/image/upload/v1757699431/advanced-settings_prlpa6.png'
   const installExtensionImg = 'https://res.cloudinary.com/dt29hglkk/image/upload/v1757699537/install-extension_qbtjua.png'
   const handleDownload = () => {
-    window.electronAPI.openExternal('https://github.com/keyboard-dev/keyboard-mcp/releases/latest')
+    window.electronAPI.openExternalUrl('https://github.com/keyboard-dev/keyboard-mcp/releases/latest')
   }
 
   return (
@@ -103,7 +103,7 @@ export const McpSetup: React.FC<McpSetupProps> = ({ onNext }) => {
             <span className="text-gray-900 font-medium">For other MCP clients:</span>
             <span
               className="pl-2 text-blue-600 text-sm font-medium font-inter cursor-pointer hover:underline"
-              onClick={() => window.electronAPI.openExternal('https://docs.keyboard.dev/getting-started/other-mcp-clients')}
+              onClick={() => window.electronAPI.openExternalUrl('https://docs.keyboard.dev/getting-started/other-mcp-clients')}
             >
               Follow this document
             </span>
@@ -204,7 +204,7 @@ export const McpSetup: React.FC<McpSetupProps> = ({ onNext }) => {
   //             <span className="text-gray-900 font-medium">For other MCP clients:</span>
   //             <span
   //               className="pl-2 text-blue-600 text-sm font-medium font-inter cursor-pointer hover:underline"
-  //               onClick={() => window.electronAPI.openExternal('https://docs.keyboard.dev/getting-started/other-mcp-clients')}
+  //               onClick={() => window.electronAPI.openExternalUrl('https://docs.keyboard.dev/getting-started/other-mcp-clients')}
   //             >
   //               Follow this document
   //             </span>
