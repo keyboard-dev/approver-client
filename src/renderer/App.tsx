@@ -103,9 +103,6 @@ const AppContent: React.FC = () => {
       setIsGitHubConnected(false)
     }
     finally {
-      console.log('===============================================')
-      console.log('setIsCheckingGitHub(false)')
-      console.log('===============================================')
       setIsCheckingGitHub(false)
     }
   }, [])
@@ -569,12 +566,6 @@ const AppContent: React.FC = () => {
         )
 
       default:
-        console.log('===============================================')
-        console.log('authStatus.authenticated', authStatus.authenticated)
-        console.log('isSkippingAuth', isSkippingAuth)
-        console.log('isCheckingGitHub', isCheckingGitHub)
-        console.log('isGitHubConnected', isGitHubConnected)
-        console.log('===============================================')
         return (
           <div className="w-full grow min-h-0 mx-auto">
             {/* Authentication Component */}
