@@ -1,6 +1,6 @@
-import React, { useState } from 'react'
 import { Check } from 'lucide-react'
-import { ProgressIndicator } from './ProgressIndicator'
+import React, { useState } from 'react'
+import { ProgressIndicator } from './screens/onboarding/ProgressIndicator'
 interface ConnectAppsProps {
   onComplete: () => void
 }

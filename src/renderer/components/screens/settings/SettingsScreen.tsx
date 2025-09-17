@@ -1,16 +1,8 @@
 import React, { useEffect, useState } from 'react'
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@radix-ui/react-tabs'
-
-import EncryptionKeyManager from '../../EncryptionKeyManager'
-import { OAuthProviderManager } from '../../OAuthProviderManager'
-import ServerProviderManager from '../../ServerProviderManager'
-import WebSocketKeyManager from '../../WebSocketKeyManager'
 import { ConnectorPanel } from './panels/ConnectorPanel'
 import { KeyPanel } from './panels/KeyPanel'
 import { NotificationPanel } from './panels/NotificationPanel'
-
-const oldSettings = false
 
 const TABS = [
   'WebSocket',
@@ -29,33 +21,6 @@ export const SettingsScreen: React.FC<{
   const [tabsWidth, setTabsWidth] = useState<number>(0)
 
   const [activeTab, setActiveTab] = useState<TabType>(TABS[0])
-
-  if (oldSettings) {
-    return (
-      <div className="space-y-6">
-        <Tabs defaultValue="websocket" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="websocket">WebSocket</TabsTrigger>
-            <TabsTrigger value="encryption">Encryption</TabsTrigger>
-            <TabsTrigger value="oauth">OAuth Providers</TabsTrigger>
-            <TabsTrigger value="servers">Server Providers</TabsTrigger>
-          </TabsList>
-          <TabsContent value="websocket" className="mt-6">
-            <WebSocketKeyManager />
-          </TabsContent>
-          <TabsContent value="encryption" className="mt-6">
-            <EncryptionKeyManager />
-          </TabsContent>
-          <TabsContent value="oauth" className="mt-6">
-            <OAuthProviderManager />
-          </TabsContent>
-          <TabsContent value="servers" className="mt-6">
-            <ServerProviderManager />
-          </TabsContent>
-        </Tabs>
-      </div>
-    )
-  }
 
   useEffect(() => {
     const tempTabs = document.createElement('div')
@@ -169,11 +134,6 @@ export const SettingsScreen: React.FC<{
         </div>
 
         {getPanel()}
-        {/* <div
-          className="grow shrink min-w-0 h-full py-[0.5rem] flex flex-col gap-[0.63rem]"
-        >
-          {getPanel()}
-        </div> */}
       </div>
     </>
   )

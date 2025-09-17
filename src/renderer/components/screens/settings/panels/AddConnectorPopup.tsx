@@ -54,10 +54,6 @@ export const AddConnectorPopup: React.FC<ManualProviderFormProps> = ({
     setIsLoading(true)
 
     try {
-      console.log('===============================================')
-      console.log('config', config)
-      console.log('===============================================')
-
       if (!config.id) {
         config.id = config.name
       }
