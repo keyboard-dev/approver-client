@@ -12,8 +12,8 @@ import { CollectionRequest, Message, ShareMessage } from '../types'
 import './App.css'
 import AuthComponent from './components/AuthComponent'
 import GitHubOAuthButton from './components/GitHubOAuthButton'
-import OnboardingView from './components/OnboardingView'
 import { ApprovalScreen } from './components/screens/ApprovalPanel'
+import OnboardingView from './components/screens/onboarding/OnboardingView'
 import { SettingsScreen } from './components/screens/settings/SettingsScreen'
 import { Share } from './components/Share'
 import { Badge } from './components/ui/badge'
@@ -103,6 +103,9 @@ const AppContent: React.FC = () => {
       setIsGitHubConnected(false)
     }
     finally {
+      console.log('===============================================')
+      console.log('setIsCheckingGitHub(false)')
+      console.log('===============================================')
       setIsCheckingGitHub(false)
     }
   }, [])
@@ -550,6 +553,10 @@ const AppContent: React.FC = () => {
       )
     }
 
+    if ((authStatus.authenticated || isSkippingAuth) && !isCheckingGitHub && !isGitHubConnected) {
+      return <OnboardingView onComplete={checkGitHubConnection} />
+    }
+
     switch (currentMessage?.title) {
       case 'Security Evaluation Request':
         return (
@@ -562,6 +569,12 @@ const AppContent: React.FC = () => {
         )
 
       default:
+        console.log('===============================================')
+        console.log('authStatus.authenticated', authStatus.authenticated)
+        console.log('isSkippingAuth', isSkippingAuth)
+        console.log('isCheckingGitHub', isCheckingGitHub)
+        console.log('isGitHubConnected', isGitHubConnected)
+        console.log('===============================================')
         return (
           <div className="w-full grow min-h-0 mx-auto">
             {/* Authentication Component */}
@@ -577,11 +590,6 @@ const AppContent: React.FC = () => {
                   </CardContent>
                 </Card>
               </div>
-            )}
-
-            {/* Show onboarding if authenticated but GitHub not connected */}
-            {(authStatus.authenticated || isSkippingAuth) && !isCheckingGitHub && !isGitHubConnected && (
-              <OnboardingView onComplete={checkGitHubConnection} />
             )}
 
             {/* Only show main content if authenticated and GitHub connected */}

@@ -1999,8 +1999,6 @@ class MenuBarNotificationApp {
 
     // Send response back through WebSocket if needed
     this.sendWebSocketResponse(existingMessage)
-
-    
   }
 
   private sendWebSocketResponse(message: Message): void {
