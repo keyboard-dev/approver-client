@@ -188,24 +188,24 @@ export class PerProviderTokenStorage {
     if (!tokens) return null
 
     // Check if token is expired
-    if (await this.areTokensExpired(providerId)) {
-      if (tokens.refresh_token && refreshCallback) {
-        try {
-          const newTokens = await refreshCallback(providerId, tokens.refresh_token)
-          await this.storeTokens(newTokens)
-          return newTokens.access_token
-        }
-        catch (error) {
-          console.error(`❌ Failed to refresh tokens for ${providerId}:`, error)
-          // Remove invalid tokens
-          await this.removeTokens(providerId)
-          return null
-        }
+    // if (await this.areTokensExpired(providerId)) {
+    if (tokens.refresh_token && refreshCallback) {
+      try {
+        const newTokens = await refreshCallback(providerId, tokens.refresh_token)
+        await this.storeTokens(newTokens)
+        return newTokens.access_token
       }
-      else {
+      catch (error) {
+        console.error(`❌ Failed to refresh tokens for ${providerId}:`, error)
+        // Remove invalid tokens
+        await this.removeTokens(providerId)
         return null
       }
     }
+    // else {
+    //   return tokens.access_token
+    // }
+    // }
 
     return tokens.access_token
   }

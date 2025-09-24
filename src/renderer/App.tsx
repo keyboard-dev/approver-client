@@ -12,6 +12,8 @@ import { CollectionRequest, Message, ShareMessage } from '../types'
 import './App.css'
 import AuthComponent from './components/AuthComponent'
 import GitHubOAuthButton from './components/GitHubOAuthButton'
+import OnboardingView from './components/OnboardingView'
+import { Prompter } from './components/Prompter'
 import { ApprovalScreen } from './components/screens/ApprovalPanel'
 import OnboardingView from './components/screens/onboarding/OnboardingView'
 import { SettingsScreen } from './components/screens/settings/SettingsScreen'
@@ -61,6 +63,7 @@ const AppContent: React.FC = () => {
   const [isFontLoaded, setIsFontLoaded] = useState(false)
   const [isGitHubConnected, setIsGitHubConnected] = useState(false)
   const [isCheckingGitHub, setIsCheckingGitHub] = useState(true)
+  const [showPrompterOnly, setShowPrompterOnly] = useState(false)
 
   // Use refs to track state without causing re-renders
   const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -385,6 +388,7 @@ const AppContent: React.FC = () => {
     setFeedback('')
     setShowFeedback(false)
     setShowSettings(false)
+    setShowPrompterOnly(false)
     refreshMessages() // Refresh to show updated status
   }
 
@@ -538,7 +542,17 @@ const AppContent: React.FC = () => {
     }
   }, [])
 
+  const openPrompterOnly = () => {
+    setShowPrompterOnly(true)
+  }
+
   const getMessageScreen = () => {
+    if (showPrompterOnly) {
+      return (
+        <Prompter message={{ title: 'prompter-request' }} onBack={showMessageList} />
+      )
+    }
+
     if (currentShareMessage) {
       return (
         <Share
@@ -563,6 +577,10 @@ const AppContent: React.FC = () => {
             onBack={showMessageList}
             onReject={rejectMessage}
           />
+        )
+      case 'prompter-request':
+        return (
+          <Prompter message={currentMessage} />
         )
 
       default:
@@ -735,6 +753,15 @@ const AppContent: React.FC = () => {
                             {showSettings ? 'Settings' : 'Message Approvals'}
                           </h1>
                           <div className="flex items-center space-x-3">
+                            {!showSettings && (
+                              <Button
+                                variant="outline"
+                                onClick={openPrompterOnly}
+                                className="flex items-center space-x-2"
+                              >
+                                <span>Open Prompter</span>
+                              </Button>
+                            )}
                             {!showSettings && (
                               <GitHubOAuthButton />
                             )}

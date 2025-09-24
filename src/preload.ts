@@ -124,11 +124,13 @@ export interface ElectronAPI {
   rejectMessage: (messageId: string, feedback?: string) => Promise<void>
   approveCollectionShare: (messageId: string, updatedRequest: CollectionRequest) => Promise<void>
   rejectCollectionShare: (messageId: string) => Promise<void>
+  sendPromptCollectionRequest: (context: any) => Promise<string>
   showMessages: () => void
   onShowMessage: (callback: (event: IpcRendererEvent, message: Message) => void) => void
   onWebSocketMessage: (callback: (event: IpcRendererEvent, message: Message) => void) => void
   onCollectionShareRequest: (callback: (event: IpcRendererEvent, shareMessage: ShareMessage) => void) => void
   onShowShareMessage: (callback: (event: IpcRendererEvent, shareMessage: ShareMessage) => void) => void
+  onPromptResponse: (callback: (event: IpcRendererEvent, message: any) => void) => void
   removeAllListeners: (channel: string) => void
   // Open external links
   openExternal: (url: string) => Promise<void>
@@ -137,6 +139,7 @@ export interface ElectronAPI {
   getAuthStatus: () => Promise<AuthStatus>
   logout: () => Promise<void>
   getAccessToken: () => Promise<string | null>
+  getScripts: () => Promise<any[]>
   onAuthSuccess: (callback: (event: IpcRendererEvent, data: AuthStatus) => void) => void
   onAuthError: (callback: (event: IpcRendererEvent, error: AuthError) => void) => void
   onAuthLogout: (callback: (event: IpcRendererEvent) => void) => void
@@ -218,6 +221,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   rejectMessage: (messageId: string, feedback?: string): Promise<void> => ipcRenderer.invoke('reject-message', messageId, feedback),
   approveCollectionShare: (messageId: string, updatedRequest: CollectionRequest): Promise<void> => ipcRenderer.invoke('approve-collection-share', messageId, updatedRequest),
   rejectCollectionShare: (messageId: string): Promise<void> => ipcRenderer.invoke('reject-collection-share', messageId),
+  sendPromptCollectionRequest: (context: any): Promise<string> => ipcRenderer.invoke('send-prompt-collection-request', context),
   showMessages: (): void => ipcRenderer.send('show-messages'),
 
   // Listen for messages from main process
@@ -233,6 +237,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onShowShareMessage: (callback: (event: IpcRendererEvent, shareMessage: ShareMessage) => void): void => {
     ipcRenderer.on('show-share-message', callback)
   },
+  onPromptResponse: (callback: (event: IpcRendererEvent, message: any) => void): void => {
+    ipcRenderer.on('prompt-response', callback)
+  },
   removeAllListeners: (channel: string): void => {
     ipcRenderer.removeAllListeners(channel)
   },
@@ -245,6 +252,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAuthStatus: (): Promise<AuthStatus> => ipcRenderer.invoke('get-auth-status'),
   logout: (): Promise<void> => ipcRenderer.invoke('logout'),
   getAccessToken: (): Promise<string | null> => ipcRenderer.invoke('get-access-token'),
+  getScripts: (): Promise<any[]> => ipcRenderer.invoke('get-scripts'),
 
   // Legacy OAuth event listeners
   onAuthSuccess: (callback: (event: IpcRendererEvent, data: AuthStatus) => void): void => {

@@ -124,7 +124,6 @@ export class GithubService {
   private readToken(): GitHubToken | null {
     try {
       if (!fs.existsSync(this.TOKEN_FILE_PATH)) {
-        console.warn('GitHub token file not found:', this.TOKEN_FILE_PATH)
         return null
       }
 
@@ -188,7 +187,6 @@ export class GithubService {
         const existingFork = await this.makeRequest<GitHubRepository>(`/repos/${user.login}/${repo}`)
 
         // If we get here, fork exists - return it
-        console.log(`Fork already exists: ${user.login}/${repo}`)
         return existingFork
       }
       catch (error: unknown) {
@@ -199,7 +197,6 @@ export class GithubService {
       }
 
       // Fork doesn't exist, create it
-      console.log(`Creating fork: ${owner}/${repo}`)
       return await this.makeRequest<GitHubRepository>(`/repos/${owner}/${repo}/forks`, {
         method: 'POST',
       })

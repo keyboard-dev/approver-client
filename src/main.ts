@@ -950,7 +950,6 @@ class MenuBarNotificationApp {
     provider: string,
   ): Promise<void> {
     try {
-      console.log('handleServerOAuthHttpCallback', callbackData, serverId, provider)
       if (callbackData.error) {
         throw new Error(`OAuth error: ${callbackData.error} - ${callbackData.error_description || ''}`)
       }
@@ -1304,6 +1303,22 @@ class MenuBarNotificationApp {
     return this.authTokens.access_token
   }
 
+  private async getScripts(): Promise<any[]> {
+    const accessToken = await this.getValidAccessToken()
+    const response = await fetch(`${this.OAUTH_SERVER_URL}/api/scripts`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    })
+
+    if (!response.ok) {
+      throw new Error('Failed to get scripts')
+    }
+    const scriptsResponse: any = await response.json()
+    const scripts = scriptsResponse?.scripts || []
+    return scripts
+  }
+
   private notifyAuthError(message: string): void {
     console.error('🔐 Auth Error:', message)
 
@@ -1462,6 +1477,17 @@ class MenuBarNotificationApp {
             return
           }
 
+          if (message.type === 'prompter-request') {
+            this.handlePrompterRequest(message)
+            return
+          }
+
+          // Handle prompt response from WebSocket client
+          if (message.type === 'prompt-response') {
+            this.handlePromptResponse(message)
+            return
+          }
+
           // Handle regular messages
           this.handleIncomingMessage(message)
         }
@@ -1506,6 +1532,16 @@ class MenuBarNotificationApp {
 
     // Auto-show window for share requests
     this.windowManager.showWindow()
+  }
+
+  private handlePrompterRequest(message: WebSocketMessage): void {
+    this.windowManager.sendMessage('websocket-message', message)
+    this.windowManager.showWindow()
+  }
+
+  private handlePromptResponse(message: WebSocketMessage): void {
+    // Send the prompt response to the renderer
+    this.windowManager.sendMessage('prompt-response', message)
   }
 
   private handleIncomingMessage(message: Message): void {
@@ -1677,6 +1713,10 @@ class MenuBarNotificationApp {
 
     ipcMain.handle('get-access-token', async (): Promise<string | null> => {
       return await this.getValidAccessToken()
+    })
+
+    ipcMain.handle('get-scripts', async (): Promise<any[]> => {
+      return await this.getScripts()
     })
 
     // New OAuth Provider IPC handlers
@@ -1855,6 +1895,33 @@ class MenuBarNotificationApp {
 
         // Send response back through WebSocket
         this.sendCollectionShareResponse(shareMessage, 'rejected')
+      }
+    })
+
+    // Handle send prompt collection request
+    ipcMain.handle('send-prompt-collection-request', (_event, context: any): void => {
+      if (this.wsServer) {
+        const scripts = context.scripts
+        const prompt = context.prompt
+        const images = context.images
+        const requestId = crypto.randomBytes(16).toString('hex')
+        const promptRequest = {
+          type: 'prompt-response',
+          id: requestId,
+          requestId: requestId,
+          scripts: scripts,
+          prompt: prompt,
+          images: images,
+          timestamp: Date.now(),
+        }
+
+        // Store the request ID so we can match the response
+        // Send to all connected WebSocket clients
+        this.wsServer.clients.forEach((client) => {
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify(promptRequest))
+          }
+        })
       }
     })
 
