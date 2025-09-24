@@ -281,9 +281,9 @@ export const Prompter: React.FC<PrompterProps> = ({ message, onBack }) => {
 
   const generatePromptText = () => {
     const selected = scripts.filter(script => selectedScripts.has(script.id))
-    const scriptNames = selected.map(script => script.name).join(', ')
+    const scriptNames = selected.map(script => `${script.name} (${script.id})`).join(', ')
     const taskPart = taskDescription.trim() ? ` ${taskDescription}` : ''
-    return `Use the keyboard shortcut scripts of ${scriptNames} to accomplish this task:${taskPart}`
+    return `Use the keyboard shortcut scripts of ${scriptNames} and the tools of plan followed by run-code to accomplish this task:${taskPart}`
   }
 
   const copyPromptToClipboard = async () => {
