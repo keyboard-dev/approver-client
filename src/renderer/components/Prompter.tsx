@@ -12,7 +12,7 @@ import { Badge } from './ui/badge'
 import { Button } from './ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from './ui/card'
 import { Checkbox } from './ui/checkbox'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog'
 
 interface Script {
   id: string
@@ -24,7 +24,7 @@ interface Script {
 }
 
 interface PrompterProps {
-  message: any
+  message: unknown
   onBack?: () => void
 }
 
@@ -33,7 +33,7 @@ export const Prompter: React.FC<PrompterProps> = ({ message, onBack }) => {
   const [selectedScripts, setSelectedScripts] = useState<Set<string>>(new Set())
   const [searchTerm, setSearchTerm] = useState('')
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set())
-  const [isWaitingForResponse, setIsWaitingForResponse] = useState(false)
+  const [, setIsWaitingForResponse] = useState(false)
   const [currentRequestId, setCurrentRequestId] = useState<string | null>(null)
   const [taskDescription, setTaskDescription] = useState('')
   const [showPromptDialog, setShowPromptDialog] = useState(false)
@@ -46,7 +46,7 @@ export const Prompter: React.FC<PrompterProps> = ({ message, onBack }) => {
   const [providerError, setProviderError] = useState<string | null>(null)
 
   // Server provider state
-  const [servers, setServers] = useState<any[]>([])
+  const [servers, setServers] = useState<unknown[]>([])
   const [serverProviders, setServerProviders] = useState<Record<string, ServerProviderInfo[]>>({})
 
   console.log('message', message)
@@ -175,19 +175,19 @@ export const Prompter: React.FC<PrompterProps> = ({ message, onBack }) => {
 
   // Listen for prompt responses from WebSocket
   useEffect(() => {
-    const handlePromptResponse = (event: any, message: any) => {
+    const handlePromptResponse = (event: unknown, message: unknown) => {
       console.log('Received prompt response:', message)
 
       // Check if this response matches our request
-      if (message.requestId === currentRequestId) {
+      if ((message as { requestId?: string }).requestId === currentRequestId) {
         setIsWaitingForResponse(false)
         setCurrentRequestId(null)
 
         // Handle the prompt response
-        if (message.prompt) {
-          console.log('Prompt from client:', message.prompt)
+        if ((message as { prompt?: string }).prompt) {
+          console.log('Prompt from client:', (message as { prompt: string }).prompt)
           // You can handle the prompt here - maybe show it in a dialog or process it
-          alert(`Received prompt: ${message.prompt}`)
+          alert(`Received prompt: ${(message as { prompt: string }).prompt}`)
         }
       }
     }
@@ -201,16 +201,16 @@ export const Prompter: React.FC<PrompterProps> = ({ message, onBack }) => {
 
   // Listen for provider auth events
   useEffect(() => {
-    const handleProviderAuthSuccess = (event: any, data: any) => {
+    const handleProviderAuthSuccess = (event: unknown, data: unknown) => {
       console.log('Provider auth success:', data)
       loadProviderData()
       // Clear loading for both direct and server providers
       setProviderLoading((prev) => {
         const updated = { ...prev }
-        updated[data.providerId] = false
+        updated[(data as { providerId: string }).providerId] = false
         // Clear loading for any server-provider combinations
         Object.keys(updated).forEach((key) => {
-          if (key.includes('-') && key.endsWith(data.providerId)) {
+          if (key.includes('-') && key.endsWith((data as { providerId: string }).providerId)) {
             updated[key] = false
           }
         })
@@ -219,16 +219,16 @@ export const Prompter: React.FC<PrompterProps> = ({ message, onBack }) => {
       setProviderError(null)
     }
 
-    const handleProviderAuthError = (event: any, data: any) => {
+    const handleProviderAuthError = (event: unknown, data: unknown) => {
       console.error('Provider auth error:', data)
-      setProviderError(`${data.providerId}: ${data.message || 'Authentication failed'}`)
+      setProviderError(`${(data as { providerId: string }).providerId}: ${(data as { message?: string }).message || 'Authentication failed'}`)
       // Clear loading for both direct and server providers
       setProviderLoading((prev) => {
         const updated = { ...prev }
-        updated[data.providerId] = false
+        updated[(data as { providerId: string }).providerId] = false
         // Clear loading for any server-provider combinations
         Object.keys(updated).forEach((key) => {
-          if (key.includes('-') && key.endsWith(data.providerId)) {
+          if (key.includes('-') && key.endsWith((data as { providerId: string }).providerId)) {
             updated[key] = false
           }
         })
@@ -236,7 +236,7 @@ export const Prompter: React.FC<PrompterProps> = ({ message, onBack }) => {
       })
     }
 
-    const handleProviderAuthLogout = (event: any, data: any) => {
+    const handleProviderAuthLogout = (event: unknown, data: unknown) => {
       console.log('Provider logout:', data)
       loadProviderData()
     }
@@ -279,7 +279,6 @@ export const Prompter: React.FC<PrompterProps> = ({ message, onBack }) => {
     || script.description.toLowerCase().includes(searchTerm.toLowerCase()),
   )
 
-
   const generatePromptText = () => {
     const selected = scripts.filter(script => selectedScripts.has(script.id))
     const scriptNames = selected.map(script => script.name).join(', ')
@@ -294,7 +293,8 @@ export const Prompter: React.FC<PrompterProps> = ({ message, onBack }) => {
       console.log('Prompt copied to clipboard')
       setGeneratedPrompt(promptText)
       setShowPromptDialog(true)
-    } catch (error) {
+    }
+    catch (error) {
       console.error('Failed to copy to clipboard:', error)
       // Still show dialog even if clipboard fails
       setGeneratedPrompt(promptText)
@@ -452,20 +452,21 @@ export const Prompter: React.FC<PrompterProps> = ({ message, onBack }) => {
 
                 {/* Server Providers */}
                 {servers.map((server) => {
-                  const providers = serverProviders[server.id] || []
+                  const serverObj = server as { id: string, name: string }
+                  const providers = serverProviders[serverObj.id] || []
                   return providers
                     .filter(provider => provider.configured)
                     .map((provider) => {
                       const status = providerStatus[provider.name]
                       const isAuthenticated = status?.authenticated || false
                       const isExpired = status?.expired || false
-                      const loadingKey = `${server.id}-${provider.name}`
+                      const loadingKey = `${serverObj.id}-${provider.name}`
                       const isLoading = providerLoading[loadingKey] || false
                       const userEmail = status?.user?.email
 
                       return (
                         <div
-                          key={`${server.id}-${provider.name}`}
+                          key={`${serverObj.id}-${provider.name}`}
                           className={`relative flex items-center gap-3 p-4 border-2 rounded-lg transition-all ${
                             isAuthenticated && !isExpired
                               ? 'border-green-500/50 bg-green-50/50'
@@ -483,7 +484,7 @@ export const Prompter: React.FC<PrompterProps> = ({ message, onBack }) => {
                             <div className="font-medium">{provider.name}</div>
                             <div className="text-xs text-muted-foreground">
                               via
-                              {server.name}
+                              {serverObj.name}
                             </div>
                             {userEmail && (
                               <div className="text-xs text-muted-foreground truncate">
@@ -516,7 +517,7 @@ export const Prompter: React.FC<PrompterProps> = ({ message, onBack }) => {
                             onClick={() =>
                               isAuthenticated
                                 ? handleProviderDisconnect(provider.name)
-                                : handleServerProviderConnect(server.id, provider.name)}
+                                : handleServerProviderConnect(serverObj.id, provider.name)}
                             disabled={isLoading}
                             className={`ml-auto ${isExpired ? 'bg-orange-600 hover:bg-orange-700' : ''}`}
                           >
@@ -681,7 +682,7 @@ export const Prompter: React.FC<PrompterProps> = ({ message, onBack }) => {
                         Details
                       </Button>
                     </DialogTrigger>
-                    <DialogContent className="max-w-2xl">
+                    <DialogContent className="max-w-2xl bg-white">
                       <DialogHeader>
                         <DialogTitle>{script.name}</DialogTitle>
                         <DialogDescription className="mt-3 whitespace-pre-wrap">
@@ -734,7 +735,7 @@ export const Prompter: React.FC<PrompterProps> = ({ message, onBack }) => {
           <input
             type="text"
             value={taskDescription}
-            onChange={(e) => setTaskDescription(e.target.value)}
+            onChange={e => setTaskDescription(e.target.value)}
             placeholder="Describe what you want to accomplish..."
             className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
           />
@@ -751,51 +752,59 @@ export const Prompter: React.FC<PrompterProps> = ({ message, onBack }) => {
       </div>
 
       {/* Prompt Dialog */}
-      <Dialog open={showPromptDialog} onOpenChange={(open) => {
-        if (!open) {
-          // When closing the dialog, navigate back to messages
-          if (onBack) {
-            onBack()
+      <Dialog
+        open={showPromptDialog}
+        onOpenChange={(open) => {
+          if (!open) {
+            // When closing the dialog, navigate back to messages
+            if (onBack) {
+              onBack()
+            }
           }
-        }
-        setShowPromptDialog(open)
-      }}>
-        <DialogContent className="max-w-2xl">
+          setShowPromptDialog(open)
+        }}
+      >
+        <DialogContent className="max-w-2xl bg-white">
           <DialogHeader>
             <DialogTitle>Generated Prompt</DialogTitle>
             <DialogDescription>
               Your prompt has been copied to the clipboard. Here's what was generated:
             </DialogDescription>
           </DialogHeader>
+
           <div className="mt-4">
-            <pre className="p-4 bg-gray-100 rounded-lg whitespace-pre-wrap text-sm">
+            <pre className="p-4 bg-muted rounded-lg whitespace-pre-wrap text-sm font-mono">
               {generatedPrompt}
             </pre>
-            <div className="mt-4 flex justify-end gap-2">
-              <Button
-                variant="outline"
-                onClick={async () => {
-                  try {
-                    await navigator.clipboard.writeText(generatedPrompt)
-                    console.log('Prompt copied again')
-                  } catch (error) {
-                    console.error('Failed to copy to clipboard:', error)
-                  }
-                }}
-              >
-                <Copy className="h-4 w-4 mr-2" />
-                Copy Again
-              </Button>
-              <Button onClick={() => {
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(generatedPrompt)
+                  console.log('Prompt copied again')
+                }
+                catch (error) {
+                  console.error('Failed to copy to clipboard:', error)
+                }
+              }}
+            >
+              <Copy className="h-4 w-4 mr-2" />
+              Copy Again
+            </Button>
+            <Button
+              onClick={() => {
                 setShowPromptDialog(false)
                 if (onBack) {
                   onBack()
                 }
-              }}>
-                Close
-              </Button>
-            </div>
-          </div>
+              }}
+            >
+              Close
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
