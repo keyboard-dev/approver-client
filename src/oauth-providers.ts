@@ -421,7 +421,6 @@ export class OAuthProviderManager {
       body: new URLSearchParams(body).toString(),
     })
 
-
     if (!response.ok) {
       const errorText = await response.text()
       throw new Error(`Direct token refresh failed: ${response.status} ${errorText}`)
@@ -464,7 +463,6 @@ export class OAuthProviderManager {
           refresh_token: refreshToken,
           grant_type: 'refresh_token',
         }
-
 
         // We need the main OAuth access token to authenticate with the server
         const mainAccessToken = this.getMainAccessToken ? await this.getMainAccessToken() : null
@@ -753,8 +751,6 @@ export class OAuthProviderManager {
         headers,
         body: JSON.stringify(body),
       })
-
-     
 
       if (!response.ok) {
         const errorText = await response.text()

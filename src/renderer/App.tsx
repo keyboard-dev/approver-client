@@ -13,6 +13,7 @@ import './App.css'
 import AuthComponent from './components/AuthComponent'
 import GitHubOAuthButton from './components/GitHubOAuthButton'
 import OnboardingView from './components/OnboardingView'
+import { Prompter } from './components/Prompter'
 import { ApprovalScreen } from './components/screens/ApprovalPanel'
 import { SettingsScreen } from './components/screens/settings/SettingsScreen'
 import { Share } from './components/Share'
@@ -22,7 +23,6 @@ import { ButtonDesigned } from './components/ui/ButtonDesigned'
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card'
 import { useAuth } from './hooks/useAuth'
 import { Providers } from './providers/Providers'
-import { Prompter } from './components/Prompter'
 
 const handleEditorWillMount = (monacoInstance: typeof monaco) => {
   monacoInstance.editor.defineTheme('lazy', lazyTheme as monaco.editor.IStandaloneThemeData)
@@ -62,6 +62,7 @@ const AppContent: React.FC = () => {
   const [isFontLoaded, setIsFontLoaded] = useState(false)
   const [isGitHubConnected, setIsGitHubConnected] = useState(false)
   const [isCheckingGitHub, setIsCheckingGitHub] = useState(true)
+  const [showPrompterOnly, setShowPrompterOnly] = useState(false)
 
   // Use refs to track state without causing re-renders
   const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -386,6 +387,7 @@ const AppContent: React.FC = () => {
     setFeedback('')
     setShowFeedback(false)
     setShowSettings(false)
+    setShowPrompterOnly(false)
     refreshMessages() // Refresh to show updated status
   }
 
@@ -539,7 +541,17 @@ const AppContent: React.FC = () => {
     }
   }, [])
 
+  const openPrompterOnly = () => {
+    setShowPrompterOnly(true)
+  }
+
   const getMessageScreen = () => {
+    if (showPrompterOnly) {
+      return (
+        <Prompter message={{ title: 'prompter-request' }} onBack={showMessageList} />
+      )
+    }
+
     if (currentShareMessage) {
       return (
         <Share
@@ -550,7 +562,6 @@ const AppContent: React.FC = () => {
         />
       )
     }
-
 
     switch (currentMessage?.title) {
       case 'Security Evaluation Request':
@@ -742,6 +753,15 @@ const AppContent: React.FC = () => {
                             {showSettings ? 'Settings' : 'Message Approvals'}
                           </h1>
                           <div className="flex items-center space-x-3">
+                            {!showSettings && (
+                              <Button
+                                variant="outline"
+                                onClick={openPrompterOnly}
+                                className="flex items-center space-x-2"
+                              >
+                                <span>Open Prompter</span>
+                              </Button>
+                            )}
                             {!showSettings && (
                               <GitHubOAuthButton />
                             )}

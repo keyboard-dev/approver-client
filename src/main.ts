@@ -1308,7 +1308,7 @@ class MenuBarNotificationApp {
     const accessToken = await this.getValidAccessToken()
     const response = await fetch(`${this.OAUTH_SERVER_URL}/api/scripts`, {
       headers: {
-        'Authorization': `Bearer ${accessToken}`,
+        Authorization: `Bearer ${accessToken}`,
       },
     })
 
@@ -1901,29 +1901,29 @@ class MenuBarNotificationApp {
 
     // Handle send prompt collection request
     ipcMain.handle('send-prompt-collection-request', (_event, context: any): void => {
-        if (this.wsServer) {
-          let scripts = context.scripts
-          let prompt = context.prompt
-          let images = context.images
-          const requestId = crypto.randomBytes(16).toString('hex')
-          const promptRequest = {
-            type: 'prompt-response',
-            id: requestId,
-            requestId: requestId,
-            scripts: scripts,
-            prompt: prompt,
-            images: images,
-            timestamp: Date.now()
-          }
+      if (this.wsServer) {
+        const scripts = context.scripts
+        const prompt = context.prompt
+        const images = context.images
+        const requestId = crypto.randomBytes(16).toString('hex')
+        const promptRequest = {
+          type: 'prompt-response',
+          id: requestId,
+          requestId: requestId,
+          scripts: scripts,
+          prompt: prompt,
+          images: images,
+          timestamp: Date.now(),
+        }
 
-          // Store the request ID so we can match the response
-          // Send to all connected WebSocket clients
-          this.wsServer.clients.forEach((client) => {
-            if (client.readyState === WebSocket.OPEN) {
-              client.send(JSON.stringify(promptRequest))
-            }
-          })
-        } 
+        // Store the request ID so we can match the response
+        // Send to all connected WebSocket clients
+        this.wsServer.clients.forEach((client) => {
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify(promptRequest))
+          }
+        })
+      }
     })
 
     // Handle reject message
@@ -2067,8 +2067,6 @@ class MenuBarNotificationApp {
 
     // Send response back through WebSocket if needed
     this.sendWebSocketResponse(existingMessage)
-
-    
   }
 
   private sendWebSocketResponse(message: Message): void {
