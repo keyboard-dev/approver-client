@@ -1,8 +1,9 @@
 import { IpcRendererEvent } from 'electron'
-import { Check } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
-import { Footer } from './Footer'
-import GitHubOAuthButton from './GitHubOAuthButton'
+import blueCheckIconUrl from '../../../../../assets/icon-check-blue.svg'
+import { Footer } from '../../Footer'
+import GitHubOAuthButton from '../../GitHubOAuthButton'
+import { ButtonDesigned } from '../../ui/ButtonDesigned'
 import McpSetup from './McpSetup'
 import Persona from './Persona'
 import { ProgressIndicator } from './ProgressIndicator'
@@ -119,6 +120,9 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
 
   const handleNextStep = () => {
     switch (currentStep) {
+      case 'github':
+        setCurrentStep('mcp-setup')
+        break
       case 'mcp-setup':
         setCurrentStep('persona')
         break
@@ -154,68 +158,103 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
 
   // Default: GitHub connection step
   return (
-    <div className="flex items-start start justify-center min-h-screen w-full p-6 bg-white">
-      <div style={{ height: '70vh', display: 'flex', flexDirection: 'column' }} className="max-w-md w-full space-y-8">
-        {/* Header */}
-        <div className="text-center space-y-2">
-          <h1 className="text-2xl font-semibold text-gray-900">
-            Welcome! First things first...
-          </h1>
-          <p className="text-gray-600">
-            Connect to GitHub to use all of Keyboard&apos;s features.
-          </p>
-        </div>
-
-        {/* Progress indicator */}
-        <div className="flex justify-center space-x-2">
-          <ProgressIndicator progress={0} />
-        </div>
-
-        {/* Connect Button */}
-        <div className="flex justify-center">
-          <GitHubOAuthButton isConnected={isGitHubConnected} />
-        </div>
-
-        {/* Permissions List */}
-        <div className="space-y-4">
-          <p className="text-gray-700 text-sm">Permission will allow Keyboard to:</p>
-          <div className="space-y-3">
-            <div className="flex items-start space-x-3">
-              <Check className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
-              <span className="text-gray-700 text-sm">
-                Use script shortcuts to 10x your efficiency
-              </span>
+    <div
+      className="flex flex-col h-full w-full py-[3.88rem] items-center"
+    >
+      <div
+        className="flex flex-col items-start h-full max-w-[22.88rem] justify-between"
+      >
+        <div
+          className="flex w-full flex-col items-start gap-[2.5rem]"
+        >
+          <div
+            className="flex w-full flex-col items-start gap-[0.63rem] pb-[1.25rem] border-b"
+          >
+            <div
+              className="text-[1.38rem] font-semibold"
+            >
+              Welcome! First things first...
             </div>
-            <div className="flex items-start space-x-3">
-              <Check className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
-              <span className="text-gray-700 text-sm">
-                Start and stop codespaces on public repos
-              </span>
+            <div
+              className="text-[#A5A5A5]"
+            >
+              Connect to GitHub to use all of Keyboard’s features.
             </div>
-            <div className="flex items-start space-x-3">
-              <Check className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
-              <span className="text-gray-700 text-sm">
-                Create a fork of the codespace-executor and app-creator repos
-              </span>
+
+            <div
+              className="flex w-full justify-center"
+            >
+              <ProgressIndicator progress={0} />
             </div>
           </div>
-        </div>
 
-        {/* Next Button - Only show when GitHub is connected */}
-        {isGitHubConnected && (
-          <div className="flex justify-center">
-            <button
+          <div
+            className="flex flex-col items-start gap-[0.94rem] text-[#A5A5A5] w-full"
+          >
+            <GitHubOAuthButton
+              className="w-full"
+              buttonClassName="w-full px-[1.25rem] py-[0.5rem] bg-transparent hover:bg-transparent text-[#171717] border border-[#A5A5A5] rounded-[0.25rem]"
+              isConnected={isGitHubConnected}
+            />
+
+            <div>
+              Permission will allow Keyboard to:
+            </div>
+
+            <div
+              className="flex items-center gap-[0.31rem]"
+            >
+              <div
+                className="p-[0.25rem]"
+              >
+                <img src={blueCheckIconUrl} alt="check" className="w-[1rem] h-[1rem]" />
+              </div>
+              <div>
+                Use script shortcuts to 10x your efficiency
+              </div>
+            </div>
+
+            <div
+              className="flex items-center gap-[0.31rem]"
+            >
+              <div
+                className="p-[0.25rem]"
+              >
+                <img src={blueCheckIconUrl} alt="check" className="w-[1rem] h-[1rem]" />
+              </div>
+              <div>
+                Start and stop codespaces on public repos
+              </div>
+            </div>
+
+            <div
+              className="flex items-center gap-[0.31rem]"
+            >
+              <div
+                className="p-[0.25rem]"
+              >
+                <img src={blueCheckIconUrl} alt="check" className="w-[1rem] h-[1rem]" />
+              </div>
+              <div>
+                Create a fork of the codespace-executor and app-creator repos
+              </div>
+            </div>
+          </div>
+
+          {isGitHubConnected && (
+            <ButtonDesigned
+              variant="clear"
               onClick={() => {
                 handleNextStep()
               }}
-              className="px-8 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm font-medium transition-colors cursor-pointer"
+              className="px-[1rem] py-[0.5rem] self-end"
+              hasBorder
             >
               Next
-            </button>
-          </div>
-        )}
+            </ButtonDesigned>
+          )}
+        </div>
 
-        {/* Footer */}
         <Footer />
       </div>
     </div>

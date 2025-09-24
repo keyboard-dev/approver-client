@@ -22,16 +22,16 @@ export class WindowManager {
     const iconPath = path.join(__dirname, '../assets/keyboard-dock.icns')
 
     this.mainWindow = new BrowserWindow({
-      width: DEFAULT_WINDOW_WIDTH,
-      height: DEFAULT_WINDOW_HEIGHT,
-      // show: false, // Don't show/focus the window when created
-      transparent: true,
       frame: false,
+      height: DEFAULT_WINDOW_HEIGHT,
       icon: iconPath,
+      transparent: true,
+      width: DEFAULT_WINDOW_WIDTH,
       webPreferences: {
         preload: path.join(__dirname, 'preload.js'),
       },
       ...(process.platform === 'darwin' && {
+        alwaysOnTop: false,
         titleBarStyle: 'hidden',
         type: 'panel',
         vibrancy: 'under-window',
@@ -40,17 +40,6 @@ export class WindowManager {
     })
 
     this.mainWindow.loadFile(path.join(__dirname, '../public/index.html'))
-
-    // Hide window when it loses focus
-    // this.mainWindow.on('blur', () => {
-    //   if (this.mainWindow?.isVisible()) {
-    //     setTimeout(() => {
-    //       if (this.mainWindow?.isVisible() && !this.mainWindow?.isFocused()) {
-    //         this.mainWindow.hide()
-    //       }
-    //     }, 100)
-    //   }
-    // })
 
     this.mainWindow.on('closed', () => {
       this.mainWindow = null
@@ -77,18 +66,22 @@ export class WindowManager {
     if (bounds) {
       this.positionWindowNearTray(bounds)
     }
-    else {
-      // Force the window to be on the current screen before showing
-      const currentDisplay = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
-      this.mainWindow.setBounds({
-        x: currentDisplay.bounds.x + 100,
-        y: currentDisplay.bounds.y + 100,
-        width: DEFAULT_WINDOW_WIDTH,
-        height: DEFAULT_WINDOW_HEIGHT,
-      })
-    }
+    // else {
+    //   // Force the window to be on the current screen before showing
+    //   const currentDisplay = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
+    //   this.mainWindow.setBounds({
+    //     x: currentDisplay.bounds.x + 100,
+    //     y: currentDisplay.bounds.y + 100,
+    //     width: DEFAULT_WINDOW_WIDTH,
+    //     height: DEFAULT_WINDOW_HEIGHT,
+    //   })
+    // }
 
     this.mainWindow.setVisibleOnAllWorkspaces(true)
+
+    // Explicitly set alwaysOnTop to false to follow normal window hierarchy
+    // while still maintaining panel behavior for fullscreen apps
+    this.mainWindow.setAlwaysOnTop(false)
 
     // this.mainWindow.showInactive() // Show without focusing
     this.mainWindow.show()
