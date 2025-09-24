@@ -23,7 +23,6 @@ export class TestUpdater {
       releaseNotes: 'This is a test update for development mode',
     }
 
-    console.log('🧪 TEST MODE: Simulating update available', fakeUpdateInfo)
     this.window.webContents.send('update-available', fakeUpdateInfo)
   }
 
@@ -40,8 +39,6 @@ export class TestUpdater {
         transferred: (progress / 100) * 50 * 1024 * 1024, // 50MB total
         total: 50 * 1024 * 1024,
       }
-
-      console.log(`🧪 TEST MODE: Download progress ${progress}%`)
       this.window!.webContents.send('download-progress', progressInfo)
 
       if (progress >= 100) {
@@ -65,7 +62,6 @@ export class TestUpdater {
       releaseNotes: 'Update has been downloaded and is ready to install',
     }
 
-    console.log('🧪 TEST MODE: Simulating update downloaded', fakeUpdateInfo)
     this.window.webContents.send('update-downloaded', fakeUpdateInfo)
   }
 }

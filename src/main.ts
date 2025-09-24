@@ -950,7 +950,6 @@ class MenuBarNotificationApp {
     provider: string,
   ): Promise<void> {
     try {
-      console.log('handleServerOAuthHttpCallback', callbackData, serverId, provider)
       if (callbackData.error) {
         throw new Error(`OAuth error: ${callbackData.error} - ${callbackData.error_description || ''}`)
       }

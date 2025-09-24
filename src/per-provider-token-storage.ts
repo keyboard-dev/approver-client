@@ -191,7 +191,6 @@ export class PerProviderTokenStorage {
     // if (await this.areTokensExpired(providerId)) {
     if (tokens.refresh_token && refreshCallback) {
       try {
-        console.log('refreshing tokens for provider', providerId)
         const newTokens = await refreshCallback(providerId, tokens.refresh_token)
         await this.storeTokens(newTokens)
         return newTokens.access_token

@@ -488,7 +488,6 @@ export class OAuthProviderManager {
         }
 
         const rawTokenData = await response.json() as Record<string, unknown>
-        console.log('response from refresh tokens via server', rawTokenData)
 
         if (!rawTokenData.success) {
           throw new Error('Server token refresh was unsuccessful')
