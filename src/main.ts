@@ -87,6 +87,15 @@ interface WebSocketMessage {
   requestId?: string
 }
 
+export interface Script {
+  id: string
+  name: string
+  description: string
+  tags?: string[]
+  services?: string[]
+  isExpanded?: boolean
+}
+
 class MenuBarNotificationApp {
   private trayManager: TrayManager
   private windowManager: WindowManager
@@ -850,35 +859,6 @@ class MenuBarNotificationApp {
     }
   }
 
-  private async handleProviderOAuthCallback(url: string): Promise<void> {
-    try {
-      const urlObj = new URL(url)
-      const code = urlObj.searchParams.get('code')
-      const state = urlObj.searchParams.get('state')
-      const error = urlObj.searchParams.get('error')
-
-      if (error) {
-        throw new Error(`OAuth error: ${error} - ${urlObj.searchParams.get('error_description')}`)
-      }
-
-      if (!code || !state) {
-        throw new Error('Missing authorization code or state')
-      }
-
-      if (!this.currentProviderPKCE || state !== this.currentProviderPKCE.state) {
-        throw new Error('State mismatch - potential CSRF attack')
-      }
-
-      // Exchange code for tokens
-      await this.exchangeProviderCodeForTokens(this.currentProviderPKCE.providerId, code, this.currentProviderPKCE)
-    }
-    catch (error) {
-      console.error('❌ Provider OAuth callback error:', error)
-      const providerId = this.currentProviderPKCE?.providerId || 'unknown'
-      await this.notifyProviderAuthError(providerId, `Authentication failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
-    }
-  }
-
   // Server provider OAuth flow
   private async startServerProviderOAuthFlow(serverId: string, provider: string): Promise<void> {
     try {
@@ -1304,7 +1284,7 @@ class MenuBarNotificationApp {
     return this.authTokens.access_token
   }
 
-  private async getScripts(): Promise<any[]> {
+  private async getScripts(): Promise<Script[]> {
     const accessToken = await this.getValidAccessToken()
     const response = await fetch(`${this.OAUTH_SERVER_URL}/api/scripts`, {
       headers: {
@@ -1315,7 +1295,8 @@ class MenuBarNotificationApp {
     if (!response.ok) {
       throw new Error('Failed to get scripts')
     }
-    const scriptsResponse: any = await response.json()
+    // todo proper type checking using zod
+    const scriptsResponse = await response.json() as { scripts: Script[] }
     const scripts = scriptsResponse?.scripts || []
     return scripts
   }
@@ -1716,7 +1697,7 @@ class MenuBarNotificationApp {
       return await this.getValidAccessToken()
     })
 
-    ipcMain.handle('get-scripts', async (): Promise<any[]> => {
+    ipcMain.handle('get-scripts', async (): Promise<Script[]> => {
       return await this.getScripts()
     })
 
@@ -1843,7 +1824,7 @@ class MenuBarNotificationApp {
       await this.markOnboardingCompleted()
     })
 
-    ipcMain.handle('fetch-server-providers', async (event, serverId: string): Promise<ServerProviderInfo[]> => {
+    ipcMain.handle('fetch-server-providers', async (_event, serverId: string): Promise<ServerProviderInfo[]> => {
       const accessToken = await this.getValidAccessToken()
       const serverProviders = await this.oauthProviderManager.fetchServerProviders(serverId, accessToken || undefined)
       return serverProviders
@@ -1880,7 +1861,7 @@ class MenuBarNotificationApp {
     })
 
     // Handle approve collection share
-    ipcMain.handle('approve-collection-share', (event, messageId: string, updatedRequest: CollectionRequest): void => {
+    ipcMain.handle('approve-collection-share', (_event, messageId: string, updatedRequest: CollectionRequest): void => {
       const shareMessage = this.shareMessages.find(msg => msg.id === messageId)
       if (shareMessage) {
         shareMessage.status = 'approved'
@@ -1896,7 +1877,7 @@ class MenuBarNotificationApp {
     })
 
     // Handle reject collection share
-    ipcMain.handle('reject-collection-share', (event, messageId: string): void => {
+    ipcMain.handle('reject-collection-share', (_event, messageId: string): void => {
       const shareMessage = this.shareMessages.find(msg => msg.id === messageId)
       if (shareMessage) {
         shareMessage.status = 'rejected'
@@ -1911,7 +1892,7 @@ class MenuBarNotificationApp {
     })
 
     // Handle send prompt collection request
-    ipcMain.handle('send-prompt-collection-request', (_event, context: any): void => {
+    ipcMain.handle('send-prompt-collection-request', (_event, context: { scripts: Script[], prompt: string, images: string[] }): void => {
       if (this.wsServer) {
         const scripts = context.scripts
         const prompt = context.prompt
