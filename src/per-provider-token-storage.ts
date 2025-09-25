@@ -108,6 +108,7 @@ export class PerProviderTokenStorage {
       storedAt: existingTokens?.storedAt || Date.now(),
       updatedAt: Date.now(),
     }
+    console.log('storedTokens', storedTokens)
 
     this.tokensCache.set(tokens.providerId, storedTokens)
     await this.saveProviderTokens(storedTokens)
@@ -192,13 +193,17 @@ export class PerProviderTokenStorage {
     if (tokens.refresh_token && refreshCallback) {
       try {
         const newTokens = await refreshCallback(providerId, tokens.refresh_token)
-        await this.storeTokens(newTokens)
-        return newTokens.access_token
+        if (newTokens.access_token) {
+          await this.storeTokens(newTokens)
+          return newTokens.access_token
+        }
+        if (tokens.access_token) {
+          return tokens.access_token
+        }
       }
       catch (error) {
         console.error(`❌ Failed to refresh tokens for ${providerId}:`, error)
         // Remove invalid tokens
-        await this.removeTokens(providerId)
         return null
       }
     }
