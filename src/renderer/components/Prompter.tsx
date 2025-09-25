@@ -49,7 +49,7 @@ export const Prompter: React.FC<PrompterProps> = ({ message, onBack }) => {
   const [servers, setServers] = useState<unknown[]>([])
   const [serverProviders, setServerProviders] = useState<Record<string, ServerProviderInfo[]>>({})
 
-  console.log('message', message)
+  
 
   // Load provider configurations and status
   const loadProviderData = async () => {
@@ -59,9 +59,7 @@ export const Prompter: React.FC<PrompterProps> = ({ message, onBack }) => {
         window.electronAPI.getProviderAuthStatus(),
         window.electronAPI.getServerProviders(),
       ])
-      console.log('configs', configs)
-      console.log('status', status)
-      console.log('serverList', serverList)
+
       setProviderConfigs(configs)
       setProviderStatus(status)
       setServers(serverList)
@@ -161,7 +159,6 @@ export const Prompter: React.FC<PrompterProps> = ({ message, onBack }) => {
     const getScripts = async () => {
       try {
         const scripts = await window.electronAPI.getScripts()
-        console.log('scripts', scripts)
         setScripts(scripts)
       }
       catch (error) {
@@ -176,8 +173,6 @@ export const Prompter: React.FC<PrompterProps> = ({ message, onBack }) => {
   // Listen for prompt responses from WebSocket
   useEffect(() => {
     const handlePromptResponse = (event: unknown, message: unknown) => {
-      console.log('Received prompt response:', message)
-
       // Check if this response matches our request
       if ((message as { requestId?: string }).requestId === currentRequestId) {
         setIsWaitingForResponse(false)
@@ -185,9 +180,8 @@ export const Prompter: React.FC<PrompterProps> = ({ message, onBack }) => {
 
         // Handle the prompt response
         if ((message as { prompt?: string }).prompt) {
-          console.log('Prompt from client:', (message as { prompt: string }).prompt)
           // You can handle the prompt here - maybe show it in a dialog or process it
-          alert(`Received prompt: ${(message as { prompt: string }).prompt}`)
+          // alert(`Received prompt: ${(message as { prompt: string }).prompt}`)
         }
       }
     }
@@ -202,7 +196,6 @@ export const Prompter: React.FC<PrompterProps> = ({ message, onBack }) => {
   // Listen for provider auth events
   useEffect(() => {
     const handleProviderAuthSuccess = (event: unknown, data: unknown) => {
-      console.log('Provider auth success:', data)
       loadProviderData()
       // Clear loading for both direct and server providers
       setProviderLoading((prev) => {
@@ -237,7 +230,6 @@ export const Prompter: React.FC<PrompterProps> = ({ message, onBack }) => {
     }
 
     const handleProviderAuthLogout = (event: unknown, data: unknown) => {
-      console.log('Provider logout:', data)
       loadProviderData()
     }
 
@@ -290,7 +282,6 @@ export const Prompter: React.FC<PrompterProps> = ({ message, onBack }) => {
     const promptText = generatePromptText()
     try {
       await navigator.clipboard.writeText(promptText)
-      console.log('Prompt copied to clipboard')
       setGeneratedPrompt(promptText)
       setShowPromptDialog(true)
     }
@@ -310,7 +301,6 @@ export const Prompter: React.FC<PrompterProps> = ({ message, onBack }) => {
         description: script.description,
       }
     })
-    console.log('Sending prompt request with scripts:', selected)
 
     try {
       setIsWaitingForResponse(true)
@@ -323,7 +313,7 @@ export const Prompter: React.FC<PrompterProps> = ({ message, onBack }) => {
       })
       setCurrentRequestId(requestId)
 
-      console.log('Prompt request sent with ID:', requestId)
+     
 
       // Don't clear selection yet - wait for response
     }
@@ -822,7 +812,6 @@ export const Prompter: React.FC<PrompterProps> = ({ message, onBack }) => {
               onClick={async () => {
                 try {
                   await navigator.clipboard.writeText(generatedPrompt)
-                  console.log('Prompt copied again')
                 }
                 catch (error) {
                   console.error('Failed to copy to clipboard:', error)
