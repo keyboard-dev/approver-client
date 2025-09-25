@@ -7,6 +7,7 @@ import { ButtonDesigned } from '../../ui/ButtonDesigned'
 import McpSetup from './McpSetup'
 import Persona from './Persona'
 import { ProgressIndicator } from './ProgressIndicator'
+import Integrations from './integrations'
 
 interface OnboardingViewProps {
   onComplete?: () => void
@@ -16,7 +17,7 @@ interface ProviderAuthEventData {
   providerId: string
 }
 
-type OnboardingStep = 'github' | 'mcp-setup' | 'persona' | 'connect-apps'
+type OnboardingStep = 'github' | 'mcp-setup' | 'persona' | 'integrations'
 
 export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) => {
   const [isGitHubConnected, setIsGitHubConnected] = useState(false)
@@ -126,6 +127,9 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
       case 'mcp-setup':
         setCurrentStep('persona')
         break
+      case 'persona':
+        setCurrentStep('integrations')
+        break
       default:
         break
     }
@@ -153,7 +157,11 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
   }
 
   if (currentStep === 'persona') {
-    return <Persona onComplete={handleCompleteOnboarding} />
+    return <Persona onComplete={handleNextStep} />
+  }
+
+  if (currentStep === 'integrations') {
+    return <Integrations onComplete={handleCompleteOnboarding} />
   }
 
   // Default: GitHub connection step
