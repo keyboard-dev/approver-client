@@ -1,4 +1,4 @@
-import { AlertCircle, ArrowLeft, CheckCircle, ChevronDown, ChevronUp, Copy, Eye, Play, RefreshCw, Search } from 'lucide-react'
+import { AlertCircle, ArrowLeft, CheckCircle, ChevronDown, ChevronUp, Copy, Eye, Play, RefreshCw, Search, Trash } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import githubLogoIconUrl from '../../../assets/icon-logo-github.svg'
 import googleLogoIconUrl from '../../../assets/icon-logo-google.svg'
@@ -334,6 +334,33 @@ export const Prompter: React.FC<PrompterProps> = ({ message, onBack }) => {
     }
   }
 
+  const handleDeleteScript = async (scriptId: string, scriptName: string) => {
+    if (confirm(`Are you sure you want to delete the script "${scriptName}"?`)) {
+      try {
+        await window.electronAPI.deleteScript(scriptId)
+        // Refresh the scripts list
+        const updatedScripts = await window.electronAPI.getScripts()
+        setScripts(updatedScripts)
+        // Remove from selected scripts if it was selected
+        setSelectedScripts((prev) => {
+          const newSet = new Set(prev)
+          newSet.delete(scriptId)
+          return newSet
+        })
+        // Remove from expanded cards if it was expanded
+        setExpandedCards((prev) => {
+          const newSet = new Set(prev)
+          newSet.delete(scriptId)
+          return newSet
+        })
+      }
+      catch (error) {
+        console.error('Error deleting script:', error)
+        alert('Failed to delete script: ' + (error as Error).message)
+      }
+    }
+  }
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto p-6">
@@ -611,7 +638,7 @@ export const Prompter: React.FC<PrompterProps> = ({ message, onBack }) => {
             return (
               <Card
                 key={script.id}
-                className={`transition-all duration-200 ${isSelected ? 'ring-2 ring-primary' : ''}`}
+                className={`flex flex-col h-full transition-all duration-200 ${isSelected ? 'ring-2 ring-primary' : ''}`}
               >
                 <CardHeader>
                   <div className="flex items-start justify-between">
@@ -629,7 +656,7 @@ export const Prompter: React.FC<PrompterProps> = ({ message, onBack }) => {
                   </div>
                 </CardHeader>
 
-                <CardContent>
+                <CardContent className="flex-grow">
                   {script.tags && script.tags.length > 0 && (
                     <div className="flex flex-wrap gap-2 mb-3">
                       {script.tags.map((tag, index) => (
@@ -675,48 +702,59 @@ export const Prompter: React.FC<PrompterProps> = ({ message, onBack }) => {
                         )}
                   </Button>
 
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button variant="outline" size="sm">
-                        <Eye className="h-4 w-4 mr-1" />
-                        Details
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-2xl bg-white">
-                      <DialogHeader>
-                        <DialogTitle>{script.name}</DialogTitle>
-                        <DialogDescription className="mt-3 whitespace-pre-wrap">
-                          {script.description}
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="mt-4 space-y-4">
-                        {script.tags && script.tags.length > 0 && (
-                          <div>
-                            <h4 className="text-sm font-medium mb-2">Tags</h4>
-                            <div className="flex flex-wrap gap-2">
-                              {script.tags.map((tag, index) => (
-                                <Badge key={index} variant="secondary">
-                                  {tag}
-                                </Badge>
-                              ))}
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDeleteScript(script.id, script.name)}
+                    >
+                      <Trash className="h-4 w-4 mr-1" />
+                      Delete
+                    </Button>
+
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          <Eye className="h-4 w-4 mr-1" />
+                          Details
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-2xl bg-white">
+                        <DialogHeader>
+                          <DialogTitle>{script.name}</DialogTitle>
+                          <DialogDescription className="mt-3 whitespace-pre-wrap">
+                            {script.description}
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="mt-4 space-y-4">
+                          {script.tags && script.tags.length > 0 && (
+                            <div>
+                              <h4 className="text-sm font-medium mb-2">Tags</h4>
+                              <div className="flex flex-wrap gap-2">
+                                {script.tags.map((tag, index) => (
+                                  <Badge key={index} variant="secondary">
+                                    {tag}
+                                  </Badge>
+                                ))}
+                              </div>
                             </div>
-                          </div>
-                        )}
-                        {script.services && script.services.length > 0 && (
-                          <div>
-                            <h4 className="text-sm font-medium mb-2">Required Services</h4>
-                            <div className="flex flex-wrap gap-2">
-                              {script.services.map((service, index) => (
-                                <Badge key={index} variant="outline">
-                                  {service}
-                                </Badge>
-                              ))}
+                          )}
+                          {script.services && script.services.length > 0 && (
+                            <div>
+                              <h4 className="text-sm font-medium mb-2">Required Services</h4>
+                              <div className="flex flex-wrap gap-2">
+                                {script.services.map((service, index) => (
+                                  <Badge key={index} variant="outline">
+                                    {service}
+                                  </Badge>
+                                ))}
+                              </div>
                             </div>
-                          </div>
-                        )}
-                      </div>
-                    </DialogContent>
-                  </Dialog>
+                          )}
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
                 </CardFooter>
               </Card>
             )

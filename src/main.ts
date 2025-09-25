@@ -7,6 +7,7 @@ import * as path from 'path'
 import * as WebSocket from 'ws'
 import { setEncryptionKeyProvider } from './encryption'
 import { GithubService } from './Github'
+import { deleteScriptTemplate } from './keyboard-shortcuts'
 import { OAuthCallbackData, OAuthHttpServer } from './oauth-http-server'
 import { PKCEParams as NewPKCEParams, OAuthProvider, OAuthProviderManager, ProviderTokens, ServerProvider, ServerProviderInfo } from './oauth-providers'
 import { OAuthTokenStorage, StoredProviderTokens } from './oauth-token-storage'
@@ -1717,6 +1718,17 @@ class MenuBarNotificationApp {
 
     ipcMain.handle('get-scripts', async (): Promise<any[]> => {
       return await this.getScripts()
+    })
+
+    ipcMain.handle('delete-script', async (_event, scriptId: string): Promise<void> => {
+      const accessToken = await this.getValidAccessToken()
+      if (!accessToken) {
+        throw new Error('No access token available')
+      }
+      const result = await deleteScriptTemplate(scriptId, accessToken)
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to delete script')
+      }
     })
 
     // New OAuth Provider IPC handlers
