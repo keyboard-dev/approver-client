@@ -859,6 +859,35 @@ class MenuBarNotificationApp {
     }
   }
 
+  // private async handleProviderOAuthCallback(url: string): Promise<void> {
+  //   try {
+  //     const urlObj = new URL(url)
+  //     const code = urlObj.searchParams.get('code')
+  //     const state = urlObj.searchParams.get('state')
+  //     const error = urlObj.searchParams.get('error')
+
+  //     if (error) {
+  //       throw new Error(`OAuth error: ${error} - ${urlObj.searchParams.get('error_description')}`)
+  //     }
+
+  //     if (!code || !state) {
+  //       throw new Error('Missing authorization code or state')
+  //     }
+
+  //     if (!this.currentProviderPKCE || state !== this.currentProviderPKCE.state) {
+  //       throw new Error('State mismatch - potential CSRF attack')
+  //     }
+
+  //     // Exchange code for tokens
+  //     await this.exchangeProviderCodeForTokens(this.currentProviderPKCE.providerId, code, this.currentProviderPKCE)
+  //   }
+  //   catch (error) {
+  //     console.error('❌ Provider OAuth callback error:', error)
+  //     const providerId = this.currentProviderPKCE?.providerId || 'unknown'
+  //     await this.notifyProviderAuthError(providerId, `Authentication failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+  //   }
+  // }
+
   // Server provider OAuth flow
   private async startServerProviderOAuthFlow(serverId: string, provider: string): Promise<void> {
     try {
