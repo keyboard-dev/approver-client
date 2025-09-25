@@ -140,6 +140,7 @@ export interface ElectronAPI {
   logout: () => Promise<void>
   getAccessToken: () => Promise<string | null>
   getScripts: () => Promise<any[]>
+  deleteScript: (scriptId: string) => Promise<void>
   onAuthSuccess: (callback: (event: IpcRendererEvent, data: AuthStatus) => void) => void
   onAuthError: (callback: (event: IpcRendererEvent, error: AuthError) => void) => void
   onAuthLogout: (callback: (event: IpcRendererEvent) => void) => void
@@ -253,6 +254,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   logout: (): Promise<void> => ipcRenderer.invoke('logout'),
   getAccessToken: (): Promise<string | null> => ipcRenderer.invoke('get-access-token'),
   getScripts: (): Promise<any[]> => ipcRenderer.invoke('get-scripts'),
+  deleteScript: (scriptId: string): Promise<void> => ipcRenderer.invoke('delete-script', scriptId),
 
   // Legacy OAuth event listeners
   onAuthSuccess: (callback: (event: IpcRendererEvent, data: AuthStatus) => void): void => {
