@@ -108,7 +108,6 @@ export class PerProviderTokenStorage {
       storedAt: existingTokens?.storedAt || Date.now(),
       updatedAt: Date.now(),
     }
-    
 
     this.tokensCache.set(tokens.providerId, storedTokens)
     await this.saveProviderTokens(storedTokens)

@@ -16,6 +16,7 @@ import { OAuthProviderConfig } from './provider-storage'
 import { createRestAPIServer } from './rest-api'
 import { TrayManager } from './tray-manager'
 import { AuthorizeResponse, AuthTokens, CollectionRequest, ErrorResponse, Message, PKCEParams, ShareMessage, TokenResponse } from './types'
+import { CODE_APPROVAL_ORDER, CodeApprovalLevel, RESPONSE_APPROVAL_ORDER, ResponseApprovalLevel } from './types/settings-types'
 import { WindowManager } from './window-manager'
 
 // Helper function to find assets directory reliably
@@ -131,9 +132,8 @@ class MenuBarNotificationApp {
 
   // Settings management
   private showNotifications: boolean = true
-  private automaticCodeApproval: 'never' | 'low' | 'medium' | 'high' = 'never'
-  private CODE_APPROVAL_ORDER = ['never', 'low', 'medium', 'high'] as const
-  private automaticResponseApproval: boolean = false
+  private automaticCodeApproval: CodeApprovalLevel = 'never'
+  private automaticResponseApproval: ResponseApprovalLevel = 'never'
   private readonly SETTINGS_FILE = path.join(os.homedir(), '.keyboard-mcp-settings')
 
   constructor() {
@@ -562,10 +562,21 @@ class MenuBarNotificationApp {
           this.showNotifications = parsedData.showNotifications
         }
         if (typeof parsedData.automaticCodeApproval === 'string'
-          && ['never', 'low', 'medium', 'high'].includes(parsedData.automaticCodeApproval)) {
-          this.automaticCodeApproval = parsedData.automaticCodeApproval as 'never' | 'low' | 'medium' | 'high'
+          && CODE_APPROVAL_ORDER.includes(parsedData.automaticCodeApproval as CodeApprovalLevel)) {
+          this.automaticCodeApproval = parsedData.automaticCodeApproval as CodeApprovalLevel
         }
+
+        // boolean check for backward compatibility
         if (typeof parsedData.automaticResponseApproval === 'boolean') {
+          if (parsedData.automaticResponseApproval) {
+            this.automaticResponseApproval = 'success only'
+          }
+          else {
+            this.automaticResponseApproval = 'never'
+          }
+        }
+        else if (typeof parsedData.automaticResponseApproval === 'string'
+          && RESPONSE_APPROVAL_ORDER.includes(parsedData.automaticResponseApproval as ResponseApprovalLevel)) {
           this.automaticResponseApproval = parsedData.automaticResponseApproval
         }
       }
@@ -575,7 +586,7 @@ class MenuBarNotificationApp {
       // Use defaults if settings file is corrupted
       this.showNotifications = true
       this.automaticCodeApproval = 'never'
-      this.automaticResponseApproval = false
+      this.automaticResponseApproval = 'never'
     }
   }
 
@@ -598,7 +609,7 @@ class MenuBarNotificationApp {
     }
   }
 
-  private getSettingsInfo(): { showNotifications: boolean, automaticCodeApproval: 'never' | 'low' | 'medium' | 'high', automaticResponseApproval: boolean, settingsFile: string, updatedAt: number | null } {
+  private getSettingsInfo(): { showNotifications: boolean, automaticCodeApproval: CodeApprovalLevel, automaticResponseApproval: ResponseApprovalLevel, settingsFile: string, updatedAt: number | null } {
     let updatedAt: number | null = null
 
     try {
@@ -1577,8 +1588,8 @@ class MenuBarNotificationApp {
         const { risk_level } = message
         if (!risk_level) break
 
-        const riskLevelIndex = this.CODE_APPROVAL_ORDER.indexOf(risk_level)
-        const automaticCodeApprovalIndex = this.CODE_APPROVAL_ORDER.indexOf(this.automaticCodeApproval)
+        const riskLevelIndex = CODE_APPROVAL_ORDER.indexOf(risk_level)
+        const automaticCodeApprovalIndex = CODE_APPROVAL_ORDER.indexOf(this.automaticCodeApproval)
         if (riskLevelIndex <= automaticCodeApprovalIndex) {
           message.status = 'approved'
         }
@@ -1603,6 +1614,9 @@ class MenuBarNotificationApp {
     if (message.status === 'approved') {
       this.handleApproveMessage(message)
     }
+    else {
+      this.windowManager.showWindow()
+    }
 
     // Update pending count
     this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length
@@ -1612,7 +1626,7 @@ class MenuBarNotificationApp {
     this.windowManager.sendMessage('websocket-message', message)
 
     // Auto-show window for high priority messages
-    this.windowManager.showWindow()
+    // this.windowManager.showWindow()
     // if (message.priority === 'high') {
     //   this.windowManager.showWindow()
     // }
@@ -2036,7 +2050,7 @@ class MenuBarNotificationApp {
     })
 
     // Settings management
-    ipcMain.handle('get-settings', (): { showNotifications: boolean, automaticCodeApproval: 'never' | 'low' | 'medium' | 'high', automaticResponseApproval: boolean, settingsFile: string, updatedAt: number | null } => {
+    ipcMain.handle('get-settings', (): { showNotifications: boolean, automaticCodeApproval: CodeApprovalLevel, automaticResponseApproval: ResponseApprovalLevel, settingsFile: string, updatedAt: number | null } => {
       return this.getSettingsInfo()
     })
 
@@ -2049,21 +2063,21 @@ class MenuBarNotificationApp {
       return this.showNotifications
     })
 
-    ipcMain.handle('set-automatic-code-approval', async (_event, level: 'never' | 'low' | 'medium' | 'high'): Promise<void> => {
+    ipcMain.handle('set-automatic-code-approval', async (_event, level: CodeApprovalLevel): Promise<void> => {
       this.automaticCodeApproval = level
       await this.saveSettings()
     })
 
-    ipcMain.handle('get-automatic-code-approval', (): 'never' | 'low' | 'medium' | 'high' => {
+    ipcMain.handle('get-automatic-code-approval', (): CodeApprovalLevel => {
       return this.automaticCodeApproval
     })
 
-    ipcMain.handle('set-automatic-response-approval', async (_event, enabled: boolean): Promise<void> => {
-      this.automaticResponseApproval = enabled
+    ipcMain.handle('set-automatic-response-approval', async (_event, level: ResponseApprovalLevel): Promise<void> => {
+      this.automaticResponseApproval = level
       await this.saveSettings()
     })
 
-    ipcMain.handle('get-automatic-response-approval', (): boolean => {
+    ipcMain.handle('get-automatic-response-approval', (): ResponseApprovalLevel => {
       return this.automaticResponseApproval
     })
 
