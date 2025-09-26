@@ -1,3 +1,4 @@
+import { IpcRendererEvent } from 'electron'
 import { AlertCircle, ArrowLeft, CheckCircle, ChevronDown, ChevronUp, Copy, Eye, Play, RefreshCw, Search, Trash } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import githubLogoIconUrl from '../../../assets/icon-logo-github.svg'
@@ -5,6 +6,7 @@ import googleLogoIconUrl from '../../../assets/icon-logo-google.svg'
 import microsoftLogoIconUrl from '../../../assets/icon-logo-microsoft.svg'
 import xLogoIconUrl from '../../../assets/icon-logo-x-black.svg'
 import squaresIconUrl from '../../../assets/icon-squares.svg'
+import { Script } from '../../main'
 import { ServerProviderInfo } from '../../oauth-providers'
 import { ProviderStatus } from '../../preload'
 import { OAuthProviderConfig } from '../../provider-storage'
@@ -14,21 +16,12 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Checkbox } from './ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog'
 
-interface Script {
-  id: string
-  name: string
-  description: string
-  tags?: string[]
-  services?: string[]
-  isExpanded?: boolean
-}
-
 interface PrompterProps {
   message: unknown
   onBack?: () => void
 }
 
-export const Prompter: React.FC<PrompterProps> = ({ message, onBack }) => {
+export const Prompter: React.FC<PrompterProps> = ({ onBack }) => {
   const [scripts, setScripts] = useState<Script[]>([])
   const [selectedScripts, setSelectedScripts] = useState<Set<string>>(new Set())
   const [searchTerm, setSearchTerm] = useState('')
@@ -48,8 +41,6 @@ export const Prompter: React.FC<PrompterProps> = ({ message, onBack }) => {
   // Server provider state
   const [servers, setServers] = useState<unknown[]>([])
   const [serverProviders, setServerProviders] = useState<Record<string, ServerProviderInfo[]>>({})
-
-  
 
   // Load provider configurations and status
   const loadProviderData = async () => {
@@ -172,14 +163,14 @@ export const Prompter: React.FC<PrompterProps> = ({ message, onBack }) => {
 
   // Listen for prompt responses from WebSocket
   useEffect(() => {
-    const handlePromptResponse = (event: unknown, message: unknown) => {
+    const handlePromptResponse = (_event: IpcRendererEvent, message: { requestId?: string, prompt?: string }) => {
       // Check if this response matches our request
-      if ((message as { requestId?: string }).requestId === currentRequestId) {
+      if (message.requestId === currentRequestId) {
         setIsWaitingForResponse(false)
         setCurrentRequestId(null)
 
         // Handle the prompt response
-        if ((message as { prompt?: string }).prompt) {
+        if (message.prompt) {
           // You can handle the prompt here - maybe show it in a dialog or process it
           // alert(`Received prompt: ${(message as { prompt: string }).prompt}`)
         }
@@ -195,7 +186,7 @@ export const Prompter: React.FC<PrompterProps> = ({ message, onBack }) => {
 
   // Listen for provider auth events
   useEffect(() => {
-    const handleProviderAuthSuccess = (event: unknown, data: unknown) => {
+    const handleProviderAuthSuccess = (_event: unknown, data: unknown) => {
       loadProviderData()
       // Clear loading for both direct and server providers
       setProviderLoading((prev) => {
@@ -212,7 +203,7 @@ export const Prompter: React.FC<PrompterProps> = ({ message, onBack }) => {
       setProviderError(null)
     }
 
-    const handleProviderAuthError = (event: unknown, data: unknown) => {
+    const handleProviderAuthError = (_event: unknown, data: unknown) => {
       console.error('Provider auth error:', data)
       setProviderError(`${(data as { providerId: string }).providerId}: ${(data as { message?: string }).message || 'Authentication failed'}`)
       // Clear loading for both direct and server providers
@@ -229,7 +220,7 @@ export const Prompter: React.FC<PrompterProps> = ({ message, onBack }) => {
       })
     }
 
-    const handleProviderAuthLogout = (event: unknown, data: unknown) => {
+    const handleProviderAuthLogout = () => {
       loadProviderData()
     }
 
@@ -312,8 +303,6 @@ export const Prompter: React.FC<PrompterProps> = ({ message, onBack }) => {
         images: [],
       })
       setCurrentRequestId(requestId)
-
-     
 
       // Don't clear selection yet - wait for response
     }

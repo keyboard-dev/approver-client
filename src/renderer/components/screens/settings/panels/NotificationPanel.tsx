@@ -150,7 +150,7 @@ export const NotificationPanel: React.FC = () => {
             <div
               className="text-[#737373]"
             >
-              Automatically approve script executions as they are sent to Keyboard.
+              Automatically approve script executions as they are sent to Keyboard. Select which risk level you would like to auto approve. The selection will also include all lower risk levels.
             </div>
           </div>
           <Dropdown

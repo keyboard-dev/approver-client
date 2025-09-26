@@ -12,7 +12,6 @@ import { CollectionRequest, Message, ShareMessage } from '../types'
 import './App.css'
 import AuthComponent from './components/AuthComponent'
 import GitHubOAuthButton from './components/GitHubOAuthButton'
-import OnboardingView from './components/OnboardingView'
 import { Prompter } from './components/Prompter'
 import { ApprovalScreen } from './components/screens/ApprovalPanel'
 import OnboardingView from './components/screens/onboarding/OnboardingView'
@@ -39,6 +38,11 @@ const getEditorOptions = (): monaco.editor.IStandaloneEditorConstructionOptions 
   minimap: { enabled: false },
   wordWrap: 'on',
 })
+
+// Utility function to convert to sentence case
+const toSentenceCase = (text: string): string => {
+  return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase()
+}
 
 const AppContent: React.FC = () => {
   // Auth state from useAuth hook (clean separation)
@@ -438,6 +442,82 @@ const AppContent: React.FC = () => {
     }
   }, [])
 
+  const getMessagesDisplay = () => {
+    const sortedMessages = [...messages, ...shareMessages].sort((a, b) => b.timestamp - a.timestamp)
+
+    return sortedMessages.map((message) => {
+      if (message.type === 'prompt-response') {
+        return (
+          <Card
+            key={`message-display-${message.id}`}
+            className="cursor-pointer hover:shadow-md transition-shadow border-l-4 border-l-blue-500"
+            onClick={() => setCurrentShareMessage(message as ShareMessage)}
+          >
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-lg font-semibold truncate">{toSentenceCase(message.title)}</h3>
+                <div className="flex items-center space-x-2">
+                  {getStatusIcon(message.status)}
+                  {getStatusBadge(message.status)}
+                </div>
+              </div>
+              <p className="text-gray-600 text-sm mb-2 line-clamp-2">
+                {message.body}
+              </p>
+              <div className="flex items-center justify-between text-xs text-gray-500">
+                <span>
+                  From:
+                  {' '}
+                  {message.sender || 'Unknown'}
+                  {' '}
+                  • Collection Share
+                </span>
+                <span>{new Date(message.timestamp).toLocaleString()}</span>
+              </div>
+              {message.priority && (
+                <div className="mt-2">
+                  {getPriorityBadge(message.priority)}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )
+      }
+      return (
+        <Card
+          key={`message-display-${message.id}`}
+          className="cursor-pointer hover:shadow-md transition-shadow"
+          onClick={() => showMessageDetail(message)}
+        >
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-lg font-semibold truncate">{toSentenceCase(message.title)}</h3>
+              <div className="flex items-center space-x-2">
+                {getStatusIcon(message.status)}
+                {getStatusBadge(message.status)}
+              </div>
+            </div>
+            <p className="text-gray-600 text-sm mb-2 line-clamp-2">
+              {getMessageSummary(message)}
+            </p>
+            <div className="flex items-center justify-between text-xs text-gray-500">
+              <span>
+                From:
+                {message.sender || 'Unknown'}
+              </span>
+              <span>{new Date(message.timestamp).toLocaleString()}</span>
+            </div>
+            {message.priority && (
+              <div className="mt-2">
+                {getPriorityBadge(message.priority)}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )
+    })
+  }
+
   const getCodeBlock = useCallback((message: Message) => {
     switch (message.title) {
       case 'code response approval': {
@@ -641,7 +721,7 @@ const AppContent: React.FC = () => {
                             </div>
                           </div>
                           <CardTitle className="text-2xl font-bold mt-4">
-                            {currentMessage.title}
+                            {toSentenceCase(currentMessage.title)}
                           </CardTitle>
                           <div className="flex items-center space-x-4 text-sm text-gray-500">
                             <span>
@@ -798,76 +878,7 @@ const AppContent: React.FC = () => {
                             )
                           : (
                               <div className={`grid gap-4 ${isLoading ? 'loading-fade' : ''}`}>
-                                {/* Share Messages */}
-                                {shareMessages.map(shareMessage => (
-                                  <Card
-                                    key={shareMessage.id}
-                                    className="cursor-pointer hover:shadow-md transition-shadow border-l-4 border-l-blue-500"
-                                    onClick={() => setCurrentShareMessage(shareMessage)}
-                                  >
-                                    <CardContent className="p-4">
-                                      <div className="flex items-center justify-between mb-2">
-                                        <h3 className="text-lg font-semibold truncate">{shareMessage.title}</h3>
-                                        <div className="flex items-center space-x-2">
-                                          {getStatusIcon(shareMessage.status)}
-                                          {getStatusBadge(shareMessage.status)}
-                                        </div>
-                                      </div>
-                                      <p className="text-gray-600 text-sm mb-2 line-clamp-2">
-                                        {shareMessage.body}
-                                      </p>
-                                      <div className="flex items-center justify-between text-xs text-gray-500">
-                                        <span>
-                                          From:
-                                          {' '}
-                                          {shareMessage.sender || 'Unknown'}
-                                          {' '}
-                                          • Collection Share
-                                        </span>
-                                        <span>{new Date(shareMessage.timestamp).toLocaleString()}</span>
-                                      </div>
-                                      {shareMessage.priority && (
-                                        <div className="mt-2">
-                                          {getPriorityBadge(shareMessage.priority)}
-                                        </div>
-                                      )}
-                                    </CardContent>
-                                  </Card>
-                                ))}
-
-                                {/* Regular Messages */}
-                                {messages.map(message => (
-                                  <Card
-                                    key={message.id}
-                                    className="cursor-pointer hover:shadow-md transition-shadow"
-                                    onClick={() => showMessageDetail(message)}
-                                  >
-                                    <CardContent className="p-4">
-                                      <div className="flex items-center justify-between mb-2">
-                                        <h3 className="text-lg font-semibold truncate">{message.title}</h3>
-                                        <div className="flex items-center space-x-2">
-                                          {getStatusIcon(message.status)}
-                                          {getStatusBadge(message.status)}
-                                        </div>
-                                      </div>
-                                      <p className="text-gray-600 text-sm mb-2 line-clamp-2">
-                                        {getMessageSummary(message)}
-                                      </p>
-                                      <div className="flex items-center justify-between text-xs text-gray-500">
-                                        <span>
-                                          From:
-                                          {message.sender || 'Unknown'}
-                                        </span>
-                                        <span>{new Date(message.timestamp).toLocaleString()}</span>
-                                      </div>
-                                      {message.priority && (
-                                        <div className="mt-2">
-                                          {getPriorityBadge(message.priority)}
-                                        </div>
-                                      )}
-                                    </CardContent>
-                                  </Card>
-                                ))}
+                                {getMessagesDisplay()}
                               </div>
                             )}
 

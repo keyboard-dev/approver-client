@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react'
-import { Paperclip, Globe, Settings, Code, Send } from 'lucide-react'
+import { Code, Globe, Paperclip, Send, Settings } from 'lucide-react'
+import React, { useRef } from 'react'
 import { Button } from './ui/button'
 
 interface ChatInputProps {
