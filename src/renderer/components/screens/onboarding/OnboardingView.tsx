@@ -157,7 +157,7 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
   }
 
   if (currentStep === 'persona') {
-    return <Persona onComplete={handleNextStep} />
+    return <Persona onNext={handleNextStep} />
   }
 
   if (currentStep === 'integrations') {

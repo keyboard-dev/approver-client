@@ -16,20 +16,21 @@ interface IntegrationProvider {
   scopes: string[]
 }
 
+interface ExtendedServerProviderInfo extends ServerProviderInfo {
+  logoUrl?: string
+}
+
 export const Integrations: React.FC<IntegrationsProps> = ({ onComplete }) => {
   const [providers, setProviders] = useState<IntegrationProvider[]>([])
-  const [providerStatus, setProviderStatus] = useState<Record<string, { authenticated: boolean, user?: any }>>({})
+  const [providerStatus, setProviderStatus] = useState<Record<string, { authenticated: boolean, user?: unknown }>>({})
   const [isLoading, setIsLoading] = useState<Record<string, boolean>>({})
   const [error, setError] = useState<string | null>(null)
   const [isLoadingProviders, setIsLoadingProviders] = useState(true)
 
-  const providerIcons: Record<string, string> = {
-    google: 'https://s3-alpha-sig.figma.com/img/e09d/183d/eb65d41bbd34c44ff2c50b344f462c3b?Expires=1759708800&Key-Pair-Id=APKAQ4GOSFWCW27IBOMQ&Signature=OeTXoy-x34iV2McLDhl4Sym4D0ezATRvpNRS9LdA5XQqsBS1YNNoZpiOh4oBMJNf4YrHUYCUnWORxft-WHsYiS3XXXsLj1vmnuWeZ3Bzhuc6sPDZr5PTP6AMzqr4zZJX43XarzjJ1mng4QP-Sric0Iz7A4E33c2q837jQ5okkGS0BcrRhfwj-OD9RHstWpzNjxVi6Q29fl9rv3Ftfn7mMd0yJ7o57k1UrMh4ISluuTxB6AzcYG57rjthAUqiL8wgdT5faKhMrJyHL7h6dzxg0nQn2MKTviHECCs-BGA31WiknqgRa3N5GpxcenhWvGtbwy5bCjkWlXRVd4eJvYh1dg__',
-    github: 'https://s3-alpha-sig.figma.com/img/d403/bf2d/a40bce5f8bd27e88dd2ddaabfcb6a087?Expires=1759708800&Key-Pair-Id=APKAQ4GOSFWCW27IBOMQ&Signature=KXu9nT3JfX2P3TSAeklD7I9eFRxtk3BLBrV9LJzN-X~d09UIiBCIrlIxrhRoLT5ksqszZLrw9H89-NR8O20KmbbszaJ0S3fizf5Yi5HELH1V3QoXrr5BIP3kJXdq~4Spwke3LTYxllqbrsY3EH8oRh4k23s7UTWfGnz4qVRlveD1XXkFyWGymi1NeQEokqwu8KOB4E07xkDAoG~Eo8A9LPRmVxgl42DVSNdNyqO1~i0kw~okXhGJONq86hrbIl8Wj~H84ca6VS1KhLj28Ikm7UwnQ8Xelhx0nNPDMYJGOjyGS2g8Gfc90zFUR-Ep3EZcUrgtHUNPqvKhLYxhlA6SUQ__',
-    microsoft: 'https://s3-alpha-sig.figma.com/img/16c9/1d32/8f6cb5b97afa03cf8799ffa22a79011b?Expires=1759708800&Key-Pair-Id=APKAQ4GOSFWCW27IBOMQ&Signature=aEZZOCVSAZk61Y9AFCMiBVVv-ZvZxULjupOA6aM~ylMfNL9AmJSPGkFWMtDJa7KUXb66EzVQ~yy5LX3iCf3ROhq39kXZd0tPgp7aXKfllt~nyDTae2a9l2mfiNAA8uHN4qMg3cOZaMXZVp-Uc3Ep7r1DPiWxwBSN5uaUfN4~QYESpV0LVej8jREbuU1WDqYdyc5CpHDUIwK2RHbUnH6yYG-HGi2uu2cHRj5OhxKMTO05WRodPm7gIBWneiqGLT9ANagMaEV10x7ND8UYaC6Gq2F~qZbcZRN5J5aP8MfTJXUDkHzWPI09eoOBfuSR~hDiePjVSLoztB3E~KQcfR8Jag__',
+  const getProviderIcon = (logoUrl: string | undefined, providerName: string): string => {
+    const baseUrl = logoUrl || providerName
+    return `https://img.logo.dev/${baseUrl}?token=pk_J_hJ3vucTNK-YUVaagza_w&retina=true`
   }
-
-  
 
   useEffect(() => {
     fetchProviders()
@@ -65,13 +66,13 @@ export const Integrations: React.FC<IntegrationsProps> = ({ onComplete }) => {
       // First, ensure the keyboard-api server provider exists
       const serverProviders = await window.electronAPI.getServerProviders()
       let keyboardApiServer = serverProviders.find(s => s.id === 'keyboard-api')
-      
+
       if (!keyboardApiServer) {
         // Add the keyboard API server provider if it doesn't exist
         const newServer = {
           id: 'keyboard-api',
           name: 'Keyboard API',
-          url: 'https://api.keyboard.dev'
+          url: 'https://api.keyboard.dev',
         }
         await window.electronAPI.addServerProvider(newServer)
         keyboardApiServer = newServer
@@ -79,21 +80,20 @@ export const Integrations: React.FC<IntegrationsProps> = ({ onComplete }) => {
 
       // Fetch providers using the electron API to avoid CORS
       const providers = await window.electronAPI.fetchServerProviders('keyboard-api')
-      
+      console.log('providers', providers)
       if (providers && providers.length > 0) {
         // Transform the server response to our format, filtering for the ones we want to show
-        const transformedProviders = providers
-          .filter((p: ServerProviderInfo) => ['google', 'github', 'microsoft'].includes(p.name))
-          .map((p: ServerProviderInfo) => ({
-            id: p.name,
-            name: p.name.charAt(0).toUpperCase() + p.name.slice(1),
-            icon: providerIcons[p.name] || '',
-            configured: p.configured,
-            scopes: p.scopes,
-          }))
-        
+        const transformedProviders = providers.map((p: ExtendedServerProviderInfo) => ({
+          id: p.name,
+          name: p.name.charAt(0).toUpperCase() + p.name.slice(1),
+          icon: getProviderIcon(p.logoUrl, p.name),
+          configured: p.configured,
+          scopes: p.scopes,
+        })).filter(p => p.name.toLowerCase() !== 'onboarding')
+
         setProviders(transformedProviders)
-      } else {
+      }
+      else {
         // Use fallback providers if none returned
         throw new Error('No providers returned from server')
       }
@@ -102,9 +102,9 @@ export const Integrations: React.FC<IntegrationsProps> = ({ onComplete }) => {
       console.error('Failed to fetch providers:', error)
       // Fallback to default providers
       setProviders([
-        { id: 'google', name: 'Google', icon: providerIcons.google, configured: true, scopes: [] },
-        { id: 'github', name: 'GitHub', icon: providerIcons.github, configured: true, scopes: [] },
-        { id: 'microsoft', name: 'Microsoft', icon: providerIcons.microsoft, configured: true, scopes: [] },
+        { id: 'google', name: 'Google', icon: getProviderIcon(undefined, 'google'), configured: true, scopes: [] },
+        { id: 'github', name: 'GitHub', icon: getProviderIcon(undefined, 'github'), configured: true, scopes: [] },
+        { id: 'microsoft', name: 'Microsoft', icon: getProviderIcon(undefined, 'microsoft'), configured: true, scopes: [] },
       ])
     }
     finally {
@@ -178,12 +178,11 @@ export const Integrations: React.FC<IntegrationsProps> = ({ onComplete }) => {
                     <div className="flex flex-col gap-[10px]">
                       {providers.map((provider, index) => {
                         const isAuthenticated = providerStatus[provider.id]?.authenticated
-                        const user = providerStatus[provider.id]?.user
 
                         return (
                           <React.Fragment key={provider.id}>
                             <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-[10px] opacity-50">
+                              <div className="flex items-center gap-[10px]">
                                 <div className="bg-white border border-neutral-200 rounded-[4px] p-[5px]">
                                   <img
                                     src={provider.icon}
