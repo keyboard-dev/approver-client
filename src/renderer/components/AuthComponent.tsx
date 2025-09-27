@@ -124,14 +124,14 @@ const AuthComponent: React.FC = () => {
               </button>
 
               {/* OR divider */}
-              <div className="self-stretch flex justify-center items-center gap-2.5">
+              {/* <div className="self-stretch flex justify-center items-center gap-2.5">
                 <div className="flex-1 h-px border-t border-gray-300"></div>
                 <span className="text-gray-400 text-xs font-medium font-inter">OR</span>
                 <div className="flex-1 h-px border-t border-gray-300"></div>
-              </div>
+              </div> */}
 
               {/* Continue without authenticating */}
-              <div className="self-stretch flex flex-col justify-start items-start">
+              {/* <div className="self-stretch flex flex-col justify-start items-start">
                 <button
                   onClick={skipAuth}
                   disabled={isLoading}
@@ -145,7 +145,7 @@ const AuthComponent: React.FC = () => {
                   </div>
                 </button>
                 <span className="text-gray-400 text-xs font-medium font-inter ml-2 mt-1">Certain features will be limited.</span>
-              </div>
+              </div> */}
             </div>
 
             {/* Help text */}
