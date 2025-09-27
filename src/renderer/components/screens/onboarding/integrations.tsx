@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { ServerProviderInfo } from '../../../../oauth-providers'
+import { getProviderIcon } from '../../../utils/providerUtils'
 import { Footer } from '../../Footer'
 import { ButtonDesigned } from '../../ui/ButtonDesigned'
 import { ProgressIndicator } from './ProgressIndicator'
@@ -27,10 +28,6 @@ export const Integrations: React.FC<IntegrationsProps> = ({ onComplete }) => {
   const [error, setError] = useState<string | null>(null)
   const [isLoadingProviders, setIsLoadingProviders] = useState(true)
 
-  const getProviderIcon = (logoUrl: string | undefined, providerName: string): string => {
-    const baseUrl = logoUrl || providerName
-    return `https://img.logo.dev/${baseUrl}?token=pk_J_hJ3vucTNK-YUVaagza_w&retina=true`
-  }
 
   useEffect(() => {
     fetchProviders()
