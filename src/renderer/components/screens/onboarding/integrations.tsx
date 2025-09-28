@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { ServerProviderInfo } from '../../../../oauth-providers'
+import { getProviderIcon } from '../../../utils/providerUtils'
+import { useAuth } from '../../../hooks/useAuth'
 import { Footer } from '../../Footer'
 import { ButtonDesigned } from '../../ui/ButtonDesigned'
 import { ProgressIndicator } from './ProgressIndicator'
@@ -21,18 +23,22 @@ interface ExtendedServerProviderInfo extends ServerProviderInfo {
 }
 
 export const Integrations: React.FC<IntegrationsProps> = ({ onComplete }) => {
+  const { isAuthenticated, isSkippingAuth } = useAuth()
   const [providers, setProviders] = useState<IntegrationProvider[]>([])
   const [providerStatus, setProviderStatus] = useState<Record<string, { authenticated: boolean, user?: unknown }>>({})
   const [isLoading, setIsLoading] = useState<Record<string, boolean>>({})
   const [error, setError] = useState<string | null>(null)
   const [isLoadingProviders, setIsLoadingProviders] = useState(true)
 
-  const getProviderIcon = (logoUrl: string | undefined, providerName: string): string => {
-    const baseUrl = logoUrl || providerName
-    return `https://img.logo.dev/${baseUrl}?token=pk_J_hJ3vucTNK-YUVaagza_w&retina=true`
-  }
 
   useEffect(() => {
+    // If user is not authenticated or is skipping auth, auto-complete onboarding
+    // since integrations require authentication to work
+    if (!isAuthenticated || isSkippingAuth) {
+      handleComplete()
+      return
+    }
+
     fetchProviders()
     loadProviderStatus()
 
@@ -58,7 +64,7 @@ export const Integrations: React.FC<IntegrationsProps> = ({ onComplete }) => {
     return () => {
       // Cleanup
     }
-  }, [])
+  }, [isAuthenticated, isSkippingAuth])
 
   const fetchProviders = async () => {
     setIsLoadingProviders(true)
