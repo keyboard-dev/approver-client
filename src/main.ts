@@ -898,14 +898,13 @@ class MenuBarNotificationApp {
 
       // Generate state for the flow
       const state = crypto.randomBytes(16).toString('hex')
-
+      const accessToken = await this.getValidAccessToken() || undefined
       // Start HTTP server to handle OAuth callback
       await this.oauthHttpServer.startServer((callbackData: OAuthCallbackData) => {
-        this.handleServerOAuthHttpCallback(callbackData, serverId, provider)
+        this.handleServerOAuthHttpCallback(callbackData, serverId, provider, { oauthToken: accessToken })
       })
 
       // Fetch authorization URL from server
-      const accessToken = await this.getValidAccessToken()
       const { authUrl, sessionId } = await this.oauthProviderManager.fetchServerAuthorizationUrl(
         serverId,
         provider,
@@ -958,6 +957,9 @@ class MenuBarNotificationApp {
     callbackData: OAuthCallbackData,
     serverId: string,
     provider: string,
+    options?: {
+      oauthToken?: string
+    },
   ): Promise<void> {
     try {
       if (callbackData.error) {
@@ -981,7 +983,10 @@ class MenuBarNotificationApp {
       }
 
       // Exchange code for tokens using server
-      const accessToken = await this.getValidAccessToken()
+      let accessToken = options?.oauthToken
+      if (!accessToken) {
+        accessToken = await this.getValidAccessToken() || undefined
+      }
       const tokens = await this.oauthProviderManager.exchangeServerCodeForTokens(
         serverId,
         provider,
