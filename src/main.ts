@@ -1603,8 +1603,18 @@ class MenuBarNotificationApp {
 
         const { data: codespaceResponseData } = codespaceResponse
         const { stderr } = codespaceResponseData
-        if (!stderr && this.automaticResponseApproval) {
-          message.status = 'approved'
+
+        switch (this.automaticResponseApproval) {
+          case 'always':
+            message.status = 'approved'
+            break
+          case 'success only':
+            if (!stderr) {
+              message.status = 'approved'
+            }
+            break
+          default:
+            break
         }
 
         break
