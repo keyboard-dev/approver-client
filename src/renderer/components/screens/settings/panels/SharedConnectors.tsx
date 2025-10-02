@@ -12,6 +12,7 @@ import { ProviderStatus } from '../../../../../preload'
 import { useAuth } from '../../../../hooks/useAuth'
 import { usePopup } from '../../../../hooks/usePopup'
 import { ButtonDesigned } from '../../../ui/ButtonDesigned'
+import { KeyboardApiConnectors } from '../../../ui/KeyboardApiConnectors'
 import { AddServerPopup } from './AddServerPopup'
 
 const PROVIDER_NAME_TO_ICON_URL: Record<string, string> = {
@@ -300,44 +301,52 @@ export const SharedConnectors: React.FC<ServerProviderManagerProps> = ({ classNa
   }
 
   if (!servers.length) return (
-    <div
-      className="flex flex-col gap-[1rem] w-full p-[0.94rem] border border-[#E5E5E5] rounded-[0.38rem]"
-    >
+    <div className="flex flex-col gap-[0.63rem]">
+      <KeyboardApiConnectors 
+        title="Keyboard API Connectors"
+        description="Connect to providers available from the Keyboard API service."
+        className="p-[0.94rem] border border-[#E5E5E5] rounded-[0.38rem]"
+      />
+      
       <div
-        className="flex flex-col gap-[0.5rem]"
+        className="flex flex-col gap-[1rem] w-full p-[0.94rem] border border-[#E5E5E5] rounded-[0.38rem]"
       >
         <div
-          className="text-[1rem]"
+          className="flex flex-col gap-[0.5rem]"
         >
-          Shared connectors
+          <div
+            className="text-[1rem]"
+          >
+            Shared connectors
+          </div>
+
+          <div
+            className="text-[#737373]"
+          >
+            A shared integration hub where available connectors are controlled by someone else — such as your organization, team admin, or another service.
+          </div>
         </div>
 
-        <div
-          className="text-[#737373]"
+        You are currently not part of any shared server.
+
+        <ButtonDesigned
+          variant="clear"
+          className="px-[1rem] py-[0.5rem] self-start"
+          hasBorder
+          onClick={() => {
+            setShowAddServerPopup(true)
+          }}
         >
-          A shared integration hub where available connectors are controlled by someone else — such as your organization, team admin, or another service.
-        </div>
+          Join or create a server
+        </ButtonDesigned>
+
+        {showAddServerPopup && (
+          <AddServerPopup
+            onSave={handleAddServer}
+            onCancel={() => setShowAddServerPopup(false)}
+          />
+        )}
       </div>
-
-      You are currently not part of any shared server.
-
-      <ButtonDesigned
-        variant="clear"
-        className="px-[1rem] py-[0.5rem] self-start"
-        hasBorder
-        onClick={() => {
-          setShowAddServerPopup(true)
-        }}
-      >
-        Join or create a server
-      </ButtonDesigned>
-
-      {showAddServerPopup && (
-        <AddServerPopup
-          onSave={handleAddServer}
-          onCancel={() => setShowAddServerPopup(false)}
-        />
-      )}
     </div>
   )
 
@@ -345,6 +354,12 @@ export const SharedConnectors: React.FC<ServerProviderManagerProps> = ({ classNa
     <div
       className="flex flex-col gap-[0.63rem]"
     >
+      <KeyboardApiConnectors 
+        title="Keyboard API Connectors"
+        description="Connect to providers available from the Keyboard API service."
+        className="p-[0.94rem] border border-[#E5E5E5] rounded-[0.38rem]"
+      />
+      
       {servers.map(server => (
         <div
           key={`settings-shared-connectors-server-${server.id}`}

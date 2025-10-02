@@ -4,21 +4,13 @@ import { Footer } from '../../Footer'
 import { ButtonDesigned } from '../../ui/ButtonDesigned'
 import { ProgressIndicator } from './ProgressIndicator'
 interface PersonaProps {
-  onComplete: () => void
+  onNext: () => void
 }
 
-export const Persona: React.FC<PersonaProps> = ({ onComplete }) => {
+export const Persona: React.FC<PersonaProps> = ({ onNext }) => {
   // const [selectedPersona, setSelectedPersona] = useState<string>('')
 
-  const handleComplete = async () => {
-    try {
-      await window.electronAPI.markOnboardingCompleted()
-      onComplete()
-    }
-    catch (error) {
-      console.error('Error completing onboarding:', error)
-    }
-  }
+
 
   // const personas = [
   //   {
@@ -83,8 +75,7 @@ export const Persona: React.FC<PersonaProps> = ({ onComplete }) => {
               className="my-form grow h-full"
               onSubmit={({ responseId }) => {
                 console.log('Typeform widget submitted, response ID:', responseId)
-                handleComplete()
-                // Additional actions after submit
+                onNext()
               }}
             />
           </div>
@@ -92,7 +83,7 @@ export const Persona: React.FC<PersonaProps> = ({ onComplete }) => {
           <ButtonDesigned
             variant="clear"
             onClick={() => {
-              handleComplete()
+              onNext()
             }}
             className="px-[1rem] py-[0.5rem] self-end"
             hasBorder
