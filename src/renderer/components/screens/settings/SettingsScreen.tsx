@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 
+import { AdvancedPanel } from './panels/AdvancedPanel'
 import { ConnectorPanel } from './panels/ConnectorPanel'
 import { KeyPanel } from './panels/KeyPanel'
 import { NotificationPanel } from './panels/NotificationPanel'
@@ -9,6 +10,7 @@ const TABS = [
   'Security',
   'Notifications',
   'Connectors',
+  'Advanced',
 ] as const
 
 type TabType = typeof TABS[number]
@@ -83,6 +85,8 @@ export const SettingsScreen: React.FC<{
         return <NotificationPanel />
       case 'Connectors':
         return <ConnectorPanel />
+      case 'Advanced':
+        return <AdvancedPanel />
       default:
         return <div>Not implemented</div>
     }

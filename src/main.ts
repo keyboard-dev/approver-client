@@ -134,7 +134,9 @@ class MenuBarNotificationApp {
   private automaticCodeApproval: 'never' | 'low' | 'medium' | 'high' = 'never'
   private CODE_APPROVAL_ORDER = ['never', 'low', 'medium', 'high'] as const
   private automaticResponseApproval: boolean = false
+  private fullCodeExecution: boolean = false
   private readonly SETTINGS_FILE = path.join(os.homedir(), '.keyboard-mcp-settings')
+  private readonly FULL_CODE_EXECUTION_FILE = path.join(os.homedir(), '.keyboard-mcp', 'full-code-execution')
 
   constructor() {
     // Initialize HTTP server (doesn't need encryption)
@@ -568,6 +570,9 @@ class MenuBarNotificationApp {
         if (typeof parsedData.automaticResponseApproval === 'boolean') {
           this.automaticResponseApproval = parsedData.automaticResponseApproval
         }
+        if (typeof parsedData.fullCodeExecution === 'boolean') {
+          this.fullCodeExecution = parsedData.fullCodeExecution
+        }
       }
     }
     catch (error) {
@@ -576,6 +581,7 @@ class MenuBarNotificationApp {
       this.showNotifications = true
       this.automaticCodeApproval = 'never'
       this.automaticResponseApproval = false
+      this.fullCodeExecution = false
     }
   }
 
@@ -585,6 +591,7 @@ class MenuBarNotificationApp {
         showNotifications: this.showNotifications,
         automaticCodeApproval: this.automaticCodeApproval,
         automaticResponseApproval: this.automaticResponseApproval,
+        fullCodeExecution: this.fullCodeExecution,
         version: '1.0',
         updatedAt: Date.now(),
       }
@@ -598,7 +605,7 @@ class MenuBarNotificationApp {
     }
   }
 
-  private getSettingsInfo(): { showNotifications: boolean, automaticCodeApproval: 'never' | 'low' | 'medium' | 'high', automaticResponseApproval: boolean, settingsFile: string, updatedAt: number | null } {
+  private getSettingsInfo(): { showNotifications: boolean, automaticCodeApproval: 'never' | 'low' | 'medium' | 'high', automaticResponseApproval: boolean, fullCodeExecution: boolean, settingsFile: string, updatedAt: number | null } {
     let updatedAt: number | null = null
 
     try {
@@ -616,6 +623,7 @@ class MenuBarNotificationApp {
       showNotifications: this.showNotifications,
       automaticCodeApproval: this.automaticCodeApproval,
       automaticResponseApproval: this.automaticResponseApproval,
+      fullCodeExecution: this.fullCodeExecution,
       settingsFile: this.SETTINGS_FILE,
       updatedAt,
     }
@@ -2041,7 +2049,7 @@ class MenuBarNotificationApp {
     })
 
     // Settings management
-    ipcMain.handle('get-settings', (): { showNotifications: boolean, automaticCodeApproval: 'never' | 'low' | 'medium' | 'high', automaticResponseApproval: boolean, settingsFile: string, updatedAt: number | null } => {
+    ipcMain.handle('get-settings', (): { showNotifications: boolean, automaticCodeApproval: 'never' | 'low' | 'medium' | 'high', automaticResponseApproval: boolean, fullCodeExecution: boolean, settingsFile: string, updatedAt: number | null } => {
       return this.getSettingsInfo()
     })
 
@@ -2070,6 +2078,31 @@ class MenuBarNotificationApp {
 
     ipcMain.handle('get-automatic-response-approval', (): boolean => {
       return this.automaticResponseApproval
+    })
+
+    ipcMain.handle('set-full-code-execution', async (_event, enabled: boolean): Promise<void> => {
+      this.fullCodeExecution = enabled
+      await this.saveSettings()
+
+      // Create or remove the .keyboard-mcp/full-code-execution file
+      if (enabled) {
+        // Ensure .keyboard-mcp directory exists
+        if (!fs.existsSync(this.STORAGE_DIR)) {
+          fs.mkdirSync(this.STORAGE_DIR, { recursive: true, mode: 0o700 })
+        }
+        // Create the file with enabled: true
+        fs.writeFileSync(this.FULL_CODE_EXECUTION_FILE, JSON.stringify({ enabled: true }, null, 2), { mode: 0o600 })
+      }
+      else {
+        // Remove the file if it exists
+        if (fs.existsSync(this.FULL_CODE_EXECUTION_FILE)) {
+          fs.unlinkSync(this.FULL_CODE_EXECUTION_FILE)
+        }
+      }
+    })
+
+    ipcMain.handle('get-full-code-execution', (): boolean => {
+      return this.fullCodeExecution
     })
 
     ipcMain.handle('get-assets-path', (): string => {

@@ -189,13 +189,15 @@ export interface ElectronAPI {
   openExternalUrl: (url: string) => Promise<void>
 
   // Settings management
-  getSettings: () => Promise<{ showNotifications: boolean, automaticCodeApproval: 'never' | 'low' | 'medium' | 'high', automaticResponseApproval: boolean, settingsFile: string, updatedAt: number | null }>
+  getSettings: () => Promise<{ showNotifications: boolean, automaticCodeApproval: 'never' | 'low' | 'medium' | 'high', automaticResponseApproval: boolean, fullCodeExecution: boolean, settingsFile: string, updatedAt: number | null }>
   setShowNotifications: (show: boolean) => Promise<void>
   getShowNotifications: () => Promise<boolean>
   setAutomaticCodeApproval: (level: 'never' | 'low' | 'medium' | 'high') => Promise<void>
   getAutomaticCodeApproval: () => Promise<'never' | 'low' | 'medium' | 'high'>
   setAutomaticResponseApproval: (enabled: boolean) => Promise<void>
   getAutomaticResponseApproval: () => Promise<boolean>
+  setFullCodeExecution: (enabled: boolean) => Promise<void>
+  getFullCodeExecution: () => Promise<boolean>
   // Assets path
   getAssetsPath: () => Promise<string>
 
@@ -329,13 +331,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openExternalUrl: (url: string): Promise<void> => ipcRenderer.invoke('open-external-url', url),
 
   // Settings management
-  getSettings: (): Promise<{ showNotifications: boolean, automaticCodeApproval: 'never' | 'low' | 'medium' | 'high', automaticResponseApproval: boolean, settingsFile: string, updatedAt: number | null }> => ipcRenderer.invoke('get-settings'),
+  getSettings: (): Promise<{ showNotifications: boolean, automaticCodeApproval: 'never' | 'low' | 'medium' | 'high', automaticResponseApproval: boolean, fullCodeExecution: boolean, settingsFile: string, updatedAt: number | null }> => ipcRenderer.invoke('get-settings'),
   setShowNotifications: (show: boolean): Promise<void> => ipcRenderer.invoke('set-show-notifications', show),
   getShowNotifications: (): Promise<boolean> => ipcRenderer.invoke('get-show-notifications'),
   setAutomaticCodeApproval: (level: 'never' | 'low' | 'medium' | 'high'): Promise<void> => ipcRenderer.invoke('set-automatic-code-approval', level),
   getAutomaticCodeApproval: (): Promise<'never' | 'low' | 'medium' | 'high'> => ipcRenderer.invoke('get-automatic-code-approval'),
   setAutomaticResponseApproval: (enabled: boolean): Promise<void> => ipcRenderer.invoke('set-automatic-response-approval', enabled),
   getAutomaticResponseApproval: (): Promise<boolean> => ipcRenderer.invoke('get-automatic-response-approval'),
+  setFullCodeExecution: (enabled: boolean): Promise<void> => ipcRenderer.invoke('set-full-code-execution', enabled),
+  getFullCodeExecution: (): Promise<boolean> => ipcRenderer.invoke('get-full-code-execution'),
 
   // Assets path
   getAssetsPath: (): Promise<string> => ipcRenderer.invoke('get-assets-path'),
