@@ -1,4 +1,4 @@
-import { AlertCircle, CheckCircle, ChevronRight, LogOut, Shield, User } from 'lucide-react'
+import { AlertCircle, CheckCircle, LogOut, Shield, User } from 'lucide-react'
 import React, { useState } from 'react'
 
 import { Alert, AlertDescription } from '../../components/ui/alert'
@@ -17,7 +17,6 @@ const AuthComponent: React.FC = () => {
     error,
     login,
     logout,
-    skipAuth,
   } = useAuth()
   const [showAuthDetails, setShowAuthDetails] = useState(false)
   if (authStatus.authenticated || isSkippingAuth) {

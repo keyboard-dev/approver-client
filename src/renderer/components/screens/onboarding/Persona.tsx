@@ -10,8 +10,6 @@ interface PersonaProps {
 export const Persona: React.FC<PersonaProps> = ({ onNext }) => {
   // const [selectedPersona, setSelectedPersona] = useState<string>('')
 
-
-
   // const personas = [
   //   {
   //     id: 'developer',

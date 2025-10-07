@@ -36,6 +36,7 @@ const getEditorOptions = (): monaco.editor.IStandaloneEditorConstructionOptions 
   lineHeight: 1.5,
   lineNumbersMinChars: 0,
   minimap: { enabled: false },
+  scrollBeyondLastLine: false,
   wordWrap: 'on',
 })
 
@@ -529,15 +530,15 @@ const AppContent: React.FC = () => {
         const hasError = Boolean(codespaceResponseData.stderr)
 
         return (
-          <div className="bg-gray-100 p-4 rounded-lg h-96 overflow-hidden flex flex-col">
+          <div className="bg-gray-100 p-4 rounded-lg grow shrink overflow-hidden flex flex-col">
             {/* Standard Output */}
-            <div className="mb-2 flex-grow flex flex-col">
+            <div className="mb-2 grow shrink flex flex-col">
               <div className="text-sm font-medium text-gray-700 mb-1">Output:</div>
-              <div className="border border-gray-200 rounded flex-grow">
+              <div className="border border-gray-200 rounded grow shrink">
                 {isFontLoaded
                   ? (
                       <Editor
-                        height="100%"
+                        className="grow shrink min-h-24"
                         language="plaintext"
                         defaultValue="No output"
                         value={codespaceResponseData.stdout}
@@ -557,15 +558,15 @@ const AppContent: React.FC = () => {
 
             {/* Error Output */}
             {hasError && (
-              <div className="mt-2 flex-grow flex flex-col">
+              <div className="mt-2 grow shrink flex flex-col">
                 <div className="text-sm font-medium text-red-700 mb-1">
                   Error Output (Please review to see if there are any sensitive content):
                 </div>
-                <div className="border border-red-200 rounded bg-red-50 flex-grow">
+                <div className="border border-red-200 rounded bg-red-50 grow shrink">
                   {isFontLoaded
                     ? (
                         <Editor
-                          height="100%"
+                          className="min-h-24"
                           language="plaintext"
                           value={codespaceResponseData.stderr}
                           onChange={value => codespaceResponseData.stderr = value}
@@ -665,7 +666,7 @@ const AppContent: React.FC = () => {
 
       default:
         return (
-          <div className="w-full grow min-h-0 mx-auto">
+          <div className="w-full grow min-h-0 mx-auto flex flex-col">
             {/* Authentication Component */}
             <AuthComponent />
 
@@ -683,11 +684,11 @@ const AppContent: React.FC = () => {
 
             {/* Only show main content if authenticated and GitHub connected */}
             {(authStatus.authenticated || isSkippingAuth) && isGitHubConnected && (
-              <div className="content-fade-in">
+              <div className="content-fade-in grow min-h-0">
                 {currentMessage
                   ? (
                 // Message Detail View
-                      <Card className="w-full">
+                      <Card className="w-full h-full flex flex-col gap-6">
                         <CardHeader>
                           <div className="flex items-center justify-between">
                             <Button variant="outline" onClick={showMessageList}>
@@ -738,9 +739,13 @@ const AppContent: React.FC = () => {
                             )}
                           </div>
                         </CardHeader>
-                        <CardContent className="space-y-6">
+                        <div
+                          className="p-6 grow shrink flex flex-col"
+                        >
                           {/* Message Body - Show tabs if codeEval is true, otherwise show regular body */}
-                          <div>
+                          <div
+                            className="grow shrink flex flex-col"
+                          >
                             <h3 className="text-lg font-semibold mb-2">Request Details</h3>
                             {getCodeBlock(currentMessage)}
                           </div>
@@ -822,7 +827,7 @@ const AppContent: React.FC = () => {
                                   )}
                                 </div>
                               )}
-                        </CardContent>
+                        </div>
                       </Card>
                     )
                   : (
