@@ -128,6 +128,17 @@ class MenuBarNotificationApp {
   private automaticResponseApproval: ResponseApprovalLevel = 'never'
   private readonly SETTINGS_FILE = path.join(os.homedir(), '.keyboard-mcp-settings')
 
+  private sendWebSocketResponse(message: Message): void {
+    if (this.wsServer && message.requiresResponse) {
+      // Send response to all connected WebSocket clients
+      this.wsServer.clients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(JSON.stringify(message))
+        }
+      })
+    }
+  }
+
   constructor() {
     // Initialize HTTP server (doesn't need encryption)
     this.oauthHttpServer = new OAuthHttpServer(this.OAUTH_PORT)
@@ -1986,7 +1997,7 @@ class MenuBarNotificationApp {
         this.trayManager.updateTrayIcon()
 
         // Send response back through WebSocket if needed
-        this.messageManager.sendWebSocketResponse(message, this.wsServer)
+        this.sendWebSocketResponse(message)
       }
     })
 
@@ -2116,7 +2127,7 @@ class MenuBarNotificationApp {
     this.trayManager.updateTrayIcon()
 
     // Send response back through WebSocket if needed
-    this.messageManager.sendWebSocketResponse(existingMessage, this.wsServer)
+    this.sendWebSocketResponse(existingMessage)
   }
 
   private setupRestAPI(): void {
@@ -2137,7 +2148,7 @@ class MenuBarNotificationApp {
           this.trayManager.updateTrayIcon()
 
           // Send response through WebSocket if needed
-          this.messageManager.sendWebSocketResponse(message, this.wsServer)
+          this.sendWebSocketResponse(message)
 
           return true
         }

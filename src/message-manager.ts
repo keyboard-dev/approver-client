@@ -128,20 +128,6 @@ export class MessageManager {
   }
 
   /**
-   * Send WebSocket response for a message
-   */
-  sendWebSocketResponse(message: Message, wsServer: WebSocket.Server | null): void {
-    if (wsServer && message.requiresResponse) {
-      // Send response to all connected WebSocket clients
-      wsServer.clients.forEach((client) => {
-        if (client.readyState === WebSocket.OPEN) {
-          client.send(JSON.stringify(message))
-        }
-      })
-    }
-  }
-
-  /**
    * Send collection share response via WebSocket
    */
   sendCollectionShareResponse(
