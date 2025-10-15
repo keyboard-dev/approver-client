@@ -66,15 +66,6 @@ interface AuthUser {
   profile_picture?: string
 }
 
-// Types for auto-updater info
-interface UpdateInfo {
-  version?: string
-  files?: unknown[]
-  path?: string
-  sha512?: string
-  releaseDate?: string
-}
-
 // Types for onboarding GitHub provider response
 interface OnboardingGitHubResponse {
   session_id: string
@@ -236,7 +227,7 @@ class MenuBarNotificationApp {
       if (process.platform === 'darwin' && fs.existsSync(iconPath)) {
         // On macOS, set the dock icon which is used for notifications
         try {
-          app.dock.setIcon(iconPath)
+          app.dock?.setIcon(iconPath)
         }
         catch (error) {
           console.warn('Failed to set dock icon:', error)
@@ -277,7 +268,8 @@ class MenuBarNotificationApp {
           console.log('Checking for update...')
         })
 
-        autoUpdater.on('update-available', (info: UpdateInfo) => {
+        // @ts-expect-error - Electron type definitions issue with autoUpdater events
+        autoUpdater.on('update-available', (info) => {
           console.log('Update available:', info)
           // notify user
         })
