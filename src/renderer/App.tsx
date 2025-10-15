@@ -173,10 +173,11 @@ const AppContent: React.FC = () => {
   // Clear non-pending messages
   const clearNonPendingMessages = useCallback(async () => {
     try {
-      const nonPendingMessages = messages.filter(m => m.status !== 'pending' && m.status)
-      for (const message of nonPendingMessages) {
-        await window.electronAPI.deleteMessage(message.id)
-      }
+      // const nonPendingMessages = messages.filter(m => m.status !== 'pending' && m.status)
+      // for (const message of nonPendingMessages) {
+      //   await window.electronAPI.deleteMessage(message.id)
+      // }
+      await window.electronAPI.deleteNonPendingMessages()
       refreshMessages()
     }
     catch (error) {

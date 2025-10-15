@@ -5,9 +5,11 @@ import _ from 'lodash'
 import * as os from 'os'
 import * as path from 'path'
 import * as WebSocket from 'ws'
+import { DatabaseService } from './database-service'
 import { setEncryptionKeyProvider } from './encryption'
 import { GithubService } from './Github'
 import { deleteScriptTemplate } from './keyboard-shortcuts'
+import { MessageManager } from './message-manager'
 import { OAuthCallbackData, OAuthHttpServer } from './oauth-http-server'
 import { PKCEParams as NewPKCEParams, OAuthProvider, OAuthProviderManager, ProviderTokens, ServerProvider, ServerProviderInfo } from './oauth-providers'
 import { OAuthTokenStorage, StoredProviderTokens } from './oauth-token-storage'
@@ -102,9 +104,8 @@ class MenuBarNotificationApp {
   private windowManager: WindowManager
   private wsServer: WebSocket.Server | null = null
   private restApiServer: RestAPIServerInterface | null = null
-  private messages: Message[] = []
-  private shareMessages: ShareMessage[] = []
-  private pendingCount: number = 0
+  private databaseService!: DatabaseService
+  private messageManager!: MessageManager
   private readonly WS_PORT = 8080
   private readonly OAUTH_PORT = 8082
   private readonly OAUTH_SERVER_URL = process.env.OAUTH_SERVER_URL || 'https://api.keyboard.dev'
@@ -140,6 +141,10 @@ class MenuBarNotificationApp {
     // Initialize HTTP server (doesn't need encryption)
     this.oauthHttpServer = new OAuthHttpServer(this.OAUTH_PORT)
 
+    // Initialize database service and message manager
+    this.databaseService = new DatabaseService()
+    this.messageManager = new MessageManager(this.databaseService)
+
     // Initialize managers
     this.windowManager = new WindowManager({
       onWindowClosed: () => {
@@ -166,8 +171,8 @@ class MenuBarNotificationApp {
       onCheckForUpdates: () => {
         this.checkForUpdates()
       },
-      getMessages: () => this.messages,
-      getPendingCount: () => this.pendingCount,
+      getMessages: async () => await this.messageManager.getMessages(),
+      getPendingCount: async () => await this.messageManager.getPendingCount(),
     })
 
     // Set up encryption key provider
@@ -247,6 +252,9 @@ class MenuBarNotificationApp {
 
       // Initialize app settings
       await this.initializeSettings()
+
+      // Initialize message manager (load messages from disk)
+      await this.messageManager.initialize()
 
       // Initialize version timestamp tracking
       await this.getVersionInstallTimestamp()
@@ -1528,7 +1536,7 @@ class MenuBarNotificationApp {
     })
   }
 
-  private handleCollectionShareRequest(message: WebSocketMessage): void {
+  private async handleCollectionShareRequest(message: WebSocketMessage): Promise<void> {
     const collectionRequest = message.data as CollectionRequest
     // Create a share message for the request
     const shareMessage: ShareMessage = {
@@ -1547,11 +1555,9 @@ class MenuBarNotificationApp {
     this.showShareNotification(shareMessage)
 
     // Store the share message
-    this.shareMessages.push(shareMessage)
+    await this.messageManager.addShareMessage(shareMessage)
 
-    // Update pending count (include share messages)
-    this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length
-      + this.shareMessages.filter(m => m.status === 'pending' || !m.status).length
+    // Update tray icon with new pending count
     this.trayManager.updateTrayIcon()
 
     // Send to renderer via collection-share-request event
@@ -1571,7 +1577,7 @@ class MenuBarNotificationApp {
     this.windowManager.sendMessage('prompt-response', message)
   }
 
-  private handleIncomingMessage(message: Message): void {
+  private async handleIncomingMessage(message: Message): Promise<void> {
     // Add timestamp if not provided
     if (!message.timestamp) {
       message.timestamp = Date.now()
@@ -1586,7 +1592,7 @@ class MenuBarNotificationApp {
     this.showNotification(message)
 
     // Store the message
-    this.messages.push(message)
+    await this.messageManager.addMessage(message)
 
     switch (message.title) {
       case 'Security Evaluation Request': {
@@ -1627,14 +1633,13 @@ class MenuBarNotificationApp {
     }
 
     if (message.status === 'approved') {
-      this.handleApproveMessage(message)
+      await this.handleApproveMessage(message)
     }
     else {
       this.windowManager.showWindow()
     }
 
-    // Update pending count
-    this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length
+    // Update tray icon with new pending count
     this.trayManager.updateTrayIcon()
 
     // Send to renderer via websocket-message event
@@ -1653,14 +1658,14 @@ class MenuBarNotificationApp {
     }
 
     try {
-      const assetsPath = getAssetsPath()
-      const iconPath = path.join(assetsPath, 'keyboard-dock.png')
+      // const assetsPath = getAssetsPath()
+      // const iconPath = path.join(assetsPath, 'keyboard-dock.png')
 
       const notification = new Notification({
         title: message.title,
         body: message.body,
         urgency: message.priority === 'high' ? 'critical' : 'normal',
-        icon: iconPath,
+        // icon: iconPath,
       })
 
       notification.on('click', () => {
@@ -1721,9 +1726,8 @@ class MenuBarNotificationApp {
     }
   }
 
-  private clearAllMessages(): void {
-    this.messages = []
-    this.pendingCount = 0
+  private async clearAllMessages(): Promise<void> {
+    await this.messageManager.clearAllMessages()
     this.trayManager.updateTrayIcon()
 
     // Notify renderer
@@ -1889,63 +1893,64 @@ class MenuBarNotificationApp {
     })
 
     // Handle requests for all messages
-    ipcMain.handle('get-messages', (): Message[] => {
-      return this.messages
+    ipcMain.handle('get-messages', async (): Promise<Message[]> => {
+      return await this.messageManager.getMessages()
     })
 
     // Handle requests for share messages
-    ipcMain.handle('get-share-messages', (): ShareMessage[] => {
-      return this.shareMessages
+    ipcMain.handle('get-share-messages', async (): Promise<ShareMessage[]> => {
+      return await this.messageManager.getShareMessages()
     })
 
     // Handle mark as read
-    ipcMain.handle('mark-message-read', (_event, messageId: string): void => {
-      const message = this.messages.find(msg => msg.id === messageId)
-      if (message) {
-        message.read = true
-      }
+    ipcMain.handle('mark-message-read', async (_event, messageId: string): Promise<void> => {
+      await this.messageManager.markMessageRead(messageId)
     })
 
     // Handle delete message
-    ipcMain.handle('delete-message', (_event, messageId: string): void => {
-      this.messages = this.messages.filter(msg => msg.id !== messageId)
-      this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length
+    ipcMain.handle('delete-message', async (_event, messageId: string): Promise<void> => {
+      await this.messageManager.deleteMessage(messageId)
+      this.trayManager.updateTrayIcon()
+    })
+
+    ipcMain.handle('delete-non-pending-messages', async (): Promise<void> => {
+      await this.messageManager.deleteNonPendingMessages()
       this.trayManager.updateTrayIcon()
     })
 
     // Handle approve message
-    ipcMain.handle('approve-message', (_event, message: Message, feedback?: string): void => {
-      return this.handleApproveMessage(message, feedback)
+    ipcMain.handle('approve-message', async (_event, message: Message, feedback?: string): Promise<void> => {
+      await this.handleApproveMessage(message, feedback)
     })
 
     // Handle approve collection share
-    ipcMain.handle('approve-collection-share', (_event, messageId: string, updatedRequest: CollectionRequest): void => {
-      const shareMessage = this.shareMessages.find(msg => msg.id === messageId)
+    ipcMain.handle('approve-collection-share', async (_event, messageId: string, updatedRequest: CollectionRequest): Promise<void> => {
+      const shareMessage = await this.messageManager.findShareMessage(messageId)
       if (shareMessage) {
-        shareMessage.status = 'approved'
-        shareMessage.collectionRequest = updatedRequest
+        await this.messageManager.updateShareMessage(messageId, {
+          status: 'approved',
+          collectionRequest: updatedRequest,
+        })
 
-        // Update pending count
-        this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length + this.shareMessages.filter(m => m.status === 'pending' || !m.status).length
+        // Update tray icon
         this.trayManager.updateTrayIcon()
 
         // Send response back through WebSocket
-        this.sendCollectionShareResponse(shareMessage, 'approved', updatedRequest)
+        this.messageManager.sendCollectionShareResponse(shareMessage, 'approved', this.wsServer, updatedRequest)
       }
     })
 
     // Handle reject collection share
-    ipcMain.handle('reject-collection-share', (_event, messageId: string): void => {
-      const shareMessage = this.shareMessages.find(msg => msg.id === messageId)
+    ipcMain.handle('reject-collection-share', async (_event, messageId: string): Promise<void> => {
+      const shareMessage = await this.messageManager.findShareMessage(messageId)
       if (shareMessage) {
-        shareMessage.status = 'rejected'
+        await this.messageManager.updateShareMessage(messageId, { status: 'rejected' })
 
-        // Update pending count
-        this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length + this.shareMessages.filter(m => m.status === 'pending' || !m.status).length
+        // Update tray icon
         this.trayManager.updateTrayIcon()
 
         // Send response back through WebSocket
-        this.sendCollectionShareResponse(shareMessage, 'rejected')
+        this.messageManager.sendCollectionShareResponse(shareMessage, 'rejected', this.wsServer)
       }
     })
 
@@ -1977,18 +1982,19 @@ class MenuBarNotificationApp {
     })
 
     // Handle reject message
-    ipcMain.handle('reject-message', (_event, messageId: string, feedback?: string): void => {
-      const message = this.messages.find(msg => msg.id === messageId)
+    ipcMain.handle('reject-message', async (_event, messageId: string, feedback?: string): Promise<void> => {
+      const message = await this.messageManager.findMessage(messageId)
       if (message) {
-        message.status = 'rejected'
-        message.feedback = feedback
+        await this.messageManager.updateMessage(messageId, {
+          status: 'rejected',
+          feedback: feedback,
+        })
 
-        // Update pending count
-        this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length
+        // Update tray icon
         this.trayManager.updateTrayIcon()
 
         // Send response back through WebSocket if needed
-        this.sendWebSocketResponse(message)
+        this.messageManager.sendWebSocketResponse(message, this.wsServer)
       }
     })
 
@@ -2101,71 +2107,45 @@ class MenuBarNotificationApp {
     })
   }
 
-  private handleApproveMessage(message: Message, feedback?: string): void {
-    const existingMessage = this.messages.find(msg => msg.id === message.id)
+  private async handleApproveMessage(message: Message, feedback?: string): Promise<void> {
+    const existingMessage = await this.messageManager.findMessage(message.id)
 
     if (!existingMessage) return
 
     // Update the existing message with the passed message data
     _.assign(existingMessage, message)
-    existingMessage.status = 'approved'
-    existingMessage.feedback = feedback
+    await this.messageManager.updateMessage(message.id, {
+      ...message,
+      status: 'approved',
+      feedback: feedback,
+    })
 
-    // Update pending count
-    this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length
+    // Update tray icon
     this.trayManager.updateTrayIcon()
 
     // Send response back through WebSocket if needed
-    this.sendWebSocketResponse(existingMessage)
-  }
-
-  private sendWebSocketResponse(message: Message): void {
-    if (this.wsServer && message.requiresResponse) {
-      // Send response to all connected WebSocket clients
-      this.wsServer.clients.forEach((client) => {
-        if (client.readyState === WebSocket.OPEN) {
-          client.send(JSON.stringify(message))
-        }
-      })
-    }
-  }
-
-  private sendCollectionShareResponse(shareMessage: ShareMessage, status: 'approved' | 'rejected', updatedRequest?: CollectionRequest): void {
-    if (this.wsServer) {
-      const response = {
-        type: 'collection-share-response',
-        id: shareMessage.id,
-        status: status,
-        timestamp: Date.now(),
-        data: status === 'approved' ? updatedRequest : null,
-      }
-
-      // Send response to all connected WebSocket clients
-      this.wsServer.clients.forEach((client) => {
-        if (client.readyState === WebSocket.OPEN) {
-          client.send(JSON.stringify(response))
-        }
-      })
-    }
+    this.messageManager.sendWebSocketResponse(existingMessage, this.wsServer)
   }
 
   private setupRestAPI(): void {
     this.restApiServer = createRestAPIServer({
-      getMessages: () => this.messages,
+      getMessages: async () => await this.messageManager.getMessages(),
       getAuthTokens: () => this.authTokens,
       getWebSocketServerStatus: () => !!this.wsServer,
-      updateMessageStatus: (messageId: string, status: 'approved' | 'rejected', feedback?: string) => {
-        const message = this.messages.find(msg => msg.id === messageId)
+      updateMessageStatus: async (messageId: string, status: 'approved' | 'rejected', feedback?: string) => {
+        const message = await this.messageManager.findMessage(messageId)
         if (message) {
-          message.status = status
-          message.feedback = feedback
+          // Update message status
+          await this.messageManager.updateMessage(messageId, {
+            status: status,
+            feedback: feedback,
+          })
 
-          // Update pending count
-          this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length
+          // Update tray icon after message is saved
           this.trayManager.updateTrayIcon()
 
           // Send response through WebSocket if needed
-          this.sendWebSocketResponse(message)
+          this.messageManager.sendWebSocketResponse(message, this.wsServer)
 
           return true
         }
@@ -2192,6 +2172,13 @@ class MenuBarNotificationApp {
     // Stop OAuth HTTP server
     if (this.oauthHttpServer) {
       this.oauthHttpServer.stopServer()
+    }
+
+    // Disconnect from database
+    if (this.databaseService) {
+      this.databaseService.disconnect().catch((error: Error) => {
+        console.error('Error disconnecting from database:', error)
+      })
     }
 
     this.trayManager.destroy()

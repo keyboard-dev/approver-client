@@ -122,6 +122,7 @@ export interface ElectronAPI {
   getShareMessages: () => Promise<ShareMessage[]>
   markMessageRead: (messageId: string) => Promise<void>
   deleteMessage: (messageId: string) => Promise<void>
+  deleteNonPendingMessages: () => Promise<void>
   approveMessage: (message: Message, feedback?: string) => Promise<void>
   rejectMessage: (messageId: string, feedback?: string) => Promise<void>
   approveCollectionShare: (messageId: string, updatedRequest: CollectionRequest) => Promise<void>
@@ -220,6 +221,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getShareMessages: (): Promise<ShareMessage[]> => ipcRenderer.invoke('get-share-messages'),
   markMessageRead: (messageId: string): Promise<void> => ipcRenderer.invoke('mark-message-read', messageId),
   deleteMessage: (messageId: string): Promise<void> => ipcRenderer.invoke('delete-message', messageId),
+  deleteNonPendingMessages: (): Promise<void> => ipcRenderer.invoke('delete-non-pending-messages'),
   approveMessage: (message: Message, feedback?: string): Promise<void> => ipcRenderer.invoke('approve-message', message, feedback),
   rejectMessage: (messageId: string, feedback?: string): Promise<void> => ipcRenderer.invoke('reject-message', messageId, feedback),
   approveCollectionShare: (messageId: string, updatedRequest: CollectionRequest): Promise<void> => ipcRenderer.invoke('approve-collection-share', messageId, updatedRequest),

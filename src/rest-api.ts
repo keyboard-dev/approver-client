@@ -1,17 +1,17 @@
-import express, { Request, Response, NextFunction, Application } from 'express'
-import { Message, AuthTokens } from './types'
+import express, { Application, NextFunction, Request, Response } from 'express'
 import { Server } from 'http'
+import { decryptWithCustomKey, encryptWithCustomKey } from './encryption'
 import {
-  saveScriptTemplate,
-  getScriptTemplate,
-  listScriptTemplates,
-  updateScriptTemplate,
   deleteScriptTemplate,
-  searchScriptTemplates,
+  getScriptTemplate,
   interpolateScript,
+  listScriptTemplates,
+  saveScriptTemplate,
+  searchScriptTemplates,
+  updateScriptTemplate,
   validateInputs,
 } from './keyboard-shortcuts'
-import { encryptWithCustomKey, decryptWithCustomKey } from './encryption'
+import { AuthTokens, Message } from './types'
 
 interface AuthenticatedRequest extends Request {
   user?: { id?: string, sub?: string, [key: string]: unknown }
@@ -36,10 +36,10 @@ interface RestAPIConfig {
 }
 
 interface RestAPIServerDeps {
-  getMessages: () => Message[]
+  getMessages: () => Promise<Message[]>
   getAuthTokens: () => AuthTokens | null
   getWebSocketServerStatus: () => boolean
-  updateMessageStatus: (messageId: string, status: 'approved' | 'rejected', feedback?: string) => boolean
+  updateMessageStatus: (messageId: string, status: 'approved' | 'rejected', feedback?: string) => Promise<boolean>
 }
 
 interface RestAPIServerInterface {
@@ -90,16 +90,17 @@ const createAuthMiddleware = (getAuthTokens: () => AuthTokens | null) => {
 
 // Route handler factories
 const createHealthHandler = (
-  getMessages: () => Message[],
+  getMessages: () => Promise<Message[]>,
   getAuthTokens: () => AuthTokens | null,
   getWebSocketServerStatus: () => boolean,
 ) => {
-  return (req: Request, res: Response) => {
+  return async (req: Request, res: Response) => {
+    const messages = await getMessages()
     res.json({
       status: 'healthy',
       websocket: getWebSocketServerStatus() ? 'running' : 'stopped',
       authenticated: !!getAuthTokens(),
-      messageCount: getMessages().length,
+      messageCount: messages.length,
       timestamp: new Date().toISOString(),
     })
   }
@@ -116,14 +117,14 @@ const createAuthStatusHandler = (getAuthTokens: () => AuthTokens | null) => {
   }
 }
 
-const createMessagesHandler = (getMessages: () => Message[]) => {
-  return (req: AuthenticatedRequest, res: Response) => {
+const createMessagesHandler = (getMessages: () => Promise<Message[]>) => {
+  return async (req: AuthenticatedRequest, res: Response) => {
     const page = safeParseInt(req.query.page, 1)
     const limit = Math.min(safeParseInt(req.query.limit, 10), 100)
     const status = safeParseString(req.query.status)
     const priority = safeParseString(req.query.priority)
 
-    let messages = getMessages()
+    let messages = await getMessages()
 
     if (status) {
       messages = messages.filter(msg => msg.status === status)
@@ -148,10 +149,11 @@ const createMessagesHandler = (getMessages: () => Message[]) => {
   }
 }
 
-const createMessageByIdHandler = (getMessages: () => Message[]) => {
-  return (req: AuthenticatedRequest, res: Response) => {
+const createMessageByIdHandler = (getMessages: () => Promise<Message[]>) => {
+  return async (req: AuthenticatedRequest, res: Response) => {
     const messageId = req.params.id
-    const message = getMessages().find(msg => msg.id === messageId)
+    const messages = await getMessages()
+    const message = messages.find(msg => msg.id === messageId)
 
     if (!message) {
       res.status(404).json({ error: 'Message not found' })
@@ -163,13 +165,13 @@ const createMessageByIdHandler = (getMessages: () => Message[]) => {
 }
 
 const createApproveMessageHandler = (
-  updateMessageStatus: (messageId: string, status: 'approved' | 'rejected', feedback?: string) => boolean,
+  updateMessageStatus: (messageId: string, status: 'approved' | 'rejected', feedback?: string) => Promise<boolean>,
 ) => {
-  return (req: AuthenticatedRequest, res: Response) => {
+  return async (req: AuthenticatedRequest, res: Response) => {
     const messageId = req.params.id
     const { feedback } = req.body
 
-    const success = updateMessageStatus(messageId, 'approved', feedback)
+    const success = await updateMessageStatus(messageId, 'approved', feedback)
 
     if (!success) {
       res.status(404).json({ error: 'Message not found' })
@@ -187,13 +189,13 @@ const createApproveMessageHandler = (
 }
 
 const createRejectMessageHandler = (
-  updateMessageStatus: (messageId: string, status: 'approved' | 'rejected', feedback?: string) => boolean,
+  updateMessageStatus: (messageId: string, status: 'approved' | 'rejected', feedback?: string) => Promise<boolean>,
 ) => {
-  return (req: AuthenticatedRequest, res: Response) => {
+  return async (req: AuthenticatedRequest, res: Response) => {
     const messageId = req.params.id
     const { feedback } = req.body
 
-    const success = updateMessageStatus(messageId, 'rejected', feedback)
+    const success = await updateMessageStatus(messageId, 'rejected', feedback)
 
     if (!success) {
       res.status(404).json({ error: 'Message not found' })
@@ -211,9 +213,9 @@ const createRejectMessageHandler = (
 }
 
 const createBatchApproveHandler = (
-  updateMessageStatus: (messageId: string, status: 'approved' | 'rejected', feedback?: string) => boolean,
+  updateMessageStatus: (messageId: string, status: 'approved' | 'rejected', feedback?: string) => Promise<boolean>,
 ) => {
-  return (req: AuthenticatedRequest, res: Response) => {
+  return async (req: AuthenticatedRequest, res: Response) => {
     const { messageIds, feedback } = req.body
 
     if (!Array.isArray(messageIds)) {
@@ -221,16 +223,18 @@ const createBatchApproveHandler = (
       return
     }
 
-    const { approved, failed } = messageIds.reduce<{ approved: string[], failed: string[] }>((acc, id: string) => {
-      const success = updateMessageStatus(id, 'approved', feedback)
+    const approved: string[] = []
+    const failed: string[] = []
+
+    for (const id of messageIds) {
+      const success = await updateMessageStatus(id, 'approved', feedback)
       if (success) {
-        acc.approved.push(id)
+        approved.push(id)
       }
       else {
-        acc.failed.push(id)
+        failed.push(id)
       }
-      return acc
-    }, { approved: [], failed: [] })
+    }
 
     res.json({
       approved,
@@ -244,9 +248,9 @@ const createBatchApproveHandler = (
 }
 
 const createBatchRejectHandler = (
-  updateMessageStatus: (messageId: string, status: 'approved' | 'rejected', feedback?: string) => boolean,
+  updateMessageStatus: (messageId: string, status: 'approved' | 'rejected', feedback?: string) => Promise<boolean>,
 ) => {
-  return (req: AuthenticatedRequest, res: Response) => {
+  return async (req: AuthenticatedRequest, res: Response) => {
     const { messageIds, feedback } = req.body
 
     if (!Array.isArray(messageIds)) {
@@ -257,15 +261,15 @@ const createBatchRejectHandler = (
     const rejected: string[] = []
     const failed: string[] = []
 
-    messageIds.forEach((id: string) => {
-      const success = updateMessageStatus(id, 'rejected', feedback)
+    for (const id of messageIds) {
+      const success = await updateMessageStatus(id, 'rejected', feedback)
       if (success) {
         rejected.push(id)
       }
       else {
         failed.push(id)
       }
-    })
+    }
 
     res.json({
       rejected,
@@ -278,9 +282,9 @@ const createBatchRejectHandler = (
   }
 }
 
-const createStatsHandler = (getMessages: () => Message[]) => {
-  return (req: AuthenticatedRequest, res: Response) => {
-    const messages = getMessages()
+const createStatsHandler = (getMessages: () => Promise<Message[]>) => {
+  return async (req: AuthenticatedRequest, res: Response) => {
+    const messages = await getMessages()
 
     const stats = {
       total: messages.length,
