@@ -718,7 +718,7 @@ export class OAuthProviderManager {
       server = {
         id: serverId,
         name: 'Onboarding',
-        url: 'https://api.keyboard.dev',
+        url: 'http://localhost:4000',
       }
     }
     if (!server) {

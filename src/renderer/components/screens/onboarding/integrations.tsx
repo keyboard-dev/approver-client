@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { ServerProviderInfo } from '../../../../oauth-providers'
-import { getProviderIcon } from '../../../utils/providerUtils'
 import { useAuth } from '../../../hooks/useAuth'
+import { getProviderIcon } from '../../../utils/providerUtils'
 import { Footer } from '../../Footer'
 import { ButtonDesigned } from '../../ui/ButtonDesigned'
 import { ProgressIndicator } from './ProgressIndicator'
@@ -78,7 +78,7 @@ export const Integrations: React.FC<IntegrationsProps> = ({ onComplete }) => {
         const newServer = {
           id: 'keyboard-api',
           name: 'Keyboard API',
-          url: 'https://api.keyboard.dev',
+          url: 'http://localhost:4000',
         }
         await window.electronAPI.addServerProvider(newServer)
         keyboardApiServer = newServer

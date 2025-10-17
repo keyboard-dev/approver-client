@@ -16,6 +16,7 @@ import { OAuthProviderConfig } from './provider-storage'
 import { createRestAPIServer } from './rest-api'
 import { TrayManager } from './tray-manager'
 import { AuthorizeResponse, AuthTokens, CollectionRequest, ErrorResponse, Message, PKCEParams, ShareMessage, TokenResponse } from './types'
+import { ExecutorWebSocketClient } from './websocket-client-to-executor'
 import { WindowManager } from './window-manager'
 
 // Helper function to find assets directory reliably
@@ -106,7 +107,7 @@ class MenuBarNotificationApp {
   private pendingCount: number = 0
   private readonly WS_PORT = 8080
   private readonly OAUTH_PORT = 8082
-  private readonly OAUTH_SERVER_URL = process.env.OAUTH_SERVER_URL || 'https://api.keyboard.dev'
+  private readonly OAUTH_SERVER_URL = process.env.OAUTH_SERVER_URL || 'http://localhost:4000'
   private readonly SKIP_AUTH = process.env.SKIP_AUTH === 'true'
   private readonly CUSTOM_PROTOCOL = 'mcpauth'
   private currentPKCE: PKCEParams | null = null
@@ -137,6 +138,9 @@ class MenuBarNotificationApp {
   private fullCodeExecution: boolean = false
   private readonly SETTINGS_FILE = path.join(os.homedir(), '.keyboard-mcp-settings')
   private readonly FULL_CODE_EXECUTION_FILE = path.join(os.homedir(), '.keyboard-mcp', 'full-code-execution')
+
+  // Executor WebSocket client
+  private executorWSClient: ExecutorWebSocketClient | null = null
 
   constructor() {
     // Initialize HTTP server (doesn't need encryption)
@@ -175,6 +179,11 @@ class MenuBarNotificationApp {
     // Set up encryption key provider
     setEncryptionKeyProvider({
       getActiveEncryptionKey: () => this.getActiveEncryptionKey(),
+    })
+
+    // Initialize executor WebSocket client
+    this.executorWSClient = new ExecutorWebSocketClient((message) => {
+      this.handleExecutorMessage(message)
     })
 
     this.initializeApp()
@@ -259,9 +268,12 @@ class MenuBarNotificationApp {
       // Initialize GitHub service
       await this.initializeGithubService()
 
+      // Try to connect to executor with onboarding token
+      await this.connectToExecutorWithToken()
+
       // Configure auto-updater (only on macOS and Windows)
       if (process.platform === 'darwin' || process.platform === 'win32') {
-        const feedURL = `https://api.keyboard.dev/update/${process.platform}/${app.getVersion()}`
+        const feedURL = `http://localhost:4000/update/${process.platform}/${app.getVersion()}`
         autoUpdater.setFeedURL({
           url: feedURL,
         })
@@ -352,6 +364,69 @@ class MenuBarNotificationApp {
 
   private async initializeGithubService(): Promise<void> {
     this.githubService = await new GithubService()
+  }
+
+  /**
+   * Connect to executor WebSocket server with GitHub token
+   */
+  private async connectToExecutorWithToken(): Promise<void> {
+    try {
+      // Try to get onboarding GitHub token
+      const onboardingToken = await this.perProviderTokenStorage.getValidAccessToken(
+        'onboarding',
+        this.refreshProviderTokens.bind(this),
+      )
+
+      if (onboardingToken && this.executorWSClient) {
+        console.log('🔌 Connecting to executor with onboarding token...')
+        this.executorWSClient.setGitHubToken(onboardingToken)
+      }
+      else {
+        console.log('⏸️ No onboarding token available yet. Will connect after authentication.')
+      }
+    }
+    catch (error) {
+      console.error('❌ Error connecting to executor:', error)
+    }
+  }
+
+  /**
+   * Handle messages received from the executor WebSocket server
+   */
+  private handleExecutorMessage(message: { type: string, message?: Message, data?: unknown, id?: string }): void {
+    try {
+      console.log('📥 Handling executor message:', message.type)
+
+      switch (message.type) {
+        case 'websocket-message':
+          // Forward to existing message handling
+          if (message.message) {
+            this.handleIncomingMessage(message.message)
+          }
+          break
+
+        case 'collection-share-request':
+          // Handle collection share requests
+          this.handleCollectionShareRequest(message as never)
+          break
+
+        case 'prompter-request':
+          // Handle prompter requests
+          this.handlePrompterRequest(message as never)
+          break
+
+        case 'prompt-response':
+          // Handle prompt responses
+          this.handlePromptResponse(message as never)
+          break
+
+        default:
+          console.log('Unknown message type from executor:', message.type)
+      }
+    }
+    catch (error) {
+      console.error('❌ Error handling executor message:', error)
+    }
   }
 
   /**
@@ -942,7 +1017,7 @@ class MenuBarNotificationApp {
   private async fetchOnboardingGithubProvider(): Promise<void> {
     const provider = 'onboarding'
 
-    const response = await fetch(`https://api.keyboard.dev/auth/keyboard_github/onboarding`)
+    const response = await fetch(`http://localhost:4000/auth/keyboard_github/onboarding`)
     const data = await response.json() as OnboardingGitHubResponse
     const sessionId = data.session_id
     const authUrl = data.authorization_url
@@ -1010,6 +1085,12 @@ class MenuBarNotificationApp {
         await this.githubService.initializeToken()
         await this.githubService.createFork('keyboard-dev', 'codespace-executor')
         await this.githubService.createFork('keyboard-dev', 'app-creator')
+
+        // Connect to executor with the new onboarding token
+        if (this.executorWSClient) {
+          console.log('🔌 Connecting to executor with new onboarding token...')
+          this.executorWSClient.setGitHubToken(tokens.access_token)
+        }
       }
 
       this.currentProviderPKCE = null
@@ -1322,7 +1403,7 @@ class MenuBarNotificationApp {
         return null
       }
     }
-
+    console.log('authTokens', this.authTokens?.access_token)
     return this.authTokens.access_token
   }
 
@@ -1400,9 +1481,10 @@ class MenuBarNotificationApp {
 
     this.wsServer.on('connection', (ws: WebSocket) => {
       ws.on('message', async (data: WebSocket.Data) => {
+        console.log('message', data.toString())
         try {
           const message = JSON.parse(data.toString())
-
+          console.log('message', message)
           // Handle token request (legacy OAuth)
           if (message.type === 'request-token') {
             const token = await this.getValidAccessToken()
@@ -1973,6 +2055,11 @@ class MenuBarNotificationApp {
 
         // Send response back through WebSocket if needed
         this.sendWebSocketResponse(message)
+
+        // Send rejection to executor
+        if (this.executorWSClient) {
+          this.executorWSClient.sendRejection(message.id, feedback)
+        }
       }
     })
 
@@ -2108,6 +2195,55 @@ class MenuBarNotificationApp {
     ipcMain.handle('get-assets-path', (): string => {
       return getAssetsPath()
     })
+
+    // Executor WebSocket client IPC handlers
+    ipcMain.handle('get-executor-connection-status', () => {
+      if (!this.executorWSClient) {
+        return { connected: false }
+      }
+      return this.executorWSClient.getConnectionInfo()
+    })
+
+    ipcMain.handle('reconnect-to-executor', async (): Promise<boolean> => {
+      if (this.executorWSClient) {
+        return await this.executorWSClient.reconnect()
+      }
+      return false
+    })
+
+    ipcMain.handle('disconnect-from-executor', (): void => {
+      if (this.executorWSClient) {
+        this.executorWSClient.disconnect()
+      }
+    })
+    
+    // Codespace discovery and management IPC handlers
+    ipcMain.handle('discover-codespaces', async () => {
+      if (!this.executorWSClient) {
+        return []
+      }
+      return await this.executorWSClient.discoverCodespaces()
+    })
+    
+    ipcMain.handle('connect-to-codespace', async (event, codespaceName: string): Promise<boolean> => {
+      if (!this.executorWSClient) {
+        return false
+      }
+      return await this.executorWSClient.connectToSpecificCodespace(codespaceName)
+    })
+    
+    ipcMain.handle('connect-to-localhost', (): void => {
+      if (this.executorWSClient) {
+        this.executorWSClient.connectToLocalhost()
+      }
+    })
+    
+    ipcMain.handle('get-last-known-codespaces', () => {
+      if (!this.executorWSClient) {
+        return []
+      }
+      return this.executorWSClient.getLastKnownCodespaces()
+    })
   }
 
   private handleApproveMessage(message: Message, feedback?: string): void {
@@ -2126,6 +2262,11 @@ class MenuBarNotificationApp {
 
     // Send response back through WebSocket if needed
     this.sendWebSocketResponse(existingMessage)
+
+    // Send approval to executor
+    if (this.executorWSClient) {
+      this.executorWSClient.sendApproval(existingMessage.id, feedback)
+    }
   }
 
   private sendWebSocketResponse(message: Message): void {
@@ -2201,6 +2342,11 @@ class MenuBarNotificationApp {
     // Stop OAuth HTTP server
     if (this.oauthHttpServer) {
       this.oauthHttpServer.stopServer()
+    }
+
+    // Disconnect from executor
+    if (this.executorWSClient) {
+      this.executorWSClient.disconnect()
     }
 
     this.trayManager.destroy()
