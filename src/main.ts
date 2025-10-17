@@ -66,7 +66,6 @@ interface AuthUser {
   profile_picture?: string
 }
 
-
 // Types for onboarding GitHub provider response
 interface OnboardingGitHubResponse {
   session_id: string
@@ -301,16 +300,6 @@ class MenuBarNotificationApp {
         autoUpdater.on('checking-for-update', () => {
           console.log('Checking for update...')
         })
-
-<<<<<<< HEAD
-        // @ts-expect-error - Electron type definitions issue with autoUpdater events
-        autoUpdater.on('update-available', (info) => {
-          console.log('Update available:', info)
-          // notify user
-        })
-=======
-        // Note: autoUpdater from electron core has limited event support
->>>>>>> main
 
         autoUpdater.on('update-not-available', () => {
           console.log('No update available')
