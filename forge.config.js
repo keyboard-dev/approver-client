@@ -4,13 +4,20 @@ require('@dotenvx/dotenvx').config()
 
 module.exports = {
   packagerConfig: {
-    asar: true,
+    asar: {
+      // Unpack prisma binaries and migrations for proper execution
+      unpack: '**/{node_modules/@prisma/engines/**/*,dist/prisma/**/*}',
+    },
     icon: 'assets/keyboard-dock.icns',
     protocols: [
       {
         name: 'MCP Auth Protocol',
         schemes: ['mcpauth'],
       },
+    ],
+    // Ensure prisma folder is included
+    extraResource: [
+      'dist/prisma',
     ],
     ...(process.env.NODE_ENV !== 'development' && !process.env.SKIP_SIGNING && {
       osxSign: {},

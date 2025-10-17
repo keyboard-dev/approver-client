@@ -139,6 +139,25 @@ class MenuBarNotificationApp {
     }
   }
 
+  private sendCollectionShareResponse(shareMessage: ShareMessage, status: 'approved' | 'rejected', updatedRequest?: CollectionRequest): void {
+    if (this.wsServer) {
+      const response = {
+        type: 'collection-share-response',
+        id: shareMessage.id,
+        status: status,
+        timestamp: Date.now(),
+        data: status === 'approved' ? updatedRequest : null,
+      }
+
+      // Send response to all connected WebSocket clients
+      this.wsServer.clients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(JSON.stringify(response))
+        }
+      })
+    }
+  }
+
   constructor() {
     // Initialize HTTP server (doesn't need encryption)
     this.oauthHttpServer = new OAuthHttpServer(this.OAUTH_PORT)
@@ -257,6 +276,9 @@ class MenuBarNotificationApp {
 
       // Initialize message manager (load messages from disk)
       await this.messageManager.initialize()
+
+      // Initialize tray pending count cache (after database is ready)
+      await this.trayManager.initializePendingCountCache()
 
       // Initialize version timestamp tracking
       await this.getVersionInstallTimestamp()
@@ -1939,7 +1961,7 @@ class MenuBarNotificationApp {
         this.trayManager.updateTrayIcon()
 
         // Send response back through WebSocket
-        this.messageManager.sendCollectionShareResponse(shareMessage, 'approved', this.wsServer, updatedRequest)
+        this.sendCollectionShareResponse(shareMessage, 'approved', updatedRequest)
       }
     })
 
@@ -1953,7 +1975,7 @@ class MenuBarNotificationApp {
         this.trayManager.updateTrayIcon()
 
         // Send response back through WebSocket
-        this.messageManager.sendCollectionShareResponse(shareMessage, 'rejected', this.wsServer)
+        this.sendCollectionShareResponse(shareMessage, 'rejected')
       }
     })
 
@@ -2117,17 +2139,16 @@ class MenuBarNotificationApp {
 
     // Update the existing message with the passed message data
     _.assign(existingMessage, message)
-    await this.messageManager.updateMessage(message.id, {
-      ...message,
-      status: 'approved',
-      feedback: feedback,
-    })
-
-    // Update tray icon
-    this.trayManager.updateTrayIcon()
+    existingMessage.status = 'approved'
+    existingMessage.feedback = feedback
 
     // Send response back through WebSocket if needed
     this.sendWebSocketResponse(existingMessage)
+
+    this.messageManager.updateMessage(message.id, existingMessage)
+
+    // Update tray icon
+    this.trayManager.updateTrayIcon()
   }
 
   private setupRestAPI(): void {

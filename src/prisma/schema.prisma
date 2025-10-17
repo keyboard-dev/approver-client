@@ -7,8 +7,8 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  // Default path - can be overridden programmatically in DatabaseService
-  url      = "file:./data.db"
+  // Uses DATABASE_URL env var if set, otherwise defaults to ./data.db
+  url      = env("DATABASE_URL")
 }
 
 model Message {

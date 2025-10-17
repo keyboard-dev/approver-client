@@ -57,8 +57,15 @@ export class TrayManager {
     this.normalIconPath = path.join(assetsPath, 'keyboard-tray.png')
     this.badgedIconPath = path.join(assetsPath, 'keyboard-tray-notification.png') // Using notification.png for badged state
 
-    // Initialize pending count cache
-    this.updatePendingCountCache().catch(console.error)
+    // Don't initialize pending count cache here - will be called after database initialization
+  }
+
+  /**
+   * Initialize the pending count cache after database is ready
+   * Should be called after database initialization is complete
+   */
+  public async initializePendingCountCache(): Promise<void> {
+    await this.updatePendingCountCache()
   }
 
   /**
@@ -82,7 +89,7 @@ export class TrayManager {
     this.tray.setToolTip('Message Approver')
 
     // Click to toggle window
-    this.tray.on('click', (event, bounds) => {
+    this.tray.on('click', (_event, bounds) => {
       this.options.onToggleWindow(bounds)
     })
 
@@ -209,34 +216,6 @@ export class TrayManager {
     catch (generalError) {
       console.error('General error in createTrayIcon:', generalError)
       return this.createFallbackIcon()
-    }
-  }
-
-  private addNotificationBadge(baseIcon: Electron.NativeImage): Electron.NativeImage {
-    // For now, we'll create a simple overlay effect
-    // In a more advanced implementation, you could draw a red badge with the count
-    // const size = baseIcon.getSize()
-
-    // Create a copy of the base icon
-    // const canvas = Buffer.alloc(size.width * size.height * 4)
-    const iconBuffer = baseIcon.toPNG()
-
-    // For simplicity, we'll just add a red tint to indicate pending messages
-    // You could enhance this to draw an actual badge with canvas or use image composition
-    try {
-      // Simple approach: create a version with modified appearance
-      const badgedIcon = nativeImage.createFromBuffer(iconBuffer)
-
-      // On macOS, don't set as template when showing notifications
-      if (process.platform === 'darwin') {
-        badgedIcon.setTemplateImage(false)
-      }
-
-      return badgedIcon
-    }
-    catch (error) {
-      console.error('Error creating notification badge:', error)
-      return baseIcon
     }
   }
 

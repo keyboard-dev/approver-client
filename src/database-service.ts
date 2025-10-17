@@ -1,4 +1,6 @@
 import { PrismaClient } from '@prisma/client'
+import { execSync } from 'child_process'
+import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
 import { CollectionRequest, Message, ShareMessage } from './types'
@@ -9,10 +11,14 @@ import { CollectionRequest, Message, ShareMessage } from './types'
 export class DatabaseService {
   private prisma: PrismaClient
   private initialized = false
+  private dbPath: string
 
   constructor() {
-    const dbPath = path.join(os.homedir(), '.keyboard-mcp', '.keyboard-mcp-messages.db')
-    const databaseUrl = `file:${dbPath}`
+    this.dbPath = path.join(os.homedir(), '.keyboard-mcp', '.keyboard-mcp-messages.db')
+    const databaseUrl = `file:${this.dbPath}`
+
+    // Set the DATABASE_URL environment variable so Prisma CLI commands use it
+    process.env.DATABASE_URL = databaseUrl
 
     this.prisma = new PrismaClient({
       datasources: {
@@ -24,12 +30,89 @@ export class DatabaseService {
   }
 
   /**
+   * Ensure database tables exist by running Prisma migrations
+   * This uses Prisma's built-in migration system to apply all pending migrations
+   */
+  private async ensureDatabaseSchema(): Promise<void> {
+    try {
+      // Ensure the directory exists
+      const dbDir = path.dirname(this.dbPath)
+      if (!fs.existsSync(dbDir)) {
+        fs.mkdirSync(dbDir, { recursive: true })
+      }
+
+      // Find the schema file location
+      // In production (dist), it should be at dist/prisma/schema.prisma
+      // In development (src), it should be at src/prisma/schema.prisma
+      let schemaPath = path.join(__dirname, 'prisma', 'schema.prisma')
+      if (!fs.existsSync(schemaPath)) {
+        schemaPath = path.join(__dirname, '..', 'src', 'prisma', 'schema.prisma')
+      }
+
+      if (!fs.existsSync(schemaPath)) {
+        throw new Error('Prisma schema file not found')
+      }
+
+      console.log('📦 Running database migrations...')
+      console.log(`   Schema: ${schemaPath}`)
+      console.log(`   Database: ${this.dbPath}`)
+
+      // Run prisma migrate deploy to apply all pending migrations
+      // This is the recommended approach for production
+      // It will:
+      // 1. Create the _prisma_migrations table if it doesn't exist
+      // 2. Check which migrations have been applied
+      // 3. Apply all pending migrations in order
+      try {
+        execSync(
+          `npx prisma migrate deploy --schema="${schemaPath}"`,
+          {
+            env: {
+              ...process.env,
+              DATABASE_URL: `file:${this.dbPath}`,
+            },
+            stdio: 'inherit', // Show output in console for debugging
+          },
+        )
+        console.log('✅ Database migrations applied successfully')
+      }
+      catch (error) {
+        console.error('❌ Error running migrations:', error)
+        throw error
+      }
+    }
+    catch (error) {
+      console.error('❌ Error ensuring database schema:', error)
+      throw error
+    }
+  }
+
+  /**
    * Initialize the database connection
    */
   async initialize(): Promise<void> {
     try {
       // Test the connection
       await this.prisma.$connect()
+
+      // Ensure database schema exists
+      await this.ensureDatabaseSchema()
+
+      // Recreate Prisma client after migrations to ensure schema is up to date
+      // Disconnect and reconnect is not enough - we need a fresh client instance
+      // await this.prisma.$disconnect()
+
+      // const databaseUrl = `file:${this.dbPath}`
+      // this.prisma = new PrismaClient({
+      //   datasources: {
+      //     db: {
+      //       url: databaseUrl,
+      //     },
+      //   },
+      // })
+
+      // await this.prisma.$connect()
+
       this.initialized = true
 
       const messageCount = await this.prisma.message.count()
@@ -59,6 +142,10 @@ export class DatabaseService {
     where?: { status?: string | null, status_not?: string }
     orderBy?: { timestamp?: 'asc' | 'desc' }
   }): Promise<Message[]> {
+    if (!this.initialized) {
+      return []
+    }
+
     const messages = await this.prisma.message.findMany({
       where: options?.where,
       orderBy: options?.orderBy,
@@ -75,6 +162,10 @@ export class DatabaseService {
     where?: { status?: string | null, status_not?: string }
     orderBy?: { timestamp?: 'asc' | 'desc' }
   }): Promise<ShareMessage[]> {
+    if (!this.initialized) {
+      return []
+    }
+
     const shareMessages = await this.prisma.shareMessage.findMany({
       where: options?.where,
       orderBy: options?.orderBy,
@@ -278,6 +369,9 @@ export class DatabaseService {
    * Count messages with optional filtering
    */
   async countMessages(where?: { status?: string | null, OR?: Array<{ status: string | null }> }): Promise<number> {
+    if (!this.initialized) {
+      return 0
+    }
     return await this.prisma.message.count({ where })
   }
 
@@ -285,6 +379,9 @@ export class DatabaseService {
    * Count share messages with optional filtering
    */
   async countShareMessages(where?: { status?: string | null, OR?: Array<{ status: string | null }> }): Promise<number> {
+    if (!this.initialized) {
+      return 0
+    }
     return await this.prisma.shareMessage.count({ where })
   }
 

@@ -1,6 +1,5 @@
-import * as WebSocket from 'ws'
 import { DatabaseService } from './database-service'
-import { CollectionRequest, Message, ShareMessage } from './types'
+import { Message, ShareMessage } from './types'
 
 export class MessageManager {
   private db: DatabaseService
@@ -125,32 +124,5 @@ export class MessageManager {
    */
   async findShareMessage(messageId: string): Promise<ShareMessage | undefined> {
     return await this.db.findShareMessageById(messageId)
-  }
-
-  /**
-   * Send collection share response via WebSocket
-   */
-  sendCollectionShareResponse(
-    shareMessage: ShareMessage,
-    status: 'approved' | 'rejected',
-    wsServer: WebSocket.Server | null,
-    updatedRequest?: CollectionRequest,
-  ): void {
-    if (wsServer) {
-      const response = {
-        type: 'collection-share-response',
-        id: shareMessage.id,
-        status: status,
-        timestamp: Date.now(),
-        data: status === 'approved' ? updatedRequest : null,
-      }
-
-      // Send response to all connected WebSocket clients
-      wsServer.clients.forEach((client) => {
-        if (client.readyState === WebSocket.OPEN) {
-          client.send(JSON.stringify(response))
-        }
-      })
-    }
   }
 }
