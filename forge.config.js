@@ -37,8 +37,7 @@ module.exports = {
     {
       name: '@electron-forge/maker-dmg',
       config: {
-        format: 'ULFO',
-        name: 'KeyboardApprover',
+        name: 'Keyboard Approver',
       },
     },
     {
