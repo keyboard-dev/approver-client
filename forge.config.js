@@ -5,8 +5,7 @@ require('@dotenvx/dotenvx').config()
 module.exports = {
   packagerConfig: {
     asar: {
-      // Unpack prisma binaries and migrations for proper execution
-      unpack: '**/{node_modules/@prisma/engines/**/*,dist/prisma/**/*}',
+      unpack: '**/{node_modules/.prisma,node_modules/@prisma,node_modules/prisma,.prisma,prisma}/**/*',
     },
     icon: 'assets/keyboard-dock.icns',
     protocols: [
@@ -15,9 +14,9 @@ module.exports = {
         schemes: ['mcpauth'],
       },
     ],
-    // Ensure prisma folder is included
     extraResource: [
       'dist/prisma',
+      'assets',
     ],
     ...(process.env.NODE_ENV !== 'development' && !process.env.SKIP_SIGNING && {
       osxSign: {},
@@ -33,6 +32,13 @@ module.exports = {
       name: '@electron-forge/maker-squirrel',
       config: {
         name: 'keyboard approver', // Changed from 'electron_quick_start'
+      },
+    },
+    {
+      name: '@electron-forge/maker-dmg',
+      config: {
+        format: 'ULFO',
+        name: 'KeyboardApprover',
       },
     },
     {

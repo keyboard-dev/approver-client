@@ -19,7 +19,7 @@
     "build-mac-universal": "npm run build && electron-forge make --platform=darwin --arch=universal",
     "build-signed-bg": "nohup npm run build-signed > build.log 2>&1 &",
     "build-signed-ci": "dotenvx run -f .env.ci -- npm run build-signed",
-    "build-dev": "NODE_ENV=development npm run build && SKIP_SIGNING=true electron-forge package --platform=darwin",
+    "build-dev": "NODE_ENV=development npm run build && SKIP_SIGNING=true electron-forge make --platform=darwin",
     "check-build": "tail -f build.log",
     "build-win": "npm run build && electron-builder --win",
     "build-linux": "npm run build && electron-builder --linux",
