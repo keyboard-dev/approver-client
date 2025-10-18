@@ -393,7 +393,7 @@ class MenuBarNotificationApp {
   /**
    * Handle messages received from the executor WebSocket server
    */
-  private handleExecutorMessage(message: { type: string, message?: Message, data?: unknown, id?: string }): void {
+  private handleExecutorMessage(message: { type: string, message?: Message, data?: unknown, id?: string, providerId?: string, requestId?: string }): void {
     try {
       console.log('📥 Handling executor message:', message.type)
 
@@ -420,12 +420,72 @@ class MenuBarNotificationApp {
           this.handlePromptResponse(message as never)
           break
 
+        case 'request-provider-token':
+          // Handle provider token requests from executor
+          this.handleExecutorProviderTokenRequest(message)
+          break
+
         default:
           console.log('Unknown message type from executor:', message.type)
       }
     }
     catch (error) {
       console.error('❌ Error handling executor message:', error)
+    }
+  }
+
+  /**
+   * Handle provider token request from executor WebSocket
+   */
+  private async handleExecutorProviderTokenRequest(message: { providerId?: string, requestId?: string }): Promise<void> {
+    const { providerId } = message
+
+    if (!providerId) {
+      // Send error response back through executor client
+      if (this.executorWSClient) {
+        this.executorWSClient.send({
+          type: 'provider-auth-token',
+          error: 'Provider ID is required',
+          timestamp: Date.now(),
+          requestId: message.requestId,
+        })
+      }
+      return
+    }
+
+    try {
+      const token = await this.getValidProviderAccessToken(providerId.toLowerCase())
+      const providerStatus = await this.perProviderTokenStorage.getProviderStatus()
+      const providerInfo = providerStatus[providerId]
+      const provider = await this.oauthProviderManager.getProvider(providerId)
+
+      const tokenResponse = {
+        type: 'provider-auth-token',
+        providerId: providerId,
+        token: token,
+        timestamp: Date.now(),
+        requestId: message.requestId,
+        authenticated: !!token || this.SKIP_AUTH,
+        user: providerInfo?.user || (this.SKIP_AUTH ? { email: 'test@example.com', firstName: 'Test Provider' } : null),
+        providerName: provider?.name || providerId,
+      }
+
+      // Send response back through executor client
+      if (this.executorWSClient) {
+        this.executorWSClient.send(tokenResponse)
+      }
+    }
+    catch (error) {
+      // Send error response back through executor client
+      if (this.executorWSClient) {
+        this.executorWSClient.send({
+          type: 'provider-auth-token',
+          providerId: providerId,
+          error: `Failed to get token: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          timestamp: Date.now(),
+          requestId: message.requestId,
+        })
+      }
     }
   }
 
@@ -1504,6 +1564,7 @@ class MenuBarNotificationApp {
 
           // Handle provider token request (new OAuth provider system)
           if (message.type === 'request-provider-token') {
+            console.log('do i get here bro')
             const { providerId } = message
 
             if (!providerId) {
@@ -2216,7 +2277,7 @@ class MenuBarNotificationApp {
         this.executorWSClient.disconnect()
       }
     })
-    
+
     // Codespace discovery and management IPC handlers
     ipcMain.handle('discover-codespaces', async () => {
       if (!this.executorWSClient) {
@@ -2224,20 +2285,20 @@ class MenuBarNotificationApp {
       }
       return await this.executorWSClient.discoverCodespaces()
     })
-    
+
     ipcMain.handle('connect-to-codespace', async (event, codespaceName: string): Promise<boolean> => {
       if (!this.executorWSClient) {
         return false
       }
       return await this.executorWSClient.connectToSpecificCodespace(codespaceName)
     })
-    
+
     ipcMain.handle('connect-to-localhost', (): void => {
       if (this.executorWSClient) {
         this.executorWSClient.connectToLocalhost()
       }
     })
-    
+
     ipcMain.handle('get-last-known-codespaces', () => {
       if (!this.executorWSClient) {
         return []

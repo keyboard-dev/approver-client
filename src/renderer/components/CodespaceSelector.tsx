@@ -6,7 +6,7 @@ import { CodespaceConnectionInfo } from '../../github-codespaces'
 import { ConnectionTarget } from '../../websocket-client-to-executor'
 
 interface CodespaceSelectorProps {
-  connectionInfo: { connected: boolean; target?: ConnectionTarget }
+  connectionInfo: { connected: boolean, target?: ConnectionTarget }
   codespaces: CodespaceConnectionInfo[]
   loading: boolean
   onConnectToCodespace: (codespaceName: string) => Promise<boolean>
@@ -30,7 +30,8 @@ const CodespaceSelector: React.FC<CodespaceSelectorProps> = ({
     setConnecting(codespaceName)
     try {
       await onConnectToCodespace(codespaceName)
-    } finally {
+    }
+    finally {
       setConnecting(null)
     }
   }
@@ -39,7 +40,8 @@ const CodespaceSelector: React.FC<CodespaceSelectorProps> = ({
     setConnecting('localhost')
     try {
       onConnectToLocalhost()
-    } finally {
+    }
+    finally {
       setConnecting(null)
     }
   }
@@ -48,12 +50,14 @@ const CodespaceSelector: React.FC<CodespaceSelectorProps> = ({
     const date = new Date(lastUsedAt)
     const now = new Date()
     const diffMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60))
-    
+
     if (diffMinutes < 60) {
       return `${diffMinutes}m ago`
-    } else if (diffMinutes < 1440) {
+    }
+    else if (diffMinutes < 1440) {
       return `${Math.floor(diffMinutes / 60)}h ago`
-    } else {
+    }
+    else {
       return `${Math.floor(diffMinutes / 1440)}d ago`
     }
   }
@@ -61,18 +65,25 @@ const CodespaceSelector: React.FC<CodespaceSelectorProps> = ({
   const getStatusBadge = (codespace: CodespaceConnectionInfo) => {
     if (codespace.available) {
       return <Badge variant="default" className="bg-green-500 text-white">Available</Badge>
-    } else {
+    }
+    else {
       return <Badge variant="destructive">No WebSocket</Badge>
     }
   }
 
   const getConnectionBadge = (target?: ConnectionTarget) => {
     if (!target) return null
-    
+
     if (target.type === 'localhost') {
       return <Badge variant="secondary">Connected to Localhost</Badge>
-    } else {
-      return <Badge variant="default" className="bg-blue-500 text-white">Connected to {target.name}</Badge>
+    }
+    else {
+      return (
+        <Badge variant="default" className="bg-blue-500 text-white">
+          Connected to
+          {target.name}
+        </Badge>
+      )
     }
   }
 
@@ -134,67 +145,71 @@ const CodespaceSelector: React.FC<CodespaceSelectorProps> = ({
         </div>
 
         {/* Codespaces */}
-        {codespaces.length > 0 ? (
-          <div className="space-y-3">
-            <h4 className="font-medium text-sm text-muted-foreground">GitHub Codespaces</h4>
-            {codespaces.map((info) => (
-              <div key={info.codespace.name} className="border rounded-lg p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h4 className="font-medium truncate">
-                        {info.codespace.display_name || info.codespace.name}
-                      </h4>
-                      {getStatusBadge(info)}
-                      {connectionInfo.connected && connectionInfo.target?.codespaceName === info.codespace.name && (
-                        <Badge variant="default" className="bg-green-500 text-white">Connected</Badge>
-                      )}
+        {codespaces.length > 0
+          ? (
+              <div className="space-y-3">
+                <h4 className="font-medium text-sm text-muted-foreground">GitHub Codespaces</h4>
+                {codespaces.map(info => (
+                  <div key={info.codespace.name} className="border rounded-lg p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h4 className="font-medium truncate">
+                            {info.codespace.display_name || info.codespace.name}
+                          </h4>
+                          {getStatusBadge(info)}
+                          {connectionInfo.connected && connectionInfo.target?.codespaceName === info.codespace.name && (
+                            <Badge variant="default" className="bg-green-500 text-white">Connected</Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                          <span>{info.codespace.repository.full_name}</span>
+                          <span>•</span>
+                          <span>{formatLastUsed(info.codespace.last_used_at)}</span>
+                          <span>•</span>
+                          <span className="capitalize">{info.codespace.state.toLowerCase()}</span>
+                        </div>
+                        {!info.available && info.error && (
+                          <p className="text-xs text-red-500 mt-1">{info.error}</p>
+                        )}
+                        {info.websocketUrl && (
+                          <p className="text-xs text-muted-foreground mt-1 font-mono truncate">
+                            {info.websocketUrl}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 ml-4">
+                        <Button
+                          size="sm"
+                          onClick={() => handleConnectToCodespace(info.codespace.name)}
+                          disabled={
+                            !info.available
+                            || connecting === info.codespace.name
+                            || (connectionInfo.connected && connectionInfo.target?.codespaceName === info.codespace.name)
+                          }
+                        >
+                          {connecting === info.codespace.name ? 'Connecting...' : 'Connect'}
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                      <span>{info.codespace.repository.full_name}</span>
-                      <span>•</span>
-                      <span>{formatLastUsed(info.codespace.last_used_at)}</span>
-                      <span>•</span>
-                      <span className="capitalize">{info.codespace.state.toLowerCase()}</span>
-                    </div>
-                    {!info.available && info.error && (
-                      <p className="text-xs text-red-500 mt-1">{info.error}</p>
-                    )}
-                    {info.websocketUrl && (
-                      <p className="text-xs text-muted-foreground mt-1 font-mono truncate">
-                        {info.websocketUrl}
-                      </p>
-                    )}
                   </div>
-                  <div className="flex items-center gap-2 ml-4">
-                    <Button
-                      size="sm"
-                      onClick={() => handleConnectToCodespace(info.codespace.name)}
-                      disabled={
-                        !info.available ||
-                        connecting === info.codespace.name ||
-                        (connectionInfo.connected && connectionInfo.target?.codespaceName === info.codespace.name)
-                      }
-                    >
-                      {connecting === info.codespace.name ? 'Connecting...' : 'Connect'}
-                    </Button>
-                  </div>
-                </div>
+                ))}
               </div>
-            ))}
-          </div>
-        ) : loading ? (
-          <div className="text-center py-8 text-muted-foreground">
-            <p>Loading codespaces...</p>
-          </div>
-        ) : (
-          <div className="text-center py-8 text-muted-foreground">
-            <p>No active codespaces found</p>
-            <p className="text-xs mt-1">
-              Make sure you have running codespaces with port 4000 forwarded
-            </p>
-          </div>
-        )}
+            )
+          : loading
+            ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <p>Loading codespaces...</p>
+                </div>
+              )
+            : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <p>No active codespaces found</p>
+                  <p className="text-xs mt-1">
+                    Make sure you have running codespaces with port 4000 forwarded
+                  </p>
+                </div>
+              )}
       </CardContent>
     </Card>
   )
