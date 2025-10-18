@@ -5,7 +5,6 @@ import _ from 'lodash'
 import * as os from 'os'
 import * as path from 'path'
 import * as WebSocket from 'ws'
-import { DatabaseService } from './database-service'
 import { setEncryptionKeyProvider } from './encryption'
 import { GithubService } from './Github'
 import { deleteScriptTemplate } from './keyboard-shortcuts'
@@ -95,7 +94,6 @@ class MenuBarNotificationApp {
   private windowManager: WindowManager
   private wsServer: WebSocket.Server | null = null
   private restApiServer: RestAPIServerInterface | null = null
-  private databaseService!: DatabaseService
   private messageManager!: MessageManager
   private readonly WS_PORT = 8080
   private readonly OAUTH_PORT = 8082
@@ -162,9 +160,8 @@ class MenuBarNotificationApp {
     // Initialize HTTP server (doesn't need encryption)
     this.oauthHttpServer = new OAuthHttpServer(this.OAUTH_PORT)
 
-    // Initialize database service and message manager
-    this.databaseService = new DatabaseService()
-    this.messageManager = new MessageManager(this.databaseService)
+    // Initialize message manager (database now in renderer process)
+    this.messageManager = new MessageManager()
 
     // Initialize managers
     this.windowManager = new WindowManager({
@@ -274,8 +271,20 @@ class MenuBarNotificationApp {
       // Initialize app settings
       await this.initializeSettings()
 
-      // Initialize message manager (load messages from disk)
+      // Initialize message manager (database now in renderer)
       await this.messageManager.initialize()
+
+      // Pass window reference to message manager when window is created
+      // This is done lazily since window may not exist yet
+      const updateMessageManagerWindow = () => {
+        const mainWindow = this.windowManager.getMainWindow()
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          this.messageManager.setMainWindow(mainWindow)
+        }
+      }
+
+      // Set window reference after a short delay to ensure window is created
+      setTimeout(updateMessageManagerWindow, 1000)
 
       // Initialize tray pending count cache (after database is ready)
       await this.trayManager.initializePendingCountCache()
@@ -331,6 +340,12 @@ class MenuBarNotificationApp {
       this.setupWebSocketServer()
       this.setupRestAPI()
       this.setupIPC()
+
+      // Set up listener for database pending count changes
+      ipcMain.on('db:pending-count-changed', async () => {
+        // Update tray icon when pending count changes
+        await this.trayManager.updatePendingCountCache()
+      })
 
       // Request notification permissions on all platforms
       await this.requestNotificationPermissions()
@@ -1911,30 +1926,50 @@ class MenuBarNotificationApp {
       return serverProviders
     })
 
-    // Handle requests for all messages
+    // Note: get-messages, get-share-messages, mark-message-read, delete-message,
+    // and delete-non-pending-messages are now handled directly by the renderer
+    // since the database lives in the renderer process. These handlers are kept
+    // for backward compatibility but are no longer used.
+
     ipcMain.handle('get-messages', async (): Promise<Message[]> => {
-      return await this.messageManager.getMessages()
+      console.warn('get-messages IPC handler called but should be handled by renderer directly')
+      return []
     })
 
-    // Handle requests for share messages
     ipcMain.handle('get-share-messages', async (): Promise<ShareMessage[]> => {
-      return await this.messageManager.getShareMessages()
+      console.warn('get-share-messages IPC handler called but should be handled by renderer directly')
+      return []
     })
 
-    // Handle mark as read
-    ipcMain.handle('mark-message-read', async (_event, messageId: string): Promise<void> => {
-      await this.messageManager.markMessageRead(messageId)
+    ipcMain.handle('mark-message-read', async (): Promise<void> => {
+      console.warn('mark-message-read IPC handler called but should be handled by renderer directly')
     })
 
-    // Handle delete message
-    ipcMain.handle('delete-message', async (_event, messageId: string): Promise<void> => {
-      await this.messageManager.deleteMessage(messageId)
-      this.trayManager.updateTrayIcon()
+    ipcMain.handle('delete-message', async (): Promise<void> => {
+      console.warn('delete-message IPC handler called but should be handled by renderer directly')
     })
 
     ipcMain.handle('delete-non-pending-messages', async (): Promise<void> => {
-      await this.messageManager.deleteNonPendingMessages()
-      this.trayManager.updateTrayIcon()
+      console.warn('delete-non-pending-messages IPC handler called but should be handled by renderer directly')
+    })
+
+    // Handler for getting pending count - called by tray manager
+    ipcMain.handle('get-pending-count', async (): Promise<number> => {
+      const mainWindow = this.windowManager.getMainWindow()
+      if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) {
+        return 0
+      }
+
+      try {
+        const count = await mainWindow.webContents.executeJavaScript(
+          'window.rendererMessageManager ? window.rendererMessageManager.getPendingCount() : 0',
+        )
+        return count || 0
+      }
+      catch (error) {
+        console.error('Error getting pending count from renderer:', error)
+        return 0
+      }
     })
 
     // Handle approve message
@@ -1944,32 +1979,58 @@ class MenuBarNotificationApp {
 
     // Handle approve collection share
     ipcMain.handle('approve-collection-share', async (_event, messageId: string, updatedRequest: CollectionRequest): Promise<void> => {
-      const shareMessage = await this.messageManager.findShareMessage(messageId)
-      if (shareMessage) {
-        await this.messageManager.updateShareMessage(messageId, {
-          status: 'approved',
-          collectionRequest: updatedRequest,
-        })
+      // Get share message from renderer database
+      const mainWindow = this.windowManager.getMainWindow()
+      if (!mainWindow || mainWindow.isDestroyed()) {
+        console.warn('Main window not available for approve-collection-share')
+        return
+      }
 
-        // Update tray icon
-        this.trayManager.updateTrayIcon()
+      try {
+        const shareMessage = await mainWindow.webContents.executeJavaScript(
+          `window.rendererMessageManager ? window.rendererMessageManager.findShareMessage('${messageId}') : null`,
+        )
 
-        // Send response back through WebSocket
-        this.sendCollectionShareResponse(shareMessage, 'approved', updatedRequest)
+        if (shareMessage) {
+          // Update in renderer database
+          await this.messageManager.updateShareMessage(messageId, {
+            status: 'approved',
+            collectionRequest: updatedRequest,
+          })
+
+          // Send response back through WebSocket
+          this.sendCollectionShareResponse(shareMessage, 'approved', updatedRequest)
+        }
+      }
+      catch (error) {
+        console.error('Error approving collection share:', error)
       }
     })
 
     // Handle reject collection share
     ipcMain.handle('reject-collection-share', async (_event, messageId: string): Promise<void> => {
-      const shareMessage = await this.messageManager.findShareMessage(messageId)
-      if (shareMessage) {
-        await this.messageManager.updateShareMessage(messageId, { status: 'rejected' })
+      // Get share message from renderer database
+      const mainWindow = this.windowManager.getMainWindow()
+      if (!mainWindow || mainWindow.isDestroyed()) {
+        console.warn('Main window not available for reject-collection-share')
+        return
+      }
 
-        // Update tray icon
-        this.trayManager.updateTrayIcon()
+      try {
+        const shareMessage = await mainWindow.webContents.executeJavaScript(
+          `window.rendererMessageManager ? window.rendererMessageManager.findShareMessage('${messageId}') : null`,
+        )
 
-        // Send response back through WebSocket
-        this.sendCollectionShareResponse(shareMessage, 'rejected')
+        if (shareMessage) {
+          // Update in renderer database
+          await this.messageManager.updateShareMessage(messageId, { status: 'rejected' })
+
+          // Send response back through WebSocket
+          this.sendCollectionShareResponse(shareMessage, 'rejected')
+        }
+      }
+      catch (error) {
+        console.error('Error rejecting collection share:', error)
       }
     })
 
@@ -2002,18 +2063,31 @@ class MenuBarNotificationApp {
 
     // Handle reject message
     ipcMain.handle('reject-message', async (_event, messageId: string, feedback?: string): Promise<void> => {
-      const message = await this.messageManager.findMessage(messageId)
-      if (message) {
-        await this.messageManager.updateMessage(messageId, {
-          status: 'rejected',
-          feedback: feedback,
-        })
+      // Get message from renderer database
+      const mainWindow = this.windowManager.getMainWindow()
+      if (!mainWindow || mainWindow.isDestroyed()) {
+        console.warn('Main window not available for reject-message')
+        return
+      }
 
-        // Update tray icon
-        this.trayManager.updateTrayIcon()
+      try {
+        const message = await mainWindow.webContents.executeJavaScript(
+          `window.rendererMessageManager ? window.rendererMessageManager.findMessage('${messageId}') : null`,
+        )
 
-        // Send response back through WebSocket if needed
-        this.sendWebSocketResponse(message)
+        if (message) {
+          // Update in renderer database
+          await this.messageManager.updateMessage(messageId, {
+            status: 'rejected',
+            feedback: feedback,
+          })
+
+          // Send response back through WebSocket if needed
+          this.sendWebSocketResponse(message)
+        }
+      }
+      catch (error) {
+        console.error('Error rejecting message:', error)
       }
     })
 
@@ -2127,47 +2201,88 @@ class MenuBarNotificationApp {
   }
 
   private async handleApproveMessage(message: Message, feedback?: string): Promise<void> {
-    const existingMessage = await this.messageManager.findMessage(message.id)
+    // Get message from renderer database
+    const mainWindow = this.windowManager.getMainWindow()
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      console.warn('Main window not available for handleApproveMessage')
+      return
+    }
 
-    if (!existingMessage) return
+    try {
+      const existingMessage = await mainWindow.webContents.executeJavaScript(
+        `window.rendererMessageManager ? window.rendererMessageManager.findMessage('${message.id}') : null`,
+      )
 
-    // Update the existing message with the passed message data
-    _.assign(existingMessage, message)
-    existingMessage.status = 'approved'
-    existingMessage.feedback = feedback
+      if (!existingMessage) return
 
-    // Send response back through WebSocket if needed
-    this.sendWebSocketResponse(existingMessage)
+      // Update the existing message with the passed message data
+      _.assign(existingMessage, message)
+      existingMessage.status = 'approved'
+      existingMessage.feedback = feedback
 
-    this.messageManager.updateMessage(message.id, existingMessage)
+      // Send response back through WebSocket if needed
+      this.sendWebSocketResponse(existingMessage)
 
-    // Update tray icon
-    this.trayManager.updateTrayIcon()
+      // Update in renderer database
+      this.messageManager.updateMessage(message.id, existingMessage)
+    }
+    catch (error) {
+      console.error('Error approving message:', error)
+    }
   }
 
   private setupRestAPI(): void {
     this.restApiServer = createRestAPIServer({
-      getMessages: async () => await this.messageManager.getMessages(),
+      getMessages: async () => {
+        // Get messages from renderer database
+        const mainWindow = this.windowManager.getMainWindow()
+        if (!mainWindow || mainWindow.isDestroyed()) {
+          return []
+        }
+
+        try {
+          const messages = await mainWindow.webContents.executeJavaScript(
+            'window.rendererMessageManager ? window.rendererMessageManager.getMessages() : []',
+          )
+          return messages || []
+        }
+        catch (error) {
+          console.error('Error getting messages from renderer:', error)
+          return []
+        }
+      },
       getAuthTokens: () => this.authTokens,
       getWebSocketServerStatus: () => !!this.wsServer,
       updateMessageStatus: async (messageId: string, status: 'approved' | 'rejected', feedback?: string) => {
-        const message = await this.messageManager.findMessage(messageId)
-        if (message) {
-          // Update message status
-          await this.messageManager.updateMessage(messageId, {
-            status: status,
-            feedback: feedback,
-          })
-
-          // Update tray icon after message is saved
-          this.trayManager.updateTrayIcon()
-
-          // Send response through WebSocket if needed
-          this.sendWebSocketResponse(message)
-
-          return true
+        // Get message from renderer database
+        const mainWindow = this.windowManager.getMainWindow()
+        if (!mainWindow || mainWindow.isDestroyed()) {
+          return false
         }
-        return false
+
+        try {
+          const message = await mainWindow.webContents.executeJavaScript(
+            `window.rendererMessageManager ? window.rendererMessageManager.findMessage('${messageId}') : null`,
+          )
+
+          if (message) {
+            // Update message status in renderer database
+            await this.messageManager.updateMessage(messageId, {
+              status: status,
+              feedback: feedback,
+            })
+
+            // Send response through WebSocket if needed
+            this.sendWebSocketResponse(message)
+
+            return true
+          }
+          return false
+        }
+        catch (error) {
+          console.error('Error updating message status:', error)
+          return false
+        }
       },
     })
 
@@ -2192,12 +2307,7 @@ class MenuBarNotificationApp {
       this.oauthHttpServer.stopServer()
     }
 
-    // Disconnect from database
-    if (this.databaseService) {
-      this.databaseService.disconnect().catch((error: Error) => {
-        console.error('Error disconnecting from database:', error)
-      })
-    }
+    // Database is in renderer process and will be cleaned up when window closes
 
     this.trayManager.destroy()
     this.windowManager.destroy()

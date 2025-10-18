@@ -1,128 +1,136 @@
-import { DatabaseService } from './database-service'
+import { BrowserWindow, ipcMain } from 'electron'
 import { Message, ShareMessage } from './types'
 
 export class MessageManager {
-  private db: DatabaseService
+  private mainWindow: BrowserWindow | null = null
+  private requestCounter = 0
 
-  constructor(databaseService: DatabaseService) {
-    this.db = databaseService
+  constructor() {
+    // No database service needed - renderer owns the database
   }
 
   /**
-   * Initialize and load messages from database
+   * Set the main window reference for IPC communication
+   */
+  setMainWindow(window: BrowserWindow): void {
+    this.mainWindow = window
+  }
+
+  /**
+   * Initialize - no-op since renderer owns database initialization
    */
   async initialize(): Promise<void> {
-    await this.db.initialize()
+    // Renderer will initialize the database
+    console.log('MessageManager initialized (database in renderer process)')
   }
 
   /**
-   * Get all messages sorted by timestamp (newest first)
-   */
-  async getMessages(): Promise<Message[]> {
-    return await this.db.findAllMessages({
-      orderBy: { timestamp: 'desc' },
-    })
-  }
-
-  /**
-   * Get all share messages sorted by timestamp (newest first)
-   */
-  async getShareMessages(): Promise<ShareMessage[]> {
-    return await this.db.findAllShareMessages({
-      orderBy: { timestamp: 'desc' },
-    })
-  }
-
-  /**
-   * Add a new message
+   * Add a new message - sends to renderer for storage
    */
   async addMessage(message: Message): Promise<void> {
-    await this.db.createMessage(message)
+    if (!this.mainWindow || this.mainWindow.isDestroyed()) {
+      console.warn('Main window not available, cannot add message to database')
+      return
+    }
+
+    this.mainWindow.webContents.send('db:add-message', message)
   }
 
   /**
-   * Add a new share message
+   * Add a new share message - sends to renderer for storage
    */
   async addShareMessage(shareMessage: ShareMessage): Promise<void> {
-    await this.db.createShareMessage(shareMessage)
+    if (!this.mainWindow || this.mainWindow.isDestroyed()) {
+      console.warn('Main window not available, cannot add share message to database')
+      return
+    }
+
+    this.mainWindow.webContents.send('db:add-share-message', shareMessage)
   }
 
   /**
-   * Update a message
+   * Update a message - sends to renderer for update
    */
   async updateMessage(messageId: string, updates: Partial<Message>): Promise<Message | null> {
-    return await this.db.updateMessage(messageId, updates)
+    if (!this.mainWindow || this.mainWindow.isDestroyed()) {
+      console.warn('Main window not available, cannot update message')
+      return null
+    }
+
+    this.mainWindow.webContents.send('db:update-message', messageId, updates)
+    return null // Async operation, no return value needed for main process use cases
   }
 
   /**
-   * Update a share message
+   * Update a share message - sends to renderer for update
    */
   async updateShareMessage(messageId: string, updates: Partial<ShareMessage>): Promise<ShareMessage | null> {
-    return await this.db.updateShareMessage(messageId, updates)
+    if (!this.mainWindow || this.mainWindow.isDestroyed()) {
+      console.warn('Main window not available, cannot update share message')
+      return null
+    }
+
+    this.mainWindow.webContents.send('db:update-share-message', messageId, updates)
+    return null // Async operation, no return value needed for main process use cases
   }
 
   /**
-   * Delete a message by ID
+   * Get all messages - requests from renderer
    */
-  async deleteMessage(messageId: string): Promise<boolean> {
-    return await this.db.deleteMessageById(messageId)
+  async getMessages(): Promise<Message[]> {
+    return this.requestFromRenderer<Message[]>('db:get-messages', 5000)
   }
 
   /**
-   * Delete all non-pending messages (business logic: keep only pending)
-   */
-  async deleteNonPendingMessages(): Promise<void> {
-    await this.db.deleteMessages({ status_not: 'pending' })
-  }
-
-  /**
-   * Mark a message as read (business logic: set read flag to true)
-   */
-  async markMessageRead(messageId: string): Promise<boolean> {
-    const updated = await this.db.updateMessage(messageId, { read: true })
-    return updated !== null
-  }
-
-  /**
-   * Clear all messages and share messages
-   */
-  async clearAllMessages(): Promise<void> {
-    await this.db.deleteAllMessages()
-    await this.db.deleteAllShareMessages()
-  }
-
-  /**
-   * Get the count of pending messages (business logic: pending or null status)
+   * Get pending message count - requests from renderer
    */
   async getPendingCount(): Promise<number> {
-    const pendingMessages = await this.db.countMessages({
-      OR: [
-        { status: 'pending' },
-        { status: null },
-      ],
-    })
-
-    const pendingShareMessages = await this.db.countShareMessages({
-      OR: [
-        { status: 'pending' },
-        { status: null },
-      ],
-    })
-
-    return pendingMessages + pendingShareMessages
+    return this.requestFromRenderer<number>('db:get-pending-count', 5000)
   }
 
   /**
-   * Find a message by ID
+   * Clear all messages - sends to renderer (fire-and-forget)
    */
-  async findMessage(messageId: string): Promise<Message | undefined> {
-    return await this.db.findMessageById(messageId)
+  async clearAllMessages(): Promise<void> {
+    if (!this.mainWindow || this.mainWindow.isDestroyed()) {
+      console.warn('Main window not available, cannot clear messages')
+      return
+    }
+
+    this.mainWindow.webContents.send('db:clear-all-messages')
   }
 
   /**
-   * Find a share message by ID
+   * Generic helper to request data from renderer process
+   * Implements request/response IPC pattern with timeout
    */
-  async findShareMessage(messageId: string): Promise<ShareMessage | undefined> {
-    return await this.db.findShareMessageById(messageId)
+  private requestFromRenderer<T>(channel: string, timeout: number = 5000): Promise<T> {
+    return new Promise((resolve, reject) => {
+      if (!this.mainWindow || this.mainWindow.isDestroyed()) {
+        reject(new Error('Main window not available'))
+        return
+      }
+
+      // Generate unique request ID
+      const requestId = `${channel}-${++this.requestCounter}-${Date.now()}`
+      const responseChannel = `${channel}-response`
+
+      // Set up timeout
+      const timeoutId = setTimeout(() => {
+        ipcMain.removeHandler(responseChannel)
+        reject(new Error(`Request timeout for ${channel}`))
+      }, timeout)
+
+      // Listen for response (one-time listener)
+      ipcMain.once(responseChannel, (_event, receivedRequestId: string, data: T) => {
+        if (receivedRequestId === requestId) {
+          clearTimeout(timeoutId)
+          resolve(data)
+        }
+      })
+
+      // Send request to renderer
+      this.mainWindow.webContents.send(`${channel}-request`, requestId)
+    })
   }
 }

@@ -169,6 +169,10 @@ export class WindowManager {
     })
   }
 
+  public getMainWindow(): BrowserWindow | null {
+    return this.mainWindow
+  }
+
   public destroy(): void {
     if (this.mainWindow) {
       this.mainWindow.close()

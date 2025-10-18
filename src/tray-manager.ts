@@ -71,7 +71,7 @@ export class TrayManager {
   /**
    * Update the cached pending count
    */
-  private async updatePendingCountCache(): Promise<void> {
+  public async updatePendingCountCache(): Promise<void> {
     try {
       this.cachedPendingCount = await this.options.getPendingCount()
     }

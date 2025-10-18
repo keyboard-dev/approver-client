@@ -4,9 +4,7 @@ require('@dotenvx/dotenvx').config()
 
 module.exports = {
   packagerConfig: {
-    asar: {
-      unpack: '**/{node_modules/.prisma,node_modules/@prisma,node_modules/prisma,.prisma,prisma}/**/*',
-    },
+    asar: true,
     icon: 'assets/keyboard-dock.icns',
     protocols: [
       {
@@ -15,7 +13,6 @@ module.exports = {
       },
     ],
     extraResource: [
-      'dist/prisma',
       'assets',
     ],
     ...(process.env.NODE_ENV !== 'development' && !process.env.SKIP_SIGNING && {
