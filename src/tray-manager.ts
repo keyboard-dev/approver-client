@@ -1,7 +1,7 @@
-import { Tray, Menu, nativeImage, app } from 'electron'
-import { Message } from './types'
-import * as path from 'path'
+import { app, Menu, nativeImage, Tray } from 'electron'
 import * as fs from 'fs'
+import * as path from 'path'
+import { Message } from './types'
 
 // Helper function to find assets directory reliably
 function getAssetsPath(): string {
@@ -38,8 +38,8 @@ export interface TrayManagerOptions {
   onClearAllMessages: () => void
   onQuit: () => void
   onCheckForUpdates: () => void
-  getMessages: () => Message[]
-  getPendingCount: () => number
+  getMessages: () => Promise<Message[]>
+  getPendingCount: () => Promise<number>
 }
 
 export class TrayManager {
@@ -47,6 +47,7 @@ export class TrayManager {
   private options: TrayManagerOptions
   private normalIconPath: string
   private badgedIconPath: string
+  private cachedPendingCount: number = 0
 
   constructor(options: TrayManagerOptions) {
     this.options = options
@@ -55,6 +56,29 @@ export class TrayManager {
     const assetsPath = getAssetsPath()
     this.normalIconPath = path.join(assetsPath, 'keyboard-tray.png')
     this.badgedIconPath = path.join(assetsPath, 'keyboard-tray-notification.png') // Using notification.png for badged state
+
+    // Don't initialize pending count cache here - will be called after database initialization
+  }
+
+  /**
+   * Initialize the pending count cache after database is ready
+   * Should be called after database initialization is complete
+   */
+  public async initializePendingCountCache(): Promise<void> {
+    await this.updatePendingCountCache()
+  }
+
+  /**
+   * Update the cached pending count
+   */
+  public async updatePendingCountCache(): Promise<void> {
+    try {
+      this.cachedPendingCount = await this.options.getPendingCount()
+    }
+    catch (error) {
+      console.error('Error updating pending count cache:', error)
+      this.cachedPendingCount = 0
+    }
   }
 
   public createTray(): void {
@@ -65,13 +89,15 @@ export class TrayManager {
     this.tray.setToolTip('Message Approver')
 
     // Click to toggle window
-    this.tray.on('click', (event, bounds) => {
+    this.tray.on('click', (_event, bounds) => {
       this.options.onToggleWindow(bounds)
     })
 
     // Right-click for context menu
     this.tray.on('right-click', () => {
-      this.showContextMenu()
+      this.showContextMenu().catch((error) => {
+        console.error('Error showing context menu:', error)
+      })
     })
 
     this.updateTrayIcon()
@@ -80,7 +106,7 @@ export class TrayManager {
   private createTrayIcon(): Electron.NativeImage {
     try {
       // Safe pending count retrieval with fallback
-      const pendingCount = this.options?.getPendingCount?.() || 0
+      const pendingCount = this.cachedPendingCount
 
       // Choose icon based on pending messages, but with fallback to ensure consistency
       const primaryIconPath = pendingCount > 0 ? this.badgedIconPath : this.normalIconPath
@@ -193,41 +219,13 @@ export class TrayManager {
     }
   }
 
-  private addNotificationBadge(baseIcon: Electron.NativeImage): Electron.NativeImage {
-    // For now, we'll create a simple overlay effect
-    // In a more advanced implementation, you could draw a red badge with the count
-    // const size = baseIcon.getSize()
-
-    // Create a copy of the base icon
-    // const canvas = Buffer.alloc(size.width * size.height * 4)
-    const iconBuffer = baseIcon.toPNG()
-
-    // For simplicity, we'll just add a red tint to indicate pending messages
-    // You could enhance this to draw an actual badge with canvas or use image composition
-    try {
-      // Simple approach: create a version with modified appearance
-      const badgedIcon = nativeImage.createFromBuffer(iconBuffer)
-
-      // On macOS, don't set as template when showing notifications
-      if (process.platform === 'darwin') {
-        badgedIcon.setTemplateImage(false)
-      }
-
-      return badgedIcon
-    }
-    catch (error) {
-      console.error('Error creating notification badge:', error)
-      return baseIcon
-    }
-  }
-
   private createFallbackIcon(): Electron.NativeImage {
     try {
       // Create a simple 16x16 icon as fallback
       const size = 16
 
       // Safe pending count retrieval
-      const pendingCount = this.options?.getPendingCount?.() || 0
+      const pendingCount = this.cachedPendingCount
       const color = pendingCount > 0 ? [255, 59, 48, 255] : [0, 122, 255, 255]
 
       // Validate size is reasonable
@@ -270,9 +268,9 @@ export class TrayManager {
     }
   }
 
-  private showContextMenu(): void {
-    const pendingCount = this.options.getPendingCount()
-    const messages = this.options.getMessages()
+  private async showContextMenu(): Promise<void> {
+    const pendingCount = await this.options.getPendingCount()
+    const messages = await this.options.getMessages()
 
     const contextMenu = Menu.buildFromTemplate([
       {
@@ -305,6 +303,9 @@ export class TrayManager {
   }
 
   public updateTrayIcon(): void {
+    // Update cache first
+    this.updatePendingCountCache().catch(console.error)
+
     try {
       // Validate tray exists before doing anything
       if (!this.tray) {
@@ -343,7 +344,7 @@ export class TrayManager {
 
       // Update tooltip with pending count safely
       try {
-        const pendingCount = this.options?.getPendingCount?.() || 0
+        const pendingCount = this.cachedPendingCount
         const tooltip = pendingCount > 0
           ? `Message Approver (${pendingCount} pending)`
           : 'Message Approver'
@@ -360,7 +361,7 @@ export class TrayManager {
       // Update dock badge on macOS for additional visibility (with safety)
       try {
         if (process.platform === 'darwin' && app && typeof app.dock?.setBadge === 'function') {
-          const pendingCount = this.options?.getPendingCount?.() || 0
+          const pendingCount = this.cachedPendingCount
           if (pendingCount > 0) {
             app.dock.setBadge(pendingCount.toString())
           }

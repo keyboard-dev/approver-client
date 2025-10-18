@@ -23,6 +23,7 @@ import { ButtonDesigned } from './components/ui/ButtonDesigned'
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card'
 import { useAuth } from './hooks/useAuth'
 import { Providers } from './providers/Providers'
+import { RendererMessageManager } from './renderer-message-manager'
 
 const handleEditorWillMount = (monacoInstance: typeof monaco) => {
   monacoInstance.editor.defineTheme('lazy', lazyTheme as monaco.editor.IStandaloneThemeData)
@@ -36,6 +37,7 @@ const getEditorOptions = (): monaco.editor.IStandaloneEditorConstructionOptions 
   lineHeight: 1.5,
   lineNumbersMinChars: 0,
   minimap: { enabled: false },
+  scrollBeyondLastLine: false,
   wordWrap: 'on',
 })
 
@@ -43,6 +45,17 @@ const getEditorOptions = (): monaco.editor.IStandaloneEditorConstructionOptions 
 const toSentenceCase = (text: string): string => {
   return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase()
 }
+
+// Create a single instance of the renderer message manager
+const rendererMessageManager = new RendererMessageManager()
+
+// Expose it globally so main process can access it
+declare global {
+  interface Window {
+    rendererMessageManager: RendererMessageManager
+  }
+}
+window.rendererMessageManager = rendererMessageManager
 
 const AppContent: React.FC = () => {
   // Auth state from useAuth hook (clean separation)
@@ -68,10 +81,32 @@ const AppContent: React.FC = () => {
   const [isGitHubConnected, setIsGitHubConnected] = useState(false)
   const [isCheckingGitHub, setIsCheckingGitHub] = useState(true)
   const [showPrompterOnly, setShowPrompterOnly] = useState(false)
+  const [isDbInitialized, setIsDbInitialized] = useState(false)
 
   // Use refs to track state without causing re-renders
   const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Initialize database on mount
+  useEffect(() => {
+    const initDatabase = async () => {
+      try {
+        await rendererMessageManager.initialize()
+        setIsDbInitialized(true)
+        console.log('✅ Renderer database initialized successfully')
+      }
+      catch (error) {
+        console.error('❌ Failed to initialize renderer database:', error)
+      }
+    }
+
+    initDatabase()
+
+    // Cleanup on unmount
+    return () => {
+      rendererMessageManager.disconnect()
+    }
+  }, [])
 
   // Font loading effect
   useEffect(() => {
@@ -152,14 +187,14 @@ const AppContent: React.FC = () => {
 
   // Refresh messages without showing loading state for better UX
   const refreshMessages = useCallback(async () => {
-    if (!authStatusRef.current.authenticated) {
+    if (!authStatusRef.current.authenticated || !isDbInitialized) {
       return
     }
 
     try {
       const [loadedMessages, loadedShareMessages] = await Promise.all([
-        window.electronAPI.getMessages(),
-        window.electronAPI.getShareMessages(),
+        rendererMessageManager.getMessages(),
+        rendererMessageManager.getShareMessages(),
       ])
       setMessages(loadedMessages)
       setShareMessages(loadedShareMessages)
@@ -167,21 +202,18 @@ const AppContent: React.FC = () => {
     catch (error) {
       console.error('Error refreshing messages:', error)
     }
-  }, [authStatusRef])
+  }, [authStatusRef, isDbInitialized])
 
   // Clear non-pending messages
   const clearNonPendingMessages = useCallback(async () => {
     try {
-      const nonPendingMessages = messages.filter(m => m.status !== 'pending' && m.status)
-      for (const message of nonPendingMessages) {
-        await window.electronAPI.deleteMessage(message.id)
-      }
+      await rendererMessageManager.deleteNonPendingMessages()
       refreshMessages()
     }
     catch (error) {
       console.error('Error clearing messages:', error)
     }
-  }, [messages, refreshMessages])
+  }, [refreshMessages])
 
   // Handle authentication state changes with message/UI management
   useEffect(() => {
@@ -195,15 +227,15 @@ const AppContent: React.FC = () => {
       setShowFeedback(false)
       setIsInitialized(false)
     }
-    else if (!isInitialized && isAuthenticated) {
+    else if (!isInitialized && isAuthenticated && isDbInitialized) {
       setIsInitialized(true)
 
       const loadInitialMessages = async () => {
         updateLoadingState(true)
         try {
           const [loadedMessages, loadedShareMessages] = await Promise.all([
-            window.electronAPI.getMessages(),
-            window.electronAPI.getShareMessages(),
+            rendererMessageManager.getMessages(),
+            rendererMessageManager.getShareMessages(),
           ])
           setMessages(loadedMessages)
           setShareMessages(loadedShareMessages)
@@ -218,14 +250,15 @@ const AppContent: React.FC = () => {
 
       loadInitialMessages()
     }
-  }, [isAuthenticated, isInitialized, updateLoadingState])
+  }, [isAuthenticated, isInitialized, isDbInitialized, updateLoadingState])
 
   // Initialize event listeners only once
   useEffect(() => {
     // Listen for regular messages from main process
+    // Note: Message is added to database via IPC handler in renderer-message-manager.ts
     const handleShowMessage = (_event: unknown, message: Message) => {
-      // Only handle messages if authenticated
-      if (!authStatusRef.current.authenticated) {
+      // Only handle messages if authenticated and database initialized
+      if (!authStatusRef.current.authenticated || !isDbInitialized) {
         return
       }
 
@@ -240,9 +273,10 @@ const AppContent: React.FC = () => {
     }
 
     // Listen for websocket messages
+    // Note: Message is added to database via IPC handler in renderer-message-manager.ts
     const handleWebSocketMessage = (_event: unknown, message: Message) => {
-      // Only handle messages if authenticated
-      if (!authStatusRef.current.authenticated) {
+      // Only handle messages if authenticated and database initialized
+      if (!authStatusRef.current.authenticated || !isDbInitialized) {
         return
       }
 
@@ -258,9 +292,10 @@ const AppContent: React.FC = () => {
     }
 
     // Listen for collection share requests
+    // Note: Share message is added to database via IPC handler in renderer-message-manager.ts
     const handleCollectionShareRequest = (_event: unknown, shareMessage: ShareMessage) => {
-      // Only handle messages if authenticated
-      if (!authStatusRef.current.authenticated) {
+      // Only handle messages if authenticated and database initialized
+      if (!authStatusRef.current.authenticated || !isDbInitialized) {
         return
       }
 
@@ -271,6 +306,9 @@ const AppContent: React.FC = () => {
 
     // Listen for show share message
     const handleShowShareMessage = (_event: unknown, shareMessage: ShareMessage) => {
+      if (!isDbInitialized) {
+        return
+      }
       setCurrentShareMessage(shareMessage)
     }
 
@@ -529,15 +567,15 @@ const AppContent: React.FC = () => {
         const hasError = Boolean(codespaceResponseData.stderr)
 
         return (
-          <div className="bg-gray-100 p-4 rounded-lg h-96 overflow-hidden flex flex-col">
+          <div className="bg-gray-100 p-4 rounded-lg grow shrink overflow-hidden flex flex-col">
             {/* Standard Output */}
-            <div className="mb-2 flex-grow flex flex-col">
+            <div className="mb-2 grow shrink flex flex-col">
               <div className="text-sm font-medium text-gray-700 mb-1">Output:</div>
-              <div className="border border-gray-200 rounded flex-grow">
+              <div className="border border-gray-200 rounded grow shrink">
                 {isFontLoaded
                   ? (
                       <Editor
-                        height="100%"
+                        className="grow shrink min-h-24"
                         language="plaintext"
                         defaultValue="No output"
                         value={codespaceResponseData.stdout}
@@ -557,15 +595,15 @@ const AppContent: React.FC = () => {
 
             {/* Error Output */}
             {hasError && (
-              <div className="mt-2 flex-grow flex flex-col">
+              <div className="mt-2 grow shrink flex flex-col">
                 <div className="text-sm font-medium text-red-700 mb-1">
                   Error Output (Please review to see if there are any sensitive content):
                 </div>
-                <div className="border border-red-200 rounded bg-red-50 flex-grow">
+                <div className="border border-red-200 rounded bg-red-50 grow shrink">
                   {isFontLoaded
                     ? (
                         <Editor
-                          height="100%"
+                          className="min-h-24"
                           language="plaintext"
                           value={codespaceResponseData.stderr}
                           onChange={value => codespaceResponseData.stderr = value}
@@ -665,7 +703,7 @@ const AppContent: React.FC = () => {
 
       default:
         return (
-          <div className="w-full grow min-h-0 mx-auto">
+          <div className="w-full grow min-h-0 mx-auto flex flex-col">
             {/* Authentication Component */}
             <AuthComponent />
 
@@ -683,11 +721,11 @@ const AppContent: React.FC = () => {
 
             {/* Only show main content if authenticated and GitHub connected */}
             {(authStatus.authenticated || isSkippingAuth) && isGitHubConnected && (
-              <div className="content-fade-in">
+              <div className="content-fade-in grow min-h-0">
                 {currentMessage
                   ? (
                 // Message Detail View
-                      <Card className="w-full">
+                      <Card className="w-full h-full flex flex-col gap-6">
                         <CardHeader>
                           <div className="flex items-center justify-between">
                             <Button variant="outline" onClick={showMessageList}>
@@ -738,9 +776,13 @@ const AppContent: React.FC = () => {
                             )}
                           </div>
                         </CardHeader>
-                        <CardContent className="space-y-6">
+                        <div
+                          className="p-6 grow shrink flex flex-col"
+                        >
                           {/* Message Body - Show tabs if codeEval is true, otherwise show regular body */}
-                          <div>
+                          <div
+                            className="grow shrink flex flex-col"
+                          >
                             <h3 className="text-lg font-semibold mb-2">Request Details</h3>
                             {getCodeBlock(currentMessage)}
                           </div>
@@ -822,7 +864,7 @@ const AppContent: React.FC = () => {
                                   )}
                                 </div>
                               )}
-                        </CardContent>
+                        </div>
                       </Card>
                     )
                   : (

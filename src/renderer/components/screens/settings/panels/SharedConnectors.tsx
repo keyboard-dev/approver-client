@@ -302,12 +302,12 @@ export const SharedConnectors: React.FC<ServerProviderManagerProps> = ({ classNa
 
   if (!servers.length) return (
     <div className="flex flex-col gap-[0.63rem]">
-      <KeyboardApiConnectors 
+      <KeyboardApiConnectors
         title="Keyboard API Connectors"
         description="Connect to providers available from the Keyboard API service."
         className="p-[0.94rem] border border-[#E5E5E5] rounded-[0.38rem]"
       />
-      
+
       <div
         className="flex flex-col gap-[1rem] w-full p-[0.94rem] border border-[#E5E5E5] rounded-[0.38rem]"
       >
@@ -354,12 +354,12 @@ export const SharedConnectors: React.FC<ServerProviderManagerProps> = ({ classNa
     <div
       className="flex flex-col gap-[0.63rem]"
     >
-      <KeyboardApiConnectors 
+      <KeyboardApiConnectors
         title="Keyboard API Connectors"
         description="Connect to providers available from the Keyboard API service."
         className="p-[0.94rem] border border-[#E5E5E5] rounded-[0.38rem]"
       />
-      
+
       {servers.map(server => (
         <div
           key={`settings-shared-connectors-server-${server.id}`}

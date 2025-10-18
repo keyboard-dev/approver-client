@@ -1,15 +1,22 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { CODE_APPROVAL_ORDER, CodeApprovalLevel, RESPONSE_APPROVAL_ORDER, ResponseApprovalLevel } from '../../../../../types/settings-types'
+import { usePopup } from '../../../../hooks/usePopup'
 import { Dropdown } from '../../../ui/Dropdown'
 import Toggle from '../../../ui/Toggle'
 
 export const NotificationPanel: React.FC = () => {
   const [showNotifications, setShowNotifications] = useState(false)
   const [showNotificationDisabled, setShowNotificationDisabled] = useState(true)
-  const [showAutomaticCodeApproval, setShowAutomaticCodeApproval] = useState<'never' | 'low' | 'medium' | 'high'>('never')
+  const [showAutomaticCodeApproval, setShowAutomaticCodeApproval] = useState<CodeApprovalLevel>('never')
   const [showAutomaticCodeApprovalDisabled, setShowAutomaticCodeApprovalDisabled] = useState(true)
-  const [showAutomaticResponseApproval, setShowAutomaticResponseApproval] = useState(false)
+  const [showAutomaticResponseApproval, setShowAutomaticResponseApproval] = useState<ResponseApprovalLevel>('never')
   const [showAutomaticResponseApprovalDisabled, setShowAutomaticResponseApprovalDisabled] = useState(true)
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  const {
+    showPopup,
+    hidePopup,
+  } = usePopup()
 
   const loadNotificationSetting = async () => {
     const value = await window.electronAPI.getShowNotifications()
@@ -48,7 +55,7 @@ export const NotificationPanel: React.FC = () => {
     }, 300)
   }, [])
 
-  const handleChangeAutomaticCodeApprovalSetting = useCallback(async (option: 'never' | 'low' | 'medium' | 'high') => {
+  const handleChangeAutomaticCodeApprovalSetting = useCallback(async (option: CodeApprovalLevel) => {
     // Execute change immediately
     await window.electronAPI.setAutomaticCodeApproval(option)
     setShowAutomaticCodeApproval(option) // Update local state immediately for better UX
@@ -68,18 +75,31 @@ export const NotificationPanel: React.FC = () => {
     }, 300)
   }, [])
 
-  const handleChangeAutomaticResponseApprovalSetting = useCallback(async (checked: boolean) => {
-    // Execute change immediately
-    await window.electronAPI.setAutomaticResponseApproval(checked)
-    setShowAutomaticResponseApproval(checked) // Update local state immediately for better UX
-
-    // Disable further changes
+  const handleChangeAutomaticResponseApprovalSetting = useCallback(async (level: ResponseApprovalLevel) => {
+    if (level === 'always') {
+      showPopup({
+        title: '⚠️ Automatic response approvals',
+        description: 'This setting will automatically approve all responses. Note code results without approvals might include data that can be sensitive.',
+        onConfirm: () => {
+          window.electronAPI.setAutomaticResponseApproval('always')
+          setShowAutomaticResponseApproval('always')
+          setShowAutomaticResponseApprovalDisabled(false)
+          hidePopup()
+        },
+        onCancel: () => {
+          setShowAutomaticResponseApprovalDisabled(false)
+          hidePopup()
+        },
+      })
+      return
+    }
     setShowAutomaticResponseApprovalDisabled(true)
-
-    // Clear any existing timeout
     if (debounceTimeoutRef.current) {
       clearTimeout(debounceTimeoutRef.current)
     }
+    // Execute change immediately
+    await window.electronAPI.setAutomaticResponseApproval(level)
+    setShowAutomaticResponseApproval(level) // Update local state immediately for better UX
 
     // Re-enable after debounce period
     debounceTimeoutRef.current = setTimeout(async () => {
@@ -154,7 +174,7 @@ export const NotificationPanel: React.FC = () => {
             </div>
           </div>
           <Dropdown
-            options={['never', 'low', 'medium', 'high']}
+            options={CODE_APPROVAL_ORDER}
             value={showAutomaticCodeApproval}
             onChange={handleChangeAutomaticCodeApprovalSetting}
             disabled={showAutomaticCodeApprovalDisabled}
@@ -178,21 +198,16 @@ export const NotificationPanel: React.FC = () => {
             <div
               className="text-[#737373]"
             >
-              Automatically approve responses if there are no errors.
+              Automatically approve responses from the code execution. Success only means the response is automatically approved if there are no errors.
             </div>
           </div>
-          <div
-            className="px-[0.63rem] py-[0.38rem] border border-[#E5E5E5] rounded-[0.25rem] flex gap-[0.38rem] items-center whitespace-nowrap w-fit h-fit"
-          >
-            <div>
-              Allowed
-            </div>
-            <Toggle
-              disabled={showAutomaticResponseApprovalDisabled}
-              isChecked={showAutomaticResponseApproval}
-              onChange={handleChangeAutomaticResponseApprovalSetting}
-            />
-          </div>
+          <Dropdown
+            options={RESPONSE_APPROVAL_ORDER}
+            value={showAutomaticResponseApproval}
+            onChange={handleChangeAutomaticResponseApprovalSetting}
+            disabled={showAutomaticResponseApprovalDisabled}
+            keyPrefix="settings-notification-panel-automatic-response-approval"
+          />
         </div>
       </div>
     </div>

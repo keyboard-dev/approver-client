@@ -12,6 +12,9 @@ module.exports = {
         schemes: ['mcpauth'],
       },
     ],
+    extraResource: [
+      'assets',
+    ],
     ...(process.env.NODE_ENV !== 'development' && !process.env.SKIP_SIGNING && {
       osxSign: {},
       osxNotarize: {

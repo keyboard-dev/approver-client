@@ -30,7 +30,6 @@ export const Integrations: React.FC<IntegrationsProps> = ({ onComplete }) => {
   const [error, setError] = useState<string | null>(null)
   const [isLoadingProviders, setIsLoadingProviders] = useState(true)
 
-
   useEffect(() => {
     // If user is not authenticated or is skipping auth, auto-complete onboarding
     // since integrations require authentication to work
