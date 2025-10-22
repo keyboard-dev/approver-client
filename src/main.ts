@@ -425,6 +425,16 @@ class MenuBarNotificationApp {
           this.handleExecutorProviderTokenRequest(message)
           break
 
+        case 'request-provider-status':
+          // Handle provider status requests from executor
+          this.handleExecutorProviderStatusRequest(message)
+          break
+
+        case 'request-token':
+          // Handle legacy OAuth token requests from executor
+          this.handleExecutorTokenRequest(message)
+          break
+
         default:
           console.log('Unknown message type from executor:', message.type)
       }
@@ -486,6 +496,64 @@ class MenuBarNotificationApp {
           requestId: message.requestId,
         })
       }
+    }
+  }
+
+  /**
+   * Handle provider status request from executor WebSocket
+   */
+  private async handleExecutorProviderStatusRequest(message: { requestId?: string }): Promise<void> {
+    try {
+      const providerStatus = await this.perProviderTokenStorage.getProviderStatus()
+
+      // Check ALL stored provider tokens (both direct and server provider tokens)
+      const tokensAvailable = Object.entries(providerStatus)
+        .filter(([, status]) => status?.authenticated)
+        .map(([providerId]) => `KEYBOARD_PROVIDER_USER_TOKEN_FOR_${providerId.toUpperCase()}`)
+
+      const statusResponse = {
+        type: 'user-tokens-available',
+        tokensAvailable: tokensAvailable,
+        timestamp: Date.now(),
+        requestId: message.requestId,
+      }
+
+      // Send response back through executor client
+      if (this.executorWSClient) {
+        this.executorWSClient.send(statusResponse)
+      }
+    }
+    catch (error) {
+      // Send error response back through executor client
+      if (this.executorWSClient) {
+        this.executorWSClient.send({
+          type: 'user-tokens-available',
+          error: `Failed to get provider status: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          timestamp: Date.now(),
+          requestId: message.requestId,
+        })
+      }
+    }
+  }
+
+  /**
+   * Handle legacy OAuth token request from executor WebSocket
+   */
+  private async handleExecutorTokenRequest(message: { requestId?: string }): Promise<void> {
+    const token = await this.getValidAccessToken()
+
+    const tokenResponse = {
+      type: 'auth-token',
+      token: token || (this.SKIP_AUTH ? 'test-token' : null),
+      timestamp: Date.now(),
+      requestId: message.requestId, // Echo back request ID if provided
+      authenticated: !!token || this.SKIP_AUTH,
+      user: token ? this.authTokens?.user : (this.SKIP_AUTH ? { email: 'test@example.com', firstName: 'Test' } : null),
+    }
+
+    // Send response back through executor client
+    if (this.executorWSClient) {
+      this.executorWSClient.send(tokenResponse)
     }
   }
 
