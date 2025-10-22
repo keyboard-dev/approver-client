@@ -5,6 +5,7 @@ import _ from 'lodash'
 import * as os from 'os'
 import * as path from 'path'
 import * as WebSocket from 'ws'
+import { CodespaceEncryptionConfig, encryptWithCodespaceKey } from './codespace-encryption'
 import { setEncryptionKeyProvider } from './encryption'
 import { GithubService } from './Github'
 import { deleteScriptTemplate } from './keyboard-shortcuts'
@@ -445,6 +446,53 @@ class MenuBarNotificationApp {
   }
 
   /**
+   * Helper function to encrypt provider token using codespace encryption
+   */
+  private async encryptProviderToken(token: string): Promise<{
+    encryptedToken: string
+    encrypted: boolean
+    encryptionMethod: string
+  }> {
+    let encryptedToken = token
+    let encrypted = false
+    let encryptionMethod = 'none'
+
+    if (token) {
+      try {
+        const onboardingToken = await this.perProviderTokenStorage.getValidAccessToken(
+          'onboarding',
+          this.refreshProviderTokens.bind(this),
+        )
+        const accessToken = await this.getValidAccessToken()
+
+        if (onboardingToken && accessToken) {
+          const config: CodespaceEncryptionConfig = {
+            codespaceUrl: 'auto', // Will be auto-discovered
+            bearerToken: accessToken, // Use GitHub token for authentication
+            githubToken: onboardingToken,
+          }
+
+          // This will auto-discover the codespace URL and encrypt the token
+          encryptedToken = await encryptWithCodespaceKey(token, config)
+          encrypted = true
+          encryptionMethod = 'rsa-codespace'
+          console.log('🔐 Successfully encrypted provider token using RSA codespace encryption')
+        }
+        else {
+          console.log('⚠️ No GitHub token available for codespace encryption')
+        }
+      }
+      catch (encryptionError) {
+        console.error('❌ Failed to encrypt provider token:', encryptionError)
+        // Continue with unencrypted token as fallback
+        console.log('⚠️ Falling back to unencrypted token transmission')
+      }
+    }
+
+    return { encryptedToken, encrypted, encryptionMethod }
+  }
+
+  /**
    * Handle provider token request from executor WebSocket
    */
   private async handleExecutorProviderTokenRequest(message: { providerId?: string, requestId?: string }): Promise<void> {
@@ -468,11 +516,22 @@ class MenuBarNotificationApp {
       const providerStatus = await this.perProviderTokenStorage.getProviderStatus()
       const providerInfo = providerStatus[providerId]
       const provider = await this.oauthProviderManager.getProvider(providerId)
+      if (!token) {
+        throw new Error('No token available')
+      }
+      // Encrypt token using codespace encryption if available
+
+      const { encryptedToken, encrypted, encryptionMethod } = await this.encryptProviderToken(token)
+      if (!encrypted) {
+        throw new Error('Failed to encrypt token')
+      }
 
       const tokenResponse = {
         type: 'provider-auth-token',
         providerId: providerId,
-        token: token,
+        token: encryptedToken,
+        encrypted: encrypted,
+        encryptionMethod: encryptionMethod,
         timestamp: Date.now(),
         requestId: message.requestId,
         authenticated: !!token || this.SKIP_AUTH,
@@ -1651,10 +1710,17 @@ class MenuBarNotificationApp {
               const providerInfo = providerStatus[providerId]
               const provider = await this.oauthProviderManager.getProvider(providerId)
 
+              // Encrypt token using codespace encryption if available
+              const { encryptedToken, encrypted, encryptionMethod } = token
+                ? await this.encryptProviderToken(token)
+                : { encryptedToken: token, encrypted: false, encryptionMethod: 'none' }
+
               const tokenResponse = {
                 type: 'provider-auth-token',
                 providerId: providerId,
-                token: token,
+                token: encryptedToken,
+                encrypted: encrypted,
+                encryptionMethod: encryptionMethod,
                 timestamp: Date.now(),
                 requestId: message.requestId,
                 authenticated: !!token || this.SKIP_AUTH,
