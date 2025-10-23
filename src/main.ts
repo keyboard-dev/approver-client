@@ -516,7 +516,7 @@ class MenuBarNotificationApp {
       const providerStatus = await this.perProviderTokenStorage.getProviderStatus()
       const providerInfo = providerStatus[providerId]
       const provider = await this.oauthProviderManager.getProvider(providerId)
-      if (!token) {
+      if(!token) {
         throw new Error('No token available')
       }
       // Encrypt token using codespace encryption if available
