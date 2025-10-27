@@ -71,7 +71,7 @@ export const Persona: React.FC<PersonaProps> = ({ onNext }) => {
               id="qKw2fNDB"
               style={{ width: '100%' }}
               className="my-form grow h-full"
-              onSubmit={({ responseId }) => {
+              onSubmit={() => {
                 onNext()
               }}
             />

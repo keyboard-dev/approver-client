@@ -56,7 +56,7 @@ The GitHub token comes from the **onboarding provider** stored in the per-provid
 ## Message Flow
 
 ### 1. Code Execution Request
-```
+```text
 codespace-executor receives code execution request
       ↓
 Creates approval message with risk level
@@ -65,7 +65,7 @@ Broadcasts to all WebSocket clients (including approver-client)
 ```
 
 ### 2. Approval in UI
-```
+```text
 approver-client receives message via WebSocket
       ↓
 Displays in Electron UI for user review
@@ -201,4 +201,3 @@ To test the integration:
 - Check if GitHub token is still valid
 - Verify reconnection attempts haven't exceeded max (10)
 - Look for token refresh errors
-

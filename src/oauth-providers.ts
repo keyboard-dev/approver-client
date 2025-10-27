@@ -82,16 +82,13 @@ export interface ServerProvidersResponse {
 }
 
 export class OAuthProviderManager {
-  private customProtocol: string
   private serverProviders: Map<string, ServerProvider> = new Map()
   private readonly SERVER_PROVIDERS_FILE: string
   private isLoaded: boolean = false
   private providerStorage: ProviderStorage
   private getMainAccessToken?: () => Promise<string | null>
 
-  constructor(customProtocol: string = 'mcpauth') {
-    this.customProtocol = customProtocol
-
+  constructor() {
     // Set up encrypted storage file path
     const storageDir = path.join(os.homedir(), '.keyboard-mcp')
     this.SERVER_PROVIDERS_FILE = path.join(storageDir, 'server-providers.encrypted')
@@ -147,8 +144,8 @@ export class OAuthProviderManager {
 
       this.isLoaded = true
     }
-    catch (error) {
-      console.error('❌ Error loading server providers:', error)
+    catch {
+      // console.error('❌ Error loading server providers:', error)
       // If decryption fails, start fresh (could be due to key rotation)
       this.serverProviders.clear()
       this.isLoaded = true
@@ -360,8 +357,8 @@ export class OAuthProviderManager {
           userData = this.normalizeUserData(provider.id, userData as Record<string, unknown>)
         }
       }
-      catch (error) {
-        
+      catch {
+        // Silently fail if user info fetch fails
       }
     }
 

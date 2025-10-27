@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
-import { Button } from './ui/button'
-import { Badge } from './ui/badge'
+import React, { useState } from 'react'
 import { CodespaceConnectionInfo } from '../../github-codespaces'
 import { ConnectionTarget } from '../../websocket-client-to-executor'
+import { Badge } from './ui/badge'
+import { Button } from './ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
 
 interface CodespaceSelectorProps {
   connectionInfo: { connected: boolean, target?: ConnectionTarget }

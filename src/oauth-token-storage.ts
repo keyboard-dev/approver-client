@@ -175,7 +175,6 @@ export class OAuthTokenStorage {
         }
       }
       else {
-        
         return null
       }
     }

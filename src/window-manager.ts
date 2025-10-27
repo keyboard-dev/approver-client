@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain, screen } from 'electron'
+import { BrowserWindow, screen, session } from 'electron'
 import * as path from 'path'
 import { Message } from './types'
 
@@ -21,6 +21,11 @@ export class WindowManager {
   public createMainWindow(): void {
     const iconPath = path.join(__dirname, '../assets/keyboard-dock.icns')
 
+    // Get or create a persistent session explicitly
+    const persistentSession = session.fromPartition('persist:main', { cache: true })
+
+    console.log('🗄️  Using session with storage path:', persistentSession.getStoragePath())
+
     this.mainWindow = new BrowserWindow({
       frame: false,
       height: DEFAULT_WINDOW_HEIGHT,
@@ -29,6 +34,10 @@ export class WindowManager {
       width: DEFAULT_WINDOW_WIDTH,
       webPreferences: {
         preload: path.join(__dirname, 'preload.js'),
+        session: persistentSession, // Use explicit session instead of partition string
+        nodeIntegration: false, // Required for partition to work properly
+        contextIsolation: true, // Required for partition to work properly
+        webSecurity: true,
       },
       ...(process.platform === 'darwin' && {
         alwaysOnTop: false,
@@ -38,6 +47,15 @@ export class WindowManager {
         visualEffectState: 'active',
       }),
     })
+
+    // Verify session is persistent
+    const windowSession = this.mainWindow.webContents.session
+    if (!windowSession.isPersistent()) {
+      console.error('⚠️  Session is NOT persistent!')
+    }
+    else {
+      console.log('✓ Session is persistent')
+    }
 
     this.mainWindow.loadFile(path.join(__dirname, '../public/index.html'))
 
@@ -134,39 +152,6 @@ export class WindowManager {
     if (this.mainWindow) {
       this.mainWindow.webContents.send('show-message', message)
     }
-  }
-
-  private setupWindowControls(): void {
-    // Handle window close
-    ipcMain.handle('window-close', () => {
-      this.hideWindow()
-    })
-
-    // Handle window hide/show toggle
-    ipcMain.handle('window-toggle-visibility', () => {
-      if (this.mainWindow) {
-        if (this.mainWindow.isVisible()) {
-          this.mainWindow.hide()
-        }
-        else {
-          this.mainWindow.show()
-        }
-      }
-    })
-
-    // Handle window opacity change
-    ipcMain.handle('window-set-opacity', (event, opacity: number) => {
-      if (this.mainWindow) {
-        this.mainWindow.setOpacity(Math.max(0.1, Math.min(1.0, opacity)))
-      }
-    })
-
-    // Handle window resize
-    ipcMain.handle('window-resize', (event, { width, height }) => {
-      if (this.mainWindow) {
-        this.mainWindow.setSize(width, height)
-      }
-    })
   }
 
   public destroy(): void {

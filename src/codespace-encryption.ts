@@ -26,8 +26,8 @@ export async function discoverCodespaceUrl(githubToken: string): Promise<string 
     // Initialize the GitHub service with the token
     // Note: We assume the GithubService has a way to set the token
     // If not, we'll need to modify this based on the actual GithubService API
-    if (typeof (githubService as any).setToken === 'function') {
-      (githubService as any).setToken(githubToken)
+    if (typeof (githubService as unknown as { setToken?: (token: string) => void }).setToken === 'function') {
+      (githubService as unknown as { setToken: (token: string) => void }).setToken(githubToken)
     }
     else {
       // If there's no setToken method, we'll try to initialize it directly
@@ -65,7 +65,7 @@ export async function discoverCodespaceUrl(githubToken: string): Promise<string 
 
     return null
   }
-  catch (error) {
+  catch {
     return null
   }
 }
@@ -101,7 +101,6 @@ export async function fetchPublicKey(config: CodespaceEncryptionConfig): Promise
 export async function encryptWithCodespaceKey(
   data: string,
   config: CodespaceEncryptionConfig,
-  publicKey?: string,
 ): Promise<string> {
   try {
     // Auto-discover codespace URL if not provided or if placeholder URL is used

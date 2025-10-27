@@ -1,12 +1,13 @@
 import WebSocket from 'ws'
 import { GithubService } from './Github'
 import { CodespaceConnectionInfo, GitHubCodespacesService } from './github-codespaces'
+import { Message } from './types'
 
 export interface ExecutorMessage {
   type: string
   id?: string
   data?: unknown
-  message?: any // Use any to match the existing handler expectation
+  message?: Message
   requestId?: string
   timestamp?: number
 }
@@ -84,18 +85,15 @@ export class ExecutorWebSocketClient {
   // Discover available codespaces with WebSocket support
   async discoverCodespaces(): Promise<CodespaceConnectionInfo[]> {
     if (!this.codespacesService) {
-      
       return []
     }
 
     try {
-      
       const connectionInfo = await this.codespacesService.getCodespaceConnectionInfo()
       this.lastKnownCodespaces = connectionInfo
 
-      
-      connectionInfo.forEach((info) => {
-        
+      connectionInfo.forEach(() => {
+
       })
 
       return connectionInfo
@@ -175,7 +173,6 @@ export class ExecutorWebSocketClient {
   // Connect to codespace-executor WebSocket server (with automatic codespace discovery)
   async connect(): Promise<boolean> {
     if (!this.githubToken) {
-      
       return false
     }
 
@@ -193,20 +190,15 @@ export class ExecutorWebSocketClient {
   // Automatically discover and connect to the best available executor
   async autoConnect(): Promise<boolean> {
     if (!this.codespacesService) {
-      
       this.connectToLocalhost()
       return true
     }
 
     try {
-      
-
       // First, try to find and connect to a user's codespace
       const preparedCodespace = await this.codespacesService.discoverAndPrepareCodespace()
 
       if (preparedCodespace) {
-        
-
         this.currentTarget = {
           type: 'codespace',
           url: preparedCodespace.websocketUrl,
@@ -219,13 +211,13 @@ export class ExecutorWebSocketClient {
       }
 
       // If no suitable codespace found, fall back to localhost
-      
+
       this.connectToLocalhost()
       return true
     }
     catch (error) {
       console.error('Failed to auto-discover connection target:', error)
-      
+
       this.connectToLocalhost()
       return true
     }
@@ -234,19 +226,15 @@ export class ExecutorWebSocketClient {
   // Internal method to connect to a specific target
   private connectToTarget(target: ConnectionTarget): void {
     if (!this.githubToken) {
-      
       return
     }
 
     // Don't connect if already connected or connecting
     if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
-      
       return
     }
 
     try {
-      
-
       this.ws = new WebSocket(target.url, {
         headers: {
           'Authorization': `Bearer ${this.githubToken}`,
@@ -256,7 +244,6 @@ export class ExecutorWebSocketClient {
       })
 
       this.ws!.on('open', () => {
-        
         this.reconnectAttempts = 0
 
         // Clear any pending reconnect timeout
@@ -272,7 +259,6 @@ export class ExecutorWebSocketClient {
       this.ws!.on('message', (data: WebSocket.Data) => {
         try {
           const message = JSON.parse(data.toString()) as ExecutorMessage
-          
 
           // Forward to message handler
           this.onMessageReceived?.(message)
@@ -282,8 +268,7 @@ export class ExecutorWebSocketClient {
         }
       })
 
-      this.ws!.on('close', (code: number, reason: string) => {
-        
+      this.ws!.on('close', () => {
         this.ws = null
 
         // Notify connection status change
@@ -293,6 +278,11 @@ export class ExecutorWebSocketClient {
       })
 
       this.ws!.on('error', (error) => {
+        // ignore 404 errors, these are expected on startup, we need to wait for the executor to be ready
+        if (error.message.includes('Unexpected server response: 404')) {
+          return
+        }
+
         console.error(`❌ WebSocket client error (${target.name}):`, error)
       })
     }
@@ -306,7 +296,6 @@ export class ExecutorWebSocketClient {
   private attemptReconnect(): void {
     // Don't reconnect if we don't have a token
     if (!this.githubToken) {
-      
       return
     }
 
@@ -318,7 +307,6 @@ export class ExecutorWebSocketClient {
 
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       this.reconnectAttempts++
-      
 
       this.reconnectTimeout = setTimeout(() => {
         this.reconnectTimeout = null
@@ -326,7 +314,7 @@ export class ExecutorWebSocketClient {
       }, this.reconnectDelay)
     }
     else {
-      console.error('❌ Max reconnection attempts reached. Will retry when token is refreshed.')
+      // console.error('❌ Max reconnection attempts reached. Will retry when token is refreshed.')
       this.reconnectAttempts = 0 // Reset for next time token is available
     }
   }

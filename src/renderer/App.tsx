@@ -22,6 +22,8 @@ import { Button } from './components/ui/button'
 import { ButtonDesigned } from './components/ui/ButtonDesigned'
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card'
 import { useAuth } from './hooks/useAuth'
+import { useMessagesQuery } from './hooks/useMessagesQuery'
+import { useDatabase } from './providers/DatabaseProvider'
 import { Providers } from './providers/Providers'
 
 const handleEditorWillMount = (monacoInstance: typeof monaco) => {
@@ -36,6 +38,7 @@ const getEditorOptions = (): monaco.editor.IStandaloneEditorConstructionOptions 
   lineHeight: 1.5,
   lineNumbersMinChars: 0,
   minimap: { enabled: false },
+  scrollBeyondLastLine: false,
   wordWrap: 'on',
 })
 
@@ -53,9 +56,13 @@ const AppContent: React.FC = () => {
     isSkippingAuth,
   } = useAuth()
 
+  // Database hook for initialization and mutations
+  const { isInitialized: isDbInitialized, deleteMessages, updateMessage, updateShareMessage } = useDatabase()
+
+  // Fetch messages directly from database (no in-memory cache)
+  const { messages, shareMessages, refetch: refetchMessages } = useMessagesQuery()
+
   // Message and app state (moved back from auth hook)
-  const [messages, setMessages] = useState<Message[]>([])
-  const [shareMessages, setShareMessages] = useState<ShareMessage[]>([])
   const [currentMessage, setCurrentMessage] = useState<Message | null>(null)
   const [currentShareMessage, setCurrentShareMessage] = useState<ShareMessage | null>(null)
   const [feedback, setFeedback] = useState('')
@@ -85,8 +92,7 @@ const AppContent: React.FC = () => {
         // Small delay to ensure font is fully rendered
         timeoutId = setTimeout(() => setIsFontLoaded(true), 100)
       }
-      catch (error) {
-        
+      catch {
         setIsFontLoaded(true)
       }
     }
@@ -158,68 +164,43 @@ const AppContent: React.FC = () => {
     }
 
     try {
-      const [loadedMessages, loadedShareMessages] = await Promise.all([
-        window.electronAPI.getMessages(),
-        window.electronAPI.getShareMessages(),
-      ])
-      setMessages(loadedMessages)
-      setShareMessages(loadedShareMessages)
+      await refetchMessages()
     }
     catch (error) {
       console.error('Error refreshing messages:', error)
     }
-  }, [authStatusRef])
+  }, [authStatusRef, refetchMessages])
 
   // Clear non-pending messages
   const clearNonPendingMessages = useCallback(async () => {
     try {
       const nonPendingMessages = messages.filter(m => m.status !== 'pending' && m.status)
-      for (const message of nonPendingMessages) {
-        await window.electronAPI.deleteMessage(message.id)
-      }
+      const messageIds = nonPendingMessages.map(m => m.id)
+      await deleteMessages(messageIds)
       refreshMessages()
     }
     catch (error) {
       console.error('Error clearing messages:', error)
     }
-  }, [messages, refreshMessages])
+  }, [messages, refreshMessages, deleteMessages])
 
   // Handle authentication state changes with message/UI management
   useEffect(() => {
     if (!isAuthenticated) {
-      // If user logged out, clear messages for security
-      setMessages([])
-      setShareMessages([])
+      // If user logged out, clear UI state
+      // Messages will be cleared from IndexedDB if needed
       setCurrentMessage(null)
       setCurrentShareMessage(null)
       setFeedback('')
       setShowFeedback(false)
       setIsInitialized(false)
     }
-    else if (!isInitialized && isAuthenticated) {
+    else if (!isInitialized && isAuthenticated && isDbInitialized) {
       setIsInitialized(true)
-
-      const loadInitialMessages = async () => {
-        updateLoadingState(true)
-        try {
-          const [loadedMessages, loadedShareMessages] = await Promise.all([
-            window.electronAPI.getMessages(),
-            window.electronAPI.getShareMessages(),
-          ])
-          setMessages(loadedMessages)
-          setShareMessages(loadedShareMessages)
-        }
-        catch (error) {
-          console.error('Error loading messages:', error)
-        }
-        finally {
-          updateLoadingState(false)
-        }
-      }
-
-      loadInitialMessages()
+      // Messages are already loaded by DatabaseProvider
+      updateLoadingState(false)
     }
-  }, [isAuthenticated, isInitialized, updateLoadingState])
+  }, [isAuthenticated, isInitialized, isDbInitialized, updateLoadingState])
 
   // Initialize event listeners only once
   useEffect(() => {
@@ -231,13 +212,7 @@ const AppContent: React.FC = () => {
       }
 
       setCurrentMessage(message)
-      setMessages((prev) => {
-        const existing = prev.find(m => m.id === message.id)
-        if (existing) {
-          return prev.map(m => m.id === message.id ? message : m)
-        }
-        return [message, ...prev]
-      })
+      // Message is automatically added to IndexedDB by DatabaseProvider
     }
 
     // Listen for websocket messages
@@ -248,13 +223,7 @@ const AppContent: React.FC = () => {
       }
 
       setCurrentMessage(message)
-      setMessages((prev) => {
-        const existing = prev.find(m => m.id === message.id)
-        if (existing) {
-          return prev.map(m => m.id === message.id ? message : m)
-        }
-        return [message, ...prev]
-      })
+      // Message is automatically added to IndexedDB by DatabaseProvider
       updateConnectionStatus('connected')
     }
 
@@ -316,11 +285,17 @@ const AppContent: React.FC = () => {
     if (!currentMessage || !authStatusRef.current.authenticated) return
 
     try {
+      // 1. Update database directly
+      await updateMessage(currentMessage.id, {
+        status: 'approved',
+        feedback: showFeedback ? feedback : undefined,
+      })
+
+      // 2. Notify main process for WebSocket response only
+      currentMessage.status = 'approved'
       await window.electronAPI.approveMessage(currentMessage, showFeedback ? feedback : undefined)
 
-      currentMessage.status = 'approved'
-
-      refreshMessages()
+      // Note: No immediate refetch needed - list will refresh when navigating back via showMessageList()
 
       setFeedback('')
       setShowFeedback(false)
@@ -335,11 +310,18 @@ const AppContent: React.FC = () => {
     if (!currentMessage || !authStatusRef.current.authenticated) return
 
     try {
+      // 1. Update database directly
+      await updateMessage(currentMessage.id, {
+        status: 'rejected',
+        feedback: showFeedback ? feedback : undefined,
+      })
+
+      // 2. Notify main process for WebSocket response only
       await window.electronAPI.rejectMessage(currentMessage.id, showFeedback ? feedback : undefined)
 
       currentMessage.status = 'rejected'
 
-      refreshMessages()
+      // Note: No immediate refetch needed - list will refresh when navigating back via showMessageList()
 
       setFeedback('')
       setShowFeedback(false)
@@ -363,9 +345,17 @@ const AppContent: React.FC = () => {
     if (!authStatusRef.current.authenticated) return
 
     try {
+      // 1. Update database directly
+      await updateShareMessage(messageId, {
+        status: 'approved',
+        collectionRequest: updatedRequest,
+      })
+
+      // 2. Notify main process for WebSocket response only
       await window.electronAPI.approveCollectionShare(messageId, updatedRequest)
+
       setCurrentShareMessage(null)
-      refreshMessages() // Refresh to show updated status
+      // Note: No manual refresh needed - database events trigger automatic UI update
     }
     catch (error) {
       console.error('Error approving collection share:', error)
@@ -377,9 +367,16 @@ const AppContent: React.FC = () => {
     if (!authStatusRef.current.authenticated) return
 
     try {
+      // 1. Update database directly
+      await updateShareMessage(messageId, {
+        status: 'rejected',
+      })
+
+      // 2. Notify main process for WebSocket response only
       await window.electronAPI.rejectCollectionShare(messageId)
+
       setCurrentShareMessage(null)
-      refreshMessages() // Refresh to show updated status
+      // Note: No manual refresh needed - database events trigger automatic UI update
     }
     catch (error) {
       console.error('Error rejecting collection share:', error)
@@ -530,15 +527,15 @@ const AppContent: React.FC = () => {
         const hasError = Boolean(codespaceResponseData.stderr)
 
         return (
-          <div className="bg-gray-100 p-4 rounded-lg h-96 overflow-hidden flex flex-col">
+          <div className="bg-gray-100 p-4 rounded-lg grow shrink overflow-hidden flex flex-col">
             {/* Standard Output */}
-            <div className="mb-2 flex-grow flex flex-col">
+            <div className="mb-2 grow shrink flex flex-col">
               <div className="text-sm font-medium text-gray-700 mb-1">Output:</div>
-              <div className="border border-gray-200 rounded flex-grow">
+              <div className="border border-gray-200 rounded grow shrink">
                 {isFontLoaded
                   ? (
                       <Editor
-                        height="100%"
+                        className="grow shrink min-h-24"
                         language="plaintext"
                         defaultValue="No output"
                         value={codespaceResponseData.stdout}
@@ -558,15 +555,15 @@ const AppContent: React.FC = () => {
 
             {/* Error Output */}
             {hasError && (
-              <div className="mt-2 flex-grow flex flex-col">
+              <div className="mt-2 grow shrink flex flex-col">
                 <div className="text-sm font-medium text-red-700 mb-1">
                   Error Output (Please review to see if there are any sensitive content):
                 </div>
-                <div className="border border-red-200 rounded bg-red-50 flex-grow">
+                <div className="border border-red-200 rounded bg-red-50 grow shrink">
                   {isFontLoaded
                     ? (
                         <Editor
-                          height="100%"
+                          className="min-h-24"
                           language="plaintext"
                           value={codespaceResponseData.stderr}
                           onChange={value => codespaceResponseData.stderr = value}
@@ -629,16 +626,18 @@ const AppContent: React.FC = () => {
 
   const connectToBestCodespace = async () => {
     if (!authStatusRef.current.authenticated) return
-    
+
     setIsConnectingToCodespace(true)
     try {
-      const success = await window.electronAPI.invoke('connect-to-best-codespace') as boolean
+      const success = await window.electronAPI.connectToBestCodespace()
       if (success) {
         updateConnectionStatus('connected')
       }
-    } catch (error) {
+    }
+    catch (error) {
       console.error('Failed to connect to best codespace:', error)
-    } finally {
+    }
+    finally {
       setIsConnectingToCodespace(false)
     }
   }
@@ -682,7 +681,7 @@ const AppContent: React.FC = () => {
 
       default:
         return (
-          <div className="w-full grow min-h-0 mx-auto">
+          <div className="w-full grow min-h-0 mx-auto flex flex-col">
             {/* Authentication Component */}
             <AuthComponent />
 
@@ -700,11 +699,11 @@ const AppContent: React.FC = () => {
 
             {/* Only show main content if authenticated and GitHub connected */}
             {(authStatus.authenticated || isSkippingAuth) && isGitHubConnected && (
-              <div className="content-fade-in">
+              <div className="content-fade-in grow min-h-0">
                 {currentMessage
                   ? (
                 // Message Detail View
-                      <Card className="w-full">
+                      <Card className="w-full h-full flex flex-col gap-6">
                         <CardHeader>
                           <div className="flex items-center justify-between">
                             <Button variant="outline" onClick={showMessageList}>
@@ -755,9 +754,13 @@ const AppContent: React.FC = () => {
                             )}
                           </div>
                         </CardHeader>
-                        <CardContent className="space-y-6">
+                        <div
+                          className="p-6 grow shrink flex flex-col"
+                        >
                           {/* Message Body - Show tabs if codeEval is true, otherwise show regular body */}
-                          <div>
+                          <div
+                            className="grow shrink flex flex-col"
+                          >
                             <h3 className="text-lg font-semibold mb-2">Request Details</h3>
                             {getCodeBlock(currentMessage)}
                           </div>
@@ -839,7 +842,7 @@ const AppContent: React.FC = () => {
                                   )}
                                 </div>
                               )}
-                        </CardContent>
+                        </div>
                       </Card>
                     )
                   : (
@@ -867,12 +870,11 @@ const AppContent: React.FC = () => {
                                 className="flex items-center space-x-2"
                               >
                                 <span>
-                                  {isConnectingToCodespace 
-                                    ? 'Connecting...' 
-                                    : connectionStatus === 'connected' 
-                                      ? 'Connected' 
-                                      : 'Connect to Codespace'
-                                  }
+                                  {isConnectingToCodespace
+                                    ? 'Connecting...'
+                                    : connectionStatus === 'connected'
+                                      ? 'Connected'
+                                      : 'Connect to Codespace'}
                                 </span>
                               </Button>
                             )}

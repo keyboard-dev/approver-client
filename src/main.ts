@@ -1,7 +1,6 @@
 import * as crypto from 'crypto'
-import { app, autoUpdater, ipcMain, Menu, Notification, shell } from 'electron'
+import { app, autoUpdater, BrowserWindow, ipcMain, Menu, Notification, shell } from 'electron'
 import * as fs from 'fs'
-import _ from 'lodash'
 import * as os from 'os'
 import * as path from 'path'
 import * as WebSocket from 'ws'
@@ -17,6 +16,7 @@ import { OAuthProviderConfig } from './provider-storage'
 import { createRestAPIServer } from './rest-api'
 import { TrayManager } from './tray-manager'
 import { AuthorizeResponse, AuthTokens, CollectionRequest, ErrorResponse, Message, PKCEParams, ShareMessage, TokenResponse } from './types'
+import { CODE_APPROVAL_ORDER, CodeApprovalLevel, RESPONSE_APPROVAL_ORDER, ResponseApprovalLevel } from './types/settings-types'
 import { ExecutorWebSocketClient } from './websocket-client-to-executor'
 import { WindowManager } from './window-manager'
 
@@ -65,7 +65,6 @@ interface AuthUser {
   profile_picture?: string
 }
 
-
 // Types for onboarding GitHub provider response
 interface OnboardingGitHubResponse {
   session_id: string
@@ -95,8 +94,6 @@ class MenuBarNotificationApp {
   private windowManager: WindowManager
   private wsServer: WebSocket.Server | null = null
   private restApiServer: RestAPIServerInterface | null = null
-  private messages: Message[] = []
-  private shareMessages: ShareMessage[] = []
   private pendingCount: number = 0
   private readonly WS_PORT = 8080
   private readonly OAUTH_PORT = 8082
@@ -125,9 +122,8 @@ class MenuBarNotificationApp {
 
   // Settings management
   private showNotifications: boolean = true
-  private automaticCodeApproval: 'never' | 'low' | 'medium' | 'high' = 'never'
-  private CODE_APPROVAL_ORDER = ['never', 'low', 'medium', 'high'] as const
-  private automaticResponseApproval: boolean = false
+  private automaticCodeApproval: CodeApprovalLevel = 'never'
+  private automaticResponseApproval: ResponseApprovalLevel = 'never'
   private fullCodeExecution: boolean = false
   private readonly SETTINGS_FILE = path.join(os.homedir(), '.keyboard-mcp-settings')
   private readonly FULL_CODE_EXECUTION_FILE = path.join(os.homedir(), '.keyboard-mcp', 'full-code-execution')
@@ -165,7 +161,7 @@ class MenuBarNotificationApp {
       onCheckForUpdates: () => {
         this.checkForUpdates()
       },
-      getMessages: () => this.messages,
+      getMessages: () => [], // Messages now stored in renderer DB
       getPendingCount: () => this.pendingCount,
     })
 
@@ -237,8 +233,8 @@ class MenuBarNotificationApp {
         try {
           app.dock?.setIcon(iconPath)
         }
-        catch (error) {
-
+        catch {
+          // Silently fail if dock icon cannot be set
         }
       }
 
@@ -276,9 +272,8 @@ class MenuBarNotificationApp {
 
         })
 
-        autoUpdater.on('update-available', (info: UpdateInfo) => {
-
-          // notify user
+        autoUpdater.on('update-available', () => {
+          console.log('Update available')
         })
 
         autoUpdater.on('update-not-available', () => {
@@ -338,7 +333,7 @@ class MenuBarNotificationApp {
   private async initializeOAuthProviderSystem(): Promise<void> {
     try {
       // Initialize OAuth provider system
-      this.oauthProviderManager = new OAuthProviderManager(this.CUSTOM_PROTOCOL)
+      this.oauthProviderManager = new OAuthProviderManager()
       this.oauthTokenStorage = new OAuthTokenStorage() // Keep for migration
       this.perProviderTokenStorage = new PerProviderTokenStorage()
 
@@ -371,9 +366,6 @@ class MenuBarNotificationApp {
 
       if (onboardingToken && this.executorWSClient) {
         this.executorWSClient.setGitHubToken(onboardingToken)
-      }
-      else {
-
       }
     }
     catch (error) {
@@ -463,9 +455,6 @@ class MenuBarNotificationApp {
           encryptedToken = await encryptWithCodespaceKey(token, config)
           encrypted = true
           encryptionMethod = 'rsa-codespace'
-        }
-        else {
-
         }
       }
       catch (encryptionError) {
@@ -703,9 +692,6 @@ class MenuBarNotificationApp {
           this.encryptionKey = process.env.ENCRYPTION_KEY
           return
         }
-        else {
-
-        }
       }
 
       // Priority 2: Try to load existing generated key
@@ -811,10 +797,21 @@ class MenuBarNotificationApp {
           this.showNotifications = parsedData.showNotifications
         }
         if (typeof parsedData.automaticCodeApproval === 'string'
-          && ['never', 'low', 'medium', 'high'].includes(parsedData.automaticCodeApproval)) {
-          this.automaticCodeApproval = parsedData.automaticCodeApproval as 'never' | 'low' | 'medium' | 'high'
+          && CODE_APPROVAL_ORDER.includes(parsedData.automaticCodeApproval as CodeApprovalLevel)) {
+          this.automaticCodeApproval = parsedData.automaticCodeApproval
         }
+
+        // boolean check for backward compatibility
         if (typeof parsedData.automaticResponseApproval === 'boolean') {
+          if (parsedData.automaticResponseApproval) {
+            this.automaticResponseApproval = 'success only'
+          }
+          else {
+            this.automaticResponseApproval = 'never'
+          }
+        }
+        else if (typeof parsedData.automaticResponseApproval === 'string'
+          && RESPONSE_APPROVAL_ORDER.includes(parsedData.automaticResponseApproval as ResponseApprovalLevel)) {
           this.automaticResponseApproval = parsedData.automaticResponseApproval
         }
         if (typeof parsedData.fullCodeExecution === 'boolean') {
@@ -826,8 +823,7 @@ class MenuBarNotificationApp {
       console.error('❌ Error initializing settings:', error)
       // Use defaults if settings file is corrupted
       this.showNotifications = true
-      this.automaticCodeApproval = 'never'
-      this.automaticResponseApproval = false
+      this.automaticResponseApproval = 'never'
       this.fullCodeExecution = false
     }
   }
@@ -852,7 +848,7 @@ class MenuBarNotificationApp {
     }
   }
 
-  private getSettingsInfo(): { showNotifications: boolean, automaticCodeApproval: 'never' | 'low' | 'medium' | 'high', automaticResponseApproval: boolean, fullCodeExecution: boolean, settingsFile: string, updatedAt: number | null } {
+  private getSettingsInfo(): { showNotifications: boolean, automaticCodeApproval: CodeApprovalLevel, automaticResponseApproval: ResponseApprovalLevel, fullCodeExecution: boolean, settingsFile: string, updatedAt: number | null } {
     let updatedAt: number | null = null
 
     try {
@@ -1802,15 +1798,7 @@ class MenuBarNotificationApp {
     // Show desktop notification
     this.showShareNotification(shareMessage)
 
-    // Store the share message
-    this.shareMessages.push(shareMessage)
-
-    // Update pending count (include share messages)
-    this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length
-      + this.shareMessages.filter(m => m.status === 'pending' || !m.status).length
-    this.trayManager.updateTrayIcon()
-
-    // Send to renderer via collection-share-request event
+    // Send to renderer for storage in IndexedDB and display
     this.windowManager.sendMessage('collection-share-request', shareMessage)
 
     // Auto-show window for share requests
@@ -1841,16 +1829,13 @@ class MenuBarNotificationApp {
     // Show desktop notification
     this.showNotification(message)
 
-    // Store the message
-    this.messages.push(message)
-
     switch (message.title) {
       case 'Security Evaluation Request': {
         const { risk_level } = message
         if (!risk_level) break
 
-        const riskLevelIndex = this.CODE_APPROVAL_ORDER.indexOf(risk_level)
-        const automaticCodeApprovalIndex = this.CODE_APPROVAL_ORDER.indexOf(this.automaticCodeApproval)
+        const riskLevelIndex = CODE_APPROVAL_ORDER.indexOf(risk_level)
+        const automaticCodeApprovalIndex = CODE_APPROVAL_ORDER.indexOf(this.automaticCodeApproval)
         if (riskLevelIndex <= automaticCodeApprovalIndex) {
           message.status = 'approved'
         }
@@ -1864,8 +1849,18 @@ class MenuBarNotificationApp {
 
         const { data: codespaceResponseData } = codespaceResponse
         const { stderr } = codespaceResponseData
-        if (!stderr && this.automaticResponseApproval) {
-          message.status = 'approved'
+
+        switch (this.automaticResponseApproval) {
+          case 'always':
+            message.status = 'approved'
+            break
+          case 'success only':
+            if (!stderr) {
+              message.status = 'approved'
+            }
+            break
+          default:
+            break
         }
 
         break
@@ -1875,16 +1870,15 @@ class MenuBarNotificationApp {
     if (message.status === 'approved') {
       this.handleApproveMessage(message)
     }
+    else {
+      this.windowManager.showWindow()
+    }
 
-    // Update pending count
-    this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length
-    this.trayManager.updateTrayIcon()
-
-    // Send to renderer via websocket-message event
+    // Send to renderer for storage in IndexedDB and display
     this.windowManager.sendMessage('websocket-message', message)
 
     // Auto-show window for high priority messages
-    this.windowManager.showWindow()
+    // this.windowManager.showWindow()
     // if (message.priority === 'high') {
     //   this.windowManager.showWindow()
     // }
@@ -1896,14 +1890,10 @@ class MenuBarNotificationApp {
     }
 
     try {
-      const assetsPath = getAssetsPath()
-      const iconPath = path.join(assetsPath, 'keyboard-dock.png')
-
       const notification = new Notification({
         title: message.title,
         body: message.body,
         urgency: message.priority === 'high' ? 'critical' : 'normal',
-        icon: iconPath,
       })
 
       notification.on('click', () => {
@@ -1965,11 +1955,10 @@ class MenuBarNotificationApp {
   }
 
   private clearAllMessages(): void {
-    this.messages = []
     this.pendingCount = 0
     this.trayManager.updateTrayIcon()
 
-    // Notify renderer
+    // Notify renderer to clear IndexedDB
     this.windowManager.sendMessage('messages-cleared')
   }
 
@@ -2131,65 +2120,24 @@ class MenuBarNotificationApp {
       return serverProviders
     })
 
-    // Handle requests for all messages
-    ipcMain.handle('get-messages', (): Message[] => {
-      return this.messages
-    })
-
-    // Handle requests for share messages
-    ipcMain.handle('get-share-messages', (): ShareMessage[] => {
-      return this.shareMessages
-    })
-
-    // Handle mark as read
-    ipcMain.handle('mark-message-read', (_event, messageId: string): void => {
-      const message = this.messages.find(msg => msg.id === messageId)
-      if (message) {
-        message.read = true
-      }
-    })
-
-    // Handle delete message
-    ipcMain.handle('delete-message', (_event, messageId: string): void => {
-      this.messages = this.messages.filter(msg => msg.id !== messageId)
-      this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length
-      this.trayManager.updateTrayIcon()
-    })
+    // Handle requests for all messages (now stored in renderer IndexedDB)
 
     // Handle approve message
     ipcMain.handle('approve-message', (_event, message: Message, feedback?: string): void => {
-      return this.handleApproveMessage(message, feedback)
+      // Only send WebSocket response, database update happens in renderer
+      this.handleApproveMessage(message, feedback)
     })
 
     // Handle approve collection share
-    ipcMain.handle('approve-collection-share', (_event, messageId: string, updatedRequest: CollectionRequest): void => {
-      const shareMessage = this.shareMessages.find(msg => msg.id === messageId)
-      if (shareMessage) {
-        shareMessage.status = 'approved'
-        shareMessage.collectionRequest = updatedRequest
-
-        // Update pending count
-        this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length + this.shareMessages.filter(m => m.status === 'pending' || !m.status).length
-        this.trayManager.updateTrayIcon()
-
-        // Send response back through WebSocket
-        this.sendCollectionShareResponse(shareMessage, 'approved', updatedRequest)
-      }
+    ipcMain.handle('approve-collection-share', async (_event, messageId: string, updatedRequest: CollectionRequest): Promise<void> => {
+      // Only send WebSocket response, database update happens in renderer
+      this.handleApproveCollectionShare(messageId, updatedRequest)
     })
 
     // Handle reject collection share
-    ipcMain.handle('reject-collection-share', (_event, messageId: string): void => {
-      const shareMessage = this.shareMessages.find(msg => msg.id === messageId)
-      if (shareMessage) {
-        shareMessage.status = 'rejected'
-
-        // Update pending count
-        this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length + this.shareMessages.filter(m => m.status === 'pending' || !m.status).length
-        this.trayManager.updateTrayIcon()
-
-        // Send response back through WebSocket
-        this.sendCollectionShareResponse(shareMessage, 'rejected')
-      }
+    ipcMain.handle('reject-collection-share', async (_event, messageId: string): Promise<void> => {
+      // Only send WebSocket response, database update happens in renderer
+      this.handleRejectCollectionShare(messageId)
     })
 
     // Handle send prompt collection request
@@ -2220,23 +2168,13 @@ class MenuBarNotificationApp {
     })
 
     // Handle reject message
-    ipcMain.handle('reject-message', (_event, messageId: string, feedback?: string): void => {
-      const message = this.messages.find(msg => msg.id === messageId)
-      if (message) {
-        message.status = 'rejected'
-        message.feedback = feedback
+    ipcMain.handle('reject-message', async (_event, messageId: string, feedback?: string): Promise<void> => {
+      // Only send WebSocket response, database update happens in renderer
+      this.handleRejectMessage(messageId, feedback)
 
-        // Update pending count
-        this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length
-        this.trayManager.updateTrayIcon()
-
-        // Send response back through WebSocket if needed
-        this.sendWebSocketResponse(message)
-
-        // Send rejection to executor
-        if (this.executorWSClient) {
-          this.executorWSClient.sendRejection(message.id, feedback)
-        }
+      // Send rejection to executor
+      if (this.executorWSClient) {
+        this.executorWSClient.sendRejection(messageId, feedback)
       }
     })
 
@@ -2313,7 +2251,7 @@ class MenuBarNotificationApp {
     })
 
     // Settings management
-    ipcMain.handle('get-settings', (): { showNotifications: boolean, automaticCodeApproval: 'never' | 'low' | 'medium' | 'high', automaticResponseApproval: boolean, fullCodeExecution: boolean, settingsFile: string, updatedAt: number | null } => {
+    ipcMain.handle('get-settings', (): { showNotifications: boolean, automaticCodeApproval: CodeApprovalLevel, automaticResponseApproval: ResponseApprovalLevel, fullCodeExecution: boolean, settingsFile: string, updatedAt: number | null } => {
       return this.getSettingsInfo()
     })
 
@@ -2326,21 +2264,21 @@ class MenuBarNotificationApp {
       return this.showNotifications
     })
 
-    ipcMain.handle('set-automatic-code-approval', async (_event, level: 'never' | 'low' | 'medium' | 'high'): Promise<void> => {
+    ipcMain.handle('set-automatic-code-approval', async (_event, level: CodeApprovalLevel): Promise<void> => {
       this.automaticCodeApproval = level
       await this.saveSettings()
     })
 
-    ipcMain.handle('get-automatic-code-approval', (): 'never' | 'low' | 'medium' | 'high' => {
+    ipcMain.handle('get-automatic-code-approval', (): CodeApprovalLevel => {
       return this.automaticCodeApproval
     })
 
-    ipcMain.handle('set-automatic-response-approval', async (_event, enabled: boolean): Promise<void> => {
-      this.automaticResponseApproval = enabled
+    ipcMain.handle('set-automatic-response-approval', async (_event, level: ResponseApprovalLevel): Promise<void> => {
+      this.automaticResponseApproval = level
       await this.saveSettings()
     })
 
-    ipcMain.handle('get-automatic-response-approval', (): boolean => {
+    ipcMain.handle('get-automatic-response-approval', (): ResponseApprovalLevel => {
       return this.automaticResponseApproval
     })
 
@@ -2373,6 +2311,22 @@ class MenuBarNotificationApp {
       return getAssetsPath()
     })
 
+    // Database operations - handle pending count updates from renderer
+    ipcMain.handle('db:pending-count-updated', (_event, count: number): void => {
+      this.pendingCount = count
+      this.trayManager.updateTrayIcon()
+    })
+
+    // Database operations - get pending count (for REST API)
+    ipcMain.handle('db:get-pending-count', async (): Promise<number> => {
+      return this.pendingCount
+    })
+
+    // Database operations - clear all messages
+    ipcMain.handle('db:clear-all-messages', async (): Promise<void> => {
+      this.clearAllMessages()
+    })
+
     // Executor WebSocket client IPC handlers
     ipcMain.handle('get-executor-connection-status', () => {
       if (!this.executorWSClient) {
@@ -2402,7 +2356,7 @@ class MenuBarNotificationApp {
       return await this.executorWSClient.discoverCodespaces()
     })
 
-    ipcMain.handle('connect-to-codespace', async (event, codespaceName: string): Promise<boolean> => {
+    ipcMain.handle('connect-to-codespace', async (_event, codespaceName: string): Promise<boolean> => {
       if (!this.executorWSClient) {
         return false
       }
@@ -2428,29 +2382,126 @@ class MenuBarNotificationApp {
       }
       return this.executorWSClient.getLastKnownCodespaces()
     })
+
+    // Auto-updater IPC handlers (only available on macOS and Windows)
+    ipcMain.handle('check-for-updates', async (): Promise<void> => {
+      if (process.platform === 'darwin' || process.platform === 'win32') {
+        autoUpdater.checkForUpdates()
+      }
+      else {
+        throw new Error('Auto-updater not supported on this platform')
+      }
+    })
+
+    ipcMain.handle('download-update', async (): Promise<void> => {
+      if (process.platform === 'darwin' || process.platform === 'win32') {
+        // On macOS and Windows, updates are downloaded automatically
+        throw new Error('Manual update download not supported')
+      }
+      else {
+        throw new Error('Auto-updater not supported on this platform')
+      }
+    })
+
+    ipcMain.handle('quit-and-install', async (): Promise<void> => {
+      if (process.platform === 'darwin' || process.platform === 'win32') {
+        autoUpdater.quitAndInstall()
+      }
+      else {
+        throw new Error('Auto-updater not supported on this platform')
+      }
+    })
+
+    // Test methods for development
+    ipcMain.handle('test-update-available', async (): Promise<void> => {
+      this.windowManager.sendMessage('update-available', {
+        version: '1.0.1',
+        releaseDate: new Date().toISOString(),
+        releaseName: 'Test Update',
+        releaseNotes: 'This is a test update notification',
+      })
+    })
+
+    ipcMain.handle('test-download-update', async (): Promise<void> => {
+      // Simulate download progress
+      for (let i = 0; i <= 100; i += 10) {
+        this.windowManager.sendMessage('download-progress', {
+          percent: i,
+          transferred: i * 1024 * 1024,
+          total: 100 * 1024 * 1024,
+          bytesPerSecond: 1024 * 1024,
+        })
+        await new Promise(resolve => setTimeout(resolve, 200))
+      }
+    })
+
+    ipcMain.handle('test-update-downloaded', async (): Promise<void> => {
+      this.windowManager.sendMessage('update-downloaded', {
+        version: '1.0.1',
+        releaseDate: new Date().toISOString(),
+        releaseName: 'Test Update',
+        releaseNotes: 'This is a test update notification',
+      })
+    })
   }
 
-  private handleApproveMessage(message: Message, feedback?: string): void {
-    const existingMessage = this.messages.find(msg => msg.id === message.id)
-
-    if (!existingMessage) return
-
-    // Update the existing message with the passed message data
-    _.assign(existingMessage, message)
-    existingMessage.status = 'approved'
-    existingMessage.feedback = feedback
-
-    // Update pending count
-    this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length
-    this.trayManager.updateTrayIcon()
+  private handleApproveMessage(message: Message, feedback?: string): Message {
+    // Update message status
+    const updatedMessage = { ...message, status: 'approved' as const, feedback }
 
     // Send response back through WebSocket if needed
-    this.sendWebSocketResponse(existingMessage)
+    this.sendWebSocketResponse(updatedMessage)
 
     // Send approval to executor
     if (this.executorWSClient) {
-      this.executorWSClient.sendApproval(existingMessage.id, feedback)
+      this.executorWSClient.sendApproval(message.id, feedback)
     }
+
+    return updatedMessage
+  }
+
+  private handleRejectMessage(messageId: string, feedback?: string): Partial<Message> {
+    // Create message object for WebSocket response
+    const message: Partial<Message> = {
+      id: messageId,
+      status: 'rejected',
+      feedback,
+      requiresResponse: true,
+    }
+
+    // Send response back through WebSocket if needed
+    this.sendWebSocketResponse(message as Message)
+
+    return message
+  }
+
+  private handleApproveCollectionShare(messageId: string, updatedRequest: CollectionRequest): Partial<ShareMessage> {
+    // Create share message object for WebSocket response
+    const shareMessage: Partial<ShareMessage> = {
+      id: messageId,
+      status: 'approved',
+      collectionRequest: updatedRequest,
+      type: 'collection-share',
+    }
+
+    // Send response back through WebSocket
+    this.sendCollectionShareResponse(shareMessage as ShareMessage, 'approved', updatedRequest)
+
+    return shareMessage
+  }
+
+  private handleRejectCollectionShare(messageId: string): Partial<ShareMessage> {
+    // Create share message object for WebSocket response
+    const shareMessage: Partial<ShareMessage> = {
+      id: messageId,
+      status: 'rejected',
+      type: 'collection-share',
+    }
+
+    // Send response back through WebSocket
+    this.sendCollectionShareResponse(shareMessage as ShareMessage, 'rejected')
+
+    return shareMessage
   }
 
   private sendWebSocketResponse(message: Message): void {
@@ -2485,25 +2536,21 @@ class MenuBarNotificationApp {
 
   private setupRestAPI(): void {
     this.restApiServer = createRestAPIServer({
-      getMessages: () => this.messages,
+      getMessages: () => [], // Messages now stored in renderer IndexedDB
       getAuthTokens: () => this.authTokens,
       getWebSocketServerStatus: () => !!this.wsServer,
       updateMessageStatus: (messageId: string, status: 'approved' | 'rejected', feedback?: string) => {
-        const message = this.messages.find(msg => msg.id === messageId)
-        if (message) {
-          message.status = status
-          message.feedback = feedback
+        // Use helper method to handle message status update
+        const message = status === 'rejected'
+          ? this.handleRejectMessage(messageId, feedback)
+          : this.handleApproveMessage({ id: messageId, requiresResponse: true } as Message, feedback)
 
-          // Update pending count
-          this.pendingCount = this.messages.filter(m => m.status === 'pending' || !m.status).length
-          this.trayManager.updateTrayIcon()
+        // Notify all renderer processes to update IndexedDB
+        BrowserWindow.getAllWindows().forEach((win) => {
+          win.webContents.send('message-status-updated', message)
+        })
 
-          // Send response through WebSocket if needed
-          this.sendWebSocketResponse(message)
-
-          return true
-        }
-        return false
+        return true
       },
     })
 

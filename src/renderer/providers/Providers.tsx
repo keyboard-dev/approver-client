@@ -1,6 +1,7 @@
 import React, { ReactNode } from 'react'
 import { AuthProvider } from '../hooks/useAuth'
 import { PopupProvider } from '../hooks/usePopup'
+import { DatabaseProvider } from './DatabaseProvider'
 
 // Define the props interface for our composed providers
 interface ProvidersProps {
@@ -22,16 +23,12 @@ interface ProvidersProps {
 export const Providers: React.FC<ProvidersProps> = ({ children }) => {
   // Define provider configurations in a clean array format
   const providers = [
+    // DatabaseProvider - handles IndexedDB message storage (must be first)
+    { component: DatabaseProvider, props: {} },
     // AuthProvider - handles authentication state
-    {
-      component: AuthProvider,
-      props: {},
-    },
+    { component: AuthProvider, props: {} },
     // PopupProvider - handles modal/popup state
-    {
-      component: PopupProvider,
-      props: {},
-    },
+    { component: PopupProvider, props: {} },
     // Add new providers here as your app grows:
     // { component: ThemeProvider, props: { theme: 'dark' } },
     // { component: QueryProvider, props: { client: queryClient } },

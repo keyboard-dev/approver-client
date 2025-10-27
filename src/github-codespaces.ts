@@ -1,3 +1,4 @@
+import * as WebSocketModule from 'ws'
 import { GithubService } from './Github'
 
 interface GitHubCodespace {
@@ -82,7 +83,7 @@ export class GitHubCodespacesService {
       const response = await this.makeRequest<{ codespaces: GitHubCodespace[] }>('/user/codespaces')
       return response.codespaces || []
     }
-    catch (error) {
+    catch {
       return []
     }
   }
@@ -94,7 +95,7 @@ export class GitHubCodespacesService {
     try {
       return await this.makeRequest<GitHubCodespace>(`/user/codespaces/${codespaceName}`)
     }
-    catch (error) {
+    catch {
       return null
     }
   }
@@ -115,7 +116,7 @@ export class GitHubCodespacesService {
       const response = await this.makeRequest<{ ports: GitHubCodespacePort[] }>(`/user/codespaces/${codespaceName}/ports`)
       return response.ports || []
     }
-    catch (error) {
+    catch {
       return []
     }
   }
@@ -147,8 +148,8 @@ export class GitHubCodespacesService {
         }
       }
     }
-    catch (error) {
-
+    catch {
+      // Silently fail if we can't generate a fallback URL
     }
 
     return { available: false }
@@ -171,7 +172,7 @@ export class GitHubCodespacesService {
         }),
       })
     }
-    catch (error) {
+    catch {
       return null
     }
   }
@@ -192,7 +193,7 @@ export class GitHubCodespacesService {
         }),
       })
     }
-    catch (error) {
+    catch {
       return null
     }
   }
@@ -273,7 +274,7 @@ export class GitHubCodespacesService {
    */
   async findBestCodespace(): Promise<CodespaceConnectionInfo | null> {
     try {
-      const currentUser = await (this.githubService as any).getCurrentUser()
+      const currentUser = await (this.githubService as unknown as { getCurrentUser: () => Promise<{ login: string } | null> }).getCurrentUser()
       if (!currentUser) {
         return null
       }
@@ -311,7 +312,7 @@ export class GitHubCodespacesService {
 
       return bestCodespace
     }
-    catch (error) {
+    catch {
       return null
     }
   }
@@ -364,7 +365,7 @@ export class GitHubCodespacesService {
 
       return null
     }
-    catch (error) {
+    catch {
       return null
     }
   }
@@ -378,7 +379,7 @@ export class GitHubCodespacesService {
         method: 'POST',
       })
     }
-    catch (error) {
+    catch {
       return null
     }
   }
@@ -392,7 +393,7 @@ export class GitHubCodespacesService {
         method: 'POST',
       })
     }
-    catch (error) {
+    catch {
       return null
     }
   }
@@ -403,10 +404,9 @@ export class GitHubCodespacesService {
   async testWebSocketConnection(websocketUrl: string): Promise<{ connected: boolean, error?: string }> {
     return new Promise((resolve) => {
       try {
-        const WebSocket = require('ws')
-        const ws = new (WebSocket as any)(websocketUrl, {
+        const ws = new WebSocketModule.WebSocket(websocketUrl, {
           headers: {
-            'Authorization': `Bearer ${(this.githubService as any).token}`,
+            'Authorization': `Bearer ${(this.githubService as unknown as { token: string }).token}`,
             'User-Agent': 'KeyboardApproverClient/1.0',
           },
         })
@@ -453,7 +453,7 @@ export class GitHubCodespacesService {
 
   private async makeRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     // Use the existing GitHub service's makeRequest method
-    return (this.githubService as any).makeRequest(endpoint, options)
+    return (this.githubService as unknown as { makeRequest: <T>(endpoint: string, options?: RequestInit) => Promise<T> }).makeRequest<T>(endpoint, options)
   }
 
   /**

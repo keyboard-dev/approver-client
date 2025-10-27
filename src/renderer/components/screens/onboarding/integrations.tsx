@@ -85,7 +85,7 @@ export const Integrations: React.FC<IntegrationsProps> = ({ onComplete }) => {
 
       // Fetch providers using the electron API to avoid CORS
       const providers = await window.electronAPI.fetchServerProviders('keyboard-api')
-      
+
       if (providers && providers.length > 0) {
         // Transform the server response to our format, filtering for the ones we want to show
         const transformedProviders = providers.map((p: ExtendedServerProviderInfo) => ({

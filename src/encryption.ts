@@ -55,7 +55,7 @@ export function encrypt(text: string): string {
     const ivString = iv.toString('hex')
     return ivString + ':' + encrypted
   }
-  catch (error) {
+  catch {
     throw new Error('Failed to encrypt data')
   }
 }
@@ -75,7 +75,7 @@ export function encryptWithCustomKey(text: string): string {
     const ivString = iv.toString('hex')
     return ivString + ':' + encrypted
   }
-  catch (error) {
+  catch {
     throw new Error('Failed to encrypt data')
   }
 }
@@ -97,8 +97,9 @@ export function decrypt(encryptedText: string): string {
 
     return decrypted
   }
-  catch (error) {
-    throw new Error('Failed to decrypt data')
+  catch {
+    // throw new Error('Failed to decrypt data')
+    return ''
   }
 }
 
@@ -120,7 +121,8 @@ export function decryptWithCustomKey(encryptedText: string): string {
 
     return decrypted
   }
-  catch (error) {
-    throw new Error('Failed to decrypt data')
+  catch {
+    // throw new Error('Failed to decrypt data')
+    return ''
   }
 }

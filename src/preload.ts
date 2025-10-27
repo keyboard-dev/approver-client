@@ -3,6 +3,7 @@ import { Script } from './main'
 import { ServerProviderInfo } from './oauth-providers'
 import { OAuthProviderConfig } from './provider-storage'
 import { CollectionRequest, Message, ShareMessage } from './types'
+import { CodeApprovalLevel, ResponseApprovalLevel } from './types/settings-types'
 
 export interface AuthStatus {
   authenticated: boolean
@@ -117,10 +118,6 @@ export interface ProgressInfo {
 }
 
 export interface ElectronAPI {
-  getMessages: () => Promise<Message[]>
-  getShareMessages: () => Promise<ShareMessage[]>
-  markMessageRead: (messageId: string) => Promise<void>
-  deleteMessage: (messageId: string) => Promise<void>
   approveMessage: (message: Message, feedback?: string) => Promise<void>
   rejectMessage: (messageId: string, feedback?: string) => Promise<void>
   approveCollectionShare: (messageId: string, updatedRequest: CollectionRequest) => Promise<void>
@@ -132,7 +129,13 @@ export interface ElectronAPI {
   onCollectionShareRequest: (callback: (event: IpcRendererEvent, shareMessage: ShareMessage) => void) => void
   onShowShareMessage: (callback: (event: IpcRendererEvent, shareMessage: ShareMessage) => void) => void
   onPromptResponse: (callback: (event: IpcRendererEvent, message: { requestId?: string, prompt?: string }) => void) => void
+  onMessagesClear: (callback: (event: IpcRendererEvent) => void) => void
+  onMessageStatusUpdated: (callback: (event: IpcRendererEvent, message: Partial<Message>) => void) => void
+  onShareMessageStatusUpdated: (callback: (event: IpcRendererEvent, shareMessage: Partial<ShareMessage>) => void) => void
   removeAllListeners: (channel: string) => void
+  // Database operations
+  dbGetPendingCount: () => Promise<number>
+  dbClearAllMessages: () => Promise<void>
   // Open external links
   openExternal: (url: string) => Promise<void>
   // Legacy OAuth
@@ -189,13 +192,13 @@ export interface ElectronAPI {
   openExternalUrl: (url: string) => Promise<void>
 
   // Settings management
-  getSettings: () => Promise<{ showNotifications: boolean, automaticCodeApproval: 'never' | 'low' | 'medium' | 'high', automaticResponseApproval: boolean, fullCodeExecution: boolean, settingsFile: string, updatedAt: number | null }>
+  getSettings: () => Promise<{ showNotifications: boolean, automaticCodeApproval: CodeApprovalLevel, automaticResponseApproval: ResponseApprovalLevel, fullCodeExecution: boolean, settingsFile: string, updatedAt: number | null }>
   setShowNotifications: (show: boolean) => Promise<void>
   getShowNotifications: () => Promise<boolean>
-  setAutomaticCodeApproval: (level: 'never' | 'low' | 'medium' | 'high') => Promise<void>
-  getAutomaticCodeApproval: () => Promise<'never' | 'low' | 'medium' | 'high'>
-  setAutomaticResponseApproval: (enabled: boolean) => Promise<void>
-  getAutomaticResponseApproval: () => Promise<boolean>
+  setAutomaticCodeApproval: (level: CodeApprovalLevel) => Promise<void>
+  getAutomaticCodeApproval: () => Promise<CodeApprovalLevel>
+  setAutomaticResponseApproval: (level: ResponseApprovalLevel) => Promise<void>
+  getAutomaticResponseApproval: () => Promise<ResponseApprovalLevel>
   setFullCodeExecution: (enabled: boolean) => Promise<void>
   getFullCodeExecution: () => Promise<boolean>
   // Assets path
@@ -211,16 +214,30 @@ export interface ElectronAPI {
 
   // Test methods for development
   testUpdateAvailable: () => Promise<void>
+  testDownloadUpdate: () => Promise<void>
+  testUpdateDownloaded: () => Promise<void>
   invoke: (channel: string, ...args: unknown[]) => Promise<unknown>
+
+  // Executor WebSocket connection methods
+  getExecutorConnectionStatus: () => Promise<{ connected: boolean, target?: { type: 'localhost' | 'codespace', url: string, name?: string, codespaceName?: string } }>
+  reconnectToExecutor: () => Promise<boolean>
+  disconnectFromExecutor: () => Promise<void>
+  discoverCodespaces: () => Promise<Array<{ codespace: unknown, websocketUrl?: string, available: boolean, error?: string }>>
+  connectToCodespace: (codespaceName: string) => Promise<boolean>
+  connectToBestCodespace: () => Promise<boolean>
+  connectToLocalhost: () => Promise<void>
+  getLastKnownCodespaces: () => Promise<Array<{ codespace: unknown, websocketUrl?: string, available: boolean, error?: string }>>
+
+  // Database notification (no return value needed)
+  dbPendingCountUpdated: (count: number) => void
+
+  // Version install date
+  getVersionInstallDate: () => Promise<Date | null>
 }
 
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld('electronAPI', {
-  getMessages: (): Promise<Message[]> => ipcRenderer.invoke('get-messages'),
-  getShareMessages: (): Promise<ShareMessage[]> => ipcRenderer.invoke('get-share-messages'),
-  markMessageRead: (messageId: string): Promise<void> => ipcRenderer.invoke('mark-message-read', messageId),
-  deleteMessage: (messageId: string): Promise<void> => ipcRenderer.invoke('delete-message', messageId),
   approveMessage: (message: Message, feedback?: string): Promise<void> => ipcRenderer.invoke('approve-message', message, feedback),
   rejectMessage: (messageId: string, feedback?: string): Promise<void> => ipcRenderer.invoke('reject-message', messageId, feedback),
   approveCollectionShare: (messageId: string, updatedRequest: CollectionRequest): Promise<void> => ipcRenderer.invoke('approve-collection-share', messageId, updatedRequest),
@@ -244,9 +261,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onPromptResponse: (callback: (event: IpcRendererEvent, message: { requestId?: string, prompt?: string }) => void): void => {
     ipcRenderer.on('prompt-response', callback)
   },
+  onMessagesClear: (callback: (event: IpcRendererEvent) => void): void => {
+    ipcRenderer.on('messages-cleared', callback)
+  },
+  onMessageStatusUpdated: (callback: (event: IpcRendererEvent, message: Partial<Message>) => void): void => {
+    ipcRenderer.on('message-status-updated', callback)
+  },
+  onShareMessageStatusUpdated: (callback: (event: IpcRendererEvent, shareMessage: Partial<ShareMessage>) => void): void => {
+    ipcRenderer.on('share-message-status-updated', callback)
+  },
   removeAllListeners: (channel: string): void => {
     ipcRenderer.removeAllListeners(channel)
   },
+
+  // Database operations
+  dbGetPendingCount: (): Promise<number> => ipcRenderer.invoke('db:get-pending-count'),
+  dbClearAllMessages: (): Promise<void> => ipcRenderer.invoke('db:clear-all-messages'),
 
   // Open external links
   openExternal: (url: string): Promise<void> => ipcRenderer.invoke('open-external', url),
@@ -331,13 +361,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openExternalUrl: (url: string): Promise<void> => ipcRenderer.invoke('open-external-url', url),
 
   // Settings management
-  getSettings: (): Promise<{ showNotifications: boolean, automaticCodeApproval: 'never' | 'low' | 'medium' | 'high', automaticResponseApproval: boolean, fullCodeExecution: boolean, settingsFile: string, updatedAt: number | null }> => ipcRenderer.invoke('get-settings'),
+  getSettings: (): Promise<{ showNotifications: boolean, automaticCodeApproval: CodeApprovalLevel, automaticResponseApproval: ResponseApprovalLevel, fullCodeExecution: boolean, settingsFile: string, updatedAt: number | null }> => ipcRenderer.invoke('get-settings'),
   setShowNotifications: (show: boolean): Promise<void> => ipcRenderer.invoke('set-show-notifications', show),
   getShowNotifications: (): Promise<boolean> => ipcRenderer.invoke('get-show-notifications'),
-  setAutomaticCodeApproval: (level: 'never' | 'low' | 'medium' | 'high'): Promise<void> => ipcRenderer.invoke('set-automatic-code-approval', level),
-  getAutomaticCodeApproval: (): Promise<'never' | 'low' | 'medium' | 'high'> => ipcRenderer.invoke('get-automatic-code-approval'),
-  setAutomaticResponseApproval: (enabled: boolean): Promise<void> => ipcRenderer.invoke('set-automatic-response-approval', enabled),
-  getAutomaticResponseApproval: (): Promise<boolean> => ipcRenderer.invoke('get-automatic-response-approval'),
+  setAutomaticCodeApproval: (level: CodeApprovalLevel): Promise<void> => ipcRenderer.invoke('set-automatic-code-approval', level),
+  getAutomaticCodeApproval: (): Promise<CodeApprovalLevel> => ipcRenderer.invoke('get-automatic-code-approval'),
+  setAutomaticResponseApproval: (level: ResponseApprovalLevel): Promise<void> => ipcRenderer.invoke('set-automatic-response-approval', level),
+  getAutomaticResponseApproval: (): Promise<ResponseApprovalLevel> => ipcRenderer.invoke('get-automatic-response-approval'),
   setFullCodeExecution: (enabled: boolean): Promise<void> => ipcRenderer.invoke('set-full-code-execution', enabled),
   getFullCodeExecution: (): Promise<boolean> => ipcRenderer.invoke('get-full-code-execution'),
 
@@ -360,7 +390,27 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Test methods for development
   testUpdateAvailable: (): Promise<void> => ipcRenderer.invoke('test-update-available'),
+  testDownloadUpdate: (): Promise<void> => ipcRenderer.invoke('test-download-update'),
+  testUpdateDownloaded: (): Promise<void> => ipcRenderer.invoke('test-update-downloaded'),
   invoke: (channel: string, ...args: unknown[]): Promise<unknown> => ipcRenderer.invoke(channel, ...args),
+
+  // Executor WebSocket connection methods
+  getExecutorConnectionStatus: () => ipcRenderer.invoke('get-executor-connection-status'),
+  reconnectToExecutor: (): Promise<boolean> => ipcRenderer.invoke('reconnect-to-executor'),
+  disconnectFromExecutor: (): Promise<void> => ipcRenderer.invoke('disconnect-from-executor'),
+  discoverCodespaces: () => ipcRenderer.invoke('discover-codespaces'),
+  connectToCodespace: (codespaceName: string): Promise<boolean> => ipcRenderer.invoke('connect-to-codespace', codespaceName),
+  connectToBestCodespace: (): Promise<boolean> => ipcRenderer.invoke('connect-to-best-codespace'),
+  connectToLocalhost: (): Promise<void> => ipcRenderer.invoke('connect-to-localhost'),
+  getLastKnownCodespaces: () => ipcRenderer.invoke('get-last-known-codespaces'),
+
+  // Database notification (no return value needed)
+  dbPendingCountUpdated: (count: number): void => {
+    ipcRenderer.invoke('db:pending-count-updated', count)
+  },
+
+  // Version install date
+  getVersionInstallDate: (): Promise<Date | null> => ipcRenderer.invoke('get-version-install-date'),
 } as ElectronAPI)
 
 // Extend the global Window interface
