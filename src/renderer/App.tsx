@@ -22,6 +22,8 @@ import { Button } from './components/ui/button'
 import { ButtonDesigned } from './components/ui/ButtonDesigned'
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card'
 import { useAuth } from './hooks/useAuth'
+import { useMessagesQuery } from './hooks/useMessagesQuery'
+import { useDatabase } from './providers/DatabaseProvider'
 import { Providers } from './providers/Providers'
 
 const handleEditorWillMount = (monacoInstance: typeof monaco) => {
@@ -54,9 +56,13 @@ const AppContent: React.FC = () => {
     isSkippingAuth,
   } = useAuth()
 
+  // Database hook for initialization and mutations
+  const { isInitialized: isDbInitialized, deleteMessages, updateMessage, updateShareMessage } = useDatabase()
+
+  // Fetch messages directly from database (no in-memory cache)
+  const { messages, shareMessages, refetch: refetchMessages } = useMessagesQuery()
+
   // Message and app state (moved back from auth hook)
-  const [messages, setMessages] = useState<Message[]>([])
-  const [shareMessages, setShareMessages] = useState<ShareMessage[]>([])
   const [currentMessage, setCurrentMessage] = useState<Message | null>(null)
   const [currentShareMessage, setCurrentShareMessage] = useState<ShareMessage | null>(null)
   const [feedback, setFeedback] = useState('')
@@ -158,68 +164,43 @@ const AppContent: React.FC = () => {
     }
 
     try {
-      const [loadedMessages, loadedShareMessages] = await Promise.all([
-        window.electronAPI.getMessages(),
-        window.electronAPI.getShareMessages(),
-      ])
-      setMessages(loadedMessages)
-      setShareMessages(loadedShareMessages)
+      await refetchMessages()
     }
     catch (error) {
       console.error('Error refreshing messages:', error)
     }
-  }, [authStatusRef])
+  }, [authStatusRef, refetchMessages])
 
   // Clear non-pending messages
   const clearNonPendingMessages = useCallback(async () => {
     try {
       const nonPendingMessages = messages.filter(m => m.status !== 'pending' && m.status)
-      for (const message of nonPendingMessages) {
-        await window.electronAPI.deleteMessage(message.id)
-      }
+      const messageIds = nonPendingMessages.map(m => m.id)
+      await deleteMessages(messageIds)
       refreshMessages()
     }
     catch (error) {
       console.error('Error clearing messages:', error)
     }
-  }, [messages, refreshMessages])
+  }, [messages, refreshMessages, deleteMessages])
 
   // Handle authentication state changes with message/UI management
   useEffect(() => {
     if (!isAuthenticated) {
-      // If user logged out, clear messages for security
-      setMessages([])
-      setShareMessages([])
+      // If user logged out, clear UI state
+      // Messages will be cleared from IndexedDB if needed
       setCurrentMessage(null)
       setCurrentShareMessage(null)
       setFeedback('')
       setShowFeedback(false)
       setIsInitialized(false)
     }
-    else if (!isInitialized && isAuthenticated) {
+    else if (!isInitialized && isAuthenticated && isDbInitialized) {
       setIsInitialized(true)
-
-      const loadInitialMessages = async () => {
-        updateLoadingState(true)
-        try {
-          const [loadedMessages, loadedShareMessages] = await Promise.all([
-            window.electronAPI.getMessages(),
-            window.electronAPI.getShareMessages(),
-          ])
-          setMessages(loadedMessages)
-          setShareMessages(loadedShareMessages)
-        }
-        catch (error) {
-          console.error('Error loading messages:', error)
-        }
-        finally {
-          updateLoadingState(false)
-        }
-      }
-
-      loadInitialMessages()
+      // Messages are already loaded by DatabaseProvider
+      updateLoadingState(false)
     }
-  }, [isAuthenticated, isInitialized, updateLoadingState])
+  }, [isAuthenticated, isInitialized, isDbInitialized, updateLoadingState])
 
   // Initialize event listeners only once
   useEffect(() => {
@@ -231,13 +212,7 @@ const AppContent: React.FC = () => {
       }
 
       setCurrentMessage(message)
-      setMessages((prev) => {
-        const existing = prev.find(m => m.id === message.id)
-        if (existing) {
-          return prev.map(m => m.id === message.id ? message : m)
-        }
-        return [message, ...prev]
-      })
+      // Message is automatically added to IndexedDB by DatabaseProvider
     }
 
     // Listen for websocket messages
@@ -248,13 +223,7 @@ const AppContent: React.FC = () => {
       }
 
       setCurrentMessage(message)
-      setMessages((prev) => {
-        const existing = prev.find(m => m.id === message.id)
-        if (existing) {
-          return prev.map(m => m.id === message.id ? message : m)
-        }
-        return [message, ...prev]
-      })
+      // Message is automatically added to IndexedDB by DatabaseProvider
       updateConnectionStatus('connected')
     }
 
@@ -316,11 +285,17 @@ const AppContent: React.FC = () => {
     if (!currentMessage || !authStatusRef.current.authenticated) return
 
     try {
+      // 1. Update database directly
+      await updateMessage(currentMessage.id, {
+        status: 'approved',
+        feedback: showFeedback ? feedback : undefined,
+      })
+
+      // 2. Notify main process for WebSocket response only
+      currentMessage.status = 'approved'
       await window.electronAPI.approveMessage(currentMessage, showFeedback ? feedback : undefined)
 
-      currentMessage.status = 'approved'
-
-      refreshMessages()
+      // Note: No immediate refetch needed - list will refresh when navigating back via showMessageList()
 
       setFeedback('')
       setShowFeedback(false)
@@ -335,11 +310,18 @@ const AppContent: React.FC = () => {
     if (!currentMessage || !authStatusRef.current.authenticated) return
 
     try {
+      // 1. Update database directly
+      await updateMessage(currentMessage.id, {
+        status: 'rejected',
+        feedback: showFeedback ? feedback : undefined,
+      })
+
+      // 2. Notify main process for WebSocket response only
       await window.electronAPI.rejectMessage(currentMessage.id, showFeedback ? feedback : undefined)
 
       currentMessage.status = 'rejected'
 
-      refreshMessages()
+      // Note: No immediate refetch needed - list will refresh when navigating back via showMessageList()
 
       setFeedback('')
       setShowFeedback(false)
@@ -363,9 +345,17 @@ const AppContent: React.FC = () => {
     if (!authStatusRef.current.authenticated) return
 
     try {
+      // 1. Update database directly
+      await updateShareMessage(messageId, {
+        status: 'approved',
+        collectionRequest: updatedRequest,
+      })
+
+      // 2. Notify main process for WebSocket response only
       await window.electronAPI.approveCollectionShare(messageId, updatedRequest)
+
       setCurrentShareMessage(null)
-      refreshMessages() // Refresh to show updated status
+      // Note: No manual refresh needed - database events trigger automatic UI update
     }
     catch (error) {
       console.error('Error approving collection share:', error)
@@ -377,9 +367,16 @@ const AppContent: React.FC = () => {
     if (!authStatusRef.current.authenticated) return
 
     try {
+      // 1. Update database directly
+      await updateShareMessage(messageId, {
+        status: 'rejected',
+      })
+
+      // 2. Notify main process for WebSocket response only
       await window.electronAPI.rejectCollectionShare(messageId)
+
       setCurrentShareMessage(null)
-      refreshMessages() // Refresh to show updated status
+      // Note: No manual refresh needed - database events trigger automatic UI update
     }
     catch (error) {
       console.error('Error rejecting collection share:', error)

@@ -118,10 +118,6 @@ export interface ProgressInfo {
 }
 
 export interface ElectronAPI {
-  getMessages: () => Promise<Message[]>
-  getShareMessages: () => Promise<ShareMessage[]>
-  markMessageRead: (messageId: string) => Promise<void>
-  deleteMessage: (messageId: string) => Promise<void>
   approveMessage: (message: Message, feedback?: string) => Promise<void>
   rejectMessage: (messageId: string, feedback?: string) => Promise<void>
   approveCollectionShare: (messageId: string, updatedRequest: CollectionRequest) => Promise<void>
@@ -133,7 +129,13 @@ export interface ElectronAPI {
   onCollectionShareRequest: (callback: (event: IpcRendererEvent, shareMessage: ShareMessage) => void) => void
   onShowShareMessage: (callback: (event: IpcRendererEvent, shareMessage: ShareMessage) => void) => void
   onPromptResponse: (callback: (event: IpcRendererEvent, message: { requestId?: string, prompt?: string }) => void) => void
+  onMessagesClear: (callback: (event: IpcRendererEvent) => void) => void
+  onMessageStatusUpdated: (callback: (event: IpcRendererEvent, message: Partial<Message>) => void) => void
+  onShareMessageStatusUpdated: (callback: (event: IpcRendererEvent, shareMessage: Partial<ShareMessage>) => void) => void
   removeAllListeners: (channel: string) => void
+  // Database operations
+  dbGetPendingCount: () => Promise<number>
+  dbClearAllMessages: () => Promise<void>
   // Open external links
   openExternal: (url: string) => Promise<void>
   // Legacy OAuth
@@ -216,10 +218,6 @@ export interface ElectronAPI {
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld('electronAPI', {
-  getMessages: (): Promise<Message[]> => ipcRenderer.invoke('get-messages'),
-  getShareMessages: (): Promise<ShareMessage[]> => ipcRenderer.invoke('get-share-messages'),
-  markMessageRead: (messageId: string): Promise<void> => ipcRenderer.invoke('mark-message-read', messageId),
-  deleteMessage: (messageId: string): Promise<void> => ipcRenderer.invoke('delete-message', messageId),
   approveMessage: (message: Message, feedback?: string): Promise<void> => ipcRenderer.invoke('approve-message', message, feedback),
   rejectMessage: (messageId: string, feedback?: string): Promise<void> => ipcRenderer.invoke('reject-message', messageId, feedback),
   approveCollectionShare: (messageId: string, updatedRequest: CollectionRequest): Promise<void> => ipcRenderer.invoke('approve-collection-share', messageId, updatedRequest),
@@ -243,9 +241,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onPromptResponse: (callback: (event: IpcRendererEvent, message: { requestId?: string, prompt?: string }) => void): void => {
     ipcRenderer.on('prompt-response', callback)
   },
+  onMessagesClear: (callback: (event: IpcRendererEvent) => void): void => {
+    ipcRenderer.on('messages-cleared', callback)
+  },
+  onMessageStatusUpdated: (callback: (event: IpcRendererEvent, message: Partial<Message>) => void): void => {
+    ipcRenderer.on('message-status-updated', callback)
+  },
+  onShareMessageStatusUpdated: (callback: (event: IpcRendererEvent, shareMessage: Partial<ShareMessage>) => void): void => {
+    ipcRenderer.on('share-message-status-updated', callback)
+  },
   removeAllListeners: (channel: string): void => {
     ipcRenderer.removeAllListeners(channel)
   },
+
+  // Database operations
+  dbGetPendingCount: (): Promise<number> => ipcRenderer.invoke('db:get-pending-count'),
+  dbClearAllMessages: (): Promise<void> => ipcRenderer.invoke('db:clear-all-messages'),
 
   // Open external links
   openExternal: (url: string): Promise<void> => ipcRenderer.invoke('open-external', url),
