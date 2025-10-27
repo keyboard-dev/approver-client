@@ -98,7 +98,8 @@ export function decrypt(encryptedText: string): string {
     return decrypted
   }
   catch {
-    throw new Error('Failed to decrypt data')
+    // throw new Error('Failed to decrypt data')
+    return ''
   }
 }
 
@@ -121,6 +122,7 @@ export function decryptWithCustomKey(encryptedText: string): string {
     return decrypted
   }
   catch {
-    throw new Error('Failed to decrypt data')
+    // throw new Error('Failed to decrypt data')
+    return ''
   }
 }
