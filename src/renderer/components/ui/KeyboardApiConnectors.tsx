@@ -79,7 +79,6 @@ export const KeyboardApiConnectors: React.FC<KeyboardApiConnectorsProps> = ({
       }
 
       const providers = await window.electronAPI.fetchServerProviders('keyboard-api')
-      console.log('providers', providers)
 
       if (providers && providers.length > 0) {
         const transformedProviders = providers.map((p: ExtendedServerProviderInfo) => ({

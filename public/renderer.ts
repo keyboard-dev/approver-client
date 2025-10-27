@@ -83,7 +83,7 @@ class MessageViewer {
       this.renderMessageList()
     }
     catch (error) {
-      console.error('Error loading messages:', error)
+
     }
   }
 
@@ -177,7 +177,7 @@ class MessageViewer {
       this.markReadBtn.disabled = true
     }
     catch (error) {
-      console.error('Error marking message as read:', error)
+
     }
   }
 
@@ -190,7 +190,7 @@ class MessageViewer {
         this.showMessageList()
       }
       catch (error) {
-        console.error('Error deleting message:', error)
+
       }
     }
   }

@@ -83,7 +83,6 @@ export class GitHubCodespacesService {
       return response.codespaces || []
     }
     catch (error) {
-      console.error('Failed to list codespaces:', error)
       return []
     }
   }
@@ -96,7 +95,6 @@ export class GitHubCodespacesService {
       return await this.makeRequest<GitHubCodespace>(`/user/codespaces/${codespaceName}`)
     }
     catch (error) {
-      console.error(`Failed to get codespace ${codespaceName}:`, error)
       return null
     }
   }
@@ -118,7 +116,6 @@ export class GitHubCodespacesService {
       return response.ports || []
     }
     catch (error) {
-      console.error(`Failed to get ports for codespace ${codespaceName}:`, error)
       return []
     }
   }
@@ -151,7 +148,7 @@ export class GitHubCodespacesService {
       }
     }
     catch (error) {
-      console.error(`Failed to generate fallback URL for ${codespaceName}:`, error)
+
     }
 
     return { available: false }
@@ -175,7 +172,6 @@ export class GitHubCodespacesService {
       })
     }
     catch (error) {
-      console.error(`Failed to create port forwarding for ${codespaceName}:${port}:`, error)
       return null
     }
   }
@@ -197,7 +193,6 @@ export class GitHubCodespacesService {
       })
     }
     catch (error) {
-      console.error(`Failed to update port forwarding for ${codespaceName}:${port}:`, error)
       return null
     }
   }
@@ -280,14 +275,12 @@ export class GitHubCodespacesService {
     try {
       const currentUser = await (this.githubService as any).getCurrentUser()
       if (!currentUser) {
-        console.error('Cannot determine current user for codespace selection')
         return null
       }
 
       const allConnectionInfo = await this.getCodespaceConnectionInfo()
 
       if (allConnectionInfo.length === 0) {
-        console.log('No active codespaces found')
         return null
       }
 
@@ -297,7 +290,6 @@ export class GitHubCodespacesService {
       )
 
       if (ownedCodespaces.length === 0) {
-        console.log('No user-owned codespaces found')
         return null
       }
 
@@ -316,12 +308,10 @@ export class GitHubCodespacesService {
       })
 
       const bestCodespace = sortedCodespaces[0]
-      console.log(`🎯 Best codespace found: ${bestCodespace.codespace.name} (${bestCodespace.available ? 'WebSocket available' : 'WebSocket needs setup'})`)
 
       return bestCodespace
     }
     catch (error) {
-      console.error('Failed to find best codespace:', error)
       return null
     }
   }
@@ -346,7 +336,7 @@ export class GitHubCodespacesService {
       }
 
       // Try to ensure WebSocket port is set up
-      console.log(`🔧 Setting up WebSocket port for codespace: ${bestCodespace.codespace.name}`)
+
       const portSetup = await this.ensureWebSocketPort(bestCodespace.codespace.name)
 
       if (portSetup.success && portSetup.url) {
@@ -362,7 +352,6 @@ export class GitHubCodespacesService {
 
       // Fall back to generated URL if we have one
       if (portSetup.url) {
-        console.log(`⚠️ Using fallback WebSocket URL for ${bestCodespace.codespace.name}`)
         return {
           codespace: {
             ...bestCodespace,
@@ -373,11 +362,9 @@ export class GitHubCodespacesService {
         }
       }
 
-      console.error(`❌ Cannot set up WebSocket for codespace: ${bestCodespace.codespace.name}`)
       return null
     }
     catch (error) {
-      console.error('Failed to discover and prepare codespace:', error)
       return null
     }
   }
@@ -392,7 +379,6 @@ export class GitHubCodespacesService {
       })
     }
     catch (error) {
-      console.error(`Failed to start codespace ${codespaceName}:`, error)
       return null
     }
   }
@@ -407,7 +393,6 @@ export class GitHubCodespacesService {
       })
     }
     catch (error) {
-      console.error(`Failed to stop codespace ${codespaceName}:`, error)
       return null
     }
   }

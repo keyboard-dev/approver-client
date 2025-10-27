@@ -60,15 +60,12 @@ export async function discoverCodespaceUrl(githubToken: string): Promise<string 
         }
       }
 
-      console.log(`🔍 Discovered codespace URL: ${httpUrl}`)
       return httpUrl
     }
 
-    console.log('⚠️ No suitable codespace found for encryption')
     return null
   }
   catch (error) {
-    console.error('❌ Failed to discover codespace URL:', error)
     return null
   }
 }
@@ -93,11 +90,10 @@ export async function fetchPublicKey(config: CodespaceEncryptionConfig): Promise
     if (!data.success || !data.publicKey) {
       throw new Error('Invalid response: missing public key')
     }
-    console.log('🔍 Public key: ', data.publicKey)
+
     return data.publicKey
   }
   catch (error) {
-    console.error('Error fetching public key:', error)
     throw new Error(`Failed to fetch public key: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
 }
@@ -114,11 +110,9 @@ export async function encryptWithCodespaceKey(
       || config.codespaceUrl === 'https://github.com'
       || config.codespaceUrl === ''
       || config.codespaceUrl === 'auto') {
-      console.log('🔍 Auto-discovering codespace URL...')
       const discoveredUrl = await discoverCodespaceUrl(config.githubToken)
       if (discoveredUrl) {
         finalConfig = { ...config, codespaceUrl: discoveredUrl }
-        console.log(`✅ Using discovered codespace URL: ${discoveredUrl}`)
       }
       else {
         throw new Error('No suitable codespace found for encryption and no manual URL provided')
@@ -139,7 +133,6 @@ export async function encryptWithCodespaceKey(
     return encrypted.toString('base64')
   }
   catch (error) {
-    console.error('Error encrypting data:', error)
     throw new Error(`Failed to encrypt data: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
 }

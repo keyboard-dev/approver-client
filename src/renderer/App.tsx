@@ -86,7 +86,7 @@ const AppContent: React.FC = () => {
         timeoutId = setTimeout(() => setIsFontLoaded(true), 100)
       }
       catch (error) {
-        console.warn('Font loading failed, proceeding with fallback:', error)
+        
         setIsFontLoaded(true)
       }
     }

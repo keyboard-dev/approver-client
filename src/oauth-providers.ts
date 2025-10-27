@@ -361,7 +361,7 @@ export class OAuthProviderManager {
         }
       }
       catch (error) {
-        console.warn('Failed to fetch user info:', error)
+        
       }
     }
 

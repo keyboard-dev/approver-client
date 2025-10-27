@@ -246,7 +246,7 @@ class MenuBarNotificationApp {
           app.dock.setIcon(iconPath)
         }
         catch (error) {
-          console.warn('Failed to set dock icon:', error)
+
         }
       }
 
@@ -281,20 +281,19 @@ class MenuBarNotificationApp {
 
         // Auto-updater event handlers
         autoUpdater.on('checking-for-update', () => {
-          console.log('Checking for update...')
+
         })
 
         autoUpdater.on('update-available', (info: UpdateInfo) => {
-          console.log('Update available:', info)
+
           // notify user
         })
 
         autoUpdater.on('update-not-available', () => {
-          console.log('No update available')
+
         })
 
         autoUpdater.on('update-downloaded', () => {
-          console.log('Update downloaded')
           // Notify user and ask if they want to restart
           const notification = new Notification({
             title: 'Update Ready',
@@ -379,11 +378,10 @@ class MenuBarNotificationApp {
       )
 
       if (onboardingToken && this.executorWSClient) {
-        console.log('🔌 Connecting to executor with onboarding token...')
         this.executorWSClient.setGitHubToken(onboardingToken)
       }
       else {
-        console.log('⏸️ No onboarding token available yet. Will connect after authentication.')
+
       }
     }
     catch (error) {
@@ -396,8 +394,6 @@ class MenuBarNotificationApp {
    */
   private handleExecutorMessage(message: { type: string, message?: Message, data?: unknown, id?: string, providerId?: string, requestId?: string }): void {
     try {
-      console.log('📥 Handling executor message:', message.type)
-
       switch (message.type) {
         case 'websocket-message':
           // Forward to existing message handling
@@ -437,7 +433,6 @@ class MenuBarNotificationApp {
           break
 
         default:
-          console.log('Unknown message type from executor:', message.type)
       }
     }
     catch (error) {
@@ -476,16 +471,14 @@ class MenuBarNotificationApp {
           encryptedToken = await encryptWithCodespaceKey(token, config)
           encrypted = true
           encryptionMethod = 'rsa-codespace'
-          console.log('🔐 Successfully encrypted provider token using RSA codespace encryption')
         }
         else {
-          console.log('⚠️ No GitHub token available for codespace encryption')
+
         }
       }
       catch (encryptionError) {
         console.error('❌ Failed to encrypt provider token:', encryptionError)
         // Continue with unencrypted token as fallback
-        console.log('⚠️ Falling back to unencrypted token transmission')
       }
     }
 
@@ -516,7 +509,7 @@ class MenuBarNotificationApp {
       const providerStatus = await this.perProviderTokenStorage.getProviderStatus()
       const providerInfo = providerStatus[providerId]
       const provider = await this.oauthProviderManager.getProvider(providerId)
-      if(!token) {
+      if (!token) {
         throw new Error('No token available')
       }
       // Encrypt token using codespace encryption if available
@@ -719,7 +712,7 @@ class MenuBarNotificationApp {
           return
         }
         else {
-          console.warn('⚠️ ENCRYPTION_KEY environment variable is not 32 bytes, falling back to generated key')
+
         }
       }
 
@@ -1275,7 +1268,6 @@ class MenuBarNotificationApp {
 
         // Connect to executor with the new onboarding token
         if (this.executorWSClient) {
-          console.log('🔌 Connecting to executor with new onboarding token...')
           this.executorWSClient.setGitHubToken(tokens.access_token)
         }
       }
@@ -1590,7 +1582,7 @@ class MenuBarNotificationApp {
         return null
       }
     }
-    console.log('authTokens', this.authTokens?.access_token)
+
     return this.authTokens.access_token
   }
 
@@ -1668,10 +1660,9 @@ class MenuBarNotificationApp {
 
     this.wsServer.on('connection', (ws: WebSocket) => {
       ws.on('message', async (data: WebSocket.Data) => {
-        console.log('message', data.toString())
         try {
           const message = JSON.parse(data.toString())
-          console.log('message', message)
+
           // Handle token request (legacy OAuth)
           if (message.type === 'request-token') {
             const token = await this.getValidAccessToken()
@@ -1691,7 +1682,6 @@ class MenuBarNotificationApp {
 
           // Handle provider token request (new OAuth provider system)
           if (message.type === 'request-provider-token') {
-            console.log('do i get here bro')
             const { providerId } = message
 
             if (!providerId) {
