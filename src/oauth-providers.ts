@@ -144,8 +144,8 @@ export class OAuthProviderManager {
 
       this.isLoaded = true
     }
-    catch (error) {
-      console.error('❌ Error loading server providers:', error)
+    catch {
+      // console.error('❌ Error loading server providers:', error)
       // If decryption fails, start fresh (could be due to key rotation)
       this.serverProviders.clear()
       this.isLoaded = true

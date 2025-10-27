@@ -278,6 +278,11 @@ export class ExecutorWebSocketClient {
       })
 
       this.ws!.on('error', (error) => {
+        // ignore 404 errors, these are expected on startup, we need to wait for the executor to be ready
+        if (error.message.includes('Unexpected server response: 404')) {
+          return
+        }
+
         console.error(`❌ WebSocket client error (${target.name}):`, error)
       })
     }
@@ -309,7 +314,7 @@ export class ExecutorWebSocketClient {
       }, this.reconnectDelay)
     }
     else {
-      console.error('❌ Max reconnection attempts reached. Will retry when token is refreshed.')
+      // console.error('❌ Max reconnection attempts reached. Will retry when token is refreshed.')
       this.reconnectAttempts = 0 // Reset for next time token is available
     }
   }
