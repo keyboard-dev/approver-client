@@ -43,8 +43,7 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
         // Small delay to ensure font is fully rendered
         timeoutId = setTimeout(() => setIsFontLoaded(true), 100)
       }
-      catch (error) {
-        console.warn('Font loading failed, proceeding with fallback:', error)
+      catch {
         setIsFontLoaded(true)
       }
     }

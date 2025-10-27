@@ -175,7 +175,6 @@ export class OAuthTokenStorage {
         }
       }
       else {
-        console.warn(`⚠️ Tokens expired for ${providerId} and no refresh available`)
         return null
       }
     }

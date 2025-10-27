@@ -52,7 +52,7 @@ export interface PKCEParams {
 export interface ServerProvider {
   id: string
   name: string
-  url: string // e.g., "http://localhost:4000"
+  url: string // e.g., "https://api.keyboard.dev"
 }
 
 // Response from server authorize endpoint
@@ -82,16 +82,13 @@ export interface ServerProvidersResponse {
 }
 
 export class OAuthProviderManager {
-  private customProtocol: string
   private serverProviders: Map<string, ServerProvider> = new Map()
   private readonly SERVER_PROVIDERS_FILE: string
   private isLoaded: boolean = false
   private providerStorage: ProviderStorage
   private getMainAccessToken?: () => Promise<string | null>
 
-  constructor(customProtocol: string = 'mcpauth') {
-    this.customProtocol = customProtocol
-
+  constructor() {
     // Set up encrypted storage file path
     const storageDir = path.join(os.homedir(), '.keyboard-mcp')
     this.SERVER_PROVIDERS_FILE = path.join(storageDir, 'server-providers.encrypted')
@@ -360,8 +357,8 @@ export class OAuthProviderManager {
           userData = this.normalizeUserData(provider.id, userData as Record<string, unknown>)
         }
       }
-      catch (error) {
-        console.warn('Failed to fetch user info:', error)
+      catch {
+        // Silently fail if user info fetch fails
       }
     }
 

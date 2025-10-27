@@ -131,7 +131,6 @@ export class GithubService {
       const tokenData = JSON.parse(fileContent) as GitHubToken
 
       if (!tokenData.access_token) {
-        console.warn('Invalid token data: missing access_token')
         return null
       }
 

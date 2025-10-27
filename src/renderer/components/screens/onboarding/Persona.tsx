@@ -71,8 +71,7 @@ export const Persona: React.FC<PersonaProps> = ({ onNext }) => {
               id="qKw2fNDB"
               style={{ width: '100%' }}
               className="my-form grow h-full"
-              onSubmit={({ responseId }) => {
-                console.log('Typeform widget submitted, response ID:', responseId)
+              onSubmit={() => {
                 onNext()
               }}
             />
@@ -119,7 +118,7 @@ export const Persona: React.FC<PersonaProps> = ({ onNext }) => {
   //         style={{ width: '100%', height: '90vh' }}
   //         className="my-form"
   //         onSubmit={({ responseId }) => {
-  //           console.log('Typeform widget submitted, response ID:', responseId)
+  //
   //           handleComplete()
   //         // Additional actions after submit
   //         }}

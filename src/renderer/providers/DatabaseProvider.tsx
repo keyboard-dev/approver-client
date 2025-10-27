@@ -73,8 +73,8 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({ children }) 
       try {
         const count = await databaseService.getTotalPendingCount()
         // Ensure electronAPI exists before invoking
-        if (window.electronAPI && typeof window.electronAPI.invoke === 'function') {
-          await window.electronAPI.invoke('db:pending-count-updated', count)
+        if (window.electronAPI && typeof window.electronAPI.dbPendingCountUpdated === 'function') {
+          window.electronAPI.dbPendingCountUpdated(count)
         }
       }
       catch (error) {

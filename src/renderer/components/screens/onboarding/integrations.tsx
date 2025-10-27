@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { ServerProviderInfo } from '../../../../oauth-providers'
-import { getProviderIcon } from '../../../utils/providerUtils'
 import { useAuth } from '../../../hooks/useAuth'
+import { getProviderIcon } from '../../../utils/providerUtils'
 import { Footer } from '../../Footer'
 import { ButtonDesigned } from '../../ui/ButtonDesigned'
 import { ProgressIndicator } from './ProgressIndicator'
@@ -77,7 +77,7 @@ export const Integrations: React.FC<IntegrationsProps> = ({ onComplete }) => {
         const newServer = {
           id: 'keyboard-api',
           name: 'Keyboard API',
-          url: 'https://api.keyboard.dev',
+          url: 'http://localhost:4000',
         }
         await window.electronAPI.addServerProvider(newServer)
         keyboardApiServer = newServer
@@ -85,7 +85,7 @@ export const Integrations: React.FC<IntegrationsProps> = ({ onComplete }) => {
 
       // Fetch providers using the electron API to avoid CORS
       const providers = await window.electronAPI.fetchServerProviders('keyboard-api')
-      console.log('providers', providers)
+
       if (providers && providers.length > 0) {
         // Transform the server response to our format, filtering for the ones we want to show
         const transformedProviders = providers.map((p: ExtendedServerProviderInfo) => ({

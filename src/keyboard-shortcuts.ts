@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { encrypt, decrypt } from './encryption'
+import { decrypt, encrypt } from './encryption'
 
 // Get API URL from environment or default to empty string
 const getApiUrl = () => {

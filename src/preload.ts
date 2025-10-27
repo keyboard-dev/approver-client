@@ -192,13 +192,15 @@ export interface ElectronAPI {
   openExternalUrl: (url: string) => Promise<void>
 
   // Settings management
-  getSettings: () => Promise<{ showNotifications: boolean, automaticCodeApproval: CodeApprovalLevel, automaticResponseApproval: ResponseApprovalLevel, settingsFile: string, updatedAt: number | null }>
+  getSettings: () => Promise<{ showNotifications: boolean, automaticCodeApproval: CodeApprovalLevel, automaticResponseApproval: ResponseApprovalLevel, fullCodeExecution: boolean, settingsFile: string, updatedAt: number | null }>
   setShowNotifications: (show: boolean) => Promise<void>
   getShowNotifications: () => Promise<boolean>
   setAutomaticCodeApproval: (level: CodeApprovalLevel) => Promise<void>
   getAutomaticCodeApproval: () => Promise<CodeApprovalLevel>
   setAutomaticResponseApproval: (level: ResponseApprovalLevel) => Promise<void>
   getAutomaticResponseApproval: () => Promise<ResponseApprovalLevel>
+  setFullCodeExecution: (enabled: boolean) => Promise<void>
+  getFullCodeExecution: () => Promise<boolean>
   // Assets path
   getAssetsPath: () => Promise<string>
 
@@ -212,7 +214,25 @@ export interface ElectronAPI {
 
   // Test methods for development
   testUpdateAvailable: () => Promise<void>
+  testDownloadUpdate: () => Promise<void>
+  testUpdateDownloaded: () => Promise<void>
   invoke: (channel: string, ...args: unknown[]) => Promise<unknown>
+
+  // Executor WebSocket connection methods
+  getExecutorConnectionStatus: () => Promise<{ connected: boolean, target?: { type: 'localhost' | 'codespace', url: string, name?: string, codespaceName?: string } }>
+  reconnectToExecutor: () => Promise<boolean>
+  disconnectFromExecutor: () => Promise<void>
+  discoverCodespaces: () => Promise<Array<{ codespace: unknown, websocketUrl?: string, available: boolean, error?: string }>>
+  connectToCodespace: (codespaceName: string) => Promise<boolean>
+  connectToBestCodespace: () => Promise<boolean>
+  connectToLocalhost: () => Promise<void>
+  getLastKnownCodespaces: () => Promise<Array<{ codespace: unknown, websocketUrl?: string, available: boolean, error?: string }>>
+
+  // Database notification (no return value needed)
+  dbPendingCountUpdated: (count: number) => void
+
+  // Version install date
+  getVersionInstallDate: () => Promise<Date | null>
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -341,13 +361,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openExternalUrl: (url: string): Promise<void> => ipcRenderer.invoke('open-external-url', url),
 
   // Settings management
-  getSettings: (): Promise<{ showNotifications: boolean, automaticCodeApproval: CodeApprovalLevel, automaticResponseApproval: ResponseApprovalLevel, settingsFile: string, updatedAt: number | null }> => ipcRenderer.invoke('get-settings'),
+  getSettings: (): Promise<{ showNotifications: boolean, automaticCodeApproval: CodeApprovalLevel, automaticResponseApproval: ResponseApprovalLevel, fullCodeExecution: boolean, settingsFile: string, updatedAt: number | null }> => ipcRenderer.invoke('get-settings'),
   setShowNotifications: (show: boolean): Promise<void> => ipcRenderer.invoke('set-show-notifications', show),
   getShowNotifications: (): Promise<boolean> => ipcRenderer.invoke('get-show-notifications'),
   setAutomaticCodeApproval: (level: CodeApprovalLevel): Promise<void> => ipcRenderer.invoke('set-automatic-code-approval', level),
   getAutomaticCodeApproval: (): Promise<CodeApprovalLevel> => ipcRenderer.invoke('get-automatic-code-approval'),
   setAutomaticResponseApproval: (level: ResponseApprovalLevel): Promise<void> => ipcRenderer.invoke('set-automatic-response-approval', level),
   getAutomaticResponseApproval: (): Promise<ResponseApprovalLevel> => ipcRenderer.invoke('get-automatic-response-approval'),
+  setFullCodeExecution: (enabled: boolean): Promise<void> => ipcRenderer.invoke('set-full-code-execution', enabled),
+  getFullCodeExecution: (): Promise<boolean> => ipcRenderer.invoke('get-full-code-execution'),
 
   // Assets path
   getAssetsPath: (): Promise<string> => ipcRenderer.invoke('get-assets-path'),
@@ -368,7 +390,27 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Test methods for development
   testUpdateAvailable: (): Promise<void> => ipcRenderer.invoke('test-update-available'),
+  testDownloadUpdate: (): Promise<void> => ipcRenderer.invoke('test-download-update'),
+  testUpdateDownloaded: (): Promise<void> => ipcRenderer.invoke('test-update-downloaded'),
   invoke: (channel: string, ...args: unknown[]): Promise<unknown> => ipcRenderer.invoke(channel, ...args),
+
+  // Executor WebSocket connection methods
+  getExecutorConnectionStatus: () => ipcRenderer.invoke('get-executor-connection-status'),
+  reconnectToExecutor: (): Promise<boolean> => ipcRenderer.invoke('reconnect-to-executor'),
+  disconnectFromExecutor: (): Promise<void> => ipcRenderer.invoke('disconnect-from-executor'),
+  discoverCodespaces: () => ipcRenderer.invoke('discover-codespaces'),
+  connectToCodespace: (codespaceName: string): Promise<boolean> => ipcRenderer.invoke('connect-to-codespace', codespaceName),
+  connectToBestCodespace: (): Promise<boolean> => ipcRenderer.invoke('connect-to-best-codespace'),
+  connectToLocalhost: (): Promise<void> => ipcRenderer.invoke('connect-to-localhost'),
+  getLastKnownCodespaces: () => ipcRenderer.invoke('get-last-known-codespaces'),
+
+  // Database notification (no return value needed)
+  dbPendingCountUpdated: (count: number): void => {
+    ipcRenderer.invoke('db:pending-count-updated', count)
+  },
+
+  // Version install date
+  getVersionInstallDate: (): Promise<Date | null> => ipcRenderer.invoke('get-version-install-date'),
 } as ElectronAPI)
 
 // Extend the global Window interface

@@ -4,6 +4,7 @@ import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
 import * as WebSocket from 'ws'
+import { CodespaceEncryptionConfig, encryptWithCodespaceKey } from './codespace-encryption'
 import { setEncryptionKeyProvider } from './encryption'
 import { GithubService } from './Github'
 import { deleteScriptTemplate } from './keyboard-shortcuts'
@@ -16,6 +17,7 @@ import { createRestAPIServer } from './rest-api'
 import { TrayManager } from './tray-manager'
 import { AuthorizeResponse, AuthTokens, CollectionRequest, ErrorResponse, Message, PKCEParams, ShareMessage, TokenResponse } from './types'
 import { CODE_APPROVAL_ORDER, CodeApprovalLevel, RESPONSE_APPROVAL_ORDER, ResponseApprovalLevel } from './types/settings-types'
+import { ExecutorWebSocketClient } from './websocket-client-to-executor'
 import { WindowManager } from './window-manager'
 
 // Helper function to find assets directory reliably
@@ -122,7 +124,12 @@ class MenuBarNotificationApp {
   private showNotifications: boolean = true
   private automaticCodeApproval: CodeApprovalLevel = 'never'
   private automaticResponseApproval: ResponseApprovalLevel = 'never'
+  private fullCodeExecution: boolean = false
   private readonly SETTINGS_FILE = path.join(os.homedir(), '.keyboard-mcp-settings')
+  private readonly FULL_CODE_EXECUTION_FILE = path.join(os.homedir(), '.keyboard-mcp', 'full-code-execution')
+
+  // Executor WebSocket client
+  private executorWSClient: ExecutorWebSocketClient | null = null
 
   constructor() {
     // Initialize HTTP server (doesn't need encryption)
@@ -161,6 +168,11 @@ class MenuBarNotificationApp {
     // Set up encryption key provider
     setEncryptionKeyProvider({
       getActiveEncryptionKey: () => this.getActiveEncryptionKey(),
+    })
+
+    // Initialize executor WebSocket client
+    this.executorWSClient = new ExecutorWebSocketClient((message) => {
+      this.handleExecutorMessage(message)
     })
 
     this.initializeApp()
@@ -221,8 +233,8 @@ class MenuBarNotificationApp {
         try {
           app.dock?.setIcon(iconPath)
         }
-        catch (error) {
-          console.warn('Failed to set dock icon:', error)
+        catch {
+          // Silently fail if dock icon cannot be set
         }
       }
 
@@ -245,6 +257,9 @@ class MenuBarNotificationApp {
       // Initialize GitHub service
       await this.initializeGithubService()
 
+      // Try to connect to executor with onboarding token
+      await this.connectToExecutorWithToken()
+
       // Configure auto-updater (only on macOS and Windows)
       if (process.platform === 'darwin' || process.platform === 'win32') {
         const feedURL = `https://api.keyboard.dev/update/${process.platform}/${app.getVersion()}`
@@ -254,20 +269,18 @@ class MenuBarNotificationApp {
 
         // Auto-updater event handlers
         autoUpdater.on('checking-for-update', () => {
-          console.log('Checking for update...')
+
         })
 
         autoUpdater.on('update-available', () => {
           console.log('Update available')
-          // notify user
         })
 
         autoUpdater.on('update-not-available', () => {
-          console.log('No update available')
+
         })
 
         autoUpdater.on('update-downloaded', () => {
-          console.log('Update downloaded')
           // Notify user and ask if they want to restart
           const notification = new Notification({
             title: 'Update Ready',
@@ -320,7 +333,7 @@ class MenuBarNotificationApp {
   private async initializeOAuthProviderSystem(): Promise<void> {
     try {
       // Initialize OAuth provider system
-      this.oauthProviderManager = new OAuthProviderManager(this.CUSTOM_PROTOCOL)
+      this.oauthProviderManager = new OAuthProviderManager()
       this.oauthTokenStorage = new OAuthTokenStorage() // Keep for migration
       this.perProviderTokenStorage = new PerProviderTokenStorage()
 
@@ -338,6 +351,243 @@ class MenuBarNotificationApp {
 
   private async initializeGithubService(): Promise<void> {
     this.githubService = await new GithubService()
+  }
+
+  /**
+   * Connect to executor WebSocket server with GitHub token
+   */
+  private async connectToExecutorWithToken(): Promise<void> {
+    try {
+      // Try to get onboarding GitHub token
+      const onboardingToken = await this.perProviderTokenStorage.getValidAccessToken(
+        'onboarding',
+        this.refreshProviderTokens.bind(this),
+      )
+
+      if (onboardingToken && this.executorWSClient) {
+        this.executorWSClient.setGitHubToken(onboardingToken)
+      }
+    }
+    catch (error) {
+      console.error('❌ Error connecting to executor:', error)
+    }
+  }
+
+  /**
+   * Handle messages received from the executor WebSocket server
+   */
+  private handleExecutorMessage(message: { type: string, message?: Message, data?: unknown, id?: string, providerId?: string, requestId?: string }): void {
+    try {
+      switch (message.type) {
+        case 'websocket-message':
+          // Forward to existing message handling
+          if (message.message) {
+            this.handleIncomingMessage(message.message)
+          }
+          break
+
+        case 'collection-share-request':
+          // Handle collection share requests
+          this.handleCollectionShareRequest(message as never)
+          break
+
+        case 'prompter-request':
+          // Handle prompter requests
+          this.handlePrompterRequest(message as never)
+          break
+
+        case 'prompt-response':
+          // Handle prompt responses
+          this.handlePromptResponse(message as never)
+          break
+
+        case 'request-provider-token':
+          // Handle provider token requests from executor
+          this.handleExecutorProviderTokenRequest(message)
+          break
+
+        case 'request-provider-status':
+          // Handle provider status requests from executor
+          this.handleExecutorProviderStatusRequest(message)
+          break
+
+        case 'request-token':
+          // Handle legacy OAuth token requests from executor
+          this.handleExecutorTokenRequest(message)
+          break
+
+        default:
+      }
+    }
+    catch (error) {
+      console.error('❌ Error handling executor message:', error)
+    }
+  }
+
+  /**
+   * Helper function to encrypt provider token using codespace encryption
+   */
+  private async encryptProviderToken(token: string): Promise<{
+    encryptedToken: string
+    encrypted: boolean
+    encryptionMethod: string
+  }> {
+    let encryptedToken = token
+    let encrypted = false
+    let encryptionMethod = 'none'
+
+    if (token) {
+      try {
+        const onboardingToken = await this.perProviderTokenStorage.getValidAccessToken(
+          'onboarding',
+          this.refreshProviderTokens.bind(this),
+        )
+        const accessToken = await this.getValidAccessToken()
+
+        if (onboardingToken && accessToken) {
+          const config: CodespaceEncryptionConfig = {
+            codespaceUrl: 'auto', // Will be auto-discovered
+            bearerToken: accessToken, // Use GitHub token for authentication
+            githubToken: onboardingToken,
+          }
+
+          // This will auto-discover the codespace URL and encrypt the token
+          encryptedToken = await encryptWithCodespaceKey(token, config)
+          encrypted = true
+          encryptionMethod = 'rsa-codespace'
+        }
+      }
+      catch (encryptionError) {
+        console.error('❌ Failed to encrypt provider token:', encryptionError)
+        // Continue with unencrypted token as fallback
+      }
+    }
+
+    return { encryptedToken, encrypted, encryptionMethod }
+  }
+
+  /**
+   * Handle provider token request from executor WebSocket
+   */
+  private async handleExecutorProviderTokenRequest(message: { providerId?: string, requestId?: string }): Promise<void> {
+    const { providerId } = message
+
+    if (!providerId) {
+      // Send error response back through executor client
+      if (this.executorWSClient) {
+        this.executorWSClient.send({
+          type: 'provider-auth-token',
+          error: 'Provider ID is required',
+          timestamp: Date.now(),
+          requestId: message.requestId,
+        })
+      }
+      return
+    }
+
+    try {
+      const token = await this.getValidProviderAccessToken(providerId.toLowerCase())
+      const providerStatus = await this.perProviderTokenStorage.getProviderStatus()
+      const providerInfo = providerStatus[providerId]
+      const provider = await this.oauthProviderManager.getProvider(providerId)
+      if (!token) {
+        throw new Error('No token available')
+      }
+      // Encrypt token using codespace encryption if available
+
+      const { encryptedToken, encrypted, encryptionMethod } = await this.encryptProviderToken(token)
+      if (!encrypted) {
+        throw new Error('Failed to encrypt token')
+      }
+
+      const tokenResponse = {
+        type: 'provider-auth-token',
+        providerId: providerId,
+        token: encryptedToken,
+        encrypted: encrypted,
+        encryptionMethod: encryptionMethod,
+        timestamp: Date.now(),
+        requestId: message.requestId,
+        authenticated: !!token || this.SKIP_AUTH,
+        user: providerInfo?.user || (this.SKIP_AUTH ? { email: 'test@example.com', firstName: 'Test Provider' } : null),
+        providerName: provider?.name || providerId,
+      }
+
+      // Send response back through executor client
+      if (this.executorWSClient) {
+        this.executorWSClient.send(tokenResponse)
+      }
+    }
+    catch (error) {
+      // Send error response back through executor client
+      if (this.executorWSClient) {
+        this.executorWSClient.send({
+          type: 'provider-auth-token',
+          providerId: providerId,
+          error: `Failed to get token: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          timestamp: Date.now(),
+          requestId: message.requestId,
+        })
+      }
+    }
+  }
+
+  /**
+   * Handle provider status request from executor WebSocket
+   */
+  private async handleExecutorProviderStatusRequest(message: { requestId?: string }): Promise<void> {
+    try {
+      const providerStatus = await this.perProviderTokenStorage.getProviderStatus()
+
+      // Check ALL stored provider tokens (both direct and server provider tokens)
+      const tokensAvailable = Object.entries(providerStatus)
+        .filter(([, status]) => status?.authenticated)
+        .map(([providerId]) => `KEYBOARD_PROVIDER_USER_TOKEN_FOR_${providerId.toUpperCase()}`)
+
+      const statusResponse = {
+        type: 'user-tokens-available',
+        tokensAvailable: tokensAvailable,
+        timestamp: Date.now(),
+        requestId: message.requestId,
+      }
+
+      // Send response back through executor client
+      if (this.executorWSClient) {
+        this.executorWSClient.send(statusResponse)
+      }
+    }
+    catch (error) {
+      // Send error response back through executor client
+      if (this.executorWSClient) {
+        this.executorWSClient.send({
+          type: 'user-tokens-available',
+          error: `Failed to get provider status: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          timestamp: Date.now(),
+          requestId: message.requestId,
+        })
+      }
+    }
+  }
+
+  /**
+   * Handle legacy OAuth token request from executor WebSocket
+   */
+  private async handleExecutorTokenRequest(message: { requestId?: string }): Promise<void> {
+    const token = await this.getValidAccessToken()
+
+    const tokenResponse = {
+      type: 'auth-token',
+      token: token || (this.SKIP_AUTH ? 'test-token' : null),
+      timestamp: Date.now(),
+      requestId: message.requestId, // Echo back request ID if provided
+      authenticated: !!token || this.SKIP_AUTH,
+      user: token ? this.authTokens?.user : (this.SKIP_AUTH ? { email: 'test@example.com', firstName: 'Test' } : null),
+    }
+
+    // Send response back through executor client
+    if (this.executorWSClient) {
+      this.executorWSClient.send(tokenResponse)
+    }
   }
 
   /**
@@ -441,9 +691,6 @@ class MenuBarNotificationApp {
         if (envKey.length === 32) {
           this.encryptionKey = process.env.ENCRYPTION_KEY
           return
-        }
-        else {
-          console.warn('⚠️ ENCRYPTION_KEY environment variable is not 32 bytes, falling back to generated key')
         }
       }
 
@@ -551,7 +798,7 @@ class MenuBarNotificationApp {
         }
         if (typeof parsedData.automaticCodeApproval === 'string'
           && CODE_APPROVAL_ORDER.includes(parsedData.automaticCodeApproval as CodeApprovalLevel)) {
-          this.automaticCodeApproval = parsedData.automaticCodeApproval as CodeApprovalLevel
+          this.automaticCodeApproval = parsedData.automaticCodeApproval
         }
 
         // boolean check for backward compatibility
@@ -567,14 +814,17 @@ class MenuBarNotificationApp {
           && RESPONSE_APPROVAL_ORDER.includes(parsedData.automaticResponseApproval as ResponseApprovalLevel)) {
           this.automaticResponseApproval = parsedData.automaticResponseApproval
         }
+        if (typeof parsedData.fullCodeExecution === 'boolean') {
+          this.fullCodeExecution = parsedData.fullCodeExecution
+        }
       }
     }
     catch (error) {
       console.error('❌ Error initializing settings:', error)
       // Use defaults if settings file is corrupted
       this.showNotifications = true
-      this.automaticCodeApproval = 'never'
       this.automaticResponseApproval = 'never'
+      this.fullCodeExecution = false
     }
   }
 
@@ -584,6 +834,7 @@ class MenuBarNotificationApp {
         showNotifications: this.showNotifications,
         automaticCodeApproval: this.automaticCodeApproval,
         automaticResponseApproval: this.automaticResponseApproval,
+        fullCodeExecution: this.fullCodeExecution,
         version: '1.0',
         updatedAt: Date.now(),
       }
@@ -597,7 +848,7 @@ class MenuBarNotificationApp {
     }
   }
 
-  private getSettingsInfo(): { showNotifications: boolean, automaticCodeApproval: CodeApprovalLevel, automaticResponseApproval: ResponseApprovalLevel, settingsFile: string, updatedAt: number | null } {
+  private getSettingsInfo(): { showNotifications: boolean, automaticCodeApproval: CodeApprovalLevel, automaticResponseApproval: ResponseApprovalLevel, fullCodeExecution: boolean, settingsFile: string, updatedAt: number | null } {
     let updatedAt: number | null = null
 
     try {
@@ -615,6 +866,7 @@ class MenuBarNotificationApp {
       showNotifications: this.showNotifications,
       automaticCodeApproval: this.automaticCodeApproval,
       automaticResponseApproval: this.automaticResponseApproval,
+      fullCodeExecution: this.fullCodeExecution,
       settingsFile: this.SETTINGS_FILE,
       updatedAt,
     }
@@ -1001,6 +1253,11 @@ class MenuBarNotificationApp {
         await this.githubService.initializeToken()
         await this.githubService.createFork('keyboard-dev', 'codespace-executor')
         await this.githubService.createFork('keyboard-dev', 'app-creator')
+
+        // Connect to executor with the new onboarding token
+        if (this.executorWSClient) {
+          this.executorWSClient.setGitHubToken(tokens.access_token)
+        }
       }
 
       this.currentProviderPKCE = null
@@ -1431,10 +1688,17 @@ class MenuBarNotificationApp {
               const providerInfo = providerStatus[providerId]
               const provider = await this.oauthProviderManager.getProvider(providerId)
 
+              // Encrypt token using codespace encryption if available
+              const { encryptedToken, encrypted, encryptionMethod } = token
+                ? await this.encryptProviderToken(token)
+                : { encryptedToken: token, encrypted: false, encryptionMethod: 'none' }
+
               const tokenResponse = {
                 type: 'provider-auth-token',
                 providerId: providerId,
-                token: token,
+                token: encryptedToken,
+                encrypted: encrypted,
+                encryptionMethod: encryptionMethod,
                 timestamp: Date.now(),
                 requestId: message.requestId,
                 authenticated: !!token || this.SKIP_AUTH,
@@ -1907,6 +2171,11 @@ class MenuBarNotificationApp {
     ipcMain.handle('reject-message', async (_event, messageId: string, feedback?: string): Promise<void> => {
       // Only send WebSocket response, database update happens in renderer
       this.handleRejectMessage(messageId, feedback)
+
+      // Send rejection to executor
+      if (this.executorWSClient) {
+        this.executorWSClient.sendRejection(messageId, feedback)
+      }
     })
 
     // Handle show all messages
@@ -1982,7 +2251,7 @@ class MenuBarNotificationApp {
     })
 
     // Settings management
-    ipcMain.handle('get-settings', (): { showNotifications: boolean, automaticCodeApproval: CodeApprovalLevel, automaticResponseApproval: ResponseApprovalLevel, settingsFile: string, updatedAt: number | null } => {
+    ipcMain.handle('get-settings', (): { showNotifications: boolean, automaticCodeApproval: CodeApprovalLevel, automaticResponseApproval: ResponseApprovalLevel, fullCodeExecution: boolean, settingsFile: string, updatedAt: number | null } => {
       return this.getSettingsInfo()
     })
 
@@ -2013,6 +2282,31 @@ class MenuBarNotificationApp {
       return this.automaticResponseApproval
     })
 
+    ipcMain.handle('set-full-code-execution', async (_event, enabled: boolean): Promise<void> => {
+      this.fullCodeExecution = enabled
+      await this.saveSettings()
+
+      // Create or remove the .keyboard-mcp/full-code-execution file
+      if (enabled) {
+        // Ensure .keyboard-mcp directory exists
+        if (!fs.existsSync(this.STORAGE_DIR)) {
+          fs.mkdirSync(this.STORAGE_DIR, { recursive: true, mode: 0o700 })
+        }
+        // Create the file with enabled: true
+        fs.writeFileSync(this.FULL_CODE_EXECUTION_FILE, JSON.stringify({ enabled: true }, null, 2), { mode: 0o600 })
+      }
+      else {
+        // Remove the file if it exists
+        if (fs.existsSync(this.FULL_CODE_EXECUTION_FILE)) {
+          fs.unlinkSync(this.FULL_CODE_EXECUTION_FILE)
+        }
+      }
+    })
+
+    ipcMain.handle('get-full-code-execution', (): boolean => {
+      return this.fullCodeExecution
+    })
+
     ipcMain.handle('get-assets-path', (): string => {
       return getAssetsPath()
     })
@@ -2032,6 +2326,123 @@ class MenuBarNotificationApp {
     ipcMain.handle('db:clear-all-messages', async (): Promise<void> => {
       this.clearAllMessages()
     })
+
+    // Executor WebSocket client IPC handlers
+    ipcMain.handle('get-executor-connection-status', () => {
+      if (!this.executorWSClient) {
+        return { connected: false }
+      }
+      return this.executorWSClient.getConnectionInfo()
+    })
+
+    ipcMain.handle('reconnect-to-executor', async (): Promise<boolean> => {
+      if (this.executorWSClient) {
+        return await this.executorWSClient.reconnect()
+      }
+      return false
+    })
+
+    ipcMain.handle('disconnect-from-executor', (): void => {
+      if (this.executorWSClient) {
+        this.executorWSClient.disconnect()
+      }
+    })
+
+    // Codespace discovery and management IPC handlers
+    ipcMain.handle('discover-codespaces', async () => {
+      if (!this.executorWSClient) {
+        return []
+      }
+      return await this.executorWSClient.discoverCodespaces()
+    })
+
+    ipcMain.handle('connect-to-codespace', async (_event, codespaceName: string): Promise<boolean> => {
+      if (!this.executorWSClient) {
+        return false
+      }
+      return await this.executorWSClient.connectToSpecificCodespace(codespaceName)
+    })
+
+    ipcMain.handle('connect-to-best-codespace', async (): Promise<boolean> => {
+      if (!this.executorWSClient) {
+        return false
+      }
+      return await this.executorWSClient.autoConnect()
+    })
+
+    ipcMain.handle('connect-to-localhost', (): void => {
+      if (this.executorWSClient) {
+        this.executorWSClient.connectToLocalhost()
+      }
+    })
+
+    ipcMain.handle('get-last-known-codespaces', () => {
+      if (!this.executorWSClient) {
+        return []
+      }
+      return this.executorWSClient.getLastKnownCodespaces()
+    })
+
+    // Auto-updater IPC handlers (only available on macOS and Windows)
+    ipcMain.handle('check-for-updates', async (): Promise<void> => {
+      if (process.platform === 'darwin' || process.platform === 'win32') {
+        autoUpdater.checkForUpdates()
+      }
+      else {
+        throw new Error('Auto-updater not supported on this platform')
+      }
+    })
+
+    ipcMain.handle('download-update', async (): Promise<void> => {
+      if (process.platform === 'darwin' || process.platform === 'win32') {
+        // On macOS and Windows, updates are downloaded automatically
+        throw new Error('Manual update download not supported')
+      }
+      else {
+        throw new Error('Auto-updater not supported on this platform')
+      }
+    })
+
+    ipcMain.handle('quit-and-install', async (): Promise<void> => {
+      if (process.platform === 'darwin' || process.platform === 'win32') {
+        autoUpdater.quitAndInstall()
+      }
+      else {
+        throw new Error('Auto-updater not supported on this platform')
+      }
+    })
+
+    // Test methods for development
+    ipcMain.handle('test-update-available', async (): Promise<void> => {
+      this.windowManager.sendMessage('update-available', {
+        version: '1.0.1',
+        releaseDate: new Date().toISOString(),
+        releaseName: 'Test Update',
+        releaseNotes: 'This is a test update notification',
+      })
+    })
+
+    ipcMain.handle('test-download-update', async (): Promise<void> => {
+      // Simulate download progress
+      for (let i = 0; i <= 100; i += 10) {
+        this.windowManager.sendMessage('download-progress', {
+          percent: i,
+          transferred: i * 1024 * 1024,
+          total: 100 * 1024 * 1024,
+          bytesPerSecond: 1024 * 1024,
+        })
+        await new Promise(resolve => setTimeout(resolve, 200))
+      }
+    })
+
+    ipcMain.handle('test-update-downloaded', async (): Promise<void> => {
+      this.windowManager.sendMessage('update-downloaded', {
+        version: '1.0.1',
+        releaseDate: new Date().toISOString(),
+        releaseName: 'Test Update',
+        releaseNotes: 'This is a test update notification',
+      })
+    })
   }
 
   private handleApproveMessage(message: Message, feedback?: string): Message {
@@ -2040,6 +2451,11 @@ class MenuBarNotificationApp {
 
     // Send response back through WebSocket if needed
     this.sendWebSocketResponse(updatedMessage)
+
+    // Send approval to executor
+    if (this.executorWSClient) {
+      this.executorWSClient.sendApproval(message.id, feedback)
+    }
 
     return updatedMessage
   }
@@ -2157,6 +2573,11 @@ class MenuBarNotificationApp {
     // Stop OAuth HTTP server
     if (this.oauthHttpServer) {
       this.oauthHttpServer.stopServer()
+    }
+
+    // Disconnect from executor
+    if (this.executorWSClient) {
+      this.executorWSClient.disconnect()
     }
 
     this.trayManager.destroy()

@@ -31,8 +31,7 @@ export const Share: React.FC<ShareProps> = ({
         await document.fonts.load('400 16px "Fira Code"')
         setTimeout(() => setIsFontLoaded(true), 100)
       }
-      catch (error) {
-        console.warn('Font loading failed, proceeding with fallback:', error)
+      catch {
         setIsFontLoaded(true)
       }
     }

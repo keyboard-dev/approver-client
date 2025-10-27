@@ -28,7 +28,6 @@ function getAssetsPath(): string {
     return rootAssetsPath
   }
 
-  console.warn('Assets directory not found, using default path')
   return devAssetsPath // Return something even if not found
 }
 
@@ -90,7 +89,6 @@ export class TrayManager {
       let iconPath = primaryIconPath
       try {
         if (!fs.existsSync(primaryIconPath)) {
-          console.warn('Primary icon not found, using fallback:', primaryIconPath)
           iconPath = fallbackIconPath
         }
       }
@@ -107,7 +105,6 @@ export class TrayManager {
 
           // Validate the icon was loaded successfully
           if (!icon || icon.isEmpty()) {
-            console.warn('Icon loaded but is empty, using fallback')
             return this.createFallbackIcon()
           }
 
@@ -119,7 +116,6 @@ export class TrayManager {
           try {
             originalSize = icon.getSize()
             if (!originalSize || originalSize.width <= 0 || originalSize.height <= 0) {
-              console.warn('Invalid icon dimensions, using fallback')
               return this.createFallbackIcon()
             }
           }
@@ -139,7 +135,6 @@ export class TrayManager {
 
             // Validate resize worked
             if (!resizedIcon || resizedIcon.isEmpty()) {
-              console.warn('Icon resize failed, using fallback')
               return this.createFallbackIcon()
             }
           }
@@ -178,7 +173,6 @@ export class TrayManager {
           return resizedIcon
         }
         else {
-          console.warn('Icon file not found:', iconPath)
           return this.createFallbackIcon()
         }
       }
@@ -308,7 +302,6 @@ export class TrayManager {
     try {
       // Validate tray exists before doing anything
       if (!this.tray) {
-        console.warn('Tray not initialized, skipping icon update')
         return
       }
 

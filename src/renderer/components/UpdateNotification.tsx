@@ -269,7 +269,7 @@ export const UpdateNotification: React.FC = () => {
               variant="outline"
               onClick={async () => {
                 try {
-                  await window.electronAPI.invoke('test-download-update')
+                  await window.electronAPI.testDownloadUpdate()
                 }
                 catch (error) {
                   console.error('Test download update error:', error)
@@ -283,7 +283,7 @@ export const UpdateNotification: React.FC = () => {
               variant="outline"
               onClick={async () => {
                 try {
-                  await window.electronAPI.invoke('test-update-downloaded')
+                  await window.electronAPI.testUpdateDownloaded()
                 }
                 catch (error) {
                   console.error('Test update downloaded error:', error)

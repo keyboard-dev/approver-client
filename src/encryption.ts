@@ -1,5 +1,5 @@
-import { randomBytes, createCipheriv, createDecipheriv } from 'crypto'
 import '@dotenvx/dotenvx/config'
+import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
 
 const ALGORITHM = 'aes-256-cbc'
 const CUSTOM_ENCRYPTION_KEY = Buffer.from(process.env.CODE_ENCRYPTION_KEY || '', 'hex')
@@ -55,8 +55,7 @@ export function encrypt(text: string): string {
     const ivString = iv.toString('hex')
     return ivString + ':' + encrypted
   }
-  catch (error) {
-    console.error('Encryption error:', error)
+  catch {
     throw new Error('Failed to encrypt data')
   }
 }
@@ -76,8 +75,7 @@ export function encryptWithCustomKey(text: string): string {
     const ivString = iv.toString('hex')
     return ivString + ':' + encrypted
   }
-  catch (error) {
-    console.error('Encryption error:', error)
+  catch {
     throw new Error('Failed to encrypt data')
   }
 }
@@ -99,8 +97,7 @@ export function decrypt(encryptedText: string): string {
 
     return decrypted
   }
-  catch (error) {
-    console.error('Decryption error:', error)
+  catch {
     throw new Error('Failed to decrypt data')
   }
 }
@@ -123,8 +120,7 @@ export function decryptWithCustomKey(encryptedText: string): string {
 
     return decrypted
   }
-  catch (error) {
-    console.error('Decryption error:', error)
+  catch {
     throw new Error('Failed to decrypt data')
   }
 }
