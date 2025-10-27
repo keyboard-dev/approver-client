@@ -68,6 +68,7 @@ const AppContent: React.FC = () => {
   const [isGitHubConnected, setIsGitHubConnected] = useState(false)
   const [isCheckingGitHub, setIsCheckingGitHub] = useState(true)
   const [showPrompterOnly, setShowPrompterOnly] = useState(false)
+  const [isConnectingToCodespace, setIsConnectingToCodespace] = useState(false)
 
   // Use refs to track state without causing re-renders
   const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -85,7 +86,7 @@ const AppContent: React.FC = () => {
         timeoutId = setTimeout(() => setIsFontLoaded(true), 100)
       }
       catch (error) {
-        console.warn('Font loading failed, proceeding with fallback:', error)
+        
         setIsFontLoaded(true)
       }
     }
@@ -626,6 +627,22 @@ const AppContent: React.FC = () => {
     setShowPrompterOnly(true)
   }
 
+  const connectToBestCodespace = async () => {
+    if (!authStatusRef.current.authenticated) return
+    
+    setIsConnectingToCodespace(true)
+    try {
+      const success = await window.electronAPI.invoke('connect-to-best-codespace') as boolean
+      if (success) {
+        updateConnectionStatus('connected')
+      }
+    } catch (error) {
+      console.error('Failed to connect to best codespace:', error)
+    } finally {
+      setIsConnectingToCodespace(false)
+    }
+  }
+
   const getMessageScreen = () => {
     if (showPrompterOnly) {
       return (
@@ -840,6 +857,23 @@ const AppContent: React.FC = () => {
                                 className="flex items-center space-x-2"
                               >
                                 <span>Open Prompter</span>
+                              </Button>
+                            )}
+                            {!showSettings && (
+                              <Button
+                                variant="outline"
+                                onClick={connectToBestCodespace}
+                                disabled={isConnectingToCodespace || connectionStatus === 'connected'}
+                                className="flex items-center space-x-2"
+                              >
+                                <span>
+                                  {isConnectingToCodespace 
+                                    ? 'Connecting...' 
+                                    : connectionStatus === 'connected' 
+                                      ? 'Connected' 
+                                      : 'Connect to Codespace'
+                                  }
+                                </span>
                               </Button>
                             )}
                             {!showSettings && (

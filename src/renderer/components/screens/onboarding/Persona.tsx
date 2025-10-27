@@ -10,8 +10,6 @@ interface PersonaProps {
 export const Persona: React.FC<PersonaProps> = ({ onNext }) => {
   // const [selectedPersona, setSelectedPersona] = useState<string>('')
 
-
-
   // const personas = [
   //   {
   //     id: 'developer',
@@ -74,7 +72,6 @@ export const Persona: React.FC<PersonaProps> = ({ onNext }) => {
               style={{ width: '100%' }}
               className="my-form grow h-full"
               onSubmit={({ responseId }) => {
-                console.log('Typeform widget submitted, response ID:', responseId)
                 onNext()
               }}
             />
@@ -121,7 +118,7 @@ export const Persona: React.FC<PersonaProps> = ({ onNext }) => {
   //         style={{ width: '100%', height: '90vh' }}
   //         className="my-form"
   //         onSubmit={({ responseId }) => {
-  //           console.log('Typeform widget submitted, response ID:', responseId)
+  //
   //           handleComplete()
   //         // Additional actions after submit
   //         }}
