@@ -108,7 +108,7 @@ class MenuBarNotificationApp {
   private pendingCount: number = 0
   private readonly WS_PORT = 8080
   private readonly OAUTH_PORT = 8082
-  private readonly OAUTH_SERVER_URL = process.env.OAUTH_SERVER_URL || 'http://localhost:4000'
+  private readonly OAUTH_SERVER_URL = process.env.OAUTH_SERVER_URL || 'https://api.keyboard.dev'
   private readonly SKIP_AUTH = process.env.SKIP_AUTH === 'true'
   private readonly CUSTOM_PROTOCOL = 'mcpauth'
   private currentPKCE: PKCEParams | null = null
@@ -274,7 +274,7 @@ class MenuBarNotificationApp {
 
       // Configure auto-updater (only on macOS and Windows)
       if (process.platform === 'darwin' || process.platform === 'win32') {
-        const feedURL = `http://localhost:4000/update/${process.platform}/${app.getVersion()}`
+        const feedURL = `https://api.keyboard.dev/update/${process.platform}/${app.getVersion()}`
         autoUpdater.setFeedURL({
           url: feedURL,
         })
@@ -1204,7 +1204,7 @@ class MenuBarNotificationApp {
   private async fetchOnboardingGithubProvider(): Promise<void> {
     const provider = 'onboarding'
 
-    const response = await fetch(`http://localhost:4000/auth/keyboard_github/onboarding`)
+    const response = await fetch(`https://api.keyboard.dev/auth/keyboard_github/onboarding`)
     const data = await response.json() as OnboardingGitHubResponse
     const sessionId = data.session_id
     const authUrl = data.authorization_url
@@ -2425,6 +2425,13 @@ class MenuBarNotificationApp {
         return false
       }
       return await this.executorWSClient.connectToSpecificCodespace(codespaceName)
+    })
+
+    ipcMain.handle('connect-to-best-codespace', async (): Promise<boolean> => {
+      if (!this.executorWSClient) {
+        return false
+      }
+      return await this.executorWSClient.autoConnect()
     })
 
     ipcMain.handle('connect-to-localhost', (): void => {

@@ -52,7 +52,7 @@ export interface PKCEParams {
 export interface ServerProvider {
   id: string
   name: string
-  url: string // e.g., "http://localhost:4000"
+  url: string // e.g., "https://api.keyboard.dev"
 }
 
 // Response from server authorize endpoint
@@ -718,7 +718,7 @@ export class OAuthProviderManager {
       server = {
         id: serverId,
         name: 'Onboarding',
-        url: 'http://localhost:4000',
+        url: 'https://api.keyboard.dev',
       }
     }
     if (!server) {
