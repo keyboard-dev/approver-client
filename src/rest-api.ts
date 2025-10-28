@@ -1,17 +1,17 @@
-import express, { Request, Response, NextFunction, Application } from 'express'
-import { Message, AuthTokens } from './types'
+import express, { Application, NextFunction, Request, Response } from 'express'
 import { Server } from 'http'
+import { decryptWithCustomKey, encryptWithCustomKey } from './encryption'
 import {
-  saveScriptTemplate,
-  getScriptTemplate,
-  listScriptTemplates,
-  updateScriptTemplate,
   deleteScriptTemplate,
-  searchScriptTemplates,
+  getScriptTemplate,
   interpolateScript,
+  listScriptTemplates,
+  saveScriptTemplate,
+  searchScriptTemplates,
+  updateScriptTemplate,
   validateInputs,
 } from './keyboard-shortcuts'
-import { encryptWithCustomKey, decryptWithCustomKey } from './encryption'
+import { AuthTokens, Message } from './types'
 
 interface AuthenticatedRequest extends Request {
   user?: { id?: string, sub?: string, [key: string]: unknown }
@@ -65,11 +65,88 @@ const createCorsMiddleware = () => {
   }
 }
 
+import { createRemoteJWKSet, jwtVerify } from 'jose'
+
+const ISSUER_URL = 'https://login.keyboard.dev'
+const JWKS = createRemoteJWKSet(new URL(`${ISSUER_URL}/oauth2/jwks`))
+
+export async function verifyBearerToken(token: string): Promise<boolean> {
+  if (!token || token.trim() === '') {
+    console.error('❌ Token verification failed: Empty token')
+    return false
+  }
+
+  try {
+    await jwtVerify(token, JWKS, {
+      issuer: ISSUER_URL,
+    })
+
+    return true
+  }
+  catch (error: any) {
+    if (error.code === 'ERR_JWT_EXPIRED') {
+      console.error('❌ Token verification failed: Token expired')
+    }
+    else if (error.code === 'ERR_JWT_CLAIM_VALIDATION_FAILED') {
+      console.error('❌ Token verification failed: Invalid issuer or claims')
+    }
+    else if (error.code === 'ERR_JWS_SIGNATURE_VERIFICATION_FAILED') {
+      console.error('❌ Token verification failed: Invalid signature')
+    }
+    else {
+      console.error('❌ Token verification error:', error.message)
+    }
+    return false
+  }
+}
+
+export async function verifyTokensMatch(tokenOne: string, tokenTwo: string): Promise<boolean> {
+  if (!tokenOne || !tokenTwo || tokenOne.trim() === '' || tokenTwo.trim() === '') {
+    console.error('❌ Token match verification failed: One or both tokens are empty')
+    return false
+  }
+
+  try {
+    // Verify and decode both tokens
+    const tokenOneResult = await jwtVerify(tokenOne, JWKS, {
+      issuer: ISSUER_URL,
+    })
+
+    const tokenTwoResult = await jwtVerify(tokenTwo, JWKS, {
+      issuer: ISSUER_URL,
+    })
+
+    // Extract the 'sub' (subject) claim from both tokens
+    const subOne = tokenOneResult.payload.sub
+    const subTwo = tokenTwoResult.payload.sub
+
+    if (!subOne || !subTwo) {
+      console.error('❌ Token match verification failed: Missing sub claim in one or both tokens')
+      return false
+    }
+
+    // Check if the subjects match
+    const match = subOne === subTwo
+    if (!match) {
+      console.error('❌ Token match verification failed: Subject claims do not match')
+    }
+
+    return match
+  }
+  catch (error: any) {
+    console.error('❌ Token match verification error:', error.message)
+    return false
+  }
+}
+
 const createAuthMiddleware = (getAuthTokens: () => AuthTokens | null) => {
-  return (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
+  return async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     const authHeader = req.headers.authorization
     const token = authHeader?.split(' ')[1] // Bearer token
-
+    if (!token) {
+      res.status(401).json({ error: 'Authentication required' })
+      return
+    }
     const authTokens = getAuthTokens()
 
     if (!authTokens || !token) {
@@ -77,7 +154,8 @@ const createAuthMiddleware = (getAuthTokens: () => AuthTokens | null) => {
       return
     }
 
-    if (token !== authTokens.access_token) {
+    const isTokensMatch = await verifyTokensMatch(token, authTokens.access_token)
+    if (!isTokensMatch) {
       res.status(401).json({ error: 'Invalid token' })
       return
     }

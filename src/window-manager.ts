@@ -24,8 +24,6 @@ export class WindowManager {
     // Get or create a persistent session explicitly
     const persistentSession = session.fromPartition('persist:main', { cache: true })
 
-    console.log('🗄️  Using session with storage path:', persistentSession.getStoragePath())
-
     this.mainWindow = new BrowserWindow({
       frame: false,
       height: DEFAULT_WINDOW_HEIGHT,
