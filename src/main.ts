@@ -1513,7 +1513,7 @@ class MenuBarNotificationApp {
       })
 
       this.sseBackgroundService = new SSEBackgroundService({
-        serverUrl: 'https://growing-goose-conversely.ngrok-free.app',
+        serverUrl: 'https://mcp.keyboard.dev',
       })
       this.sseBackgroundService.setAuthToken(this.authTokens?.access_token)
       this.sseBackgroundService.connect()
@@ -1631,6 +1631,11 @@ class MenuBarNotificationApp {
   private logout(): void {
     this.authTokens = null
     this.currentPKCE = null
+
+    // Disconnect from SSE when logging out
+    if (this.sseBackgroundService) {
+      this.sseBackgroundService.disconnect()
+    }
 
     this.windowManager.sendMessage('auth-logout')
   }
@@ -2369,6 +2374,11 @@ class MenuBarNotificationApp {
       if (this.executorWSClient) {
         this.executorWSClient.disconnect()
       }
+      
+      // Disconnect from SSE when executor disconnects
+      if (this.sseBackgroundService) {
+        this.sseBackgroundService.disconnect()
+      }
     })
 
     // Codespace discovery and management IPC handlers
@@ -2601,6 +2611,11 @@ class MenuBarNotificationApp {
     // Disconnect from executor
     if (this.executorWSClient) {
       this.executorWSClient.disconnect()
+    }
+
+    // Disconnect from SSE when app is shutting down
+    if (this.sseBackgroundService) {
+      this.sseBackgroundService.disconnect()
     }
 
     this.trayManager.destroy()
