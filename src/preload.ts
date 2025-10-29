@@ -233,6 +233,9 @@ export interface ElectronAPI {
 
   // Version install date
   getVersionInstallDate: () => Promise<Date | null>
+
+  // App version
+  getAppVersion: () => Promise<string>
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -411,6 +414,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Version install date
   getVersionInstallDate: (): Promise<Date | null> => ipcRenderer.invoke('get-version-install-date'),
+
+  // App version
+  getAppVersion: (): Promise<string> => ipcRenderer.invoke('get-app-version'),
 } as ElectronAPI)
 
 // Extend the global Window interface
