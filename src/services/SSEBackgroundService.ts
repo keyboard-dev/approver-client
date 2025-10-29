@@ -148,6 +148,7 @@ export class SSEBackgroundService extends EventEmitter {
   }
 
   private handleMessage(data: SSEMessage): void {
+    console.log('🔍 Handling SSE message:', data)
     switch (data.type) {
       case 'connected':
         console.log('✅ SSE connection confirmed')
@@ -155,7 +156,7 @@ export class SSEBackgroundService extends EventEmitter {
         break
 
       case 'codespace_online':
-        console.log('🚀 Codespace came online:', data.data?.name)
+        console.log('🚀 Codespace came online:', data)
         this.emit('codespace-online', data.data)
         break
 
