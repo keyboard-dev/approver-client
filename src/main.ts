@@ -14,6 +14,7 @@ import { OAuthTokenStorage, StoredProviderTokens } from './oauth-token-storage'
 import { PerProviderTokenStorage } from './per-provider-token-storage'
 import { OAuthProviderConfig } from './provider-storage'
 import { createRestAPIServer } from './rest-api'
+import { CodespaceData, SSEBackgroundService } from './services/SSEBackgroundService'
 import { TrayManager } from './tray-manager'
 import { AuthorizeResponse, AuthTokens, CollectionRequest, ErrorResponse, Message, PKCEParams, ShareMessage, TokenResponse } from './types'
 import { CODE_APPROVAL_ORDER, CodeApprovalLevel, RESPONSE_APPROVAL_ORDER, ResponseApprovalLevel } from './types/settings-types'
@@ -102,6 +103,7 @@ class MenuBarNotificationApp {
   private readonly CUSTOM_PROTOCOL = 'mcpauth'
   private currentPKCE: PKCEParams | null = null
   private authTokens: AuthTokens | null = null
+  private sseBackgroundService: SSEBackgroundService | null = null
   // New OAuth provider system (initialized later after encryption is ready)
   private oauthProviderManager!: OAuthProviderManager
   private githubService!: GithubService
@@ -359,6 +361,7 @@ class MenuBarNotificationApp {
   private async connectToExecutorWithToken(): Promise<void> {
     try {
       // Try to get onboarding GitHub token
+      console.log('🔑 Getting onboarding token')
       const onboardingToken = await this.perProviderTokenStorage.getValidAccessToken(
         'onboarding',
         this.refreshProviderTokens.bind(this),
@@ -1499,7 +1502,7 @@ class MenuBarNotificationApp {
 
       // Show the window after successful authentication
       this.windowManager.showWindow()
-
+      const notificationApp = this
       // Show success notification
       this.showNotification({
         id: 'auth-success',
@@ -1507,6 +1510,26 @@ class MenuBarNotificationApp {
         body: `Welcome back, ${tokens.user.firstName || tokens.user.email}!`,
         timestamp: Date.now(),
         priority: 'normal',
+      })
+
+      this.sseBackgroundService = new SSEBackgroundService({
+        serverUrl: 'https://growing-goose-conversely.ngrok-free.app',
+      })
+      this.sseBackgroundService.setAuthToken(this.authTokens?.access_token)
+      this.sseBackgroundService.connect()
+      this.sseBackgroundService.on('connected', () => {
+        console.log('Connected to SSE')
+      })
+      // this.sseBackgroundService.on('codespace_online', async (data: CodespaceData) => {
+      //   console.log('Codespace online:', data)
+      //   await notificationApp.connectToExecutorWithToken()
+      //   await notificationApp.executorWSClient?.autoConnect()
+      // })
+
+      this.sseBackgroundService.on('codespace-online', async (data: CodespaceData) => {
+        console.log('Codespace online:', data)
+        await notificationApp.connectToExecutorWithToken()
+        await notificationApp.executorWSClient?.autoConnect()
       })
     }
     catch (error) {
