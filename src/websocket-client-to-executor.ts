@@ -189,15 +189,17 @@ export class ExecutorWebSocketClient {
 
   // Automatically discover and connect to the best available executor
   async autoConnect(): Promise<boolean> {
+    console.log('🔗 Auto-connecting to executor')
     if (!this.codespacesService) {
       this.connectToLocalhost()
       return true
     }
+    console.log('🔗 Codespaces service available')
 
     try {
       // First, try to find and connect to a user's codespace
       const preparedCodespace = await this.codespacesService.discoverAndPrepareCodespace()
-
+      console.log('🔗 Prepared codespace:', preparedCodespace)
       if (preparedCodespace) {
         this.currentTarget = {
           type: 'codespace',
@@ -251,7 +253,7 @@ export class ExecutorWebSocketClient {
           clearTimeout(this.reconnectTimeout)
           this.reconnectTimeout = null
         }
-
+        console.log('🔗 WebSocket connected to:', target.url)
         // Notify connection status change
         this.onConnectionStatusChanged?.(true, target)
       })
