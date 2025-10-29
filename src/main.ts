@@ -2374,11 +2374,6 @@ class MenuBarNotificationApp {
       if (this.executorWSClient) {
         this.executorWSClient.disconnect()
       }
-      
-      // Disconnect from SSE when executor disconnects
-      if (this.sseBackgroundService) {
-        this.sseBackgroundService.disconnect()
-      }
     })
 
     // Codespace discovery and management IPC handlers
