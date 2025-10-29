@@ -17,6 +17,7 @@ import { ApprovalScreen } from './components/screens/ApprovalPanel'
 import OnboardingView from './components/screens/onboarding/OnboardingView'
 import { SettingsScreen } from './components/screens/settings/SettingsScreen'
 import { Share } from './components/Share'
+import { UpdateNotification } from './components/UpdateNotification'
 import { Badge } from './components/ui/badge'
 import { Button } from './components/ui/button'
 import { ButtonDesigned } from './components/ui/ButtonDesigned'
@@ -971,6 +972,9 @@ const AppContent: React.FC = () => {
             )
           : getMessageScreen()}
       </div>
+
+      {/* Auto-update notifications */}
+      <UpdateNotification />
     </div>
   )
 }

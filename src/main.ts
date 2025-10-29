@@ -271,19 +271,31 @@ class MenuBarNotificationApp {
 
         // Auto-updater event handlers
         autoUpdater.on('checking-for-update', () => {
-
+          console.log('Checking for updates...')
         })
 
-        autoUpdater.on('update-available', () => {
-          console.log('Update available')
+        autoUpdater.on('update-available', (info: { version: string, releaseDate?: string, releaseName?: string, releaseNotes?: string }) => {
+          console.log('Update available:', info)
+          // Send update info to renderer process
+          this.windowManager.sendMessage('update-available', info)
         })
 
         autoUpdater.on('update-not-available', () => {
-
+          console.log('No updates available')
         })
 
-        autoUpdater.on('update-downloaded', () => {
-          // Notify user and ask if they want to restart
+        autoUpdater.on('download-progress', (progressObj: { bytesPerSecond: number, percent: number, transferred: number, total: number }) => {
+          console.log('Download progress:', progressObj)
+          // Send download progress to renderer process
+          this.windowManager.sendMessage('download-progress', progressObj)
+        })
+
+        autoUpdater.on('update-downloaded', (info: { version: string, releaseDate?: string, releaseName?: string, releaseNotes?: string }) => {
+          console.log('Update downloaded:', info)
+          // Send update downloaded event to renderer process
+          this.windowManager.sendMessage('update-downloaded', info)
+
+          // Also show native notification as backup
           const notification = new Notification({
             title: 'Update Ready',
             body: 'A new version has been downloaded. Restart now to apply the update?',
@@ -2005,6 +2017,10 @@ class MenuBarNotificationApp {
 
     ipcMain.handle('get-version-install-date', async (): Promise<Date | null> => {
       return await this.getCurrentVersionInstallDate()
+    })
+
+    ipcMain.handle('get-app-version', (): string => {
+      return app.getVersion()
     })
 
     ipcMain.handle('logout', (): void => {

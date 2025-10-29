@@ -4,6 +4,8 @@ import Toggle from '../../../ui/Toggle'
 export const AdvancedPanel: React.FC = () => {
   const [fullCodeExecution, setFullCodeExecution] = useState(false)
   const [fullCodeExecutionDisabled, setFullCodeExecutionDisabled] = useState(true)
+  const [appVersion, setAppVersion] = useState<string>('Loading...')
+  const [installDate, setInstallDate] = useState<Date | null>(null)
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const loadFullCodeExecutionSetting = async () => {
@@ -34,6 +36,21 @@ export const AdvancedPanel: React.FC = () => {
 
   useEffect(() => {
     loadFullCodeExecutionSetting()
+
+    // Load app version
+    window.electronAPI.getAppVersion().then(version => {
+      setAppVersion(version)
+    }).catch(error => {
+      console.error('Failed to get app version:', error)
+      setAppVersion('Unknown')
+    })
+
+    // Load install date
+    window.electronAPI.getVersionInstallDate().then(date => {
+      setInstallDate(date)
+    }).catch(error => {
+      console.error('Failed to get install date:', error)
+    })
   }, [])
 
   return (
@@ -74,6 +91,30 @@ export const AdvancedPanel: React.FC = () => {
               onChange={handleChangeFullCodeExecutionSetting}
             />
           </div>
+        </div>
+      </div>
+
+      {/* Version Information */}
+      <div
+        className="p-[0.94rem] border border-[#E5E5E5] rounded-[0.38rem] flex flex-col gap-[0.63rem]"
+      >
+        <div className="font-semibold">
+          Version Information
+        </div>
+        <div className="flex flex-col gap-[0.38rem]">
+          <div className="flex justify-between items-center">
+            <span className="text-[#737373]">Current Version:</span>
+            <span className="font-mono">{appVersion}</span>
+          </div>
+          {installDate && (
+            <div className="flex justify-between items-center">
+              <span className="text-[#737373]">Installed:</span>
+              <span className="text-sm">{installDate.toLocaleString()}</span>
+            </div>
+          )}
+        </div>
+        <div className="text-xs text-[#737373] mt-2">
+          The app automatically checks for updates. You'll be notified when a new version is available.
         </div>
       </div>
     </div>
