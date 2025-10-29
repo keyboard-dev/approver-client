@@ -45,7 +45,7 @@ export class SSEBackgroundService extends EventEmitter {
 
   setAuthToken(token: string | null): void {
     this.authToken = token
-    console.log('🔑 Setting auth token:', token)
+
     if (token && !this.isConnected) {
       this.connect()
     }
@@ -65,7 +65,7 @@ export class SSEBackgroundService extends EventEmitter {
     }
 
     const url = `${this.options.serverUrl}/notifications/stream`
-    console.log('🔗 Connecting to SSE:', url)
+
     this.abortController = new AbortController()
 
     try {
@@ -148,7 +148,6 @@ export class SSEBackgroundService extends EventEmitter {
   }
 
   private handleMessage(data: SSEMessage): void {
-    console.log('🔍 Handling SSE message:', data)
     switch (data.type) {
       case 'connected':
         console.log('✅ SSE connection confirmed')
@@ -156,17 +155,17 @@ export class SSEBackgroundService extends EventEmitter {
         break
 
       case 'codespace_online':
-        console.log('🚀 Codespace came online:', data)
+
         this.emit('codespace-online', data.data)
         break
 
       case 'codespace_offline':
-        console.log('🔽 Codespace went offline:', data.data?.name)
+
         this.emit('codespace-offline', data.data)
         break
 
       case 'codespace_updated':
-        console.log('🔄 Codespace updated:', data.data?.name)
+
         this.emit('codespace-updated', data.data)
         break
 
@@ -213,7 +212,6 @@ export class SSEBackgroundService extends EventEmitter {
     this.stopHeartbeat()
     this.heartbeatTimer = setInterval(() => {
       if (!this.isConnected || !this.abortController || this.abortController.signal.aborted) {
-        console.log('💔 SSE heartbeat detected closed connection, reconnecting...')
         this.connect()
       }
     }, this.options.heartbeatInterval)

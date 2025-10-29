@@ -73,7 +73,7 @@ export const SSEWebSocketIntegration: React.FC<SSEWebSocketIntegrationProps> = (
   // Log SSE connection state changes for debugging
   useEffect(() => {
     if (sseState.lastEvent) {
-      console.log('🔔 SSE Event:', sseState.lastEvent)
+      console.log('🔔 SSE Event last event')
     }
   }, [sseState.lastEvent])
 
