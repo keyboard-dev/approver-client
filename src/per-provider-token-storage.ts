@@ -417,4 +417,139 @@ export class PerProviderTokenStorage {
       throw error
     }
   }
+
+  // =============================================================================
+  // PIPEDREAM-SPECIFIC METHODS
+  // =============================================================================
+
+  /**
+   * Store Pipedream user access token (not service-specific tokens)
+   * This is used for authenticating with Pipedream's API to manage connections
+   */
+  async storePipedreamToken(token: ProviderTokens): Promise<void> {
+    await this.storeTokens({
+      ...token,
+      providerId: 'pipedream',
+    })
+  }
+
+  /**
+   * Get Pipedream user access token
+   */
+  async getPipedreamToken(): Promise<StoredProviderTokens | null> {
+    return await this.getTokens('pipedream')
+  }
+
+  /**
+   * Check if Pipedream token is expired
+   */
+  async isPipedreamTokenExpired(): Promise<boolean> {
+    return await this.areTokensExpired('pipedream')
+  }
+
+  /**
+   * Remove Pipedream token
+   */
+  async removePipedreamToken(): Promise<void> {
+    await this.removeTokens('pipedream')
+  }
+
+  /**
+   * Get valid Pipedream access token (refresh if needed)
+   * Note: Pipedream token refresh should be handled by the server
+   */
+  async getValidPipedreamAccessToken(): Promise<string | null> {
+    const tokens = await this.getPipedreamToken()
+    if (!tokens) return null
+
+    // Check if token is expired
+    if (await this.isPipedreamTokenExpired()) {
+      console.warn('[Pipedream] Token expired, re-authentication may be required')
+      return null
+    }
+
+    return tokens.access_token
+  }
+
+  /**
+   * Store Pipedream account metadata (cached list of connected services)
+   * This is stored separately from tokens for caching purposes
+   */
+  private get PIPEDREAM_ACCOUNTS_FILE(): string {
+    return path.join(this.storageDir, 'pipedream-accounts.encrypted')
+  }
+
+  async storePipedreamAccounts(accounts: Array<{
+    id: string
+    app: string
+    external_user_id: string
+    created_at: string
+    healthy?: boolean
+  }>): Promise<void> {
+    try {
+      const data = JSON.stringify({
+        accounts,
+        cached_at: Date.now(),
+      }, null, 2)
+
+      const encryptedData = encrypt(data)
+      fs.writeFileSync(this.PIPEDREAM_ACCOUNTS_FILE, encryptedData, { encoding: 'utf8', mode: 0o600 })
+
+      console.log(`[Pipedream] Stored ${accounts.length} cached accounts`)
+    }
+    catch (error) {
+      console.error('[Pipedream] Error storing accounts cache:', error)
+      throw error
+    }
+  }
+
+  async getPipedreamAccounts(): Promise<{
+    accounts: Array<{
+      id: string
+      app: string
+      external_user_id: string
+      created_at: string
+      healthy?: boolean
+    }>
+    cached_at: number
+  } | null> {
+    try {
+      if (!fs.existsSync(this.PIPEDREAM_ACCOUNTS_FILE)) {
+        return null
+      }
+
+      const encryptedData = fs.readFileSync(this.PIPEDREAM_ACCOUNTS_FILE, 'utf8')
+      const decryptedData = decrypt(encryptedData)
+      const data = JSON.parse(decryptedData)
+
+      return data
+    }
+    catch (error) {
+      console.error('[Pipedream] Error loading accounts cache:', error)
+      return null
+    }
+  }
+
+  async clearPipedreamAccounts(): Promise<void> {
+    try {
+      if (fs.existsSync(this.PIPEDREAM_ACCOUNTS_FILE)) {
+        fs.unlinkSync(this.PIPEDREAM_ACCOUNTS_FILE)
+      }
+    }
+    catch (error) {
+      console.error('[Pipedream] Error clearing accounts cache:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Check if Pipedream is configured and has valid token
+   */
+  async isPipedreamConfigured(): Promise<boolean> {
+    const token = await this.getPipedreamToken()
+    if (!token) return false
+
+    const isExpired = await this.isPipedreamTokenExpired()
+    return !isExpired
+  }
 }

@@ -12,6 +12,7 @@ import { OAuthCallbackData, OAuthHttpServer } from './oauth-http-server'
 import { PKCEParams as NewPKCEParams, OAuthProvider, OAuthProviderManager, ProviderTokens, ServerProvider, ServerProviderInfo } from './oauth-providers'
 import { OAuthTokenStorage, StoredProviderTokens } from './oauth-token-storage'
 import { PerProviderTokenStorage } from './per-provider-token-storage'
+import { initializePipedreamClient, type PipedreamAccount } from './pipedream-client'
 import { OAuthProviderConfig } from './provider-storage'
 import { createRestAPIServer } from './rest-api'
 import { TrayManager } from './tray-manager'
@@ -109,6 +110,7 @@ class MenuBarNotificationApp {
   private perProviderTokenStorage!: PerProviderTokenStorage
   private currentProviderPKCE: NewPKCEParams | null = null
   private oauthHttpServer: OAuthHttpServer
+  private pipedreamClient: import('./pipedream-client').PipedreamClient | null = null
   // WebSocket security
   private wsConnectionKey: string | null = null
   private readonly STORAGE_DIR = path.join(os.homedir(), '.keyboard-mcp')
@@ -339,6 +341,13 @@ class MenuBarNotificationApp {
 
       // Inject main access token getter for server provider refresh
       this.oauthProviderManager.setMainAccessTokenGetter(() => this.getValidAccessToken())
+
+      // Initialize Pipedream client
+      this.pipedreamClient = initializePipedreamClient(
+        this.OAUTH_SERVER_URL,
+        this.perProviderTokenStorage,
+        () => this.getValidAccessToken(),
+      )
 
       // Migrate from old storage format
       await this.migrateTokenStorage()
@@ -2118,6 +2127,177 @@ class MenuBarNotificationApp {
       const accessToken = await this.getValidAccessToken()
       const serverProviders = await this.oauthProviderManager.fetchServerProviders(serverId, accessToken || undefined)
       return serverProviders
+    })
+
+    // =============================================================================
+    // PIPEDREAM IPC HANDLERS
+    // =============================================================================
+
+    ipcMain.handle('pipedream:check-status', async (): Promise<{
+      configured: boolean
+      projectId?: string
+      baseUrl?: string
+    }> => {
+      if (!this.pipedreamClient) {
+        return { configured: false }
+      }
+      return await this.pipedreamClient.checkServiceStatus()
+    })
+
+    ipcMain.handle('pipedream:create-connection', async (_event, request: CreateConnectionRequest): Promise<{
+      success: boolean
+      account?: PipedreamAccount
+      authorization_url?: string
+      message?: string
+      error?: string
+      error_description?: string
+    }> => {
+      if (!this.pipedreamClient) {
+        return {
+          success: false,
+          error: 'not_initialized',
+          error_description: 'Pipedream client not initialized',
+        }
+      }
+
+      try {
+        const result = await this.pipedreamClient.createServiceConnection(request)
+
+        // If authorization URL is returned, open it in browser
+        if (result.authorization_url) {
+          await shell.openExternal(result.authorization_url)
+        }
+
+        return result
+      }
+      catch (error: any) {
+        console.error('[Pipedream IPC] Error creating connection:', error)
+        return {
+          success: false,
+          error: 'connection_failed',
+          error_description: error.message || 'Failed to create connection',
+        }
+      }
+    })
+
+    ipcMain.handle('pipedream:list-accounts', async (_event, app?: string, forceRefresh?: boolean): Promise<{
+      success: boolean
+      accounts: PipedreamAccount[]
+      count: number
+      error?: string
+    }> => {
+      if (!this.pipedreamClient) {
+        return {
+          success: false,
+          accounts: [],
+          count: 0,
+          error: 'Pipedream client not initialized',
+        }
+      }
+
+      try {
+        return await this.pipedreamClient.listConnectedServices(app, forceRefresh || false)
+      }
+      catch (error: any) {
+        console.error('[Pipedream IPC] Error listing accounts:', error)
+        return {
+          success: false,
+          accounts: [],
+          count: 0,
+          error: error.message || 'Failed to list accounts',
+        }
+      }
+    })
+
+    ipcMain.handle('pipedream:get-account', async (_event, accountId: string): Promise<PipedreamAccount | null> => {
+      if (!this.pipedreamClient) {
+        return null
+      }
+
+      try {
+        return await this.pipedreamClient.getAccount(accountId)
+      }
+      catch (error: any) {
+        console.error('[Pipedream IPC] Error getting account:', error)
+        return null
+      }
+    })
+
+    ipcMain.handle('pipedream:disconnect-service', async (_event, accountId: string): Promise<boolean> => {
+      if (!this.pipedreamClient) {
+        return false
+      }
+
+      try {
+        return await this.pipedreamClient.disconnectService(accountId)
+      }
+      catch (error: any) {
+        console.error('[Pipedream IPC] Error disconnecting service:', error)
+        return false
+      }
+    })
+
+    ipcMain.handle('pipedream:refresh-tokens', async (_event, accountId: string): Promise<PipedreamAccount | null> => {
+      if (!this.pipedreamClient) {
+        return null
+      }
+
+      try {
+        return await this.pipedreamClient.refreshAccountTokens(accountId)
+      }
+      catch (error: any) {
+        console.error('[Pipedream IPC] Error refreshing tokens:', error)
+        return null
+      }
+    })
+
+    ipcMain.handle('pipedream:proxy-request', async (_event, accountId: string, options: {
+      method: string
+      path: string
+      headers?: Record<string, string>
+      body?: any
+      queryParams?: Record<string, string>
+    }): Promise<{
+      success: boolean
+      status: number
+      data?: any
+      error?: string
+      error_description?: string
+    }> => {
+      if (!this.pipedreamClient) {
+        return {
+          success: false,
+          status: 500,
+          error: 'not_initialized',
+          error_description: 'Pipedream client not initialized',
+        }
+      }
+
+      try {
+        return await this.pipedreamClient.makeAuthenticatedRequest(accountId, options)
+      }
+      catch (error: any) {
+        console.error('[Pipedream IPC] Error proxying request:', error)
+        return {
+          success: false,
+          status: 500,
+          error: 'proxy_failed',
+          error_description: error.message || 'Failed to proxy request',
+        }
+      }
+    })
+
+    ipcMain.handle('pipedream:clear-cache', (): void => {
+      if (this.pipedreamClient) {
+        this.pipedreamClient.clearCache()
+      }
+    })
+
+    ipcMain.handle('pipedream:get-cached-accounts', (): PipedreamAccount[] => {
+      if (!this.pipedreamClient) {
+        return []
+      }
+      return this.pipedreamClient.getCachedAccounts()
     })
 
     // Handle requests for all messages (now stored in renderer IndexedDB)
