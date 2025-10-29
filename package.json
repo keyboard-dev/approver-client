@@ -1,6 +1,6 @@
 {
   "name": "keyboard-approver App",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Desktop notification app for MCP approval workflow",
   "main": "dist/main.js",
   "author": "keyboard.dev team",
