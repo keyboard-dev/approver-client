@@ -173,9 +173,12 @@ class MenuBarNotificationApp {
     })
 
     // Initialize executor WebSocket client
-    this.executorWSClient = new ExecutorWebSocketClient((message) => {
-      this.handleExecutorMessage(message)
-    })
+    this.executorWSClient = new ExecutorWebSocketClient(
+      (message) => {
+        this.handleExecutorMessage(message)
+      },
+      this.windowManager
+    )
 
     this.initializeApp()
   }

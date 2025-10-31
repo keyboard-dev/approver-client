@@ -3,6 +3,10 @@ import { GithubService } from './Github'
 import { CodespaceConnectionInfo, GitHubCodespacesService } from './github-codespaces'
 import { Message } from './types'
 
+export interface IWindowManager {
+  sendMessage(channel: string, ...args: unknown[]): void
+}
+
 export interface ExecutorMessage {
   type: string
   id?: string
@@ -17,7 +21,10 @@ export interface ConnectionTarget {
   url: string
   name?: string
   codespaceName?: string
+  connectedAt?: number
+  source?: 'manual' | 'sse' | 'auto'
 }
+
 
 export class ExecutorWebSocketClient {
   private ws: WebSocket | null = null
@@ -33,14 +40,14 @@ export class ExecutorWebSocketClient {
 
   // Callback to handle messages from executor
   private onMessageReceived?: (message: ExecutorMessage) => void
-  private onConnectionStatusChanged?: (connected: boolean, target?: ConnectionTarget) => void
+  private windowManager?: IWindowManager
 
   constructor(
     onMessageReceived?: (message: ExecutorMessage) => void,
-    onConnectionStatusChanged?: (connected: boolean, target?: ConnectionTarget) => void,
+    windowManager?: IWindowManager,
   ) {
     this.onMessageReceived = onMessageReceived
-    this.onConnectionStatusChanged = onConnectionStatusChanged
+    this.windowManager = windowManager
   }
 
   // Set the GitHub token to use for authentication
@@ -132,7 +139,15 @@ export class ExecutorWebSocketClient {
         url: targetCodespace.websocketUrl,
         name: targetCodespace.codespace.display_name || targetCodespace.codespace.name,
         codespaceName: targetCodespace.codespace.name,
+        connectedAt: Date.now(),
+        source: 'manual',
       }
+
+      // Emit connecting event
+      this.windowManager?.sendMessage('websocket-connecting', { 
+        target: this.currentTarget.name!,
+        type: this.currentTarget.type 
+      })
 
       // Connect to the codespace
       this.connectToTarget(this.currentTarget)
@@ -150,7 +165,16 @@ export class ExecutorWebSocketClient {
       type: 'localhost',
       url: `ws://127.0.0.1:${this.EXECUTOR_WS_PORT}`,
       name: 'localhost',
+      connectedAt: Date.now(),
+      source: 'auto',
     }
+    
+    // Emit connecting event
+    this.windowManager?.sendMessage('websocket-connecting', { 
+      target: this.currentTarget.name!,
+      type: this.currentTarget.type 
+    })
+    
     this.connectToTarget(this.currentTarget)
   }
 
@@ -163,6 +187,71 @@ export class ExecutorWebSocketClient {
   async reconnect(): Promise<boolean> {
     this.disconnect()
     return await this.connect()
+  }
+
+  // Connect to a codespace from SSE event
+  async connectFromSSEEvent(codespace: { codespace_id: string, name: string, url: string, state: string }): Promise<boolean> {
+    console.log('🔔 SSE triggered codespace connection:', codespace.name)
+    
+    // If already connected to this exact codespace, do nothing
+    if (this.isConnected() && this.currentTarget?.codespaceName === codespace.name) {
+      console.log('✅ Already connected to codespace:', codespace.name)
+      return true
+    }
+    
+    // Determine if we should switch based on current connection
+    if (this.isConnected() && this.currentTarget) {
+      const shouldSwitch = this.shouldSwitchToNewCodespace(this.currentTarget, codespace)
+      
+      if (!shouldSwitch) {
+        console.log(`⏸️ Staying connected to ${this.currentTarget.name} (manual override or recent connection)`)
+        return false
+      }
+      
+      console.log(`🔄 Switching from ${this.currentTarget.name} to ${codespace.name}`)
+      // Emit switching event
+      this.windowManager?.sendMessage('websocket-switching', { 
+        from: this.currentTarget.name!,
+        to: codespace.name 
+      })
+      this.disconnect()
+    }
+    
+    // Attempt to connect to the new codespace with SSE source
+    const success = await this.connectToCodespace(codespace.name)
+    
+    // Update source metadata if connection succeeded
+    if (success && this.currentTarget) {
+      this.currentTarget.source = 'sse'
+      this.currentTarget.connectedAt = Date.now()
+    }
+    
+    return success
+  }
+
+  // Determine if we should switch from current connection to new codespace
+  private shouldSwitchToNewCodespace(
+    currentTarget: ConnectionTarget, 
+    newCodespace: { codespace_id: string, name: string, url: string, state: string }
+  ): boolean {
+    // Never switch away from manual connections (user explicitly chose)
+    if (currentTarget.source === 'manual') {
+      return false
+    }
+    
+    // If connected to localhost, always switch to a real codespace
+    if (currentTarget.type === 'localhost') {
+      return true
+    }
+    
+    // If current connection is recent (< 30 seconds), don't switch
+    const connectionAge = Date.now() - (currentTarget.connectedAt || 0)
+    if (connectionAge < 30000) {
+      return false
+    }
+    
+    // Otherwise, switch to the new codespace
+    return true
   }
 
   // Manual connection to a specific codespace (for UI override)
@@ -254,8 +343,13 @@ export class ExecutorWebSocketClient {
           this.reconnectTimeout = null
         }
         console.log('🔗 WebSocket connected to:', target.url)
-        // Notify connection status change
-        this.onConnectionStatusChanged?.(true, target)
+        
+        // Emit connected event
+        this.windowManager?.sendMessage('websocket-connected', { 
+          target: target.name || target.url,
+          type: target.type,
+          codespaceName: target.codespaceName 
+        })
       })
 
       this.ws!.on('message', (data: WebSocket.Data) => {
@@ -273,8 +367,11 @@ export class ExecutorWebSocketClient {
       this.ws!.on('close', () => {
         this.ws = null
 
-        // Notify connection status change
-        this.onConnectionStatusChanged?.(false, target)
+        // Emit disconnected event
+        this.windowManager?.sendMessage('websocket-disconnected', { 
+          target: target.name || target.url,
+          type: target.type 
+        })
 
         this.attemptReconnect()
       })
@@ -286,11 +383,26 @@ export class ExecutorWebSocketClient {
         }
 
         console.error(`❌ WebSocket client error (${target.name}):`, error)
+        
+        // Emit error event for non-404 errors
+        this.windowManager?.sendMessage('websocket-error', { 
+          target: target.name || target.url,
+          type: target.type,
+          error: error.message 
+        })
       })
     }
     catch (error) {
       console.error(`Failed to connect to ${target.name}:`, error)
       this.ws = null
+      
+      // Emit error event
+      this.windowManager?.sendMessage('websocket-error', { 
+        target: target.name || target.url,
+        type: target.type,
+        error: error instanceof Error ? error.message : String(error)
+      })
+      
       this.attemptReconnect()
     }
   }
@@ -309,6 +421,12 @@ export class ExecutorWebSocketClient {
 
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       this.reconnectAttempts++
+
+      // Emit reconnecting event
+      this.windowManager?.sendMessage('websocket-reconnecting', { 
+        attempt: this.reconnectAttempts,
+        maxAttempts: this.maxReconnectAttempts 
+      })
 
       this.reconnectTimeout = setTimeout(() => {
         this.reconnectTimeout = null
@@ -365,9 +483,6 @@ export class ExecutorWebSocketClient {
       this.ws.close()
       this.ws = null
     }
-
-    // Notify connection status change
-    this.onConnectionStatusChanged?.(false, this.currentTarget || undefined)
 
     // Reset reconnect attempts
     this.reconnectAttempts = 0
