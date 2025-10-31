@@ -36,6 +36,7 @@ export const SSEWebSocketIntegration: React.FC<SSEWebSocketIntegrationProps> = (
         })
         .catch((error) => {
           console.error('❌ Error connecting to codespace WebSocket:', error)
+          // Could emit error event here for UI to handle
         })
     }
     else {

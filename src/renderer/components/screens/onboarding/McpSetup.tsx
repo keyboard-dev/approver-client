@@ -1,7 +1,8 @@
-import { Download } from 'lucide-react'
-import React from 'react'
+import { Download, Copy } from 'lucide-react'
+import React, { useState } from 'react'
 import { Footer } from '../../Footer'
 import { ButtonDesigned } from '../../ui/ButtonDesigned'
+import { Input } from '../../ui/input'
 import { ProgressIndicator } from './ProgressIndicator'
 
 interface McpSetupProps {
@@ -9,10 +10,24 @@ interface McpSetupProps {
 }
 
 export const McpSetup: React.FC<McpSetupProps> = ({ onNext }) => {
+  const [remoteUrl, setRemoteUrl] = useState('https://mcp.keyboard.dev')
+  const [copySuccess, setCopySuccess] = useState(false)
+  
   const advancedSettingsImg = 'https://res.cloudinary.com/dt29hglkk/image/upload/v1757699431/advanced-settings_prlpa6.png'
   const installExtensionImg = 'https://res.cloudinary.com/dt29hglkk/image/upload/v1757699537/install-extension_qbtjua.png'
+  
   const handleDownload = () => {
     window.electronAPI.openExternalUrl('https://github.com/keyboard-dev/keyboard-mcp/releases/latest')
+  }
+
+  const handleCopyUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(remoteUrl)
+      setCopySuccess(true)
+      setTimeout(() => setCopySuccess(false), 2000)
+    } catch (err) {
+      console.error('Failed to copy text: ', err)
+    }
   }
 
   return (
@@ -36,7 +51,7 @@ export const McpSetup: React.FC<McpSetupProps> = ({ onNext }) => {
             <div
               className="text-[#A5A5A5]"
             >
-              Make sure you’ve downloaded our most up-to-date .dxt file.
+              Choose how to connect to our MCP server.
             </div>
 
             <div
@@ -47,23 +62,55 @@ export const McpSetup: React.FC<McpSetupProps> = ({ onNext }) => {
           </div>
 
           <div
-            className="flex flex-col items-start gap-[0.94rem] w-full"
+            className="flex flex-col items-start gap-[1.5rem] w-full"
           >
-            <div>
-              <span>Download the </span>
-              <span className="text-[#5093B7]">keyboard-mcp.dxt</span>
-              <span> file</span>
+            {/* Option 1: Remote MCP */}
+            <div className="flex flex-col gap-[0.94rem] w-full">
+              <div className="text-gray-900 font-medium">Option 1: Remote MCP Server (Recommended)</div>
+              
+              <div className="text-sm text-[#A5A5A5]">
+                Copy and paste this URL into your MCP client configuration:
+              </div>
+              
+              <div className="flex gap-[0.5rem] w-full">
+                <Input
+                  value={remoteUrl}
+                  onChange={(e) => setRemoteUrl(e.target.value)}
+                  className="flex-1 text-sm"
+                  readOnly
+                />
+                <ButtonDesigned
+                  variant="primary"
+                  className="flex gap-[0.5rem] px-[1rem] py-[0.5rem]"
+                  hasBorder
+                  onClick={handleCopyUrl}
+                >
+                  <Copy className="h-4 w-4" />
+                  <span>{copySuccess ? 'Copied!' : 'Copy'}</span>
+                </ButtonDesigned>
+              </div>
             </div>
 
-            <ButtonDesigned
-              variant="primary"
-              className="rounded-full flex gap-[0.63rem] px-[1.25rem] py-[0.63rem] self-center"
-              hasBorder
-              onClick={handleDownload}
-            >
-              <Download className="h-4 w-4" />
-              <span>Download file</span>
-            </ButtonDesigned>
+            {/* Option 2: Download .dxt file */}
+            <div className="flex flex-col gap-[0.94rem] w-full">
+              <div className="text-gray-900 font-medium">Option 2: Download Local File</div>
+              
+              <div className="text-sm text-[#A5A5A5]">
+                <span>Download the </span>
+                <span className="text-[#5093B7]">keyboard-mcp.dxt</span>
+                <span> file for local setup</span>
+              </div>
+
+              <ButtonDesigned
+                variant="primary"
+                className="rounded-full flex gap-[0.63rem] px-[1.25rem] py-[0.63rem] self-center"
+                hasBorder
+                onClick={handleDownload}
+              >
+                <Download className="h-4 w-4" />
+                <span>Download file</span>
+              </ButtonDesigned>
+            </div>
 
           </div>
 

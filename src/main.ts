@@ -173,9 +173,21 @@ class MenuBarNotificationApp {
     })
 
     // Initialize executor WebSocket client
-    this.executorWSClient = new ExecutorWebSocketClient((message) => {
-      this.handleExecutorMessage(message)
-    })
+    this.executorWSClient = new ExecutorWebSocketClient(
+      (message) => {
+        this.handleExecutorMessage(message)
+      },
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      (connected, _target) => {
+        // Reconnect SSE when executor connects
+        if (connected && this.sseBackgroundService) {
+          // Only reconnect if SSE is not already connected
+          // The SSE service will handle reconnection logic internally
+          this.sseBackgroundService.connect()
+        }
+        // Disconnect is handled in the IPC handler
+      },
+    )
 
     this.initializeApp()
   }
