@@ -17,6 +17,7 @@ import { ApprovalScreen } from './components/screens/ApprovalPanel'
 import OnboardingView from './components/screens/onboarding/OnboardingView'
 import { SettingsScreen } from './components/screens/settings/SettingsScreen'
 import { Share } from './components/Share'
+import StatusDisplay from './components/StatusDisplay'
 import { Badge } from './components/ui/badge'
 import { Button } from './components/ui/button'
 import { ButtonDesigned } from './components/ui/ButtonDesigned'
@@ -935,22 +936,7 @@ const AppContent: React.FC = () => {
         <div
           className="px-[0.5rem] py-[0.25rem] w-4 h-4"
         />
-        <div
-          className="px-[0.75rem] py-[0.25rem] rounded-full bg-[#EBEBEB] flex items-center gap-[0.63rem]"
-        >
-          <div
-            className="w-[10px] h-[10px] rounded-full bg-[#0B8A1C]"
-          />
-          <div
-            className="text-[#737373]"
-          >
-            All systems are
-            {' '}
-            <span className="text-[#0B8A1C] font-semibold">
-              normal
-            </span>
-          </div>
-        </div>
+        <StatusDisplay />
         <ButtonDesigned
           className="px-[0.5rem] py-[0.25rem] rounded-full not-draggable"
           variant="secondary"

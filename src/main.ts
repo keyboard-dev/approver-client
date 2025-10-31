@@ -1502,7 +1502,6 @@ class MenuBarNotificationApp {
 
       // Show the window after successful authentication
       this.windowManager.showWindow()
-      const notificationApp = this
       // Show success notification
       this.showNotification({
         id: 'auth-success',
@@ -1528,8 +1527,8 @@ class MenuBarNotificationApp {
 
       this.sseBackgroundService.on('codespace-online', async (data: CodespaceData) => {
         console.log('Codespace online:', data)
-        await notificationApp.connectToExecutorWithToken()
-        await notificationApp.executorWSClient?.autoConnect()
+        await this.connectToExecutorWithToken()
+        await this.executorWSClient?.autoConnect()
       })
     }
     catch (error) {
@@ -2374,7 +2373,7 @@ class MenuBarNotificationApp {
       if (this.executorWSClient) {
         this.executorWSClient.disconnect()
       }
-      
+
       // Disconnect from SSE when executor disconnects
       if (this.sseBackgroundService) {
         this.sseBackgroundService.disconnect()
