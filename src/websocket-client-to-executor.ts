@@ -17,6 +17,8 @@ export interface ConnectionTarget {
   url: string
   name?: string
   codespaceName?: string
+  connectedAt?: number
+  source?: 'manual' | 'sse' | 'auto'
 }
 
 export class ExecutorWebSocketClient {
@@ -132,6 +134,8 @@ export class ExecutorWebSocketClient {
         url: targetCodespace.websocketUrl,
         name: targetCodespace.codespace.display_name || targetCodespace.codespace.name,
         codespaceName: targetCodespace.codespace.name,
+        connectedAt: Date.now(),
+        source: 'manual',
       }
 
       // Connect to the codespace
@@ -150,6 +154,8 @@ export class ExecutorWebSocketClient {
       type: 'localhost',
       url: `ws://127.0.0.1:${this.EXECUTOR_WS_PORT}`,
       name: 'localhost',
+      connectedAt: Date.now(),
+      source: 'auto',
     }
     this.connectToTarget(this.currentTarget)
   }
@@ -163,6 +169,66 @@ export class ExecutorWebSocketClient {
   async reconnect(): Promise<boolean> {
     this.disconnect()
     return await this.connect()
+  }
+
+  // Connect to a codespace from SSE event
+  async connectFromSSEEvent(codespace: { codespace_id: string, name: string, url: string, state: string }): Promise<boolean> {
+    console.log('🔔 SSE triggered codespace connection:', codespace.name)
+    
+    // If already connected to this exact codespace, do nothing
+    if (this.isConnected() && this.currentTarget?.codespaceName === codespace.name) {
+      console.log('✅ Already connected to codespace:', codespace.name)
+      return true
+    }
+    
+    // Determine if we should switch based on current connection
+    if (this.isConnected() && this.currentTarget) {
+      const shouldSwitch = this.shouldSwitchToNewCodespace(this.currentTarget, codespace)
+      
+      if (!shouldSwitch) {
+        console.log(`⏸️ Staying connected to ${this.currentTarget.name} (manual override or recent connection)`)
+        return false
+      }
+      
+      console.log(`🔄 Switching from ${this.currentTarget.name} to ${codespace.name}`)
+      this.disconnect()
+    }
+    
+    // Attempt to connect to the new codespace with SSE source
+    const success = await this.connectToCodespace(codespace.name)
+    
+    // Update source metadata if connection succeeded
+    if (success && this.currentTarget) {
+      this.currentTarget.source = 'sse'
+      this.currentTarget.connectedAt = Date.now()
+    }
+    
+    return success
+  }
+
+  // Determine if we should switch from current connection to new codespace
+  private shouldSwitchToNewCodespace(
+    currentTarget: ConnectionTarget, 
+    newCodespace: { codespace_id: string, name: string, url: string, state: string }
+  ): boolean {
+    // Never switch away from manual connections (user explicitly chose)
+    if (currentTarget.source === 'manual') {
+      return false
+    }
+    
+    // If connected to localhost, always switch to a real codespace
+    if (currentTarget.type === 'localhost') {
+      return true
+    }
+    
+    // If current connection is recent (< 30 seconds), don't switch
+    const connectionAge = Date.now() - (currentTarget.connectedAt || 0)
+    if (connectionAge < 30000) {
+      return false
+    }
+    
+    // Otherwise, switch to the new codespace
+    return true
   }
 
   // Manual connection to a specific codespace (for UI override)
@@ -206,6 +272,8 @@ export class ExecutorWebSocketClient {
           url: preparedCodespace.websocketUrl,
           name: preparedCodespace.codespace.codespace.display_name || preparedCodespace.codespace.codespace.name,
           codespaceName: preparedCodespace.codespace.codespace.name,
+          connectedAt: Date.now(),
+          source: 'auto',
         }
 
         this.connectToTarget(this.currentTarget)
