@@ -205,6 +205,13 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
               isConnected={isGitHubConnected}
             />
 
+            <div className="text-sm text-[#A5A5A5] bg-blue-50 p-3 rounded-md border border-blue-200">
+              <div className="font-medium text-blue-800 mb-1">🔒 Security First</div>
+              <div className="text-blue-700">
+                We heavily prioritize the security of your credentials. Your GitHub token is one of the only credentials we store in the cloud, and it's encrypted with industry-standard security.
+              </div>
+            </div>
+
             <div>
               Permission will allow Keyboard to:
             </div>
