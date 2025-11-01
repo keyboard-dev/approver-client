@@ -22,6 +22,7 @@ import { Button } from './components/ui/button'
 import { ButtonDesigned } from './components/ui/ButtonDesigned'
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card'
 import { Toaster } from './components/ui/sonner'
+import { WebSocketStatusDialog } from './components/WebSocketStatusDialog'
 import { useAuth } from './hooks/useAuth'
 import { useConnectionToasts } from './hooks/useConnectionToasts'
 import { useMessagesQuery } from './hooks/useMessagesQuery'
@@ -89,6 +90,7 @@ const AppContent: React.FC = () => {
   const [isCheckingGitHub, setIsCheckingGitHub] = useState(true)
   const [showPrompterOnly, setShowPrompterOnly] = useState(false)
   const [isConnectingToCodespace, setIsConnectingToCodespace] = useState(false)
+  const [showWebSocketDialog, setShowWebSocketDialog] = useState(false)
 
   // Use refs to track state without causing re-renders
   const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -992,22 +994,28 @@ const AppContent: React.FC = () => {
         <div
           className="px-[0.5rem] py-[0.25rem] w-4 h-4"
         />
-        <div
-          className="px-[0.75rem] py-[0.25rem] rounded-full bg-[#EBEBEB] flex items-center gap-[0.63rem]"
+        <button
+          className="px-[0.75rem] py-[0.25rem] rounded-full bg-[#EBEBEB] flex items-center gap-[0.63rem] hover:bg-[#DCDCDC] transition-colors cursor-pointer not-draggable"
+          onClick={() => setShowWebSocketDialog(true)}
+          type="button"
         >
           <div
-            className="w-[10px] h-[10px] rounded-full bg-[#0B8A1C]"
+            className={`w-[10px] h-[10px] rounded-full ${
+              connectionStatus === 'connected' ? 'bg-[#0B8A1C]' : 'bg-[#DC2626]'
+            }`}
           />
           <div
             className="text-[#737373]"
           >
             All systems are
             {' '}
-            <span className="text-[#0B8A1C] font-semibold">
-              normal
+            <span className={`font-semibold ${
+              connectionStatus === 'connected' ? 'text-[#0B8A1C]' : 'text-[#DC2626]'
+            }`}>
+              {connectionStatus === 'connected' ? 'normal' : 'offline'}
             </span>
           </div>
-        </div>
+        </button>
         <ButtonDesigned
           className="px-[0.5rem] py-[0.25rem] rounded-full not-draggable"
           variant="secondary"
@@ -1028,6 +1036,12 @@ const AppContent: React.FC = () => {
             )
           : getMessageScreen()}
       </div>
+
+      {/* WebSocket Status Dialog */}
+      <WebSocketStatusDialog
+        open={showWebSocketDialog}
+        onOpenChange={setShowWebSocketDialog}
+      />
     </div>
   )
 }
