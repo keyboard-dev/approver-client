@@ -826,22 +826,6 @@ const AppContent: React.FC = () => {
                               </Button>
                             )}
                             {!showSettings && (
-                              <Button
-                                variant="outline"
-                                onClick={connectToBestCodespace}
-                                disabled={isConnectingToCodespace || connectionStatus === 'connected'}
-                                className="flex items-center space-x-2"
-                              >
-                                <span>
-                                  {isConnectingToCodespace
-                                    ? 'Connecting...'
-                                    : connectionStatus === 'connected'
-                                      ? 'Connected'
-                                      : 'Connect to Codespace'}
-                                </span>
-                              </Button>
-                            )}
-                            {!showSettings && (
                               <GitHubOAuthButton />
                             )}
                             {!showSettings && (messages.length > 0 || shareMessages.length > 0) && (
