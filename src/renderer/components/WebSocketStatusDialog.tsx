@@ -45,12 +45,50 @@ export const WebSocketStatusDialog: React.FC<WebSocketStatusDialogProps> = ({
     }
   }, [open])
 
+  // Real-time WebSocket event listeners for automatic status updates
+  useEffect(() => {
+    if (!open) return // Only listen when dialog is open
+
+    const handleWebSocketConnected = () => {
+      fetchConnectionStatus()
+    }
+
+    const handleWebSocketDisconnected = () => {
+      fetchConnectionStatus()
+    }
+
+    const handleWebSocketReconnecting = () => {
+      // Update local state to show reconnecting without full fetch
+      setIsReconnecting(true)
+    }
+
+    const handleWebSocketError = () => {
+      fetchConnectionStatus()
+    }
+
+    // Set up event listeners
+    window.electronAPI.onWebSocketConnected(handleWebSocketConnected)
+    window.electronAPI.onWebSocketDisconnected(handleWebSocketDisconnected)
+    window.electronAPI.onWebSocketReconnecting(handleWebSocketReconnecting)
+    window.electronAPI.onWebSocketError(handleWebSocketError)
+
+    // Cleanup listeners when dialog closes or component unmounts
+    return () => {
+      window.electronAPI.removeAllListeners('websocket-connected')
+      window.electronAPI.removeAllListeners('websocket-disconnected')
+      window.electronAPI.removeAllListeners('websocket-reconnecting')
+      window.electronAPI.removeAllListeners('websocket-error')
+    }
+  }, [open]) // Re-setup listeners when dialog open state changes
+
   const fetchConnectionStatus = async () => {
     setIsLoading(true)
     try {
       const status = await window.electronAPI.getExecutorConnectionStatus()
       setConnectionStatus(status)
       setLastChecked(new Date())
+      // Reset reconnecting state when we get fresh status
+      setIsReconnecting(false)
     } catch (error) {
       console.error('Failed to fetch connection status:', error)
     } finally {
