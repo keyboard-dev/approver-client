@@ -1,5 +1,8 @@
+import { AlertCircle, CheckCircle, Clock, RefreshCw, Wifi, WifiOff } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
-import { CheckCircle, WifiOff, Wifi, RefreshCw, AlertCircle, Clock } from 'lucide-react'
+import { Alert, AlertDescription, AlertTitle } from './ui/alert'
+import { Badge } from './ui/badge'
+import { Button } from './ui/button'
 import {
   Dialog,
   DialogContent,
@@ -8,9 +11,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from './ui/dialog'
-import { Alert, AlertDescription, AlertTitle } from './ui/alert'
-import { Button } from './ui/button'
-import { Badge } from './ui/badge'
 
 interface ConnectionTarget {
   type: 'localhost' | 'codespace'
@@ -89,9 +89,11 @@ export const WebSocketStatusDialog: React.FC<WebSocketStatusDialogProps> = ({
       setLastChecked(new Date())
       // Reset reconnecting state when we get fresh status
       setIsReconnecting(false)
-    } catch (error) {
+    }
+    catch (error) {
       console.error('Failed to fetch connection status:', error)
-    } finally {
+    }
+    finally {
       setIsLoading(false)
     }
   }
@@ -104,9 +106,11 @@ export const WebSocketStatusDialog: React.FC<WebSocketStatusDialogProps> = ({
         // Refresh status after successful reconnection
         await fetchConnectionStatus()
       }
-    } catch (error) {
+    }
+    catch (error) {
       console.error('Failed to reconnect:', error)
-    } finally {
+    }
+    finally {
       setIsReconnecting(false)
     }
   }
@@ -118,9 +122,11 @@ export const WebSocketStatusDialog: React.FC<WebSocketStatusDialogProps> = ({
       if (success) {
         await fetchConnectionStatus()
       }
-    } catch (error) {
+    }
+    catch (error) {
       console.error('Failed to connect to best codespace:', error)
-    } finally {
+    }
+    finally {
       setIsReconnecting(false)
     }
   }
@@ -129,11 +135,11 @@ export const WebSocketStatusDialog: React.FC<WebSocketStatusDialogProps> = ({
     if (isLoading || isReconnecting) {
       return <RefreshCw className="h-5 w-5 animate-spin text-blue-500" />
     }
-    
+
     if (!connectionStatus?.connected) {
       return <WifiOff className="h-5 w-5 text-red-500" />
     }
-    
+
     return <CheckCircle className="h-5 w-5 text-green-500" />
   }
 
@@ -163,7 +169,7 @@ export const WebSocketStatusDialog: React.FC<WebSocketStatusDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Wifi className="h-5 w-5" />
@@ -174,14 +180,16 @@ export const WebSocketStatusDialog: React.FC<WebSocketStatusDialogProps> = ({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-4 min-h-0 overflow-hidden">
           {/* Main Status Alert */}
           <Alert variant={getStatusVariant()}>
-            <div className="flex items-center gap-3">
-              {getStatusIcon()}
-              <div className="flex-1">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 mt-0.5">
+                {getStatusIcon()}
+              </div>
+              <div className="flex-1 min-w-0">
                 <AlertTitle className="mb-1">{getStatusText()}</AlertTitle>
-                <AlertDescription>
+                <AlertDescription className="break-words">
                   {connectionStatus?.connected && connectionStatus.target
                     ? `Connected to ${formatTargetName(connectionStatus.target)}`
                     : 'No active WebSocket connection found'}
@@ -192,19 +200,19 @@ export const WebSocketStatusDialog: React.FC<WebSocketStatusDialogProps> = ({
 
           {/* Connection Details */}
           {connectionStatus && (
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
+            <div className="space-y-3 min-w-0">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                <div className="min-w-0">
                   <div className="font-medium text-gray-700">Status</div>
-                  <Badge variant={connectionStatus.connected ? 'default' : 'destructive'}>
+                  <Badge variant={connectionStatus.connected ? 'default' : 'destructive'} className="text-xs">
                     {connectionStatus.connected ? 'Connected' : 'Disconnected'}
                   </Badge>
                 </div>
-                
+
                 {connectionStatus.target && (
-                  <div>
+                  <div className="min-w-0">
                     <div className="font-medium text-gray-700">Type</div>
-                    <Badge variant="outline">
+                    <Badge variant="outline" className="text-xs">
                       {connectionStatus.target.type === 'localhost' ? 'Local' : 'Codespace'}
                     </Badge>
                   </div>
@@ -212,24 +220,24 @@ export const WebSocketStatusDialog: React.FC<WebSocketStatusDialogProps> = ({
               </div>
 
               {connectionStatus.target && (
-                <div className="space-y-2 text-sm">
-                  <div>
+                <div className="space-y-2 text-sm min-w-0">
+                  <div className="min-w-0">
                     <div className="font-medium text-gray-700">Target</div>
-                    <div className="text-gray-600 break-all">
+                    <div className="text-gray-600 break-words text-xs">
                       {formatTargetName(connectionStatus.target)}
                     </div>
                   </div>
-                  
+
                   {connectionStatus.target.codespaceName && (
-                    <div>
+                    <div className="min-w-0">
                       <div className="font-medium text-gray-700">Codespace Name</div>
-                      <div className="text-gray-600 font-mono text-xs">
+                      <div className="text-gray-600 font-mono text-xs break-all">
                         {connectionStatus.target.codespaceName}
                       </div>
                     </div>
                   )}
-                  
-                  <div>
+
+                  <div className="min-w-0">
                     <div className="font-medium text-gray-700">URL</div>
                     <div className="text-gray-600 font-mono text-xs break-all">
                       {connectionStatus.target.url}
@@ -238,11 +246,11 @@ export const WebSocketStatusDialog: React.FC<WebSocketStatusDialogProps> = ({
                 </div>
               )}
 
-              <div className="text-sm">
+              <div className="text-sm min-w-0">
                 <div className="font-medium text-gray-700">Last Checked</div>
-                <div className="text-gray-600 flex items-center gap-1">
-                  <Clock className="h-3 w-3" />
-                  {formatConnectionTime()}
+                <div className="text-gray-600 flex items-center gap-1 text-xs">
+                  <Clock className="h-3 w-3 flex-shrink-0" />
+                  <span className="break-words">{formatConnectionTime()}</span>
                 </div>
               </div>
             </div>
@@ -260,35 +268,38 @@ export const WebSocketStatusDialog: React.FC<WebSocketStatusDialogProps> = ({
           )}
         </div>
 
-        <DialogFooter className="flex gap-2">
+        <DialogFooter className="flex flex-col sm:flex-row gap-2">
           <Button
             variant="outline"
             onClick={fetchConnectionStatus}
             disabled={isLoading || isReconnecting}
+            className="w-full sm:w-auto"
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
-          
+
           {!connectionStatus?.connected && (
-            <>
-              <Button
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              {/* <Button
                 variant="outline"
                 onClick={handleReconnect}
                 disabled={isLoading || isReconnecting}
+                className="w-full sm:w-auto"
               >
                 <Wifi className="h-4 w-4 mr-2" />
                 Reconnect
-              </Button>
-              
+              </Button> */}
+
               <Button
                 onClick={handleConnectToBestCodespace}
                 disabled={isLoading || isReconnecting}
+                className="w-full sm:w-auto"
               >
                 <CheckCircle className="h-4 w-4 mr-2" />
                 Connect to Codespace
               </Button>
-            </>
+            </div>
           )}
         </DialogFooter>
       </DialogContent>
