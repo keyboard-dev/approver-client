@@ -209,11 +209,14 @@ export class ExecutorWebSocketClient {
       }
       
       console.log(`🔄 Switching from ${this.currentTarget.name} to ${codespace.name}`)
+<<<<<<< HEAD
       // Emit switching event
       this.windowManager?.sendMessage('websocket-switching', { 
         from: this.currentTarget.name!,
         to: codespace.name 
       })
+=======
+>>>>>>> ee93c6674532f98852b31ad4538c74b0c94ee7dc
       this.disconnect()
     }
     
@@ -295,6 +298,8 @@ export class ExecutorWebSocketClient {
           url: preparedCodespace.websocketUrl,
           name: preparedCodespace.codespace.codespace.display_name || preparedCodespace.codespace.codespace.name,
           codespaceName: preparedCodespace.codespace.codespace.name,
+          connectedAt: Date.now(),
+          source: 'auto',
         }
 
         this.connectToTarget(this.currentTarget)
