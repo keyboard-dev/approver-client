@@ -188,28 +188,41 @@ export class PerProviderTokenStorage {
     if (!tokens) return null
 
     // Check if token is expired
-    // if (await this.areTokensExpired(providerId)) {
-    if (tokens.refresh_token && refreshCallback) {
-      try {
-        const newTokens = await refreshCallback(providerId, tokens.refresh_token)
-        if (newTokens.access_token) {
-          await this.storeTokens(newTokens)
-          return newTokens.access_token
+    if (await this.areTokensExpired(providerId)) {
+      if (tokens.refresh_token && refreshCallback) {
+        try {
+          const newTokens = await refreshCallback(providerId, tokens.refresh_token)
+          if (newTokens.access_token) {
+            await this.storeTokens(newTokens)
+            return newTokens.access_token
+          }
+          // If refresh succeeded but no new access_token, fall back to existing token
+          if (tokens.access_token) {
+            console.warn(`⚠️ Token refresh for ${providerId} succeeded but returned no access_token, using existing token`)
+            return tokens.access_token
+          }
         }
-        if (tokens.access_token) {
+        catch (error) {
+          console.error(`❌ Failed to refresh tokens for ${providerId}:`, error)
+          // Fall back to existing token if refresh fails (as long as it's not too old)
+          // This prevents logout on temporary network failures
+          console.warn(`⚠️ Using existing access token for ${providerId} despite refresh failure`)
           return tokens.access_token
         }
       }
-      catch (error) {
-        console.error(`❌ Failed to refresh tokens for ${providerId}:`, error)
-        // Remove invalid tokens
-        return null
+      else {
+        // Token is expired but we can't refresh it
+        // Only return null if token is severely expired (> 1 day past expiration)
+        const oneDayInMs = 24 * 60 * 60 * 1000
+        if (Date.now() > (tokens.expires_at + oneDayInMs)) {
+          console.error(`❌ Token for ${providerId} is expired and cannot be refreshed`)
+          return null
+        }
+        // Otherwise, use the expired token (better than forcing re-auth)
+        console.warn(`⚠️ Using expired access token for ${providerId} (no refresh available)`)
+        return tokens.access_token
       }
     }
-    // else {
-    //   return tokens.access_token
-    // }
-    // }
 
     return tokens.access_token
   }
