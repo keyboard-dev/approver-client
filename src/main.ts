@@ -173,12 +173,9 @@ class MenuBarNotificationApp {
     })
 
     // Initialize executor WebSocket client
-    this.executorWSClient = new ExecutorWebSocketClient(
-      (message) => {
-        this.handleExecutorMessage(message)
-      },
-      this.windowManager
-    )
+    this.executorWSClient = new ExecutorWebSocketClient((message) => {
+      this.handleExecutorMessage(message)
+    }, this.windowManager)
 
     this.initializeApp()
   }
@@ -1493,8 +1490,12 @@ class MenuBarNotificationApp {
         ...tokens,
         expires_at: Date.now() + (tokens.expires_in * 1000),
       }
-
+      console.log('authTokens', authTokens)
       this.authTokens = authTokens
+      await this.refreshTokens()
+
+      // Store tokens securely
+
       this.currentPKCE = null // Clear PKCE data
 
       // Notify the renderer process
@@ -1564,7 +1565,6 @@ class MenuBarNotificationApp {
       }
 
       const tokens = await response.json() as TokenResponse
-
       // Update tokens
       this.authTokens = {
         ...this.authTokens,
@@ -1592,7 +1592,18 @@ class MenuBarNotificationApp {
     if (Date.now() >= (this.authTokens.expires_at - bufferTime)) {
       const refreshed = await this.refreshTokens()
       if (!refreshed) {
-        this.authTokens = null
+        // Show notification to user about session expiration
+        this.showNotification({
+          id: 'session-expired',
+          title: 'Session Expired',
+          body: 'Your session has expired. Please log in again to continue.',
+          timestamp: Date.now(),
+          priority: 'high',
+        })
+
+        // Log the user out completely and show login screen
+        this.logout()
+        this.windowManager.showWindow() // Bring app to foreground
         return null
       }
     }

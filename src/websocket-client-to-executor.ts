@@ -25,7 +25,6 @@ export interface ConnectionTarget {
   source?: 'manual' | 'sse' | 'auto'
 }
 
-
 export class ExecutorWebSocketClient {
   private ws: WebSocket | null = null
   private readonly EXECUTOR_WS_PORT = 4002
@@ -144,9 +143,9 @@ export class ExecutorWebSocketClient {
       }
 
       // Emit connecting event
-      this.windowManager?.sendMessage('websocket-connecting', { 
+      this.windowManager?.sendMessage('websocket-connecting', {
         target: this.currentTarget.name!,
-        type: this.currentTarget.type 
+        type: this.currentTarget.type,
       })
 
       // Connect to the codespace
@@ -168,13 +167,13 @@ export class ExecutorWebSocketClient {
       connectedAt: Date.now(),
       source: 'auto',
     }
-    
+
     // Emit connecting event
-    this.windowManager?.sendMessage('websocket-connecting', { 
+    this.windowManager?.sendMessage('websocket-connecting', {
       target: this.currentTarget.name!,
-      type: this.currentTarget.type 
+      type: this.currentTarget.type,
     })
-    
+
     this.connectToTarget(this.currentTarget)
   }
 
@@ -192,67 +191,64 @@ export class ExecutorWebSocketClient {
   // Connect to a codespace from SSE event
   async connectFromSSEEvent(codespace: { codespace_id: string, name: string, url: string, state: string }): Promise<boolean> {
     console.log('🔔 SSE triggered codespace connection:', codespace.name)
-    
+
     // If already connected to this exact codespace, do nothing
     if (this.isConnected() && this.currentTarget?.codespaceName === codespace.name) {
       console.log('✅ Already connected to codespace:', codespace.name)
       return true
     }
-    
+
     // Determine if we should switch based on current connection
     if (this.isConnected() && this.currentTarget) {
       const shouldSwitch = this.shouldSwitchToNewCodespace(this.currentTarget, codespace)
-      
+
       if (!shouldSwitch) {
         console.log(`⏸️ Staying connected to ${this.currentTarget.name} (manual override or recent connection)`)
         return false
       }
-      
+
       console.log(`🔄 Switching from ${this.currentTarget.name} to ${codespace.name}`)
-<<<<<<< HEAD
       // Emit switching event
-      this.windowManager?.sendMessage('websocket-switching', { 
+      this.windowManager?.sendMessage('websocket-switching', {
         from: this.currentTarget.name!,
-        to: codespace.name 
+        to: codespace.name,
       })
-=======
->>>>>>> ee93c6674532f98852b31ad4538c74b0c94ee7dc
       this.disconnect()
     }
-    
+
     // Attempt to connect to the new codespace with SSE source
     const success = await this.connectToCodespace(codespace.name)
-    
+
     // Update source metadata if connection succeeded
     if (success && this.currentTarget) {
       this.currentTarget.source = 'sse'
       this.currentTarget.connectedAt = Date.now()
     }
-    
+
     return success
   }
 
   // Determine if we should switch from current connection to new codespace
   private shouldSwitchToNewCodespace(
-    currentTarget: ConnectionTarget, 
-    newCodespace: { codespace_id: string, name: string, url: string, state: string }
+    currentTarget: ConnectionTarget,
+    newCodespace: { codespace_id: string, name: string, url: string, state: string },
   ): boolean {
     // Never switch away from manual connections (user explicitly chose)
     if (currentTarget.source === 'manual') {
       return false
     }
-    
+
     // If connected to localhost, always switch to a real codespace
     if (currentTarget.type === 'localhost') {
       return true
     }
-    
+
     // If current connection is recent (< 30 seconds), don't switch
     const connectionAge = Date.now() - (currentTarget.connectedAt || 0)
     if (connectionAge < 30000) {
       return false
     }
-    
+
     // Otherwise, switch to the new codespace
     return true
   }
@@ -348,12 +344,12 @@ export class ExecutorWebSocketClient {
           this.reconnectTimeout = null
         }
         console.log('🔗 WebSocket connected to:', target.url)
-        
+
         // Emit connected event
-        this.windowManager?.sendMessage('websocket-connected', { 
+        this.windowManager?.sendMessage('websocket-connected', {
           target: target.name || target.url,
           type: target.type,
-          codespaceName: target.codespaceName 
+          codespaceName: target.codespaceName,
         })
       })
 
@@ -373,9 +369,9 @@ export class ExecutorWebSocketClient {
         this.ws = null
 
         // Emit disconnected event
-        this.windowManager?.sendMessage('websocket-disconnected', { 
+        this.windowManager?.sendMessage('websocket-disconnected', {
           target: target.name || target.url,
-          type: target.type 
+          type: target.type,
         })
 
         this.attemptReconnect()
@@ -388,26 +384,26 @@ export class ExecutorWebSocketClient {
         }
 
         console.error(`❌ WebSocket client error (${target.name}):`, error)
-        
+
         // Emit error event for non-404 errors
-        this.windowManager?.sendMessage('websocket-error', { 
+        this.windowManager?.sendMessage('websocket-error', {
           target: target.name || target.url,
           type: target.type,
-          error: error.message 
+          error: error.message,
         })
       })
     }
     catch (error) {
       console.error(`Failed to connect to ${target.name}:`, error)
       this.ws = null
-      
+
       // Emit error event
-      this.windowManager?.sendMessage('websocket-error', { 
+      this.windowManager?.sendMessage('websocket-error', {
         target: target.name || target.url,
         type: target.type,
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       })
-      
+
       this.attemptReconnect()
     }
   }
@@ -428,9 +424,9 @@ export class ExecutorWebSocketClient {
       this.reconnectAttempts++
 
       // Emit reconnecting event
-      this.windowManager?.sendMessage('websocket-reconnecting', { 
+      this.windowManager?.sendMessage('websocket-reconnecting', {
         attempt: this.reconnectAttempts,
-        maxAttempts: this.maxReconnectAttempts 
+        maxAttempts: this.maxReconnectAttempts,
       })
 
       this.reconnectTimeout = setTimeout(() => {
