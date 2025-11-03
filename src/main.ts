@@ -5,7 +5,7 @@ import * as os from 'os'
 import * as path from 'path'
 import * as WebSocket from 'ws'
 import { CodespaceEncryptionConfig, encryptWithCodespaceKey } from './codespace-encryption'
-import { setEncryptionKeyProvider, encrypt, decrypt } from './encryption'
+import { decrypt, encrypt, setEncryptionKeyProvider } from './encryption'
 import { GithubService } from './Github'
 import { deleteScriptTemplate } from './keyboard-shortcuts'
 import { OAuthCallbackData, OAuthHttpServer } from './oauth-http-server'
@@ -365,7 +365,7 @@ class MenuBarNotificationApp {
   private async connectToExecutorWithToken(): Promise<void> {
     try {
       // Try to get onboarding GitHub token
-      console.log('🔑 Getting onboarding token')
+
       const onboardingToken = await this.perProviderTokenStorage.getValidAccessToken(
         'onboarding',
         this.refreshProviderTokens.bind(this),
@@ -1494,7 +1494,7 @@ class MenuBarNotificationApp {
         ...tokens,
         expires_at: Date.now() + (tokens.expires_in * 1000),
       }
-      console.log('authTokens', authTokens)
+
       this.authTokens = authTokens
       await this.refreshTokens()
 
@@ -1536,7 +1536,7 @@ class MenuBarNotificationApp {
       // })
 
       this.sseBackgroundService.on('codespace-online', async (data: CodespaceData) => {
-        console.log('Codespace online:', data)
+        await notificationApp.refreshTokens()
         await notificationApp.connectToExecutorWithToken()
         await notificationApp.executorWSClient?.autoConnect()
       })
@@ -1550,7 +1550,10 @@ class MenuBarNotificationApp {
   private async refreshTokens(): Promise<boolean> {
     try {
       if (!this.authTokens?.refresh_token) {
-        return false
+        this.authTokens = await this.loadAuthTokens()
+        if (!this.authTokens?.refresh_token) {
+          return false
+        }
       }
 
       const response = await fetch(`${this.OAUTH_SERVER_URL}/oauth/refresh`, {
@@ -1601,18 +1604,18 @@ class MenuBarNotificationApp {
       const refreshed = await this.refreshTokens()
       if (!refreshed) {
         // Try to load fresh tokens from storage as fallback
-        console.log('🔐 Token refresh failed, trying storage fallback...')
+
         const storageTokens = await this.loadAuthTokens()
-        
+
         if (storageTokens && storageTokens.access_token !== this.authTokens.access_token) {
           // Found different tokens in storage, use them
           this.authTokens = storageTokens
-          console.log('🔐 Successfully recovered from storage fallback')
+
           return this.authTokens.access_token
         }
 
         // Storage fallback failed, show notification and logout
-        console.log('🔐 Storage fallback failed, logging out user')
+
         this.showNotification({
           id: 'session-expired',
           title: 'Session Expired',
@@ -1667,17 +1670,17 @@ class MenuBarNotificationApp {
     try {
       const tokenData = JSON.stringify(authTokens)
       const encryptedData = encrypt(tokenData)
-      
+
       // Ensure directory exists
       const dir = path.dirname(this.KEYBOARD_AUTH_TOKENS)
       if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true })
       }
-      
+
       // Write with secure permissions
       fs.writeFileSync(this.KEYBOARD_AUTH_TOKENS, encryptedData, { mode: 0o600 })
-      console.log('🔐 Auth tokens saved to encrypted storage')
-    } catch (error) {
+    }
+    catch (error) {
       console.error('❌ Failed to save auth tokens:', error)
     }
   }
@@ -1690,30 +1693,27 @@ class MenuBarNotificationApp {
 
       const encryptedData = fs.readFileSync(this.KEYBOARD_AUTH_TOKENS, 'utf8')
       const decryptedData = decrypt(encryptedData)
-      
+
       if (!decryptedData) {
-        console.log('🔐 Failed to decrypt auth tokens')
         return null
       }
 
       const authTokens = JSON.parse(decryptedData) as AuthTokens
-      
+
       // Validate token structure
       if (!authTokens.access_token || !authTokens.refresh_token || !authTokens.expires_at) {
-        console.log('🔐 Invalid token structure in storage')
         return null
       }
 
       // Check if tokens are expired (with 5 minute buffer)
       const bufferTime = 5 * 60 * 1000 // 5 minutes
       if (Date.now() >= (authTokens.expires_at - bufferTime)) {
-        console.log('🔐 Stored tokens are expired')
         return null
       }
 
-      console.log('🔐 Auth tokens loaded from encrypted storage')
       return authTokens
-    } catch (error) {
+    }
+    catch (error) {
       console.error('❌ Failed to load auth tokens:', error)
       return null
     }
@@ -1723,9 +1723,9 @@ class MenuBarNotificationApp {
     try {
       if (fs.existsSync(this.KEYBOARD_AUTH_TOKENS)) {
         fs.unlinkSync(this.KEYBOARD_AUTH_TOKENS)
-        console.log('🔐 Auth tokens cleared from storage')
       }
-    } catch (error) {
+    }
+    catch (error) {
       console.error('❌ Failed to clear auth tokens:', error)
     }
   }
@@ -1739,8 +1739,7 @@ class MenuBarNotificationApp {
     const persistedTokens = await this.loadAuthTokens()
     if (persistedTokens) {
       this.authTokens = persistedTokens
-      console.log('🔐 Restored authentication from persistent storage')
-      
+
       // Notify the renderer process about restored auth
       this.windowManager.sendMessage('auth-success', {
         user: persistedTokens.user,
