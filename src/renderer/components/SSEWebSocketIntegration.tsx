@@ -30,20 +30,11 @@ export const SSEWebSocketIntegration: React.FC<SSEWebSocketIntegrationProps> = (
           if (success) {
             console.log('✅ SSE: Successfully connected to codespace WebSocket:', codespace.name)
           } else {
-<<<<<<< HEAD
             console.log('⏸️ SSE: Connection attempt declined (staying with current connection):', codespace.name)
           }
         })
         .catch(error => {
           console.error('❌ SSE: Error connecting to codespace WebSocket:', error)
-=======
-            console.log('⏸️ SSE connection attempt declined (staying with current connection):', codespace.name)
-          }
-        })
-        .catch(error => {
-          console.error('❌ Error connecting to codespace WebSocket:', error)
-          // Could emit error event here for UI to handle
->>>>>>> ee93c6674532f98852b31ad4538c74b0c94ee7dc
         })
     } else {
       console.warn('⚠️ No executor client available for SSE-triggered connection')

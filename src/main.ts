@@ -5,7 +5,7 @@ import * as os from 'os'
 import * as path from 'path'
 import * as WebSocket from 'ws'
 import { CodespaceEncryptionConfig, encryptWithCodespaceKey } from './codespace-encryption'
-import { setEncryptionKeyProvider } from './encryption'
+import { decrypt, encrypt, setEncryptionKeyProvider } from './encryption'
 import { GithubService } from './Github'
 import { deleteScriptTemplate } from './keyboard-shortcuts'
 import { OAuthCallbackData, OAuthHttpServer } from './oauth-http-server'
@@ -115,6 +115,7 @@ class MenuBarNotificationApp {
   private wsConnectionKey: string | null = null
   private readonly STORAGE_DIR = path.join(os.homedir(), '.keyboard-mcp')
   private readonly WS_KEY_FILE = path.join(os.homedir(), '.keyboard-mcp', '.keyboard-mcp-ws-key')
+  private readonly KEYBOARD_AUTH_TOKENS = path.join(os.homedir(), '.keyboard-mcp', '.keyboard-mcp-tokens.json')
   private readonly ONBOARDING_COMPLETED_FILE = path.join(os.homedir(), '.keyboard-mcp', 'completed-onboarding')
 
   // Encryption key management
@@ -173,12 +174,9 @@ class MenuBarNotificationApp {
     })
 
     // Initialize executor WebSocket client
-    this.executorWSClient = new ExecutorWebSocketClient(
-      (message) => {
-        this.handleExecutorMessage(message)
-      },
-      this.windowManager
-    )
+    this.executorWSClient = new ExecutorWebSocketClient((message) => {
+      this.handleExecutorMessage(message)
+    }, this.windowManager)
 
     this.initializeApp()
   }
@@ -258,6 +256,9 @@ class MenuBarNotificationApp {
 
       // NOW initialize OAuth provider system (after encryption is ready)
       await this.initializeOAuthProviderSystem()
+
+      // Try to load persisted auth tokens
+      await this.loadPersistedAuthTokens()
 
       // Initialize GitHub service
       await this.initializeGithubService()
@@ -364,7 +365,7 @@ class MenuBarNotificationApp {
   private async connectToExecutorWithToken(): Promise<void> {
     try {
       // Try to get onboarding GitHub token
-      console.log('🔑 Getting onboarding token')
+
       const onboardingToken = await this.perProviderTokenStorage.getValidAccessToken(
         'onboarding',
         this.refreshProviderTokens.bind(this),
@@ -1488,6 +1489,7 @@ class MenuBarNotificationApp {
       }
 
       const tokens = await response.json() as TokenResponse
+
       // Calculate expiration time and create AuthTokens object
       const authTokens: AuthTokens = {
         ...tokens,
@@ -1495,6 +1497,11 @@ class MenuBarNotificationApp {
       }
 
       this.authTokens = authTokens
+      await this.refreshTokens()
+
+      // Store tokens securely to encrypted storage
+      await this.saveAuthTokens(this.authTokens)
+
       this.currentPKCE = null // Clear PKCE data
 
       // Notify the renderer process
@@ -1530,7 +1537,7 @@ class MenuBarNotificationApp {
       // })
 
       this.sseBackgroundService.on('codespace-online', async (data: CodespaceData) => {
-        console.log('Codespace online:', data)
+        await notificationApp.getValidAccessToken()
         await notificationApp.connectToExecutorWithToken()
         await notificationApp.executorWSClient?.autoConnect()
       })
@@ -1544,7 +1551,10 @@ class MenuBarNotificationApp {
   private async refreshTokens(): Promise<boolean> {
     try {
       if (!this.authTokens?.refresh_token) {
-        return false
+        this.authTokens = await this.loadAuthTokens()
+        if (!this.authTokens?.refresh_token) {
+          return false
+        }
       }
 
       const response = await fetch(`${this.OAUTH_SERVER_URL}/oauth/refresh`, {
@@ -1564,8 +1574,8 @@ class MenuBarNotificationApp {
       }
 
       const tokens = await response.json() as TokenResponse
-
       // Update tokens
+
       this.authTokens = {
         ...this.authTokens,
         access_token: tokens.access_token,
@@ -1573,6 +1583,9 @@ class MenuBarNotificationApp {
         expires_in: tokens.expires_in,
         expires_at: Date.now() + (tokens.expires_in * 1000),
       }
+
+      // Save updated tokens to encrypted storage
+      await this.saveAuthTokens(this.authTokens)
 
       return true
     }
@@ -1583,21 +1596,27 @@ class MenuBarNotificationApp {
   }
 
   private async getValidAccessToken(): Promise<string | null> {
-    if (!this.authTokens) {
+    // Use the centralized token validation method
+    const isValid = await this.ensureValidAuthTokens()
+
+    if (!isValid) {
+      // All token recovery attempts failed, show notification and logout
+      console.log('🔐 Authentication failed, logging out user')
+      this.showNotification({
+        id: 'session-expired',
+        title: 'Session Expired',
+        body: 'Your session has expired. Please log in again to continue.',
+        timestamp: Date.now(),
+        priority: 'high',
+      })
+
+      // Log the user out completely and show login screen
+      this.logout()
+      this.windowManager.showWindow() // Bring app to foreground
       return null
     }
 
-    // Check if token is expired (with 5 minute buffer)
-    const bufferTime = 5 * 60 * 1000 // 5 minutes
-    if (Date.now() >= (this.authTokens.expires_at - bufferTime)) {
-      const refreshed = await this.refreshTokens()
-      if (!refreshed) {
-        this.authTokens = null
-        return null
-      }
-    }
-
-    return this.authTokens.access_token
+    return this.authTokens!.access_token
   }
 
   private async getScripts(): Promise<Script[]> {
@@ -1631,9 +1650,139 @@ class MenuBarNotificationApp {
     })
   }
 
+  // Auth Token Persistence Methods
+  private async saveAuthTokens(authTokens: AuthTokens): Promise<void> {
+    try {
+      const tokenData = JSON.stringify(authTokens)
+      const encryptedData = encrypt(tokenData)
+
+      // Ensure directory exists
+      const dir = path.dirname(this.KEYBOARD_AUTH_TOKENS)
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true })
+      }
+
+      // Write with secure permissions
+      fs.writeFileSync(this.KEYBOARD_AUTH_TOKENS, encryptedData, { mode: 0o600 })
+    }
+    catch (error) {
+      console.error('❌ Failed to save auth tokens:', error)
+    }
+  }
+
+  private async loadAuthTokens(): Promise<AuthTokens | null> {
+    try {
+      if (!fs.existsSync(this.KEYBOARD_AUTH_TOKENS)) {
+        return null
+      }
+
+      const encryptedData = fs.readFileSync(this.KEYBOARD_AUTH_TOKENS, 'utf8')
+      const decryptedData = decrypt(encryptedData)
+
+      if (!decryptedData) {
+        return null
+      }
+
+      const authTokens = JSON.parse(decryptedData) as AuthTokens
+
+      // Validate token structure
+      if (!authTokens.access_token || !authTokens.refresh_token || !authTokens.expires_at) {
+        return null
+      }
+
+      // Check if tokens are expired (with 5 minute buffer)
+      const bufferTime = 5 * 60 * 1000 // 5 minutes
+      if (Date.now() >= (authTokens.expires_at - bufferTime)) {
+        return null
+      }
+
+      return authTokens
+    }
+    catch (error) {
+      console.error('❌ Failed to load auth tokens:', error)
+      return null
+    }
+  }
+
+  private async clearAuthTokens(): Promise<void> {
+    try {
+      if (fs.existsSync(this.KEYBOARD_AUTH_TOKENS)) {
+        fs.unlinkSync(this.KEYBOARD_AUTH_TOKENS)
+      }
+    }
+    catch (error) {
+      console.error('❌ Failed to clear auth tokens:', error)
+    }
+  }
+
+  private async loadPersistedAuthTokens(): Promise<void> {
+    // Only load if we don't already have tokens in memory
+    if (this.authTokens) {
+      return
+    }
+
+    const persistedTokens = await this.loadAuthTokens()
+    if (persistedTokens) {
+      this.authTokens = persistedTokens
+
+      // Notify the renderer process about restored auth
+      this.windowManager.sendMessage('auth-success', {
+        user: persistedTokens.user,
+        authenticated: true,
+      })
+
+      // Set up SSE service with restored token
+      if (this.sseBackgroundService) {
+        this.sseBackgroundService.setAuthToken(persistedTokens.access_token)
+      }
+    }
+  }
+
+  // Centralized method to ensure this.authTokens is valid and fresh
+  private async ensureValidAuthTokens(): Promise<boolean> {
+    // Return false if no tokens at all
+    if (!this.authTokens) {
+      return false
+    }
+
+    // Check if token is expired (with 5 minute buffer)
+    const bufferTime = 5 * 60 * 1000 // 5 minutes
+    if (Date.now() < (this.authTokens.expires_at - bufferTime)) {
+      // Token is still valid, no action needed
+      return true
+    }
+
+    // Token is expired/expiring, try to refresh
+    console.log('🔐 Auth tokens expiring soon, refreshing...')
+    const refreshed = await this.refreshTokens()
+
+    if (refreshed) {
+      console.log('✅ Auth tokens refreshed successfully')
+      return true
+    }
+
+    // Refresh failed, try storage fallback
+    console.log('🔐 Token refresh failed, trying storage fallback...')
+    const storageTokens = await this.loadAuthTokens()
+
+    if (storageTokens && storageTokens.access_token !== this.authTokens.access_token) {
+      // Found different tokens in storage, use them
+      this.authTokens = storageTokens
+      console.log('🔐 Successfully recovered from storage fallback')
+      return true
+    }
+
+    // All recovery attempts failed
+    console.log('❌ All token refresh attempts failed')
+    return false
+  }
+
   private logout(): void {
     this.authTokens = null
     this.currentPKCE = null
+
+    // Clear stored tokens
+    this.clearAuthTokens()
 
     // Disconnect from SSE when logging out
     if (this.sseBackgroundService) {
