@@ -17,6 +17,7 @@ export const useWebSocketConnection = (
   // Connection state
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected')
   const [isConnectingToCodespace, setIsConnectingToCodespace] = useState(false)
+  const [isOnboardingCompleted, setIsOnboardingCompleted] = useState(false)
 
   // Use refs to track state without causing re-renders
   const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -42,6 +43,22 @@ export const useWebSocketConnection = (
     }, 100) // Small debounce to prevent rapid flickering
   }, [])
 
+  // Check onboarding completion status
+  useEffect(() => {
+    const checkOnboardingStatus = async () => {
+      try {
+        const completed = await window.electronAPI.checkOnboardingCompleted()
+        setIsOnboardingCompleted(completed)
+      } catch (error) {
+        console.error('Failed to check onboarding status:', error)
+      }
+    }
+
+    if (authStatus.authenticated || isSkippingAuth) {
+      checkOnboardingStatus()
+    }
+  }, [authStatus.authenticated, isSkippingAuth])
+
   // Initialize connection status on app start
   useEffect(() => {
     const initializeConnectionStatus = async () => {
@@ -61,29 +78,41 @@ export const useWebSocketConnection = (
   // WebSocket event handlers
   useEffect(() => {
     const handleWebSocketConnecting = (_event: unknown, data: { target: string, type: string }) => {
-      showConnectingToast(data.target)
+      if (isOnboardingCompleted) {
+        showConnectingToast(data.target)
+      }
     }
 
     const handleWebSocketConnected = (_event: unknown, data: { target: string, type: string, codespaceName?: string }) => {
-      showConnectedToast(data.target)
+      if (isOnboardingCompleted) {
+        showConnectedToast(data.target)
+      }
       updateConnectionStatus('connected')
     }
 
     const handleWebSocketDisconnected = (_event: unknown, data: { target: string, type: string }) => {
-      showDisconnectedToast(`Disconnected from ${data.target}`)
+      if (isOnboardingCompleted) {
+        showDisconnectedToast(`Disconnected from ${data.target}`)
+      }
       updateConnectionStatus('disconnected')
     }
 
     const handleWebSocketReconnecting = (_event: unknown, data: { attempt: number, maxAttempts: number }) => {
-      showReconnectingToast()
+      if (isOnboardingCompleted) {
+        showReconnectingToast()
+      }
     }
 
     const handleWebSocketSwitching = (_event: unknown, data: { from: string, to: string }) => {
-      showSwitchingToast(data.from, data.to)
+      if (isOnboardingCompleted) {
+        showSwitchingToast(data.from, data.to)
+      }
     }
 
     const handleWebSocketError = (_event: unknown, data: { target: string, type: string, error: string }) => {
-      showConnectionFailedToast(data.target, data.error)
+      if (isOnboardingCompleted) {
+        showConnectionFailedToast(data.target, data.error)
+      }
       updateConnectionStatus('disconnected')
     }
 
@@ -110,6 +139,7 @@ export const useWebSocketConnection = (
       }
     }
   }, [
+    isOnboardingCompleted,
     updateConnectionStatus,
     showConnectingToast,
     showConnectedToast,

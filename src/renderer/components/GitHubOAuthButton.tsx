@@ -69,8 +69,6 @@ export const GitHubOAuthButton: React.FC<GitHubOAuthButtonProps> = ({ className,
     setError(null)
 
     try {
-      // First, ensure we have a server provider configured for localhost:4000
-
       await window.electronAPI.fetchOnboardingGithubProvider()
       // Re-check connection status after OAuth flow
       await checkConnectionStatus()
