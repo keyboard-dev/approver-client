@@ -112,8 +112,8 @@ export const SharedConnectors: React.FC<ServerProviderManagerProps> = ({ classNa
   const loadServerProviders = async () => {
     try {
       const serverProviders = await window.electronAPI.getServerProviders()
-      setServers(serverProviders)
-
+      const newServerProviders = serverProviders.filter(server => server.id !== 'keyboard-api')
+      setServers(newServerProviders)
       await Promise.all(serverProviders.map(server => fetchProvidersForServer(server.id),
       ))
     }
