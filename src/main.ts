@@ -1489,8 +1489,7 @@ class MenuBarNotificationApp {
       }
 
       const tokens = await response.json() as TokenResponse
-      console.log('this.authTokens', tokens?.expires_in)
-      console.log('this.authTokens exp', tokens?.exp)
+
       // Calculate expiration time and create AuthTokens object
       const authTokens: AuthTokens = {
         ...tokens,
@@ -1577,8 +1576,6 @@ class MenuBarNotificationApp {
       const tokens = await response.json() as TokenResponse
       // Update tokens
 
-      console.log('this.authTokens', tokens?.expires_in)
-      console.log('this.authTokens exp', tokens?.exp)
       this.authTokens = {
         ...this.authTokens,
         access_token: tokens.access_token,
