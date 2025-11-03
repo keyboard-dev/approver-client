@@ -1489,6 +1489,8 @@ class MenuBarNotificationApp {
       }
 
       const tokens = await response.json() as TokenResponse
+      console.log('this.authTokens', tokens?.expires_in)
+      console.log('this.authTokens exp', tokens?.exp)
       // Calculate expiration time and create AuthTokens object
       const authTokens: AuthTokens = {
         ...tokens,
@@ -1536,6 +1538,7 @@ class MenuBarNotificationApp {
       // })
 
       this.sseBackgroundService.on('codespace-online', async (data: CodespaceData) => {
+        await notificationApp.getValidAccessToken()
         await notificationApp.connectToExecutorWithToken()
         await notificationApp.executorWSClient?.autoConnect()
       })
@@ -1573,6 +1576,9 @@ class MenuBarNotificationApp {
 
       const tokens = await response.json() as TokenResponse
       // Update tokens
+
+      console.log('this.authTokens', tokens?.expires_in)
+      console.log('this.authTokens exp', tokens?.exp)
       this.authTokens = {
         ...this.authTokens,
         access_token: tokens.access_token,
@@ -1593,44 +1599,27 @@ class MenuBarNotificationApp {
   }
 
   private async getValidAccessToken(): Promise<string | null> {
-    if (!this.authTokens) {
+    // Use the centralized token validation method
+    const isValid = await this.ensureValidAuthTokens()
+
+    if (!isValid) {
+      // All token recovery attempts failed, show notification and logout
+      console.log('🔐 Authentication failed, logging out user')
+      this.showNotification({
+        id: 'session-expired',
+        title: 'Session Expired',
+        body: 'Your session has expired. Please log in again to continue.',
+        timestamp: Date.now(),
+        priority: 'high',
+      })
+
+      // Log the user out completely and show login screen
+      this.logout()
+      this.windowManager.showWindow() // Bring app to foreground
       return null
     }
 
-    // Check if token is expired (with 5 minute buffer)
-    const bufferTime = 5 * 60 * 1000 // 5 minutes
-    if (Date.now() >= (this.authTokens.expires_at - bufferTime)) {
-      const refreshed = await this.refreshTokens()
-      if (!refreshed) {
-        // Try to load fresh tokens from storage as fallback
-
-        const storageTokens = await this.loadAuthTokens()
-
-        if (storageTokens && storageTokens.access_token !== this.authTokens.access_token) {
-          // Found different tokens in storage, use them
-          this.authTokens = storageTokens
-
-          return this.authTokens.access_token
-        }
-
-        // Storage fallback failed, show notification and logout
-
-        this.showNotification({
-          id: 'session-expired',
-          title: 'Session Expired',
-          body: 'Your session has expired. Please log in again to continue.',
-          timestamp: Date.now(),
-          priority: 'high',
-        })
-
-        // Log the user out completely and show login screen
-        this.logout()
-        this.windowManager.showWindow() // Bring app to foreground
-        return null
-      }
-    }
-
-    return this.authTokens.access_token
+    return this.authTokens!.access_token
   }
 
   private async getScripts(): Promise<Script[]> {
@@ -1750,6 +1739,45 @@ class MenuBarNotificationApp {
         this.sseBackgroundService.setAuthToken(persistedTokens.access_token)
       }
     }
+  }
+
+  // Centralized method to ensure this.authTokens is valid and fresh
+  private async ensureValidAuthTokens(): Promise<boolean> {
+    // Return false if no tokens at all
+    if (!this.authTokens) {
+      return false
+    }
+
+    // Check if token is expired (with 5 minute buffer)
+    const bufferTime = 5 * 60 * 1000 // 5 minutes
+    if (Date.now() < (this.authTokens.expires_at - bufferTime)) {
+      // Token is still valid, no action needed
+      return true
+    }
+
+    // Token is expired/expiring, try to refresh
+    console.log('🔐 Auth tokens expiring soon, refreshing...')
+    const refreshed = await this.refreshTokens()
+
+    if (refreshed) {
+      console.log('✅ Auth tokens refreshed successfully')
+      return true
+    }
+
+    // Refresh failed, try storage fallback
+    console.log('🔐 Token refresh failed, trying storage fallback...')
+    const storageTokens = await this.loadAuthTokens()
+
+    if (storageTokens && storageTokens.access_token !== this.authTokens.access_token) {
+      // Found different tokens in storage, use them
+      this.authTokens = storageTokens
+      console.log('🔐 Successfully recovered from storage fallback')
+      return true
+    }
+
+    // All recovery attempts failed
+    console.log('❌ All token refresh attempts failed')
+    return false
   }
 
   private logout(): void {
