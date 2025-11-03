@@ -5,7 +5,7 @@ import * as os from 'os'
 import * as path from 'path'
 import * as WebSocket from 'ws'
 import { CodespaceEncryptionConfig, encryptWithCodespaceKey } from './codespace-encryption'
-import { setEncryptionKeyProvider } from './encryption'
+import { setEncryptionKeyProvider, encrypt, decrypt } from './encryption'
 import { GithubService } from './Github'
 import { deleteScriptTemplate } from './keyboard-shortcuts'
 import { OAuthCallbackData, OAuthHttpServer } from './oauth-http-server'
@@ -115,6 +115,7 @@ class MenuBarNotificationApp {
   private wsConnectionKey: string | null = null
   private readonly STORAGE_DIR = path.join(os.homedir(), '.keyboard-mcp')
   private readonly WS_KEY_FILE = path.join(os.homedir(), '.keyboard-mcp', '.keyboard-mcp-ws-key')
+  private readonly KEYBOARD_AUTH_TOKENS = path.join(os.homedir(), '.keyboard-mcp', '.keyboard-mcp-tokens.json')
   private readonly ONBOARDING_COMPLETED_FILE = path.join(os.homedir(), '.keyboard-mcp', 'completed-onboarding')
 
   // Encryption key management
@@ -255,6 +256,9 @@ class MenuBarNotificationApp {
 
       // NOW initialize OAuth provider system (after encryption is ready)
       await this.initializeOAuthProviderSystem()
+
+      // Try to load persisted auth tokens
+      await this.loadPersistedAuthTokens()
 
       // Initialize GitHub service
       await this.initializeGithubService()
@@ -1494,7 +1498,8 @@ class MenuBarNotificationApp {
       this.authTokens = authTokens
       await this.refreshTokens()
 
-      // Store tokens securely
+      // Store tokens securely to encrypted storage
+      await this.saveAuthTokens(this.authTokens)
 
       this.currentPKCE = null // Clear PKCE data
 
@@ -1574,6 +1579,9 @@ class MenuBarNotificationApp {
         expires_at: Date.now() + (tokens.expires_in * 1000),
       }
 
+      // Save updated tokens to encrypted storage
+      await this.saveAuthTokens(this.authTokens)
+
       return true
     }
     catch (error) {
@@ -1592,7 +1600,19 @@ class MenuBarNotificationApp {
     if (Date.now() >= (this.authTokens.expires_at - bufferTime)) {
       const refreshed = await this.refreshTokens()
       if (!refreshed) {
-        // Show notification to user about session expiration
+        // Try to load fresh tokens from storage as fallback
+        console.log('🔐 Token refresh failed, trying storage fallback...')
+        const storageTokens = await this.loadAuthTokens()
+        
+        if (storageTokens && storageTokens.access_token !== this.authTokens.access_token) {
+          // Found different tokens in storage, use them
+          this.authTokens = storageTokens
+          console.log('🔐 Successfully recovered from storage fallback')
+          return this.authTokens.access_token
+        }
+
+        // Storage fallback failed, show notification and logout
+        console.log('🔐 Storage fallback failed, logging out user')
         this.showNotification({
           id: 'session-expired',
           title: 'Session Expired',
@@ -1642,9 +1662,104 @@ class MenuBarNotificationApp {
     })
   }
 
+  // Auth Token Persistence Methods
+  private async saveAuthTokens(authTokens: AuthTokens): Promise<void> {
+    try {
+      const tokenData = JSON.stringify(authTokens)
+      const encryptedData = encrypt(tokenData)
+      
+      // Ensure directory exists
+      const dir = path.dirname(this.KEYBOARD_AUTH_TOKENS)
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true })
+      }
+      
+      // Write with secure permissions
+      fs.writeFileSync(this.KEYBOARD_AUTH_TOKENS, encryptedData, { mode: 0o600 })
+      console.log('🔐 Auth tokens saved to encrypted storage')
+    } catch (error) {
+      console.error('❌ Failed to save auth tokens:', error)
+    }
+  }
+
+  private async loadAuthTokens(): Promise<AuthTokens | null> {
+    try {
+      if (!fs.existsSync(this.KEYBOARD_AUTH_TOKENS)) {
+        return null
+      }
+
+      const encryptedData = fs.readFileSync(this.KEYBOARD_AUTH_TOKENS, 'utf8')
+      const decryptedData = decrypt(encryptedData)
+      
+      if (!decryptedData) {
+        console.log('🔐 Failed to decrypt auth tokens')
+        return null
+      }
+
+      const authTokens = JSON.parse(decryptedData) as AuthTokens
+      
+      // Validate token structure
+      if (!authTokens.access_token || !authTokens.refresh_token || !authTokens.expires_at) {
+        console.log('🔐 Invalid token structure in storage')
+        return null
+      }
+
+      // Check if tokens are expired (with 5 minute buffer)
+      const bufferTime = 5 * 60 * 1000 // 5 minutes
+      if (Date.now() >= (authTokens.expires_at - bufferTime)) {
+        console.log('🔐 Stored tokens are expired')
+        return null
+      }
+
+      console.log('🔐 Auth tokens loaded from encrypted storage')
+      return authTokens
+    } catch (error) {
+      console.error('❌ Failed to load auth tokens:', error)
+      return null
+    }
+  }
+
+  private async clearAuthTokens(): Promise<void> {
+    try {
+      if (fs.existsSync(this.KEYBOARD_AUTH_TOKENS)) {
+        fs.unlinkSync(this.KEYBOARD_AUTH_TOKENS)
+        console.log('🔐 Auth tokens cleared from storage')
+      }
+    } catch (error) {
+      console.error('❌ Failed to clear auth tokens:', error)
+    }
+  }
+
+  private async loadPersistedAuthTokens(): Promise<void> {
+    // Only load if we don't already have tokens in memory
+    if (this.authTokens) {
+      return
+    }
+
+    const persistedTokens = await this.loadAuthTokens()
+    if (persistedTokens) {
+      this.authTokens = persistedTokens
+      console.log('🔐 Restored authentication from persistent storage')
+      
+      // Notify the renderer process about restored auth
+      this.windowManager.sendMessage('auth-success', {
+        user: persistedTokens.user,
+        authenticated: true,
+      })
+
+      // Set up SSE service with restored token
+      if (this.sseBackgroundService) {
+        this.sseBackgroundService.setAuthToken(persistedTokens.access_token)
+      }
+    }
+  }
+
   private logout(): void {
     this.authTokens = null
     this.currentPKCE = null
+
+    // Clear stored tokens
+    this.clearAuthTokens()
 
     // Disconnect from SSE when logging out
     if (this.sseBackgroundService) {
