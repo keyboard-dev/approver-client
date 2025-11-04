@@ -40,6 +40,7 @@ export const useConnectionToasts = () => {
       </div>,
       {
         duration: options.duration ?? 3000,
+        closeButton: true,
         ...options,
       },
     )
@@ -57,7 +58,8 @@ export const useConnectionToasts = () => {
         </div>
       </div>,
       {
-        duration: Infinity, // Keep visible until manually dismissed
+        duration: 1000, // Keep visible until manually dismissed
+        closeButton: true,
         ...options,
       },
     )
@@ -85,7 +87,8 @@ export const useConnectionToasts = () => {
         </div>
       </div>,
       {
-        duration: options.duration ?? 5000,
+        duration: 2000,
+        closeButton: true,
         ...options,
       },
     )
@@ -108,7 +111,8 @@ export const useConnectionToasts = () => {
         </div>
       </div>,
       {
-        duration: options.duration ?? 5000,
+        duration: 2000,
+        closeButton: true,
         ...options,
       },
     )
@@ -133,7 +137,8 @@ export const useConnectionToasts = () => {
         </div>
       </div>,
       {
-        duration: options.duration ?? 5000,
+        duration: 2000,
+        closeButton: true,
         ...options,
       },
     )
@@ -155,7 +160,8 @@ export const useConnectionToasts = () => {
         </div>
       </div>,
       {
-        duration: options.duration ?? 10000,
+        duration: 1000,
+        closeButton: true,
         ...options,
       },
     )
