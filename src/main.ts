@@ -1379,6 +1379,10 @@ class MenuBarNotificationApp {
   }
 
   private async refreshProviderTokens(providerId: string, refreshToken: string): Promise<ProviderTokens> {
+    console.log('refreshing tokens for', providerId)
+    console.log('refreshToken', refreshToken)
+    console.log('======================')
+
     return await this.oauthProviderManager.refreshTokens(providerId, refreshToken)
   }
 
@@ -2067,11 +2071,15 @@ class MenuBarNotificationApp {
     })
 
     ipcMain.handle('refresh-provider-tokens', async (_event, providerId: string): Promise<boolean> => {
+      console.log('refreshing tokens for', providerId)
+      console.log('======================')
       try {
         const tokens = await this.perProviderTokenStorage.getTokens(providerId)
         if (!tokens?.refresh_token) {
           return false
         }
+
+        console.log('refreshing tokens for', tokens)
 
         const refreshedTokens = await this.refreshProviderTokens(providerId, tokens.refresh_token)
         await this.perProviderTokenStorage.storeTokens(refreshedTokens)

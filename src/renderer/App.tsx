@@ -10,6 +10,7 @@ import { Textarea } from '../components/ui/textarea'
 import { ElectronAPI } from '../preload'
 import { CollectionRequest, Message, ShareMessage } from '../types'
 import './App.css'
+import AlertButton from './components/AlertButton'
 import AuthComponent from './components/AuthComponent'
 import GitHubOAuthButton from './components/GitHubOAuthButton'
 import { Prompter } from './components/Prompter'
@@ -937,13 +938,18 @@ const AppContent: React.FC = () => {
           className="px-[0.5rem] py-[0.25rem] w-4 h-4"
         />
         <StatusDisplay />
-        <ButtonDesigned
-          className="px-[0.5rem] py-[0.25rem] rounded-full not-draggable"
-          variant="secondary"
-          onClick={toggleSettings}
+        <div
+          className="flex gap-[0.31rem]"
         >
-          <img src={iconGearUrl} alt="Settings" className="w-4 h-4" />
-        </ButtonDesigned>
+          <AlertButton />
+          <ButtonDesigned
+            className="px-[0.5rem] py-[0.25rem] rounded-full not-draggable"
+            variant="secondary"
+            onClick={toggleSettings}
+          >
+            <img src={iconGearUrl} alt="Settings" className="w-4 h-4" />
+          </ButtonDesigned>
+        </div>
       </div>
 
       <div

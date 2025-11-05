@@ -340,6 +340,9 @@ export class OAuthProviderManager {
     }
 
     const rawTokenData = await response.json() as Record<string, unknown>
+    console.log('rawTokenData', rawTokenData)
+    console.log('======================')
+
     const tokenData = this.parseTokenData(rawTokenData)
 
     // Fetch user info if userInfoUrl is provided
@@ -399,6 +402,15 @@ export class OAuthProviderManager {
    * Refresh tokens directly with the provider (requires local client credentials)
    */
   private async refreshTokensDirect(_providerId: string, refreshToken: string, provider: OAuthProvider): Promise<ProviderTokens> {
+    console.log('======================')
+    console.log('providerId', _providerId)
+    console.log('refreshToken', refreshToken)
+    console.log('provider', provider)
+    console.log('provider.clientId', provider.clientId)
+    console.log('provider.clientSecret', provider.clientSecret)
+    console.log('provider.tokenUrl', provider.tokenUrl)
+    console.log('======================')
+
     const body: Record<string, string> = {
       client_id: provider.clientId,
       refresh_token: refreshToken,
