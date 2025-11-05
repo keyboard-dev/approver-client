@@ -1,6 +1,6 @@
 {
   "name": "keyboard-approver App",
-  "version": "0.1.6",
+  "version": "0.1.8",
   "description": "Desktop notification app for MCP approval workflow",
   "main": "dist/main.js",
   "author": "keyboard.dev team",
@@ -60,6 +60,7 @@
     "react-dom": "^18.2.0",
     "react-syntax-highlighter": "^15.6.1",
     "react-use": "^17.6.0",
+    "sonner": "^2.0.7",
     "tailwind-merge": "^3.3.1",
     "tailwindcss-animate": "^1.0.7",
     "ws": "^8.14.2",

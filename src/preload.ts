@@ -133,6 +133,13 @@ export interface ElectronAPI {
   onMessageStatusUpdated: (callback: (event: IpcRendererEvent, message: Partial<Message>) => void) => void
   onShareMessageStatusUpdated: (callback: (event: IpcRendererEvent, shareMessage: Partial<ShareMessage>) => void) => void
   removeAllListeners: (channel: string) => void
+  // WebSocket connection status event listeners
+  onWebSocketConnecting: (callback: (event: IpcRendererEvent, data: { target: string, type: string }) => void) => void
+  onWebSocketConnected: (callback: (event: IpcRendererEvent, data: { target: string, type: string, codespaceName?: string }) => void) => void
+  onWebSocketDisconnected: (callback: (event: IpcRendererEvent, data: { target: string, type: string }) => void) => void
+  onWebSocketReconnecting: (callback: (event: IpcRendererEvent, data: { attempt: number, maxAttempts: number }) => void) => void
+  onWebSocketSwitching: (callback: (event: IpcRendererEvent, data: { from: string, to: string }) => void) => void
+  onWebSocketError: (callback: (event: IpcRendererEvent, data: { target: string, type: string, error: string }) => void) => void
   // Database operations
   dbGetPendingCount: () => Promise<number>
   dbClearAllMessages: () => Promise<void>
@@ -272,6 +279,26 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   removeAllListeners: (channel: string): void => {
     ipcRenderer.removeAllListeners(channel)
+  },
+
+  // WebSocket connection status event listeners
+  onWebSocketConnecting: (callback: (event: IpcRendererEvent, data: { target: string, type: string }) => void): void => {
+    ipcRenderer.on('websocket-connecting', callback)
+  },
+  onWebSocketConnected: (callback: (event: IpcRendererEvent, data: { target: string, type: string, codespaceName?: string }) => void): void => {
+    ipcRenderer.on('websocket-connected', callback)
+  },
+  onWebSocketDisconnected: (callback: (event: IpcRendererEvent, data: { target: string, type: string }) => void): void => {
+    ipcRenderer.on('websocket-disconnected', callback)
+  },
+  onWebSocketReconnecting: (callback: (event: IpcRendererEvent, data: { attempt: number, maxAttempts: number }) => void): void => {
+    ipcRenderer.on('websocket-reconnecting', callback)
+  },
+  onWebSocketSwitching: (callback: (event: IpcRendererEvent, data: { from: string, to: string }) => void): void => {
+    ipcRenderer.on('websocket-switching', callback)
+  },
+  onWebSocketError: (callback: (event: IpcRendererEvent, data: { target: string, type: string, error: string }) => void): void => {
+    ipcRenderer.on('websocket-error', callback)
   },
 
   // Database operations

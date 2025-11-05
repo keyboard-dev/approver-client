@@ -7,7 +7,6 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 
 import iconGearUrl from '../../assets/icon-gear.svg'
 import { Textarea } from '../components/ui/textarea'
-import { ElectronAPI } from '../preload'
 import { CollectionRequest, Message, ShareMessage } from '../types'
 import './App.css'
 import AlertButton from './components/AlertButton'
@@ -23,8 +22,12 @@ import { Badge } from './components/ui/badge'
 import { Button } from './components/ui/button'
 import { ButtonDesigned } from './components/ui/ButtonDesigned'
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card'
+import { Toaster } from './components/ui/sonner'
+import { WebSocketStatusDialog } from './components/WebSocketStatusDialog'
 import { useAuth } from './hooks/useAuth'
 import { useMessagesQuery } from './hooks/useMessagesQuery'
+import { useWebSocketConnection } from './hooks/useWebSocketConnection'
+import { useWebSocketDialog } from './hooks/useWebSocketDialog'
 import { useDatabase } from './providers/DatabaseProvider'
 import { Providers } from './providers/Providers'
 
@@ -64,23 +67,29 @@ const AppContent: React.FC = () => {
   // Fetch messages directly from database (no in-memory cache)
   const { messages, shareMessages, refetch: refetchMessages } = useMessagesQuery()
 
+  // WebSocket connection management
+  const { connectionStatus } = useWebSocketConnection(
+    authStatus,
+    isSkippingAuth,
+  )
+
+  // WebSocket status dialog management
+  const { showDialog: showWebSocketDialog, closeDialog: closeWebSocketDialog } = useWebSocketDialog()
+
   // Message and app state (moved back from auth hook)
   const [currentMessage, setCurrentMessage] = useState<Message | null>(null)
   const [currentShareMessage, setCurrentShareMessage] = useState<ShareMessage | null>(null)
   const [feedback, setFeedback] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [showFeedback, setShowFeedback] = useState(false)
-  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'connecting'>('disconnected')
   const [isInitialized, setIsInitialized] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [isFontLoaded, setIsFontLoaded] = useState(false)
   const [isGitHubConnected, setIsGitHubConnected] = useState(false)
   const [isCheckingGitHub, setIsCheckingGitHub] = useState(true)
   const [showPrompterOnly, setShowPrompterOnly] = useState(false)
-  const [isConnectingToCodespace, setIsConnectingToCodespace] = useState(false)
 
   // Use refs to track state without causing re-renders
-  const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Font loading effect
@@ -129,17 +138,6 @@ const AppContent: React.FC = () => {
       checkGitHubConnection()
     }
   }, [authStatus.authenticated, isSkippingAuth, checkGitHubConnection])
-
-  // Debounced connection status update
-  const updateConnectionStatus = useCallback((status: 'connected' | 'disconnected' | 'connecting') => {
-    if (connectionTimeoutRef.current) {
-      clearTimeout(connectionTimeoutRef.current)
-    }
-
-    connectionTimeoutRef.current = setTimeout(() => {
-      setConnectionStatus(status)
-    }, 100) // Small debounce to prevent rapid flickering
-  }, [])
 
   // Debounced loading state update
   const updateLoadingState = useCallback((loading: boolean) => {
@@ -226,7 +224,6 @@ const AppContent: React.FC = () => {
 
       setCurrentMessage(message)
       // Message is automatically added to IndexedDB by DatabaseProvider
-      updateConnectionStatus('connected')
     }
 
     // Listen for collection share requests
@@ -238,7 +235,6 @@ const AppContent: React.FC = () => {
 
       setCurrentShareMessage(shareMessage)
       // Share message stored in currentShareMessage state
-      updateConnectionStatus('connected')
     }
 
     // Listen for show share message
@@ -246,20 +242,10 @@ const AppContent: React.FC = () => {
       setCurrentShareMessage(shareMessage)
     }
 
-    // Listen for connection status changes
-    const handleConnectionStatusChange = (_event: unknown, status: 'connected' | 'disconnected' | 'connecting') => {
-      updateConnectionStatus(status)
-    }
-
     window.electronAPI.onShowMessage(handleShowMessage)
     window.electronAPI.onWebSocketMessage(handleWebSocketMessage)
     window.electronAPI.onCollectionShareRequest(handleCollectionShareRequest)
     window.electronAPI.onShowShareMessage(handleShowShareMessage)
-
-    // Listen for connection status if available
-    if ('onConnectionStatusChange' in window.electronAPI) {
-      (window.electronAPI as ElectronAPI & { onConnectionStatusChange?: (handler: typeof handleConnectionStatusChange) => void }).onConnectionStatusChange?.(handleConnectionStatusChange)
-    }
 
     // Cleanup listeners on unmount
     return () => {
@@ -268,19 +254,12 @@ const AppContent: React.FC = () => {
       window.electronAPI.removeAllListeners('collection-share-request')
       window.electronAPI.removeAllListeners('show-share-message')
 
-      if (window.electronAPI.removeAllListeners) {
-        window.electronAPI.removeAllListeners('connection-status-change')
-      }
-
       // Clean up timeouts
-      if (connectionTimeoutRef.current) {
-        clearTimeout(connectionTimeoutRef.current)
-      }
       if (loadingTimeoutRef.current) {
         clearTimeout(loadingTimeoutRef.current)
       }
     }
-  }, [updateConnectionStatus, authStatusRef]) // Only depend on the stable callbacks
+  }, [authStatusRef]) // Only depend on the stable auth ref
 
   // Approve message
   const approveMessage = async () => {
@@ -626,24 +605,6 @@ const AppContent: React.FC = () => {
     setShowPrompterOnly(true)
   }
 
-  const connectToBestCodespace = async () => {
-    if (!authStatusRef.current.authenticated) return
-
-    setIsConnectingToCodespace(true)
-    try {
-      const success = await window.electronAPI.connectToBestCodespace()
-      if (success) {
-        updateConnectionStatus('connected')
-      }
-    }
-    catch (error) {
-      console.error('Failed to connect to best codespace:', error)
-    }
-    finally {
-      setIsConnectingToCodespace(false)
-    }
-  }
-
   const getMessageScreen = () => {
     if (showPrompterOnly) {
       return (
@@ -865,22 +826,6 @@ const AppContent: React.FC = () => {
                               </Button>
                             )}
                             {!showSettings && (
-                              <Button
-                                variant="outline"
-                                onClick={connectToBestCodespace}
-                                disabled={isConnectingToCodespace || connectionStatus === 'connected'}
-                                className="flex items-center space-x-2"
-                              >
-                                <span>
-                                  {isConnectingToCodespace
-                                    ? 'Connecting...'
-                                    : connectionStatus === 'connected'
-                                      ? 'Connected'
-                                      : 'Connect to Codespace'}
-                                </span>
-                              </Button>
-                            )}
-                            {!showSettings && (
                               <GitHubOAuthButton />
                             )}
                             {!showSettings && (messages.length > 0 || shareMessages.length > 0) && (
@@ -963,6 +908,12 @@ const AppContent: React.FC = () => {
             )
           : getMessageScreen()}
       </div>
+
+      {/* WebSocket Status Dialog */}
+      <WebSocketStatusDialog
+        open={showWebSocketDialog}
+        onOpenChange={open => !open && closeWebSocketDialog()}
+      />
     </div>
   )
 }
@@ -971,6 +922,7 @@ const App: React.FC = () => {
   return (
     <Providers>
       <AppContent />
+      <Toaster />
     </Providers>
   )
 }
