@@ -14,6 +14,7 @@ import AuthComponent from './components/AuthComponent'
 import GitHubOAuthButton from './components/GitHubOAuthButton'
 import { Prompter } from './components/Prompter'
 import { ApprovalScreen } from './components/screens/ApprovalPanel'
+import { ChatScreen } from './components/screens/ChatScreen'
 import OnboardingView from './components/screens/onboarding/OnboardingView'
 import { SettingsScreen } from './components/screens/settings/SettingsScreen'
 import { Share } from './components/Share'
@@ -83,6 +84,7 @@ const AppContent: React.FC = () => {
   const [showFeedback, setShowFeedback] = useState(false)
   const [isInitialized, setIsInitialized] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [showChat, setShowChat] = useState(false)
   const [isFontLoaded, setIsFontLoaded] = useState(false)
   const [isGitHubConnected, setIsGitHubConnected] = useState(false)
   const [isCheckingGitHub, setIsCheckingGitHub] = useState(true)
@@ -376,6 +378,15 @@ const AppContent: React.FC = () => {
 
   const toggleSettings = () => {
     setShowSettings(!showSettings)
+    setShowChat(false)
+    setCurrentMessage(null)
+    setFeedback('')
+    setShowFeedback(false)
+  }
+
+  const toggleChat = () => {
+    setShowChat(!showChat)
+    setShowSettings(false)
     setCurrentMessage(null)
     setFeedback('')
     setShowFeedback(false)
@@ -813,10 +824,10 @@ const AppContent: React.FC = () => {
                       <div className="space-y-4">
                         <div className="flex items-center justify-between">
                           <h1 className="text-3xl font-bold">
-                            {showSettings ? 'Settings' : 'Message Approvals'}
+                            {showSettings ? 'Settings' : showChat ? 'MCP Chat' : 'Message Approvals'}
                           </h1>
                           <div className="flex items-center space-x-3">
-                            {!showSettings && (
+                            {!showSettings && !showChat && (
                               <Button
                                 variant="outline"
                                 onClick={openPrompterOnly}
@@ -825,10 +836,10 @@ const AppContent: React.FC = () => {
                                 <span>Open Prompter</span>
                               </Button>
                             )}
-                            {!showSettings && (
+                            {!showSettings && !showChat && (
                               <GitHubOAuthButton />
                             )}
-                            {!showSettings && (messages.length > 0 || shareMessages.length > 0) && (
+                            {!showSettings && !showChat && (messages.length > 0 || shareMessages.length > 0) && (
                               <Button
                                 variant="outline"
                                 onClick={() => clearNonPendingMessages()}
@@ -837,12 +848,21 @@ const AppContent: React.FC = () => {
                                 <span>Clear Non-Pending</span>
                               </Button>
                             )}
+                            {!showSettings && !showChat && (
+                              <Button
+                                variant="outline"
+                                onClick={toggleChat}
+                                className="flex items-center space-x-2"
+                              >
+                                <span>💬 Chat</span>
+                              </Button>
+                            )}
                             <Button
                               variant="outline"
-                              onClick={toggleSettings}
+                              onClick={showSettings ? toggleSettings : showChat ? toggleChat : toggleSettings}
                               className="flex items-center space-x-2"
                             >
-                              <span>{showSettings ? 'Back to Messages' : 'Settings'}</span>
+                              <span>{showSettings ? 'Back to Messages' : showChat ? 'Back to Messages' : 'Settings'}</span>
                             </Button>
                           </div>
                         </div>
@@ -916,13 +936,17 @@ const AppContent: React.FC = () => {
       <div
         className="flex flex-col w-full min-w-0 grow min-h-0 bg-white rounded-[0.5rem] px-[0.63rem] py-[0.75rem] not-draggable gap-[0.63rem] items-start overflow-auto"
       >
-        {showSettings
+        {showChat
           ? (
-              <SettingsScreen
-                onBack={showMessageList}
-              />
+              <ChatScreen />
             )
-          : getMessageScreen()}
+          : showSettings
+            ? (
+                <SettingsScreen
+                  onBack={showMessageList}
+                />
+              )
+            : getMessageScreen()}
       </div>
 
       {/* WebSocket Status Dialog */}
