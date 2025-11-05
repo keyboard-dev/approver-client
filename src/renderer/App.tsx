@@ -11,6 +11,7 @@ import { ElectronAPI } from '../preload'
 import { CollectionRequest, Message, ShareMessage } from '../types'
 import './App.css'
 import AuthComponent from './components/AuthComponent'
+import { Chat } from './components/Chat'
 import GitHubOAuthButton from './components/GitHubOAuthButton'
 import { Prompter } from './components/Prompter'
 import { ApprovalScreen } from './components/screens/ApprovalPanel'
@@ -87,6 +88,7 @@ const AppContent: React.FC = () => {
   const [isGitHubConnected, setIsGitHubConnected] = useState(false)
   const [isCheckingGitHub, setIsCheckingGitHub] = useState(true)
   const [showPrompterOnly, setShowPrompterOnly] = useState(false)
+  const [showChat, setShowChat] = useState(false)
 
   // Use refs to track state without causing re-renders
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -371,6 +373,7 @@ const AppContent: React.FC = () => {
     setShowFeedback(false)
     setShowSettings(false)
     setShowPrompterOnly(false)
+    setShowChat(false)
     refreshMessages() // Refresh to show updated status
   }
 
@@ -606,6 +609,10 @@ const AppContent: React.FC = () => {
 
 
   const getMessageScreen = () => {
+    if (showChat) {
+      return <Chat onBack={showMessageList} />
+    }
+
     if (showPrompterOnly) {
       return (
         <Prompter message={{ title: 'prompter-request' }} onBack={showMessageList} />
@@ -816,6 +823,15 @@ const AppContent: React.FC = () => {
                             {showSettings ? 'Settings' : 'Message Approvals'}
                           </h1>
                           <div className="flex items-center space-x-3">
+                            {!showSettings && (
+                              <Button
+                                variant="outline"
+                                onClick={() => setShowChat(true)}
+                                className="flex items-center space-x-2"
+                              >
+                                <span>Chat</span>
+                              </Button>
+                            )}
                             {!showSettings && (
                               <Button
                                 variant="outline"
