@@ -11,7 +11,9 @@ import { ElectronAPI } from '../preload'
 import { CollectionRequest, Message, ShareMessage } from '../types'
 import './App.css'
 import AuthComponent from './components/AuthComponent'
+import { AssistantUIChat } from './components/AssistantUIChat'
 import { Chat } from './components/Chat'
+import { CopilotKitChat } from './components/CopilotKitChat'
 import GitHubOAuthButton from './components/GitHubOAuthButton'
 import { Prompter } from './components/Prompter'
 import { ApprovalScreen } from './components/screens/ApprovalPanel'
@@ -89,6 +91,8 @@ const AppContent: React.FC = () => {
   const [isCheckingGitHub, setIsCheckingGitHub] = useState(true)
   const [showPrompterOnly, setShowPrompterOnly] = useState(false)
   const [showChat, setShowChat] = useState(false)
+  const [showCopilotChat, setShowCopilotChat] = useState(false)
+  const [showAssistantChat, setShowAssistantChat] = useState(false)
 
   // Use refs to track state without causing re-renders
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -374,6 +378,8 @@ const AppContent: React.FC = () => {
     setShowSettings(false)
     setShowPrompterOnly(false)
     setShowChat(false)
+    setShowCopilotChat(false)
+    setShowAssistantChat(false)
     refreshMessages() // Refresh to show updated status
   }
 
@@ -609,6 +615,14 @@ const AppContent: React.FC = () => {
 
 
   const getMessageScreen = () => {
+    if (showAssistantChat) {
+      return <AssistantUIChat onBack={showMessageList} />
+    }
+
+    if (showCopilotChat) {
+      return <CopilotKitChat onBack={showMessageList} />
+    }
+
     if (showChat) {
       return <Chat onBack={showMessageList} />
     }
@@ -826,7 +840,7 @@ const AppContent: React.FC = () => {
                             {!showSettings && (
                               <Button
                                 variant="outline"
-                                onClick={() => setShowChat(true)}
+                                onClick={() => setShowAssistantChat(true)}
                                 className="flex items-center space-x-2"
                               >
                                 <span>Chat</span>
