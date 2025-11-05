@@ -1541,8 +1541,8 @@ class MenuBarNotificationApp {
 
       this.sseBackgroundService.on('codespace-online', async (data: CodespaceData) => {
         console.log('Codespace online:', data)
-        await notificationApp.connectToExecutorWithToken()
-        await notificationApp.executorWSClient?.autoConnect()
+        await this.connectToExecutorWithToken()
+        await this.executorWSClient?.autoConnect()
       })
     }
     catch (error) {
