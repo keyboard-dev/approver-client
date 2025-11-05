@@ -1,5 +1,5 @@
-import type { ChatModelRunResult, LanguageModelV1, LanguageModelV1CallOptions } from '@assistant-ui/react'
-import { ExternalStoreRuntime } from '@assistant-ui/react'
+import type { ChatModelRunResult, LanguageModelV1CallOptions } from '@assistant-ui/react'
+import { BaseAIProvider, type AIProviderConfig } from './providers/BaseAIProvider'
 
 export interface McpTool {
   name: string
@@ -26,27 +26,23 @@ export interface McpMessage {
   }>
 }
 
-export interface McpChatOptions {
+export interface McpChatOptions extends AIProviderConfig {
   serverUrl: string
-  apiKey?: string
   onToolCall?: (toolCall: { id: string, name: string, arguments: Record<string, unknown> }) => Promise<'approved' | 'rejected'>
 }
 
-export class McpChatModel implements LanguageModelV1 {
-  readonly specificationVersion = 'v1' as const
+export class McpProvider extends BaseAIProvider {
   readonly provider = 'mcp'
-  readonly modelId: string
-  readonly defaultObjectGenerationMode = 'tool' as const
-
   private serverUrl: string
-  private apiKey?: string
   private onToolCall?: (toolCall: { id: string, name: string, arguments: Record<string, unknown> }) => Promise<'approved' | 'rejected'>
 
   constructor(options: McpChatOptions) {
+    super({
+      ...options,
+      model: options.model || 'mcp-chat',
+    })
     this.serverUrl = options.serverUrl
-    this.apiKey = options.apiKey
     this.onToolCall = options.onToolCall
-    this.modelId = 'mcp-chat'
   }
 
   async doGenerate(options: LanguageModelV1CallOptions): Promise<ChatModelRunResult> {
@@ -65,7 +61,7 @@ export class McpChatModel implements LanguageModelV1 {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(this.apiKey ? { Authorization: `Bearer ${this.apiKey}` } : {}),
+          ...(this.config.apiKey ? { Authorization: `Bearer ${this.config.apiKey}` } : {}),
         },
         body: JSON.stringify({
           messages,
@@ -112,7 +108,7 @@ export class McpChatModel implements LanguageModelV1 {
     }
     catch (error) {
       console.error('MCP generation error:', error)
-      throw error
+      return this.createErrorResult(error as Error)
     }
   }
 
@@ -134,7 +130,7 @@ export interface McpRuntimeOptions {
 }
 
 export function createMcpRuntime(options: McpRuntimeOptions): ExternalStoreRuntime {
-  const model = new McpChatModel({
+  const model = new McpProvider({
     serverUrl: options.serverUrl,
     apiKey: options.apiKey,
     onToolCall: options.onToolCall,

@@ -14,7 +14,7 @@ import AuthComponent from './components/AuthComponent'
 import GitHubOAuthButton from './components/GitHubOAuthButton'
 import { Prompter } from './components/Prompter'
 import { ApprovalScreen } from './components/screens/ApprovalPanel'
-import { ChatScreen } from './components/screens/ChatScreen'
+import { EnhancedChatScreen } from './components/screens/EnhancedChatScreen'
 import OnboardingView from './components/screens/onboarding/OnboardingView'
 import { SettingsScreen } from './components/screens/settings/SettingsScreen'
 import { Share } from './components/Share'
@@ -934,19 +934,27 @@ const AppContent: React.FC = () => {
       </div>
 
       <div
-        className="flex flex-col w-full min-w-0 grow min-h-0 bg-white rounded-[0.5rem] px-[0.63rem] py-[0.75rem] not-draggable gap-[0.63rem] items-start overflow-auto"
+        className="flex flex-col w-full min-w-0 grow min-h-0 bg-white rounded-[0.5rem] not-draggable items-start overflow-auto"
       >
         {showChat
           ? (
-              <ChatScreen />
+              <div className="w-full h-full">
+                <EnhancedChatScreen />
+              </div>
             )
           : showSettings
             ? (
-                <SettingsScreen
-                  onBack={showMessageList}
-                />
+                <div className="px-[0.63rem] py-[0.75rem] w-full">
+                  <SettingsScreen
+                    onBack={showMessageList}
+                  />
+                </div>
               )
-            : getMessageScreen()}
+            : (
+                <div className="px-[0.63rem] py-[0.75rem] gap-[0.63rem] w-full">
+                  {getMessageScreen()}
+                </div>
+              )}
       </div>
 
       {/* WebSocket Status Dialog */}
