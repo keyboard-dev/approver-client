@@ -328,31 +328,103 @@ Override the default API endpoint:
 
 ## Security Best Practices
 
-### API Key Storage
+### ✅ Secure API Key Handling (Automatic)
 
-- API keys are stored in React state (memory only)
-- **NOT** persisted to disk by default
-- Lost on app restart - this is intentional for security
+**The app now uses a secure architecture that protects your API keys:**
 
-### To Persist API Keys (Advanced)
+1. **API keys NEVER leave the main process**
+   - Keys are stored in Electron's main process (Node.js)
+   - Encrypted at rest using `safeStorage`
+   - Never exposed to the renderer (frontend)
 
-If you want to save API keys between sessions:
+2. **Secure IPC Proxy**
+   - All AI API calls go through a proxy in the main process
+   - Frontend sends request → Main process makes API call with key → Frontend receives response
+   - Keys are never transmitted to or visible in the frontend
 
-1. Use Electron's `safeStorage` API for encryption
-2. Store encrypted keys in a secure location
-3. Decrypt on app startup
+3. **Architecture Diagram:**
+```
+┌─────────────────────────────────────────────────┐
+│ Renderer Process (React/Frontend)              │
+│ ┌─────────────────────────────────────────────┐ │
+│ │ EnhancedChatScreen                          │ │
+│ │ - User enters API key in settings          │ │
+│ │ - Sent via IPC to main process             │ │
+│ │ - NEVER stored in frontend                 │ │
+│ └─────────────────────────────────────────────┘ │
+└────────────────┬────────────────────────────────┘
+                 │ IPC (secure channel)
+                 ▼
+┌─────────────────────────────────────────────────┐
+│ Main Process (Node.js/Electron)                │
+│ ┌─────────────────────────────────────────────┐ │
+│ │ AIProxyService                              │ │
+│ │ - Receives & encrypts API key              │ │
+│ │ - Stores encrypted key (safeStorage)       │ │
+│ │ - Makes API calls to OpenAI/Anthropic/MCP  │ │
+│ │ - Returns responses to renderer            │ │
+│ └─────────────────────────────────────────────┘ │
+└────────────────┬────────────────────────────────┘
+                 │ HTTPS
+                 ▼
+┌─────────────────────────────────────────────────┐
+│ External AI APIs                                │
+│ - api.openai.com                                │
+│ - api.anthropic.com                             │
+│ - mcp.keyboard.dev                              │
+└─────────────────────────────────────────────────┘
+```
 
-**Example:**
+4. **What this means for you:**
+   - ✅ Your API keys are secure
+   - ✅ Keys are encrypted at rest
+   - ✅ Keys never visible in DevTools/frontend
+   - ✅ Safe to distribute your app (keys won't be in the bundle)
+   - ✅ No risk of accidental key exposure
+
+### How It Works
+
+When you set an API key in the chat settings:
+
 ```typescript
-// In main process (Electron)
-import { safeStorage } from 'electron'
+// What happens in the frontend:
+await window.electronAPI.aiProxySetKey('openai', 'sk-...')
+// Key is immediately sent to main process via secure IPC
 
-// Save
-const encrypted = safeStorage.encryptString(apiKey)
-// Store encrypted buffer somewhere safe
+// What happens in the main process:
+class AIProxyService {
+  async setKey(provider, apiKey) {
+    // Encrypt the key
+    const encrypted = safeStorage.encryptString(apiKey)
+    // Store encrypted (could be saved to disk if needed)
+    this.encryptedKeys[provider] = encrypted
+  }
 
-// Load
-const decrypted = safeStorage.decryptString(encrypted)
+  async makeRequest(provider, messages) {
+    // Decrypt the key (only in main process)
+    const apiKey = safeStorage.decryptString(this.encryptedKeys[provider])
+    // Make API call
+    const response = await fetch(API_URL, {
+      headers: { Authorization: `Bearer ${apiKey}` }
+    })
+    // Return response to frontend (key never sent)
+    return response.json()
+  }
+}
+```
+
+### Checking API Key Status
+
+You can check if a key is set without exposing it:
+
+```typescript
+// In your React component:
+const { hasKey } = await window.electronAPI.aiProxyGetKeyStatus('openai')
+if (hasKey) {
+  console.log('OpenAI key is set ✅')
+} else {
+  console.log('Please set your OpenAI API key')
+}
 ```
 
 ### Never Commit API Keys

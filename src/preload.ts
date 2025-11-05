@@ -198,6 +198,13 @@ export interface ElectronAPI {
   // External URL handling
   openExternalUrl: (url: string) => Promise<void>
 
+  // AI Proxy (secure API key handling)
+  aiProxySetKey: (provider: string, apiKey: string) => Promise<{ success: boolean, error?: string }>
+  aiProxyGetKeyStatus: (provider: string) => Promise<{ hasKey: boolean }>
+  aiProxyRemoveKey: (provider: string) => Promise<{ success: boolean }>
+  aiProxyRequest: (request: any) => Promise<any>
+  aiProxyStream: (request: any) => Promise<any>
+
   // Settings management
   getSettings: () => Promise<{ showNotifications: boolean, automaticCodeApproval: CodeApprovalLevel, automaticResponseApproval: ResponseApprovalLevel, fullCodeExecution: boolean, settingsFile: string, updatedAt: number | null }>
   setShowNotifications: (show: boolean) => Promise<void>
@@ -386,6 +393,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // External URL handling
   openExternalUrl: (url: string): Promise<void> => ipcRenderer.invoke('open-external-url', url),
+
+  // AI Proxy (secure API key handling)
+  aiProxySetKey: (provider: string, apiKey: string): Promise<{ success: boolean, error?: string }> =>
+    ipcRenderer.invoke('ai-proxy:set-key', provider, apiKey),
+  aiProxyGetKeyStatus: (provider: string): Promise<{ hasKey: boolean }> =>
+    ipcRenderer.invoke('ai-proxy:get-key-status', provider),
+  aiProxyRemoveKey: (provider: string): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke('ai-proxy:remove-key', provider),
+  aiProxyRequest: (request: any): Promise<any> =>
+    ipcRenderer.invoke('ai-proxy:request', request),
+  aiProxyStream: (request: any): Promise<any> =>
+    ipcRenderer.invoke('ai-proxy:stream', request),
 
   // Settings management
   getSettings: (): Promise<{ showNotifications: boolean, automaticCodeApproval: CodeApprovalLevel, automaticResponseApproval: ResponseApprovalLevel, fullCodeExecution: boolean, settingsFile: string, updatedAt: number | null }> => ipcRenderer.invoke('get-settings'),

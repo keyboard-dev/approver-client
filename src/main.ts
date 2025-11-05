@@ -20,6 +20,7 @@ import { AuthorizeResponse, AuthTokens, CollectionRequest, ErrorResponse, Messag
 import { CODE_APPROVAL_ORDER, CodeApprovalLevel, RESPONSE_APPROVAL_ORDER, ResponseApprovalLevel } from './types/settings-types'
 import { ExecutorWebSocketClient } from './websocket-client-to-executor'
 import { WindowManager } from './window-manager'
+import { AIProxyService } from './ai-proxy'
 
 // Helper function to find assets directory reliably
 export function getAssetsPath(): string {
@@ -227,6 +228,9 @@ class MenuBarNotificationApp {
 
     // STEP 4: App ready event
     app.whenReady().then(async () => {
+      // Initialize AI Proxy for secure API key handling
+      new AIProxyService()
+
       // Set application icon for notifications (especially important for macOS)
       const assetsPath = getAssetsPath()
       const iconPath = path.join(assetsPath, 'keyboard-dock.png')

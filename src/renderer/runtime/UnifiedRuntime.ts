@@ -1,8 +1,10 @@
 import { ExternalStoreRuntime } from '@assistant-ui/react'
 import type { BaseAIProvider } from './providers/BaseAIProvider'
-import { OpenAIProvider } from './providers/OpenAIProvider'
-import { AnthropicProvider } from './providers/AnthropicProvider'
-import { McpProvider } from './McpRuntime'
+import {
+  createSecureOpenAIProvider,
+  createSecureAnthropicProvider,
+  createSecureMCPProvider,
+} from './providers/SecureProvider'
 import type { AIProviderType } from './providers'
 
 export interface UnifiedRuntimeOptions {
@@ -19,14 +21,18 @@ export interface UnifiedRuntimeOptions {
 }
 
 export function createUnifiedRuntime(options: UnifiedRuntimeOptions): ExternalStoreRuntime {
-  // Create the appropriate provider
+  // Create the appropriate SECURE provider (API calls go through main process)
   let aiProvider: BaseAIProvider
+
+  // Store the API key securely in main process (if provided)
+  if (options.apiKey) {
+    window.electronAPI.aiProxySetKey(options.provider, options.apiKey)
+      .catch(err => console.error('Error setting API key:', err))
+  }
 
   switch (options.provider) {
     case 'openai':
-      aiProvider = new OpenAIProvider({
-        apiKey: options.apiKey,
-        baseUrl: options.baseUrl,
+      aiProvider = createSecureOpenAIProvider({
         model: options.model,
         temperature: options.temperature,
         maxTokens: options.maxTokens,
@@ -34,9 +40,7 @@ export function createUnifiedRuntime(options: UnifiedRuntimeOptions): ExternalSt
       break
 
     case 'anthropic':
-      aiProvider = new AnthropicProvider({
-        apiKey: options.apiKey,
-        baseUrl: options.baseUrl,
+      aiProvider = createSecureAnthropicProvider({
         model: options.model,
         temperature: options.temperature,
         maxTokens: options.maxTokens,
@@ -44,11 +48,9 @@ export function createUnifiedRuntime(options: UnifiedRuntimeOptions): ExternalSt
       break
 
     case 'mcp':
-      aiProvider = new McpProvider({
+      aiProvider = createSecureMCPProvider({
         serverUrl: options.serverUrl || 'https://mcp.keyboard.dev',
-        apiKey: options.apiKey,
         model: options.model,
-        onToolCall: options.onToolCall,
       })
       break
 
