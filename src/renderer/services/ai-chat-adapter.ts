@@ -15,6 +15,7 @@ interface AIProviderSelection {
 export class AIChatAdapter implements ChatModelAdapter {
   private currentProvider: AIProviderSelection = { provider: 'openai', model: 'gpt-3.5-turbo', mcpEnabled: false }
   private mcpIntegration: ReturnType<typeof useMCPIntegration> | null = null
+  private setToolExecutionState?: (isExecuting: boolean, toolName?: string) => void
 
   constructor(provider: string = 'openai', model?: string, mcpEnabled: boolean = false) {
     this.currentProvider = { provider, model, mcpEnabled }
@@ -32,25 +33,8 @@ export class AIChatAdapter implements ChatModelAdapter {
     this.mcpIntegration = mcpIntegration
   }
 
-
-
-
-
-
-  private isTemplateText(text: string): boolean {
-    // Check for template/example indicators
-    const templateIndicators = [
-      'You can call',
-      'Example',
-      'Usage Note',
-      '{parameter: value}',
-      'parameter: value',
-      '{...}',
-      'with parameters described above',
-    ]
-
-    const lowerText = text.toLowerCase()
-    return templateIndicators.some(indicator => lowerText.includes(indicator.toLowerCase()))
+  setToolExecutionTracker(tracker: (isExecuting: boolean, toolName?: string) => void) {
+    this.setToolExecutionState = tracker
   }
 
   private async handleWithAbilityCalling(aiMessages: AIMessage[], abortSignal?: AbortSignal) {
@@ -146,6 +130,9 @@ ${abilitiesList})`
 
         if (abilityExists) {
           try {
+            // Start execution tracking
+            this.setToolExecutionState?.(true, abilityName)
+
             // Execute ability with provided parameters
             const abilityResult = await this.mcpIntegration.executeToolCall(abilityName, parameters)
 
@@ -159,6 +146,10 @@ ${abilitiesList})`
           }
           catch (error) {
             enhancedResponse += `\n\n❌ **Error:** Failed to execute ${abilityName} - ${error instanceof Error ? error.message : 'Unknown error'}`
+          }
+          finally {
+            // End execution tracking
+            this.setToolExecutionState?.(false)
           }
         }
         else {

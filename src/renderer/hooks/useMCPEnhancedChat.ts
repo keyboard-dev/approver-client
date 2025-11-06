@@ -27,6 +27,7 @@ export interface MCPEnhancedChatState {
   // Control functions
   setMCPEnabled: (enabled: boolean) => void
   refreshMCPConnection: () => void
+  setToolExecutionState: (isExecuting: boolean, toolName?: string) => void
 }
 
 /**
@@ -54,10 +55,11 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
   useEffect(() => {
     if (mcpEnabled && mcpIntegration.isConnected) {
       adapter.setMCPIntegration(mcpIntegration)
+      adapter.setToolExecutionTracker(setToolExecutionState)
     } else {
       adapter.setMCPIntegration(null)
     }
-  }, [adapter, mcpEnabled, mcpIntegration])
+  }, [adapter, mcpEnabled, mcpIntegration, setToolExecutionState])
 
   // Handle MCP enablement toggle
   const setMCPEnabled = useCallback((enabled: boolean) => {
@@ -76,32 +78,12 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
     }
   }, [mcpIntegration])
 
-  // Set up tool execution tracking
-  useEffect(() => {
-    if (mcpEnabled && mcpIntegration.isConnected) {
-      // Create a wrapper for executeToolCall that tracks execution state
-      const originalExecute = mcpIntegration.executeToolCall
-      const wrappedExecute = async (toolName: string, args: Record<string, unknown>) => {
-        setIsExecutingTool(true)
-        setCurrentTool(toolName)
-        try {
-          const result = await originalExecute(toolName, args)
-          return result
-        } finally {
-          setIsExecutingTool(false)
-          setCurrentTool(undefined)
-        }
-      }
-      
-      // Replace the execute function in the integration
-      if (mcpIntegration.executeToolCall !== wrappedExecute) {
-        Object.defineProperty(mcpIntegration, 'executeToolCall', {
-          value: wrappedExecute,
-          writable: true,
-        })
-      }
-    }
-  }, [mcpEnabled, mcpIntegration])
+  // Simple tool execution state management
+  // The adapter will call these functions directly during tool execution
+  const setToolExecutionState = useCallback((isExecuting: boolean, toolName?: string) => {
+    setIsExecutingTool(isExecuting)
+    setCurrentTool(toolName)
+  }, [])
 
   return {
     adapter,
@@ -113,5 +95,6 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
     currentTool,
     setMCPEnabled,
     refreshMCPConnection,
+    setToolExecutionState, // Expose for adapter to call
   }
 }
