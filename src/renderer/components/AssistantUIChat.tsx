@@ -147,8 +147,6 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({ onBack }) => {
 
     if (tools.length === 0) return
 
-    console.log('🔧 Setting up ability context injection with tools:', tools.length)
-
     const handleNewMessage = () => {
       // Give a small delay to ensure message is fully added
       setTimeout(() => {
@@ -166,16 +164,12 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({ onBack }) => {
               ? lastMessage.content.map(c => c.text || '').join(' ')
               : ''
 
-          console.log('🔍 Checking message for ability mentions:', messageContent.slice(0, 100))
-
           // Simple detection: check if message content includes any ability name
           const abilityNames = tools.map(t => t.name)
-          console.log('YAKAKA WHAT IS THE MESSAGE CONTENT', messageContent)
+
           const mentionedAbilities = abilityNames.filter(abilityName =>
             messageContent.includes(abilityName),
           )
-
-          console.log('🚀 Mentioned abilities found:', mentionedAbilities)
 
           if (mentionedAbilities.length > 0) {
             // Check existing messages to avoid duplicates
@@ -193,17 +187,14 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({ onBack }) => {
               })
 
               if (!hasContext) {
-                console.log(`✅ Adding context for ability: ${abilityName}`)
                 const contextContent = generateAbilityContext(abilityName, tools)
-
+                console.log('YAKAKA WHAT IS THE CONTEXT CONTENT', contextContent)
                 // Add context message using runtime
                 runtime.addMessage?.({
                   role: 'assistant',
                   content: contextContent,
                 })
-              }
-              else {
-                console.log(`⏭️ Skipping ${abilityName} - context already exists`)
+                console.log('YAKAKA WHAT IS THE MESSAGES', messages)
               }
             })
           }
