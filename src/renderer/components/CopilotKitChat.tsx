@@ -17,21 +17,23 @@ export const CopilotKitChat: React.FC<CopilotKitChatProps> = ({ onBack }) => {
             ← Back to Messages
           </Button>
           <CardTitle className="text-2xl font-bold">AI Chat</CardTitle>
-          <div className="w-32" /> {/* Spacer for centering title */}
+          <div className="w-32" />
+          {' '}
+          {/* Spacer for centering title */}
         </div>
       </CardHeader>
-      
+
       <CardContent className="flex-1 flex flex-col p-6 min-h-0">
         <div className="flex-1 min-h-0">
-          <CopilotKit 
+          <CopilotKit
             runtimeUrl="/api/copilotkit"
             // You can configure the API endpoint here
             // For now, we'll use a placeholder endpoint
           >
             <CopilotChat
               labels={{
-                title: "Chat with AI Assistant",
-                initial: "Hi! How can I help you today?",
+                title: 'Chat with AI Assistant',
+                initial: 'Hi! How can I help you today?',
               }}
               className="h-full"
             />

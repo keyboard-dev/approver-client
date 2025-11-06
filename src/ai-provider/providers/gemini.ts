@@ -5,9 +5,9 @@ export class GeminiProvider implements AIProvider {
 
   async sendMessage(messages: AIMessage[], config: AIProviderConfig): Promise<string> {
     const url = `${config.baseUrl || 'https://generativelanguage.googleapis.com'}/v1beta/models/${config.model || 'gemini-2.5-flash'}:generateContent`
-    
+
     const contents = this.convertMessagesToGeminiFormat(messages)
-    
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -27,11 +27,11 @@ export class GeminiProvider implements AIProvider {
     return data.candidates[0]?.content?.parts[0]?.text || ''
   }
 
-  async *streamMessage(messages: AIMessage[], config: AIProviderConfig): AsyncGenerator<string, void, unknown> {
+  async* streamMessage(messages: AIMessage[], config: AIProviderConfig): AsyncGenerator<string, void, unknown> {
     const url = `${config.baseUrl || 'https://generativelanguage.googleapis.com'}/v1beta/models/${config.model || 'gemini-2.5-flash'}:streamGenerateContent`
-    
+
     const contents = this.convertMessagesToGeminiFormat(messages)
-    
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -72,13 +72,15 @@ export class GeminiProvider implements AIProvider {
               if (text) {
                 yield text
               }
-            } catch (e) {
+            }
+            catch (e) {
               // Skip invalid JSON
             }
           }
         }
       }
-    } finally {
+    }
+    finally {
       reader.releaseLock()
     }
   }
@@ -89,25 +91,25 @@ export class GeminiProvider implements AIProvider {
 
   private convertMessagesToGeminiFormat(messages: AIMessage[]) {
     const contents = []
-    
+
     for (const message of messages) {
       if (message.role === 'system') {
         // Gemini doesn't have a system role, prepend to first user message
         continue
       }
-      
+
       contents.push({
         role: message.role === 'assistant' ? 'model' : 'user',
         parts: [{ text: message.content }],
       })
     }
-    
+
     // Add system message to first user message if exists
     const systemMessage = messages.find(m => m.role === 'system')
     if (systemMessage && contents.length > 0 && contents[0].role === 'user') {
       contents[0].parts[0].text = `${systemMessage.content}\n\n${contents[0].parts[0].text}`
     }
-    
+
     return contents
   }
 }

@@ -5,10 +5,10 @@ export class AnthropicProvider implements AIProvider {
 
   async sendMessage(messages: AIMessage[], config: AIProviderConfig): Promise<string> {
     const url = `${config.baseUrl || 'https://api.anthropic.com'}/v1/messages`
-    
+
     const systemMessage = messages.find(m => m.role === 'system')
     const conversationMessages = messages.filter(m => m.role !== 'system')
-    
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -35,12 +35,12 @@ export class AnthropicProvider implements AIProvider {
     return data.content[0]?.text || ''
   }
 
-  async *streamMessage(messages: AIMessage[], config: AIProviderConfig): AsyncGenerator<string, void, unknown> {
+  async* streamMessage(messages: AIMessage[], config: AIProviderConfig): AsyncGenerator<string, void, unknown> {
     const url = `${config.baseUrl || 'https://api.anthropic.com'}/v1/messages`
-    
+
     const systemMessage = messages.find(m => m.role === 'system')
     const conversationMessages = messages.filter(m => m.role !== 'system')
-    
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -84,19 +84,21 @@ export class AnthropicProvider implements AIProvider {
         for (const line of lines) {
           if (line.startsWith('data: ')) {
             const data = line.slice(6)
-            
+
             try {
               const parsed = JSON.parse(data)
               if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
                 yield parsed.delta.text
               }
-            } catch (e) {
+            }
+            catch (e) {
               // Skip invalid JSON
             }
           }
         }
       }
-    } finally {
+    }
+    finally {
       reader.releaseLock()
     }
   }

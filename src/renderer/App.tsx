@@ -72,7 +72,7 @@ const AppContent: React.FC = () => {
   // WebSocket connection management
   const { connectionStatus, isConnectingToCodespace, connectToBestCodespace } = useWebSocketConnection(
     authStatus,
-    isSkippingAuth
+    isSkippingAuth,
   )
 
   // WebSocket status dialog management
@@ -613,7 +613,6 @@ const AppContent: React.FC = () => {
     setShowPrompterOnly(true)
   }
 
-
   const getMessageScreen = () => {
     if (showAssistantChat) {
       return <AssistantUIChat onBack={showMessageList} />
@@ -929,7 +928,8 @@ const AppContent: React.FC = () => {
             {' '}
             <span className={`font-semibold ${
               connectionStatus === 'connected' ? 'text-[#0B8A1C]' : 'text-[#DC2626]'
-            }`}>
+            }`}
+            >
               {connectionStatus === 'connected' ? 'normal' : 'offline'}
             </span>
           </div>
@@ -958,7 +958,7 @@ const AppContent: React.FC = () => {
       {/* WebSocket Status Dialog */}
       <WebSocketStatusDialog
         open={showWebSocketDialog}
-        onOpenChange={(open) => !open && closeWebSocketDialog()}
+        onOpenChange={open => !open && closeWebSocketDialog()}
       />
     </div>
   )

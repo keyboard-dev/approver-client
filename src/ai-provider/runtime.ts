@@ -15,7 +15,7 @@ export class AIRuntime {
   async sendMessage(
     providerName: string,
     messages: AIMessage[],
-    config: Partial<AIProviderConfig>
+    config: Partial<AIProviderConfig>,
   ): Promise<AIResponse> {
     const provider = this.providers.get(providerName)
     if (!provider) {
@@ -34,7 +34,7 @@ export class AIRuntime {
     }
 
     const content = await provider.sendMessage(messages, fullConfig)
-    
+
     return {
       content,
       provider: providerName,
@@ -42,10 +42,10 @@ export class AIRuntime {
     }
   }
 
-  async *streamMessage(
+  async* streamMessage(
     providerName: string,
     messages: AIMessage[],
-    config: Partial<AIProviderConfig>
+    config: Partial<AIProviderConfig>,
   ): AsyncGenerator<string, void, unknown> {
     const provider = this.providers.get(providerName)
     if (!provider || !provider.streamMessage) {

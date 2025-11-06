@@ -361,7 +361,8 @@ class MenuBarNotificationApp {
     try {
       initializeAIProviders()
       console.log('✅ AI providers initialized successfully')
-    } catch (error) {
+    }
+    catch (error) {
       console.error('❌ Failed to initialize AI providers:', error)
     }
   }
@@ -2639,7 +2640,8 @@ class MenuBarNotificationApp {
     ipcMain.handle('set-ai-provider-key', async (_event, provider: string, apiKey: string): Promise<void> => {
       try {
         aiRuntime.setApiKey(provider, apiKey)
-      } catch (error) {
+      }
+      catch (error) {
         throw new Error(`Failed to save API key for ${provider}: ${error instanceof Error ? error.message : 'Unknown error'}`)
       }
     })
@@ -2656,7 +2658,8 @@ class MenuBarNotificationApp {
     ipcMain.handle('remove-ai-provider-key', async (_event, provider: string): Promise<void> => {
       try {
         aiRuntime.removeApiKey(provider)
-      } catch (error) {
+      }
+      catch (error) {
         throw new Error(`Failed to remove API key for ${provider}: ${error instanceof Error ? error.message : 'Unknown error'}`)
       }
     })
@@ -2671,10 +2674,11 @@ class MenuBarNotificationApp {
         const testMessages = [{ role: 'user' as const, content: 'Hello' }]
         await aiRuntime.sendMessage(provider, testMessages, {})
         return { success: true }
-      } catch (error) {
-        return { 
-          success: false, 
-          error: error instanceof Error ? error.message : 'Connection test failed' 
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Connection test failed',
         }
       }
     })
@@ -2683,7 +2687,8 @@ class MenuBarNotificationApp {
       try {
         const response = await aiRuntime.sendMessage(provider, messages, config || {})
         return response.content
-      } catch (error) {
+      }
+      catch (error) {
         throw new Error(`Failed to send message to ${provider}: ${error instanceof Error ? error.message : 'Unknown error'}`)
       }
     })

@@ -28,7 +28,7 @@ export class EncryptedAIKeyStorage {
     if (!fs.existsSync(this.storageDir)) {
       fs.mkdirSync(this.storageDir, { recursive: true, mode: 0o700 })
     }
-    
+
     // Ensure the config file exists
     if (!fs.existsSync(this.configPath)) {
       const initialConfig: KeyboardMCPConfig = {
@@ -45,7 +45,8 @@ export class EncryptedAIKeyStorage {
     try {
       const content = fs.readFileSync(this.configPath, 'utf8')
       return JSON.parse(content)
-    } catch (error) {
+    }
+    catch (error) {
       console.error('Error reading .keyboard-mcp config:', error)
       return { aiProviders: {} }
     }
@@ -57,7 +58,8 @@ export class EncryptedAIKeyStorage {
       this.ensureConfigExists()
       config.lastUpdated = new Date().toISOString()
       fs.writeFileSync(this.configPath, JSON.stringify(config, null, 2), { mode: 0o600 })
-    } catch (error) {
+    }
+    catch (error) {
       console.error('Error writing .keyboard-mcp config:', error)
       throw new Error('Failed to save configuration')
     }
@@ -76,7 +78,8 @@ export class EncryptedAIKeyStorage {
     try {
       config.aiProviders[providerName] = encrypt(apiKey)
       this.writeConfig(config)
-    } catch (error) {
+    }
+    catch (error) {
       console.error('Error encrypting API key:', error)
       throw new Error('Failed to encrypt and store API key')
     }
@@ -90,7 +93,8 @@ export class EncryptedAIKeyStorage {
 
     try {
       return decrypt(config.aiProviders[providerName])
-    } catch (error) {
+    }
+    catch (error) {
       console.error('Error decrypting API key:', error)
       return null
     }

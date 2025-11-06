@@ -12,10 +12,10 @@ interface McpSetupProps {
 export const McpSetup: React.FC<McpSetupProps> = ({ onNext }) => {
   const [remoteUrl, setRemoteUrl] = useState('https://mcp.keyboard.dev')
   const [copySuccess, setCopySuccess] = useState(false)
-  
+
   const advancedSettingsImg = 'https://res.cloudinary.com/dt29hglkk/image/upload/v1757699431/advanced-settings_prlpa6.png'
   const installExtensionImg = 'https://res.cloudinary.com/dt29hglkk/image/upload/v1757699537/install-extension_qbtjua.png'
-  
+
   const handleDownload = () => {
     window.electronAPI.openExternalUrl('https://github.com/keyboard-dev/keyboard-mcp/releases/latest')
   }
@@ -25,7 +25,8 @@ export const McpSetup: React.FC<McpSetupProps> = ({ onNext }) => {
       await navigator.clipboard.writeText(remoteUrl)
       setCopySuccess(true)
       setTimeout(() => setCopySuccess(false), 2000)
-    } catch (err) {
+    }
+    catch (err) {
       console.error('Failed to copy text: ', err)
     }
   }
@@ -67,15 +68,15 @@ export const McpSetup: React.FC<McpSetupProps> = ({ onNext }) => {
             {/* Option 1: Remote MCP */}
             <div className="flex flex-col gap-[0.94rem] w-full">
               <div className="text-gray-900 font-medium">Option 1: Remote MCP Server (Recommended)</div>
-              
+
               <div className="text-sm text-[#A5A5A5]">
                 Copy and paste this URL into your MCP client configuration:
               </div>
-              
+
               <div className="flex gap-[0.5rem] w-full">
                 <Input
                   value={remoteUrl}
-                  onChange={(e) => setRemoteUrl(e.target.value)}
+                  onChange={e => setRemoteUrl(e.target.value)}
                   className="flex-1 text-sm"
                   readOnly
                 />
@@ -94,7 +95,7 @@ export const McpSetup: React.FC<McpSetupProps> = ({ onNext }) => {
             {/* Option 2: Download .dxt file */}
             <div className="flex flex-col gap-[0.94rem] w-full">
               <div className="text-gray-900 font-medium">Option 2: Download Local File</div>
-              
+
               <div className="text-sm text-[#A5A5A5]">
                 <span>Download the </span>
                 <span className="text-[#5093B7]">keyboard-mcp.dxt</span>

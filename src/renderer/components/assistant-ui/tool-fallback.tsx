@@ -1,20 +1,22 @@
-import type { ToolCallMessagePartComponent } from "@assistant-ui/react";
-import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react";
-import { useState } from "react";
-import { Button } from "../ui/button";
+import type { ToolCallMessagePartComponent } from '@assistant-ui/react'
+import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from 'lucide-react'
+import { useState } from 'react'
+import { Button } from '../ui/button'
 
 export const ToolFallback: ToolCallMessagePartComponent = ({
   toolName,
   argsText,
   result,
 }) => {
-  const [isCollapsed, setIsCollapsed] = useState(true);
+  const [isCollapsed, setIsCollapsed] = useState(true)
   return (
     <div className="aui-tool-fallback-root mb-4 flex w-full flex-col gap-3 rounded-lg border py-3">
       <div className="aui-tool-fallback-header flex items-center gap-2 px-4">
         <CheckIcon className="aui-tool-fallback-icon size-4" />
         <p className="aui-tool-fallback-title flex-grow">
-          Used tool: <b>{toolName}</b>
+          Used tool:
+          {' '}
+          <b>{toolName}</b>
         </p>
         <Button onClick={() => setIsCollapsed(!isCollapsed)}>
           {isCollapsed ? <ChevronUpIcon /> : <ChevronDownIcon />}
@@ -33,7 +35,7 @@ export const ToolFallback: ToolCallMessagePartComponent = ({
                 Result:
               </p>
               <pre className="aui-tool-fallback-result-content whitespace-pre-wrap">
-                {typeof result === "string"
+                {typeof result === 'string'
                   ? result
                   : JSON.stringify(result, null, 2)}
               </pre>
@@ -42,5 +44,5 @@ export const ToolFallback: ToolCallMessagePartComponent = ({
         </div>
       )}
     </div>
-  );
-};
+  )
+}

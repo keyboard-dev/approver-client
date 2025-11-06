@@ -44,7 +44,8 @@ export const AIProvidersPanel: React.FC = () => {
     try {
       const status = await window.electronAPI.getAIProviderKeys()
       setProviderStatus(status)
-    } catch (error) {
+    }
+    catch (error) {
       console.error('Failed to load AI provider status:', error)
     }
   }
@@ -70,12 +71,14 @@ export const AIProvidersPanel: React.FC = () => {
       await window.electronAPI.setAIProviderKey(provider, key)
       setApiKeys(prev => ({ ...prev, [provider]: '' }))
       await loadProviderStatus()
-    } catch (error) {
-      setErrors(prev => ({ 
-        ...prev, 
-        [provider]: error instanceof Error ? error.message : 'Failed to save API key'
+    }
+    catch (error) {
+      setErrors(prev => ({
+        ...prev,
+        [provider]: error instanceof Error ? error.message : 'Failed to save API key',
       }))
-    } finally {
+    }
+    finally {
       setSaving(null)
     }
   }
@@ -83,20 +86,23 @@ export const AIProvidersPanel: React.FC = () => {
   const handleTestConnection = async (provider: string) => {
     setTesting(provider)
     setErrors(prev => ({ ...prev, [provider]: '' }))
-    
+
     try {
       const result = await window.electronAPI.testAIProviderConnection(provider)
       if (result.success) {
         alert(`✅ ${provider} connection successful!`)
-      } else {
+      }
+      else {
         setErrors(prev => ({ ...prev, [provider]: result.error || 'Connection failed' }))
       }
-    } catch (error) {
-      setErrors(prev => ({ 
-        ...prev, 
-        [provider]: error instanceof Error ? error.message : 'Connection test failed'
+    }
+    catch (error) {
+      setErrors(prev => ({
+        ...prev,
+        [provider]: error instanceof Error ? error.message : 'Connection test failed',
       }))
-    } finally {
+    }
+    finally {
       setTesting(null)
     }
   }
@@ -106,7 +112,8 @@ export const AIProvidersPanel: React.FC = () => {
       await window.electronAPI.removeAIProviderKey(provider)
       await loadProviderStatus()
       setDeleteConfirmation(null)
-    } catch (error) {
+    }
+    catch (error) {
       console.error('Failed to delete API key:', error)
     }
   }
@@ -126,13 +133,13 @@ export const AIProvidersPanel: React.FC = () => {
       </div>
 
       <div className="flex flex-col gap-[1rem]">
-        {AI_PROVIDERS.map(provider => {
+        {AI_PROVIDERS.map((provider) => {
           const config = getProviderConfig(provider.id)
           const isConfigured = config?.configured || false
           const hasError = !!errors[provider.id]
 
           return (
-            <div 
+            <div
               key={provider.id}
               className="p-[0.94rem] flex flex-col gap-[1rem] rounded-[0.38rem] bg-[rgba(80,147,183,0.15)]"
             >
@@ -146,9 +153,9 @@ export const AIProvidersPanel: React.FC = () => {
                   </div>
                   <div className="text-[#737373] text-sm">{provider.description}</div>
                 </div>
-                <a 
-                  href={provider.helpUrl} 
-                  target="_blank" 
+                <a
+                  href={provider.helpUrl}
+                  target="_blank"
                   rel="noopener noreferrer"
                   className="text-blue-600 hover:text-blue-800 text-sm"
                 >
@@ -156,54 +163,56 @@ export const AIProvidersPanel: React.FC = () => {
                 </a>
               </div>
 
-              {!isConfigured ? (
-                <div className="flex flex-col gap-3">
-                  <div className="flex gap-2">
-                    <input
-                      type="password"
-                      placeholder={provider.placeholder}
-                      value={apiKeys[provider.id] || ''}
-                      onChange={(e) => handleKeyChange(provider.id, e.target.value)}
-                      className="flex-1 px-3 py-2 border border-[#CCC] rounded bg-white text-sm"
-                      disabled={saving === provider.id}
-                    />
-                    <ButtonDesigned
-                      onClick={() => handleSaveKey(provider.id)}
-                      disabled={saving === provider.id || !apiKeys[provider.id]?.trim()}
-                      className="px-4 py-2"
-                      variant="primary"
-                    >
-                      {saving === provider.id ? 'Saving...' : 'Save'}
-                    </ButtonDesigned>
-                  </div>
-                  {hasError && (
-                    <div className="text-red-600 text-sm">
-                      {errors[provider.id]}
+              {!isConfigured
+                ? (
+                    <div className="flex flex-col gap-3">
+                      <div className="flex gap-2">
+                        <input
+                          type="password"
+                          placeholder={provider.placeholder}
+                          value={apiKeys[provider.id] || ''}
+                          onChange={e => handleKeyChange(provider.id, e.target.value)}
+                          className="flex-1 px-3 py-2 border border-[#CCC] rounded bg-white text-sm"
+                          disabled={saving === provider.id}
+                        />
+                        <ButtonDesigned
+                          onClick={() => handleSaveKey(provider.id)}
+                          disabled={saving === provider.id || !apiKeys[provider.id]?.trim()}
+                          className="px-4 py-2"
+                          variant="primary"
+                        >
+                          {saving === provider.id ? 'Saving...' : 'Save'}
+                        </ButtonDesigned>
+                      </div>
+                      {hasError && (
+                        <div className="text-red-600 text-sm">
+                          {errors[provider.id]}
+                        </div>
+                      )}
+                    </div>
+                  )
+                : (
+                    <div className="flex gap-2">
+                      <ButtonDesigned
+                        onClick={() => handleTestConnection(provider.id)}
+                        disabled={testing === provider.id}
+                        className="px-4 py-2"
+                        variant="secondary"
+                        hasBorder
+                      >
+                        {testing === provider.id ? 'Testing...' : 'Test Connection'}
+                      </ButtonDesigned>
+
+                      <ButtonDesigned
+                        onClick={() => setDeleteConfirmation(provider.id)}
+                        className="px-4 py-2"
+                        variant="destructive"
+                        hasBorder
+                      >
+                        Remove Key
+                      </ButtonDesigned>
                     </div>
                   )}
-                </div>
-              ) : (
-                <div className="flex gap-2">
-                  <ButtonDesigned
-                    onClick={() => handleTestConnection(provider.id)}
-                    disabled={testing === provider.id}
-                    className="px-4 py-2"
-                    variant="secondary"
-                    hasBorder
-                  >
-                    {testing === provider.id ? 'Testing...' : 'Test Connection'}
-                  </ButtonDesigned>
-                  
-                  <ButtonDesigned
-                    onClick={() => setDeleteConfirmation(provider.id)}
-                    className="px-4 py-2"
-                    variant="destructive"
-                    hasBorder
-                  >
-                    Remove Key
-                  </ButtonDesigned>
-                </div>
-              )}
 
               {hasError && isConfigured && (
                 <div className="text-red-600 text-sm">

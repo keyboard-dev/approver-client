@@ -4,7 +4,8 @@ import { Thread } from './assistant-ui/thread'
 import { Button } from './ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { TooltipProvider } from './ui/tooltip'
-import { AIChatAdapter, createOpenAIAdapter, createAnthropicAdapter, createGeminiAdapter } from '../services/ai-chat-adapter'
+import { AIChatAdapter, createOpenAIAdapter, createAnthropicAdapter, createGeminiAdapter, createMCPAdapter } from '../services/ai-chat-adapter'
+import { MCPChatComponent } from './MCPChatComponent'
 
 interface AssistantUIChatProps {
   onBack: () => void
@@ -45,6 +46,15 @@ const PROVIDERS: ProviderConfig[] = [
       { id: 'gemini-pro', name: 'Gemini Pro' },
     ],
   },
+  {
+    id: 'mcp',
+    name: 'MCP Server',
+    adapter: createMCPAdapter(),
+    models: [
+      { id: 'mcp-tools', name: 'MCP Tools & Resources' },
+      { id: 'mcp-local', name: 'Local MCP Server' },
+    ],
+  },
 ]
 
 const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({ onBack }) => {
@@ -60,18 +70,26 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({ onBack }) => {
         const configured = providerStatus
           .filter(p => p.configured)
           .map(p => p.provider)
-        setAvailableProviders(configured)
-        
+
+        // Always include MCP as it doesn't require traditional API keys
+        const allAvailable = [...configured, 'mcp']
+        setAvailableProviders(allAvailable)
+
         // Set default to first available provider
-        if (configured.length > 0 && !configured.includes(selectedProvider)) {
-          setSelectedProvider(configured[0])
-          const provider = PROVIDERS.find(p => p.id === configured[0])
+        if (allAvailable.length > 0 && !allAvailable.includes(selectedProvider)) {
+          setSelectedProvider(allAvailable[0])
+          const provider = PROVIDERS.find(p => p.id === allAvailable[0])
           if (provider?.models[0]) {
             setSelectedModel(provider.models[0].id)
           }
         }
-      } catch (error) {
+      }
+      catch (error) {
         console.error('Failed to load provider status:', error)
+        // Fallback to MCP if other providers fail
+        setAvailableProviders(['mcp'])
+        setSelectedProvider('mcp')
+        setSelectedModel('mcp-tools')
       }
     }
     loadProviders()
@@ -79,7 +97,7 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({ onBack }) => {
 
   // Get current provider config
   const currentProvider = PROVIDERS.find(p => p.id === selectedProvider)
-  
+
   // Update adapter when provider/model changes
   useEffect(() => {
     if (currentProvider) {
@@ -99,14 +117,16 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({ onBack }) => {
                 ← Back to Messages
               </Button>
               <CardTitle className="text-2xl font-bold">Assistant Chat</CardTitle>
-              <div className="w-32" /> {/* Spacer for centering title */}
+              <div className="w-32" />
+              {' '}
+              {/* Spacer for centering title */}
             </div>
-            
+
             {/* Provider and Model Selection */}
             <div className="flex gap-4 items-center">
               <div className="flex items-center gap-2">
                 <label className="text-sm font-medium">Provider:</label>
-                <select 
+                <select
                   value={selectedProvider}
                   onChange={(e) => {
                     setSelectedProvider(e.target.value)
@@ -124,17 +144,16 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({ onBack }) => {
                       <option key={provider.id} value={provider.id}>
                         {provider.name}
                       </option>
-                    ))
-                  }
+                    ))}
                 </select>
               </div>
-              
+
               {currentProvider && (
                 <div className="flex items-center gap-2">
                   <label className="text-sm font-medium">Model:</label>
-                  <select 
+                  <select
                     value={selectedModel}
-                    onChange={(e) => setSelectedModel(e.target.value)}
+                    onChange={e => setSelectedModel(e.target.value)}
                     className="px-3 py-1 border border-gray-300 rounded text-sm"
                   >
                     {currentProvider.models.map(model => (
@@ -145,18 +164,33 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({ onBack }) => {
                   </select>
                 </div>
               )}
-              
+
               {availableProviders.length === 0 && (
                 <div className="text-sm text-red-600">
                   No AI providers configured. Go to Settings → AI Providers to set up API keys.
                 </div>
               )}
+
+              {selectedProvider === 'mcp' && (
+                <div className="text-sm text-blue-600 bg-blue-50 dark:bg-blue-900/20 p-2 rounded">
+                  🔌 MCP (Model Context Protocol) - Connect to external tools and resources
+                </div>
+              )}
             </div>
           </CardHeader>
-          
+
           <CardContent className="flex-1 flex flex-col p-6 min-h-0">
             <div className="flex-1 min-h-0 h-full">
-              <Thread />
+              {selectedProvider === 'mcp'
+                ? (
+                    <MCPChatComponent
+                      serverUrl="https://mcp.keyboard.dev"
+                      clientName="keyboard-approver-mcp"
+                    />
+                  )
+                : (
+                    <Thread />
+                  )}
             </div>
           </CardContent>
         </Card>

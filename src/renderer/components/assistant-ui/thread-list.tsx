@@ -1,14 +1,14 @@
-import type { FC } from "react";
+import type { FC } from 'react'
 import {
   ThreadListItemPrimitive,
   ThreadListPrimitive,
   useAssistantState,
-} from "@assistant-ui/react";
-import { ArchiveIcon, PlusIcon } from "lucide-react";
+} from '@assistant-ui/react'
+import { ArchiveIcon, PlusIcon } from 'lucide-react'
 
-import { Button } from "../ui/button";
-import { TooltipIconButton } from "./tooltip-icon-button";
-import { Skeleton } from "../ui/skeleton";
+import { Button } from '../ui/button'
+import { TooltipIconButton } from './tooltip-icon-button'
+import { Skeleton } from '../ui/skeleton'
 
 export const ThreadList: FC = () => {
   return (
@@ -16,8 +16,8 @@ export const ThreadList: FC = () => {
       <ThreadListNew />
       <ThreadListItems />
     </ThreadListPrimitive.Root>
-  );
-};
+  )
+}
 
 const ThreadListNew: FC = () => {
   return (
@@ -30,18 +30,18 @@ const ThreadListNew: FC = () => {
         New Thread
       </Button>
     </ThreadListPrimitive.New>
-  );
-};
+  )
+}
 
 const ThreadListItems: FC = () => {
-  const isLoading = useAssistantState(({ threads }) => threads.isLoading);
+  const isLoading = useAssistantState(({ threads }) => threads.isLoading)
 
   if (isLoading) {
-    return <ThreadListSkeleton />;
+    return <ThreadListSkeleton />
   }
 
-  return <ThreadListPrimitive.Items components={{ ThreadListItem }} />;
-};
+  return <ThreadListPrimitive.Items components={{ ThreadListItem }} />
+}
 
 const ThreadListSkeleton: FC = () => {
   return (
@@ -58,8 +58,8 @@ const ThreadListSkeleton: FC = () => {
         </div>
       ))}
     </>
-  );
-};
+  )
+}
 
 const ThreadListItem: FC = () => {
   return (
@@ -69,16 +69,16 @@ const ThreadListItem: FC = () => {
       </ThreadListItemPrimitive.Trigger>
       <ThreadListItemArchive />
     </ThreadListItemPrimitive.Root>
-  );
-};
+  )
+}
 
 const ThreadListItemTitle: FC = () => {
   return (
     <span className="aui-thread-list-item-title text-sm">
       <ThreadListItemPrimitive.Title fallback="New Chat" />
     </span>
-  );
-};
+  )
+}
 
 const ThreadListItemArchive: FC = () => {
   return (
@@ -91,5 +91,5 @@ const ThreadListItemArchive: FC = () => {
         <ArchiveIcon />
       </TooltipIconButton>
     </ThreadListItemPrimitive.Archive>
-  );
-};
+  )
+}

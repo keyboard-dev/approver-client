@@ -5,7 +5,7 @@ export class OpenAIProvider implements AIProvider {
 
   async sendMessage(messages: AIMessage[], config: AIProviderConfig): Promise<string> {
     const url = `${config.baseUrl || 'https://api.openai.com'}/v1/chat/completions`
-    
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -29,9 +29,9 @@ export class OpenAIProvider implements AIProvider {
     return data.choices[0]?.message?.content || ''
   }
 
-  async *streamMessage(messages: AIMessage[], config: AIProviderConfig): AsyncGenerator<string, void, unknown> {
+  async* streamMessage(messages: AIMessage[], config: AIProviderConfig): AsyncGenerator<string, void, unknown> {
     const url = `${config.baseUrl || 'https://api.openai.com'}/v1/chat/completions`
-    
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -75,20 +75,22 @@ export class OpenAIProvider implements AIProvider {
             if (data === '[DONE]') {
               return
             }
-            
+
             try {
               const parsed = JSON.parse(data)
               const content = parsed.choices[0]?.delta?.content
               if (content) {
                 yield content
               }
-            } catch (e) {
+            }
+            catch (e) {
               // Skip invalid JSON
             }
           }
         }
       }
-    } finally {
+    }
+    finally {
       reader.releaseLock()
     }
   }
