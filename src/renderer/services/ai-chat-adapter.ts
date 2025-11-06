@@ -44,81 +44,252 @@ export class AIChatAdapter implements ChatModelAdapter {
     this.mcpIntegration = mcpIntegration
   }
 
-  private async handleWithToolCalling(aiMessages: AIMessage[], abortSignal?: AbortSignal) {
+  private async handleAbilityDiscovery(discoveryMatches: RegExpMatchArray[], response: string) {
+    console.log('🚀 Processing keyboard.dev-ability discovery requests...')
+
+    let enhancedResponse = response
+
+    for (let i = 0; i < discoveryMatches.length; i++) {
+      const match = discoveryMatches[i]
+      const abilityName = match[1] // Ability name is always capture group 1
+      console.log(`🔍 Discovering keyboard.dev-ability ${i + 1}/${discoveryMatches.length}: ${abilityName}`)
+
+      try {
+        // Check if ability exists in our MCP integration
+        const ability = this.mcpIntegration?.tools.find(t => t.name === abilityName)
+
+        if (ability) {
+          console.log('✅ keyboard.dev-ability found:', abilityName)
+
+          // Format ability schema for AI
+          const abilitySchema = this.formatAbilitySchema(ability)
+
+          // Replace the discovery pattern with the ability schema
+          enhancedResponse = enhancedResponse.replace(
+            match[0], // Replace **{{ability-name}}**
+            `\n\n🚀 **keyboard.dev-ability Discovery: ${abilityName}**\n\n${abilitySchema}\n\nYou can now call this keyboard.dev-ability using the format: \`${abilityName}({parameter: value})\` with the parameters described above.`,
+          )
+
+          console.log('✅ keyboard.dev-ability schema provided for:', abilityName)
+        }
+        else {
+          console.warn('⚠️ keyboard.dev-ability not found:', abilityName)
+          const availableAbilities = this.mcpIntegration?.tools.map(t => t.name) || []
+
+          enhancedResponse = enhancedResponse.replace(
+            match[0],
+            `\n\n❌ **keyboard.dev-ability Not Found: ${abilityName}**\n\nAvailable keyboard.dev-abilities: ${availableAbilities.join(', ')}`,
+          )
+        }
+      }
+      catch (error) {
+        console.error('❌ Error processing keyboard.dev-ability discovery:', error)
+        enhancedResponse = enhancedResponse.replace(
+          match[0],
+          `\n\n❌ **keyboard.dev-ability Discovery Error:** ${error instanceof Error ? error.message : 'Unknown error'}`,
+        )
+      }
+    }
+
+    console.log('✅ keyboard.dev-ability discovery processing completed')
+    return {
+      content: [{ type: 'text' as const, text: enhancedResponse }],
+    }
+  }
+
+  private formatAbilitySchema(ability: { 
+    name: string, 
+    description?: string, 
+    inputSchema?: { 
+      properties?: Record<string, any>, 
+      required?: string[] 
+    } 
+  }): string {
+    console.log('📋 Formatting schema for keyboard.dev-ability:', ability.name)
+
+    let schema = `**Description:** ${ability.description || 'No description available'}\n\n`
+
+    if (ability.inputSchema?.properties) {
+      schema += '**Parameters:**\n'
+
+      const properties = ability.inputSchema.properties
+      const required = ability.inputSchema.required || []
+
+      Object.keys(properties).forEach((key) => {
+        const prop = properties[key]
+        const isRequired = required.includes(key)
+        const requiredLabel = isRequired ? ' (required)' : ' (optional)'
+
+        schema += `- \`${key}\`${requiredLabel}: ${prop.description || prop.type || 'string'}\n`
+
+        if (prop.enum) {
+          schema += `  - Allowed values: ${prop.enum.join(', ')}\n`
+        }
+        if (prop.default !== undefined) {
+          schema += `  - Default: ${prop.default}\n`
+        }
+      })
+    }
+    else {
+      schema += '**Parameters:** None required\n'
+    }
+
+    return schema
+  }
+
+  private async handleWithAbilityCalling(aiMessages: AIMessage[], abortSignal?: AbortSignal) {
     if (!this.mcpIntegration) {
       throw new Error('MCP integration not available')
     }
 
-    // For now, implement a simple approach: send initial message and check if AI mentions tool usage
+    console.log('🚀 keyboard.dev-ability Calling: Starting enhanced ability calling flow')
+    console.log('📋 Available keyboard.dev abilities:', this.mcpIntegration.functions.length)
+    console.log('🚀 Available ability names:', this.mcpIntegration.functions.map(f => f.function.name))
+
+    // For now, implement a simple approach: send initial message and check if AI mentions ability usage
     // In a full implementation, this would need provider-specific function calling support
     
-    // Add instruction to use tools when needed
+    // Add instruction for two-stage keyboard.dev-ability discovery
     const enhancedMessages = [...aiMessages]
     const lastUserMessage = enhancedMessages[enhancedMessages.length - 1]
     if (lastUserMessage?.role === 'user') {
-      lastUserMessage.content += '\n\n(Note: If you need to use any of the available tools to answer this question, please explicitly mention which tool you would call and with what parameters. I can execute it for you.)'
+      lastUserMessage.content += '\n\n(Note: If you need to use any keyboard.dev abilities to answer this question, first discover the ability by responding with **{{ability-name}}** (e.g., **list-all-codespaces-for-repo**). I will then provide you with the ability\'s description and required parameters, after which you can properly call the keyboard.dev ability.)'
     }
 
+    console.log('💬 Enhanced user message:', lastUserMessage?.content.slice(-200)) // Log last 200 chars
+
     // Send enhanced message
+    console.log('📤 Sending message to AI provider:', this.currentProvider.provider)
     const response = await window.electronAPI.sendAIMessage(
       this.currentProvider.provider,
       enhancedMessages,
       { model: this.currentProvider.model },
     )
 
+    console.log('📥 AI Response received (length:', response.length, 'chars)')
+    console.log('📄 AI Response preview:', response.slice(0, 500)) // Log first 500 chars
+
     // Check abort signal
     if (abortSignal?.aborted) {
       throw new Error('Request was aborted')
     }
 
-    // Simple tool detection - look for tool call patterns in response
-    const toolCallMatches = response.match(/(?:call|use|execute)\s+(?:tool\s+)?([a-zA-Z_][a-zA-Z0-9_]*)\s*(?:with|using)?\s*(?:parameters?)?[:\s]*\{([^}]*)\}/gi)
+    // Two-stage keyboard.dev-ability discovery approach
+    console.log('🔍 Searching for ability discovery and execution patterns...')
     
-    if (toolCallMatches && this.mcpIntegration.functions.length > 0) {
-      // Try to extract and execute tool calls
+    // Stage 1: Ability Discovery Pattern - **{{ability-name}}** or {{ability-name}}
+    const discoveryPattern = /(?:\*\*)?\{\{([a-zA-Z_][a-zA-Z0-9_-]*)\}\}(?:\*\*)?/gi
+    const discoveryMatches = Array.from(response.matchAll(discoveryPattern))
+    
+    console.log('🚀 keyboard.dev-ability discovery matches:', discoveryMatches.length)
+    console.log('📋 Discovery patterns found:', discoveryMatches.map(m => m[0]))
+    
+    if (discoveryMatches.length > 0) {
+      console.log('✅ keyboard.dev-ability discovery detected! Processing ability schema requests...')
+      return await this.handleAbilityDiscovery(discoveryMatches, response)
+    }
+    
+    // Stage 2: Ability Execution Patterns (simplified, since AI now has exact schema)
+    const executionPattern1 = /(?:call|use|execute)\s+(?:ability\s+)?([a-zA-Z_][a-zA-Z0-9_-]*)\s*(?:with|using)?\s*(?:parameters?)?[:\s]*\{([^}]*)\}/gi
+    const executionPattern2 = /([a-zA-Z_][a-zA-Z0-9_-]*)\s*\(\s*\{([^}]*)\}\s*\)/gi
+    
+    let abilityCallMatches: RegExpMatchArray[] = []
+    const execMatches1 = Array.from(response.matchAll(executionPattern1))
+    const execMatches2 = Array.from(response.matchAll(executionPattern2))
+    abilityCallMatches = [...execMatches1, ...execMatches2]
+    
+    console.log('🎯 keyboard.dev-ability execution matches found:')
+    console.log('  - Execution pattern 1:', execMatches1.length)
+    console.log('  - Execution pattern 2:', execMatches2.length)  
+    console.log('  - Total execution matches:', abilityCallMatches.length)
+    console.log('📋 Execution matches:', abilityCallMatches.map(m => m[0]))
+    
+    if (abilityCallMatches && this.mcpIntegration.functions.length > 0) {
+      console.log('✅ keyboard.dev-ability calls detected! Processing', abilityCallMatches.length, 'potential ability calls...')
+      
+      // Try to extract and execute keyboard.dev-ability calls
       let enhancedResponse = response
       
-      for (const match of toolCallMatches) {
+      for (let i = 0; i < abilityCallMatches.length; i++) {
+        const match = abilityCallMatches[i]
+        console.log(`🚀 Processing keyboard.dev-ability call ${i + 1}/${abilityCallMatches.length}:`, match[0])
+        
         try {
-          // Parse tool call (this is a simple implementation)
-          const toolMatch = match.match(/(?:call|use|execute)\s+(?:tool\s+)?([a-zA-Z_][a-zA-Z0-9_]*)\s*(?:with|using)?\s*(?:parameters?)?[:\s]*\{([^}]*)\}/i)
-          if (toolMatch) {
-            const toolName = toolMatch[1]
-            const paramsStr = toolMatch[2] || '{}'
-            
-            // Check if tool exists
-            const toolExists = this.mcpIntegration.functions.some(f => f.function.name === toolName)
-            if (toolExists) {
-              try {
-                // Parse parameters (simple JSON parsing)
-                const params = JSON.parse('{' + paramsStr + '}')
+          // Extract ability name and parameters from the match
+          const abilityName = match[1] // Ability name is always capture group 1
+          const paramsStr = match[2] || '' // Parameters are capture group 2
+          console.log('🚀 Extracted keyboard.dev-ability name:', abilityName)
+          console.log('📋 Extracted parameters string:', paramsStr)
+          
+          // Check if ability exists
+          const abilityExists = this.mcpIntegration.functions.some(f => f.function.name === abilityName)
+          console.log('🔍 keyboard.dev-ability exists check:', abilityExists)
+          console.log('📚 Available abilities for reference:', this.mcpIntegration.functions.map(f => f.function.name))
+          
+          if (abilityExists) {
+            try {
+              // Parse parameters with better error handling
+              let params: Record<string, unknown> = {}
+              
+              if (paramsStr.trim()) {
+                // Try to parse as JSON, with various fallback strategies
+                const jsonStr = paramsStr.startsWith('{') ? paramsStr : '{' + paramsStr + '}'
+                console.log('🔄 Parsing parameters as JSON:', jsonStr)
                 
-                // Execute tool
-                const toolResult = await this.mcpIntegration.executeToolCall(toolName, params)
-                
-                // Add tool result to response
-                enhancedResponse += `\n\n**Tool Execution Result:**\n${toolResult}`
-                
-                // Check abort signal after tool execution
-                if (abortSignal?.aborted) {
-                  throw new Error('Request was aborted')
+                try {
+                  params = JSON.parse(jsonStr)
+                } catch (firstError) {
+                  // Try with quotes around unquoted keys
+                  const quotedStr = jsonStr.replace(/([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '"$1":')
+                  console.log('🔄 Retry parsing with quoted keys:', quotedStr)
+                  params = JSON.parse(quotedStr)
                 }
-              } catch (parseError) {
-                enhancedResponse += `\n\n**Tool Execution Error:** Failed to parse parameters for ${toolName}`
               }
+              
+              console.log('✅ Successfully parsed parameters:', params)
+              
+              // Add UI feedback for ability execution
+              enhancedResponse += `\n\n🚀 **Executing keyboard.dev-ability: ${abilityName}**\n📋 Parameters: ${JSON.stringify(params, null, 2)}\n`
+              
+              // Execute ability
+              console.log('🚀 Executing keyboard.dev-ability:', abilityName, 'with parameters:', params)
+              const startTime = performance.now()
+              const abilityResult = await this.mcpIntegration.executeToolCall(abilityName, params)
+              const executionTime = Math.round(performance.now() - startTime)
+              
+              console.log('✅ keyboard.dev-ability execution completed in', executionTime, 'ms')
+              console.log('📊 Ability result (first 500 chars):', String(abilityResult).slice(0, 500))
+              
+              // Add ability result to response with execution feedback
+              enhancedResponse += `✅ **Execution completed** (${executionTime}ms)\n\n**Result:**\n${abilityResult}`
+              
+              // Check abort signal after tool execution
+              if (abortSignal?.aborted) {
+                throw new Error('Request was aborted')
+              }
+            } catch (parseError) {
+              console.error('❌ Parameter parsing failed:', parseError)
+              enhancedResponse += `\n\n❌ **keyboard.dev-ability Execution Error:** Failed to parse parameters for ${abilityName}\nError: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`
             }
+          } else {
+            console.warn('⚠️ keyboard.dev-ability not found:', abilityName)
+            enhancedResponse += `\n\n⚠️ **keyboard.dev-ability Error:** Ability '${abilityName}' not found. Available abilities: ${this.mcpIntegration.functions.map(f => f.function.name).join(', ')}`
           }
         } catch (error) {
-          console.error('Error executing tool call:', error)
+          console.error('❌ Error processing keyboard.dev-ability call:', error)
+          enhancedResponse += `\n\n❌ **keyboard.dev-ability Processing Error:** ${error instanceof Error ? error.message : 'Unknown error occurred'}`
         }
       }
       
+      console.log('🎉 keyboard.dev-ability calling flow completed. Enhanced response length:', enhancedResponse.length)
       return {
         content: [{ type: 'text' as const, text: enhancedResponse }],
       }
+    } else {
+      console.log('ℹ️ No keyboard.dev-ability calls detected in AI response')
     }
 
-    // No tools called, return original response
+    // No abilities called, return original response
     return {
       content: [{ type: 'text' as const, text: response }],
     }
@@ -148,20 +319,20 @@ export class AIChatAdapter implements ChatModelAdapter {
         }
       }
 
-      // Add MCP tools system message if enabled and available
+      // Add keyboard.dev abilities system message if enabled and available
       if (this.currentProvider.mcpEnabled && this.mcpIntegration?.isConnected) {
-        const toolsSystemMessage = this.mcpIntegration.getToolsSystemMessage()
-        if (toolsSystemMessage) {
+        const abilitiesSystemMessage = this.mcpIntegration.getToolsSystemMessage()
+        if (abilitiesSystemMessage) {
           // Check if there's already a system message
           const existingSystemIndex = aiMessages.findIndex(m => m.role === 'system')
           if (existingSystemIndex >= 0) {
             // Append to existing system message
-            aiMessages[existingSystemIndex].content += '\n\n' + toolsSystemMessage
+            aiMessages[existingSystemIndex].content += '\n\n' + abilitiesSystemMessage
           } else {
             // Add new system message at the beginning
             aiMessages.unshift({
               role: 'system',
-              content: toolsSystemMessage,
+              content: abilitiesSystemMessage,
             })
           }
         }
@@ -185,9 +356,9 @@ export class AIChatAdapter implements ChatModelAdapter {
         throw new Error('Request was aborted')
       }
 
-      // Handle MCP tool calling if enabled
+      // Handle keyboard.dev ability calling if enabled
       if (this.currentProvider.mcpEnabled && this.mcpIntegration?.isConnected) {
-        return await this.handleWithToolCalling(aiMessages, abortSignal)
+        return await this.handleWithAbilityCalling(aiMessages, abortSignal)
       }
 
       // Send message to AI provider (without tools)

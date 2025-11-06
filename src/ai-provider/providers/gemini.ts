@@ -7,7 +7,7 @@ export class GeminiProvider implements AIProvider {
     const url = `${config.baseUrl || 'https://generativelanguage.googleapis.com'}/v1beta/models/${config.model || 'gemini-2.5-flash'}:generateContent`
 
     const contents = this.convertMessagesToGeminiFormat(messages)
-
+    console.log('this is the contents', contents)
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -20,10 +20,12 @@ export class GeminiProvider implements AIProvider {
     })
 
     if (!response.ok) {
+      console.log('this is the response', response)
       throw new Error(`Gemini API error: ${response.status} ${response.statusText}`)
     }
 
     const data = await response.json() as any
+    console.log('this is the data', data)
     return data.candidates[0]?.content?.parts[0]?.text || ''
   }
 
@@ -31,7 +33,7 @@ export class GeminiProvider implements AIProvider {
     const url = `${config.baseUrl || 'https://generativelanguage.googleapis.com'}/v1beta/models/${config.model || 'gemini-2.5-flash'}:streamGenerateContent`
 
     const contents = this.convertMessagesToGeminiFormat(messages)
-
+    console.log('this is the contents', contents)
     const response = await fetch(url, {
       method: 'POST',
       headers: {

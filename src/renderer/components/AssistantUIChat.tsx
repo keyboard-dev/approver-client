@@ -181,10 +181,10 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({ onBack }) => {
                       onChange={(e) => setMCPEnabled(e.target.checked)}
                       className="rounded border-gray-300"
                     />
-                    <span className="font-medium">🔧 Enable MCP Tools</span>
+                    <span className="font-medium">🚀 Enable keyboard.dev Abilities</span>
                     {mcpChat.mcpConnected && mcpEnabled && (
                       <Badge variant="secondary" className="text-xs">
-                        {mcpChat.mcpTools} tools
+                        {mcpChat.mcpTools} abilities
                       </Badge>
                     )}
                   </label>
@@ -243,8 +243,17 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({ onBack }) => {
               ) : (
                 <div className="flex flex-col h-full">
                   {mcpEnabled && mcpChat.mcpConnected && (
-                    <div className="mb-3 p-2 bg-green-50 dark:bg-green-900/20 rounded text-sm text-green-800 dark:text-green-200">
-                      🔧 MCP Tools Active: AI can now access {mcpChat.mcpTools} remote tools
+                    <div className="mb-3 space-y-2">
+                      <div className="p-2 bg-green-50 dark:bg-green-900/20 rounded text-sm text-green-800 dark:text-green-200">
+                        🚀 keyboard.dev Abilities Active: AI can now access {mcpChat.mcpTools} remote abilities
+                      </div>
+                      
+                      {mcpChat.isExecutingTool && mcpChat.currentTool && (
+                        <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded text-sm text-blue-800 dark:text-blue-200 flex items-center gap-2">
+                          <div className="animate-spin h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+                          <span>🚀 Executing keyboard.dev ability: <strong>{mcpChat.currentTool}</strong></span>
+                        </div>
+                      )}
                     </div>
                   )}
                   <div className="flex-1">

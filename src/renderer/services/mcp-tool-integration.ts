@@ -106,38 +106,62 @@ export function useMCPIntegration(serverUrl: string = 'https://mcp.keyboard.dev'
    * Execute an MCP tool call
    */
   const executeToolCall = async (functionName: string, args: Record<string, unknown>): Promise<string> => {
+    console.log('🚀 keyboard.dev-ability Execution: Starting execution for', functionName)
+    console.log('📊 MCP Client state:', mcpClient.state)
+    console.log('🌐 Server URL:', serverUrl)
+    
     try {
       if (mcpClient.state !== 'ready') {
-        throw new Error('MCP client is not ready')
+        const error = `MCP client is not ready. Current state: ${mcpClient.state}`
+        console.error('❌', error)
+        throw new Error(error)
       }
 
-      const { name, args: toolArgs } = prepareMCPToolCall(functionName, args)
-      const result = await mcpClient.callTool(name, toolArgs)
-      return formatToolResult(functionName, result)
+      console.log('✅ MCP client is ready, proceeding with keyboard.dev-ability call')
+      const { name, args: abilityArgs } = prepareMCPToolCall(functionName, args)
+      console.log('📋 Prepared ability call - Name:', name, 'Args:', abilityArgs)
+      
+      console.log('🚀 Calling mcpClient.callTool...')
+      const startTime = performance.now()
+      const result = await mcpClient.callTool(name, abilityArgs)
+      const callTime = Math.round(performance.now() - startTime)
+      
+      console.log('✅ keyboard.dev-ability call completed in', callTime, 'ms')
+      console.log('📊 Raw MCP result:', result)
+      
+      const formattedResult = formatToolResult(functionName, result)
+      console.log('📄 Formatted result (first 300 chars):', formattedResult.slice(0, 300))
+      
+      return formattedResult
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
-      console.error(`Failed to execute MCP tool ${functionName}:`, error)
+      console.error(`❌ Failed to execute keyboard.dev-ability ${functionName}:`, error)
+      console.error('❌ Error details:', {
+        name: error instanceof Error ? error.name : 'Unknown',
+        message: errorMessage,
+        stack: error instanceof Error ? error.stack : 'No stack trace'
+      })
       return `Error executing ${functionName}: ${errorMessage}`
     }
   }
 
   /**
-   * Get system message with available tools for AI context
+   * Get system message with available keyboard.dev abilities for AI context
    */
   const getToolsSystemMessage = (): string => {
     if (!integrationState.isConnected || integrationState.tools.length === 0) {
       return ''
     }
 
-    const toolsInfo = integrationState.tools
-      .map(tool => `- ${tool.name}: ${tool.description || 'No description available'}`)
+    const abilitiesInfo = integrationState.tools
+      .map(ability => `- ${ability.name}: ${ability.description || 'No description available'}`)
       .join('\n')
 
-    return `You have access to the following MCP tools. You can call these functions to help answer user queries:
+    return `You have access to the following keyboard.dev abilities. These are special capabilities that can help you accomplish tasks:
 
-${toolsInfo}
+${abilitiesInfo}
 
-When you need to use any of these tools, call the appropriate function with the required parameters. The results will be provided back to you to incorporate into your response.`
+When you need to use any keyboard.dev ability, first discover it by responding with **{{ability-name}}** (e.g., **list-all-codespaces-for-repo**). You will then receive the exact parameters and description needed to properly call that keyboard.dev ability.`
   }
 
   return {

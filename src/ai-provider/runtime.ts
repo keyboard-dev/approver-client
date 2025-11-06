@@ -32,9 +32,9 @@ export class AIRuntime {
     if (!provider.validateConfig(fullConfig)) {
       throw new Error(`Invalid configuration for provider ${providerName}`)
     }
-
+    console.log('this is the messages', messages)
     const content = await provider.sendMessage(messages, fullConfig)
-
+    console.log('this is the content', content)
     return {
       content,
       provider: providerName,

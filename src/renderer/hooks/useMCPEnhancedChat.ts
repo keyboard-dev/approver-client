@@ -20,6 +20,10 @@ export interface MCPEnhancedChatState {
   mcpTools: number
   mcpError?: string
   
+  // Tool execution state
+  isExecutingTool: boolean
+  currentTool?: string
+  
   // Control functions
   setMCPEnabled: (enabled: boolean) => void
   refreshMCPConnection: () => void
@@ -32,6 +36,8 @@ export interface MCPEnhancedChatState {
 export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedChatState {
   const [adapter] = useState(() => new AIChatAdapter(config.provider, config.model, config.mcpEnabled))
   const [mcpEnabled, setMCPEnabledState] = useState(config.mcpEnabled)
+  const [isExecutingTool, setIsExecutingTool] = useState(false)
+  const [currentTool, setCurrentTool] = useState<string | undefined>()
 
   // Initialize MCP integration when enabled
   const mcpIntegration = useMCPIntegration(
@@ -70,12 +76,41 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
     }
   }, [mcpIntegration])
 
+  // Set up tool execution tracking
+  useEffect(() => {
+    if (mcpEnabled && mcpIntegration.isConnected) {
+      // Create a wrapper for executeToolCall that tracks execution state
+      const originalExecute = mcpIntegration.executeToolCall
+      const wrappedExecute = async (toolName: string, args: Record<string, unknown>) => {
+        setIsExecutingTool(true)
+        setCurrentTool(toolName)
+        try {
+          const result = await originalExecute(toolName, args)
+          return result
+        } finally {
+          setIsExecutingTool(false)
+          setCurrentTool(undefined)
+        }
+      }
+      
+      // Replace the execute function in the integration
+      if (mcpIntegration.executeToolCall !== wrappedExecute) {
+        Object.defineProperty(mcpIntegration, 'executeToolCall', {
+          value: wrappedExecute,
+          writable: true,
+        })
+      }
+    }
+  }, [mcpEnabled, mcpIntegration])
+
   return {
     adapter,
     mcpEnabled,
     mcpConnected: mcpEnabled ? mcpIntegration.isConnected : false,
     mcpTools: mcpIntegration.tools?.length || 0,
     mcpError: mcpIntegration.error,
+    isExecutingTool,
+    currentTool,
     setMCPEnabled,
     refreshMCPConnection,
   }
