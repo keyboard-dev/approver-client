@@ -4,7 +4,8 @@ import { Thread } from './assistant-ui/thread'
 import { Button } from './ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { TooltipProvider } from './ui/tooltip'
-import { AIChatAdapter, createOpenAIAdapter, createAnthropicAdapter, createGeminiAdapter, createMCPAdapter } from '../services/ai-chat-adapter'
+import { Badge } from './ui/badge'
+import { useMCPEnhancedChat } from '../hooks/useMCPEnhancedChat'
 import { MCPChatComponent } from './MCPChatComponent'
 
 interface AssistantUIChatProps {
@@ -14,15 +15,15 @@ interface AssistantUIChatProps {
 interface ProviderConfig {
   id: string
   name: string
-  adapter: AIChatAdapter
   models: Array<{ id: string, name: string }>
+  supportsMCP?: boolean
 }
 
 const PROVIDERS: ProviderConfig[] = [
   {
     id: 'openai',
     name: 'OpenAI',
-    adapter: createOpenAIAdapter(),
+    supportsMCP: true,
     models: [
       { id: 'gpt-4', name: 'GPT-4' },
       { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo' },
@@ -31,7 +32,7 @@ const PROVIDERS: ProviderConfig[] = [
   {
     id: 'anthropic',
     name: 'Anthropic',
-    adapter: createAnthropicAdapter(),
+    supportsMCP: true,
     models: [
       { id: 'claude-3-sonnet-20240229', name: 'Claude 3 Sonnet' },
       { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku' },
@@ -40,7 +41,7 @@ const PROVIDERS: ProviderConfig[] = [
   {
     id: 'gemini',
     name: 'Google Gemini',
-    adapter: createGeminiAdapter(),
+    supportsMCP: true,
     models: [
       { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
       { id: 'gemini-pro', name: 'Gemini Pro' },
@@ -48,11 +49,10 @@ const PROVIDERS: ProviderConfig[] = [
   },
   {
     id: 'mcp',
-    name: 'MCP Server',
-    adapter: createMCPAdapter(),
+    name: 'MCP Server (Legacy)',
+    supportsMCP: false,
     models: [
       { id: 'mcp-tools', name: 'MCP Tools & Resources' },
-      { id: 'mcp-local', name: 'Local MCP Server' },
     ],
   },
 ]
@@ -60,7 +60,15 @@ const PROVIDERS: ProviderConfig[] = [
 const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({ onBack }) => {
   const [selectedProvider, setSelectedProvider] = useState('openai')
   const [selectedModel, setSelectedModel] = useState('gpt-3.5-turbo')
+  const [mcpEnabled, setMCPEnabled] = useState(false)
   const [availableProviders, setAvailableProviders] = useState<string[]>([])
+
+  // Initialize MCP enhanced chat
+  const mcpChat = useMCPEnhancedChat({
+    provider: selectedProvider,
+    model: selectedModel,
+    mcpEnabled,
+  })
 
   // Load available providers on mount
   useEffect(() => {
@@ -98,14 +106,12 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({ onBack }) => {
   // Get current provider config
   const currentProvider = PROVIDERS.find(p => p.id === selectedProvider)
 
-  // Update adapter when provider/model changes
+  // Update MCP state when toggle changes
   useEffect(() => {
-    if (currentProvider) {
-      currentProvider.adapter.setProvider(selectedProvider, selectedModel)
-    }
-  }, [selectedProvider, selectedModel, currentProvider])
+    mcpChat.setMCPEnabled(mcpEnabled)
+  }, [mcpEnabled, mcpChat])
 
-  const runtime = useLocalRuntime(currentProvider?.adapter || createOpenAIAdapter())
+  const runtime = useLocalRuntime(mcpChat.adapter)
 
   return (
     <TooltipProvider>
@@ -165,6 +171,54 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({ onBack }) => {
                 </div>
               )}
 
+              {/* MCP Integration Toggle */}
+              {currentProvider?.supportsMCP && selectedProvider !== 'mcp' && (
+                <div className="flex items-center gap-2">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={mcpEnabled}
+                      onChange={(e) => setMCPEnabled(e.target.checked)}
+                      className="rounded border-gray-300"
+                    />
+                    <span className="font-medium">🔧 Enable MCP Tools</span>
+                    {mcpChat.mcpConnected && mcpEnabled && (
+                      <Badge variant="secondary" className="text-xs">
+                        {mcpChat.mcpTools} tools
+                      </Badge>
+                    )}
+                  </label>
+                  
+                  {mcpEnabled && (
+                    <div className="flex items-center gap-2">
+                      {mcpChat.mcpConnected ? (
+                        <Badge variant="default" className="text-xs bg-green-100 text-green-800">
+                          🟢 Connected
+                        </Badge>
+                      ) : mcpChat.mcpError ? (
+                        <div className="flex items-center gap-1">
+                          <Badge variant="destructive" className="text-xs">
+                            🔴 Error
+                          </Badge>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={mcpChat.refreshMCPConnection}
+                            className="text-xs h-6 px-2"
+                          >
+                            Retry
+                          </Button>
+                        </div>
+                      ) : (
+                        <Badge variant="secondary" className="text-xs">
+                          🟡 Connecting...
+                        </Badge>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {availableProviders.length === 0 && (
                 <div className="text-sm text-red-600">
                   No AI providers configured. Go to Settings → AI Providers to set up API keys.
@@ -173,7 +227,7 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({ onBack }) => {
 
               {selectedProvider === 'mcp' && (
                 <div className="text-sm text-blue-600 bg-blue-50 dark:bg-blue-900/20 p-2 rounded">
-                  🔌 MCP (Model Context Protocol) - Connect to external tools and resources
+                  🔌 MCP (Model Context Protocol) - Legacy direct connection mode
                 </div>
               )}
             </div>
@@ -181,16 +235,23 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({ onBack }) => {
 
           <CardContent className="flex-1 flex flex-col p-6 min-h-0">
             <div className="flex-1 min-h-0 h-full">
-              {selectedProvider === 'mcp'
-                ? (
-                    <MCPChatComponent
-                      serverUrl="https://mcp.keyboard.dev"
-                      clientName="keyboard-approver-mcp"
-                    />
-                  )
-                : (
-                    <Thread />
+              {selectedProvider === 'mcp' ? (
+                <MCPChatComponent
+                  serverUrl="https://mcp.keyboard.dev"
+                  clientName="keyboard-approver-mcp"
+                />
+              ) : (
+                <div className="flex flex-col h-full">
+                  {mcpEnabled && mcpChat.mcpConnected && (
+                    <div className="mb-3 p-2 bg-green-50 dark:bg-green-900/20 rounded text-sm text-green-800 dark:text-green-200">
+                      🔧 MCP Tools Active: AI can now access {mcpChat.mcpTools} remote tools
+                    </div>
                   )}
+                  <div className="flex-1">
+                    <Thread />
+                  </div>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
