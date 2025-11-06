@@ -20,6 +20,7 @@ import { AuthorizeResponse, AuthTokens, CollectionRequest, ErrorResponse, Messag
 import { CODE_APPROVAL_ORDER, CodeApprovalLevel, RESPONSE_APPROVAL_ORDER, ResponseApprovalLevel } from './types/settings-types'
 import { ExecutorWebSocketClient } from './websocket-client-to-executor'
 import { WindowManager } from './window-manager'
+import { aiRuntime, initializeAIProviders } from './ai-provider/setup'
 
 // Helper function to find assets directory reliably
 export function getAssetsPath(): string {
@@ -310,6 +311,7 @@ class MenuBarNotificationApp {
       this.setupApplicationMenu()
       this.setupWebSocketServer()
       this.setupRestAPI()
+      this.initializeAIProviders()
       this.setupIPC()
 
       // Request notification permissions on all platforms
@@ -352,6 +354,15 @@ class MenuBarNotificationApp {
     catch (error) {
       console.error('❌ Failed to initialize OAuth provider system:', error)
       throw error
+    }
+  }
+
+  private initializeAIProviders(): void {
+    try {
+      initializeAIProviders()
+      console.log('✅ AI providers initialized successfully')
+    } catch (error) {
+      console.error('❌ Failed to initialize AI providers:', error)
     }
   }
 
@@ -2622,6 +2633,59 @@ class MenuBarNotificationApp {
         releaseName: 'Test Update',
         releaseNotes: 'This is a test update notification',
       })
+    })
+
+    // AI Provider management IPC handlers
+    ipcMain.handle('set-ai-provider-key', async (_event, provider: string, apiKey: string): Promise<void> => {
+      try {
+        aiRuntime.setApiKey(provider, apiKey)
+      } catch (error) {
+        throw new Error(`Failed to save API key for ${provider}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      }
+    })
+
+    ipcMain.handle('get-ai-provider-keys', async (): Promise<Array<{ provider: string, hasKey: boolean, configured: boolean }>> => {
+      const providers = ['openai', 'anthropic', 'gemini']
+      return providers.map(provider => ({
+        provider,
+        hasKey: aiRuntime.hasApiKey(provider),
+        configured: aiRuntime.hasApiKey(provider) && aiRuntime.hasProvider(provider),
+      }))
+    })
+
+    ipcMain.handle('remove-ai-provider-key', async (_event, provider: string): Promise<void> => {
+      try {
+        aiRuntime.removeApiKey(provider)
+      } catch (error) {
+        throw new Error(`Failed to remove API key for ${provider}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      }
+    })
+
+    ipcMain.handle('test-ai-provider-connection', async (_event, provider: string): Promise<{ success: boolean, error?: string }> => {
+      try {
+        if (!aiRuntime.hasApiKey(provider)) {
+          return { success: false, error: 'No API key configured' }
+        }
+
+        // Test with a simple message
+        const testMessages = [{ role: 'user' as const, content: 'Hello' }]
+        await aiRuntime.sendMessage(provider, testMessages, {})
+        return { success: true }
+      } catch (error) {
+        return { 
+          success: false, 
+          error: error instanceof Error ? error.message : 'Connection test failed' 
+        }
+      }
+    })
+
+    ipcMain.handle('send-ai-message', async (_event, provider: string, messages: Array<{ role: 'user' | 'assistant' | 'system', content: string }>, config?: { model?: string }): Promise<string> => {
+      try {
+        const response = await aiRuntime.sendMessage(provider, messages, config || {})
+        return response.content
+      } catch (error) {
+        throw new Error(`Failed to send message to ${provider}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      }
     })
   }
 

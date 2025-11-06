@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 
 import { AdvancedPanel } from './panels/AdvancedPanel'
+import { AIProvidersPanel } from './panels/AIProvidersPanel'
 import { ConnectorPanel } from './panels/ConnectorPanel'
 import { KeyPanel } from './panels/KeyPanel'
 import { NotificationPanel } from './panels/NotificationPanel'
@@ -8,6 +9,7 @@ import { NotificationPanel } from './panels/NotificationPanel'
 const TABS = [
   'WebSocket',
   'Security',
+  'AI Providers',
   'Notifications',
   'Connectors',
   'Advanced',
@@ -81,6 +83,8 @@ export const SettingsScreen: React.FC<{
           />
         )
       }
+      case 'AI Providers':
+        return <AIProvidersPanel />
       case 'Notifications':
         return <NotificationPanel />
       case 'Connectors':

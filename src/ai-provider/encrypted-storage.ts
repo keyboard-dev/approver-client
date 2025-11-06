@@ -15,20 +15,28 @@ interface KeyboardMCPConfig {
 
 export class EncryptedAIKeyStorage {
   private configPath: string
+  private storageDir: string
 
   constructor() {
     const homeDir = os.homedir()
-    this.configPath = path.join(homeDir, '.keyboard-mcp')
+    this.storageDir = path.join(homeDir, '.keyboard-mcp')
+    this.configPath = path.join(this.storageDir, 'ai-providers-config.json')
   }
 
   private ensureConfigExists(): void {
+    // Ensure the .keyboard-mcp directory exists
+    if (!fs.existsSync(this.storageDir)) {
+      fs.mkdirSync(this.storageDir, { recursive: true, mode: 0o700 })
+    }
+    
+    // Ensure the config file exists
     if (!fs.existsSync(this.configPath)) {
       const initialConfig: KeyboardMCPConfig = {
         version: '1.0.0',
         lastUpdated: new Date().toISOString(),
         aiProviders: {},
       }
-      fs.writeFileSync(this.configPath, JSON.stringify(initialConfig, null, 2))
+      fs.writeFileSync(this.configPath, JSON.stringify(initialConfig, null, 2), { mode: 0o600 })
     }
   }
 
@@ -45,8 +53,10 @@ export class EncryptedAIKeyStorage {
 
   private writeConfig(config: KeyboardMCPConfig): void {
     try {
+      // Ensure directory exists before writing
+      this.ensureConfigExists()
       config.lastUpdated = new Date().toISOString()
-      fs.writeFileSync(this.configPath, JSON.stringify(config, null, 2))
+      fs.writeFileSync(this.configPath, JSON.stringify(config, null, 2), { mode: 0o600 })
     } catch (error) {
       console.error('Error writing .keyboard-mcp config:', error)
       throw new Error('Failed to save configuration')
