@@ -40,6 +40,13 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
   const [isExecutingTool, setIsExecutingTool] = useState(false)
   const [currentTool, setCurrentTool] = useState<string | undefined>()
 
+  // Simple tool execution state management
+  // The adapter will call these functions directly during tool execution
+  const setToolExecutionState = useCallback((isExecuting: boolean, toolName?: string) => {
+    setIsExecutingTool(isExecuting)
+    setCurrentTool(toolName)
+  }, [])
+
   // Initialize MCP integration when enabled
   const mcpIntegration = useMCPIntegration(
     config.serverUrl || 'https://mcp.keyboard.dev',
@@ -77,13 +84,6 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
       mcpIntegration.retry()
     }
   }, [mcpIntegration])
-
-  // Simple tool execution state management
-  // The adapter will call these functions directly during tool execution
-  const setToolExecutionState = useCallback((isExecuting: boolean, toolName?: string) => {
-    setIsExecutingTool(isExecuting)
-    setCurrentTool(toolName)
-  }, [])
 
   return {
     adapter,

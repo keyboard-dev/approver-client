@@ -37,20 +37,51 @@ export class AIChatAdapter implements ChatModelAdapter {
     this.setToolExecutionState = tracker
   }
 
+  private findMatchedAbilities(aiMessages: AIMessage[], abortSignal?: AbortSignal) {
+    const messagesToCheck = [...aiMessages]
+    // can we check all the messages to see if they mention any of the abilities, if they do we should return an array of abilities that are mentioned with the full ability name and description
+    const abilities = this.mcpIntegration?.functions || []
+    const matchedAbilities = []
+    if (!abilities) return []
+    for (const message of messagesToCheck) {
+      if (message.role === 'user') {
+        for (const ability of abilities) {
+          if (message.content.includes(ability.function.name)) {
+            matchedAbilities.push({
+              name: ability.function.name,
+              description: ability.function.description,
+              parameters: ability.function.parameters,
+            })
+          }
+        }
+      }
+    }
+    return matchedAbilities
+  }
+
+  private preContextPrompt(aiMessages: AIMessage[], abortSignal?: AbortSignal) {
+    const matchedAbilities = this.findMatchedAbilities(aiMessages) || []
+    if (matchedAbilities?.length > 0) {
+      const preContextPrompt = `<context>
+      This conversation has mentioned these specific keyboard's abilities, 
+      so here is additional context if you need to use any of these abilities: 
+      ${matchedAbilities.map(a => `${a.name}: \n\n parameters: ${JSON.stringify(a.parameters, null, 2)}\n\n description: ${a.description}`).join('\n')}
+      </context>`
+      aiMessages[aiMessages.length - 1].content += `\n\n${preContextPrompt}`
+    }
+    return aiMessages
+  }
+
   private async handleWithAbilityCalling(aiMessages: AIMessage[], abortSignal?: AbortSignal) {
     if (!this.mcpIntegration) {
       throw new Error('MCP integration not available')
     }
 
-    console.log('🚀 keyboard.dev-ability Calling: Starting enhanced ability calling flow')
-    console.log('📋 Available keyboard.dev abilities:', this.mcpIntegration.functions.length)
-    console.log('🚀 Available ability names:', this.mcpIntegration.functions.map(f => f.function.name))
-
     // For now, implement a simple approach: send initial message and check if AI mentions ability usage
     // In a full implementation, this would need provider-specific function calling support
 
     // Add instruction for two-stage keyboard.dev-ability discovery
-    const enhancedMessages = [...aiMessages]
+    let enhancedMessages = [...aiMessages]
     const lastUserMessage = enhancedMessages[enhancedMessages.length - 1]
     if (lastUserMessage?.role === 'user') {
       // Get list of available ability names
@@ -73,19 +104,17 @@ Here are the available keyboard.dev abilities you can call:
 ${abilitiesList})`
     }
 
-    console.log('💬 Enhanced user message:', lastUserMessage?.content.slice(-200)) // Log last 200 chars
-
     // Send enhanced message
-    console.log('📤 Sending message to AI provider:', this.currentProvider.provider)
-    console.log('📤 Enhanced messages:', JSON.stringify(enhancedMessages, null, 2))
+
+    enhancedMessages = this.preContextPrompt(enhancedMessages)
+
     const response = await window.electronAPI.sendAIMessage(
       this.currentProvider.provider,
       enhancedMessages,
       { model: this.currentProvider.model },
     )
 
-    console.log('📥 AI Response received (length:', response.length, 'chars)')
-    console.log('📄 AI Response preview:', response.slice(0, 500)) // Log first 500 chars
+    console.log('📥 AI Response:', response)
 
     // Check abort signal
     if (abortSignal?.aborted) {
@@ -93,7 +122,7 @@ ${abilitiesList})`
     }
 
     // Look for JSON code blocks with ability calls
-    console.log('🔍 Scanning for JSON ability calls...')
+
     const jsonPattern = /```json\s*(.*?)\s*```/gs
     const jsonMatches = Array.from(response.matchAll(jsonPattern))
     const abilityCalls: Array<{ ability: string, parameters: Record<string, unknown> }> = []
@@ -115,13 +144,11 @@ ${abilitiesList})`
       }
     }
 
-    console.log(`🎯 Found ${abilityCalls.length} ability call(s)`)
-
     if (abilityCalls.length > 0 && this.mcpIntegration.functions.length > 0) {
-      console.log(`🚀 Processing ${abilityCalls.length} ability call(s)`)
       let enhancedResponse = response
 
       for (const abilityCall of abilityCalls) {
+        console.log('YAKAKA WHAT IS THE ABILITY CALL', abilityCall)
         const { ability: abilityName, parameters } = abilityCall
         console.log(`🔧 Executing: ${abilityName}`)
 
