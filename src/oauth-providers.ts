@@ -402,15 +402,6 @@ export class OAuthProviderManager {
    * Refresh tokens directly with the provider (requires local client credentials)
    */
   private async refreshTokensDirect(_providerId: string, refreshToken: string, provider: OAuthProvider): Promise<ProviderTokens> {
-    console.log('======================')
-    console.log('providerId', _providerId)
-    console.log('refreshToken', refreshToken)
-    console.log('provider', provider)
-    console.log('provider.clientId', provider.clientId)
-    console.log('provider.clientSecret', provider.clientSecret)
-    console.log('provider.tokenUrl', provider.tokenUrl)
-    console.log('======================')
-
     const body: Record<string, string> = {
       client_id: provider.clientId,
       refresh_token: refreshToken,

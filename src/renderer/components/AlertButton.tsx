@@ -25,9 +25,11 @@ const AlertButton = () => {
         className="text-black text-[1rem] font-semibold"
       >
         inbox
+        {' '}
       </span>
       <span className="text-[#737373] text-[0.88rem]">
         (
+        {' '}
         {alertCount}
         {' '}
         unread

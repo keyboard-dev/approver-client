@@ -15,8 +15,10 @@ interface OAuthProvidersContextType {
   error: string | null
   lastChecked: number | null
   refreshProvider: (providerId: string) => Promise<boolean>
+  reconnectProvider: (providerId: string) => Promise<boolean>
   checkAllProviders: () => Promise<void>
   getGroupedProviders: () => GroupedProviderStatus
+  refreshAllExpiredProviders: () => Promise<{ success: number, failed: number }>
 }
 
 const OAuthProvidersContext = createContext<OAuthProvidersContextType | undefined>(undefined)
@@ -33,6 +35,9 @@ export const OAuthProvidersProvider: React.FC<OAuthProvidersProviderProps> = ({ 
 
   // Track available provider IDs (those that are configured, even if not authenticated)
   const availableProviderIds = useRef<Set<string>>(new Set())
+
+  // Track if initialization has already happened to prevent duplicate calls
+  const isInitialized = useRef(false)
 
   /**
    * Fetch all provider statuses from main process
@@ -81,6 +86,25 @@ export const OAuthProvidersProvider: React.FC<OAuthProvidersProviderProps> = ({ 
   }, [checkAllProviders])
 
   /**
+   * Reconnect a provider by disconnecting and restarting the OAuth flow
+   */
+  const reconnectProvider = useCallback(async (providerId: string): Promise<boolean> => {
+    try {
+      setError(null)
+      // First, disconnect the provider
+      await window.electronAPI.logoutProvider(providerId)
+      // Then start the OAuth flow again
+      await window.electronAPI.startProviderOAuth(providerId)
+      return true
+    }
+    catch (error) {
+      console.error(`Error reconnecting provider ${providerId}:`, error)
+      setError(`Failed to reconnect ${providerId}`)
+      return false
+    }
+  }, [])
+
+  /**
    * Get providers grouped by authentication status
    */
   const getGroupedProviders = useCallback((): GroupedProviderStatus => {
@@ -113,6 +137,49 @@ export const OAuthProvidersProvider: React.FC<OAuthProvidersProviderProps> = ({ 
 
     return { authenticated, expired, disconnected }
   }, [providers])
+
+  /**
+   * Refresh all expired providers in the background
+   * This is a manual function for UI components to use
+   */
+  const refreshAllExpiredProviders = useCallback(async (): Promise<{ success: number, failed: number }> => {
+    const grouped = getGroupedProviders()
+    const expiredProviders = grouped.expired
+
+    if (expiredProviders.length === 0) {
+      return { success: 0, failed: 0 }
+    }
+
+    console.log('🔄 Manually refreshing expired providers:', expiredProviders.map(p => p.providerId))
+
+    let successCount = 0
+    let failedCount = 0
+
+    // Refresh all expired providers in parallel
+    const refreshPromises = expiredProviders.map(async (provider) => {
+      try {
+        const success = await refreshProvider(provider.providerId)
+        if (success) {
+          console.log(`✅ Successfully refreshed ${provider.providerId}`)
+          successCount++
+        }
+        else {
+          console.log(`❌ Failed to refresh ${provider.providerId} (no refresh token or not supported)`)
+          failedCount++
+        }
+      }
+      catch (error) {
+        console.error(`❌ Error refreshing ${provider.providerId}:`, error)
+        failedCount++
+      }
+    })
+
+    await Promise.all(refreshPromises)
+
+    console.log(`🔄 Manual refresh complete: ${successCount} succeeded, ${failedCount} failed`)
+
+    return { success: successCount, failed: failedCount }
+  }, [getGroupedProviders, refreshProvider])
 
   /**
    * Handle provider authentication success event
@@ -175,10 +242,21 @@ export const OAuthProvidersProvider: React.FC<OAuthProvidersProviderProps> = ({ 
 
   /**
    * Initialize: Load provider statuses and set up event listeners
+   * This only runs once on mount, not on every dependency change
    */
   useEffect(() => {
-    // Initial load
-    checkAllProviders()
+    // Prevent duplicate initialization
+    if (isInitialized.current) {
+      return
+    }
+    isInitialized.current = true
+
+    // Initial load - automatic refresh happens in main process on startup
+    const initializeProviders = async () => {
+      await checkAllProviders()
+    }
+
+    initializeProviders()
 
     // Set up IPC event listeners
     window.electronAPI.onProviderAuthSuccess(handleProviderAuthSuccess)
@@ -199,8 +277,10 @@ export const OAuthProvidersProvider: React.FC<OAuthProvidersProviderProps> = ({ 
     error,
     lastChecked,
     refreshProvider,
+    reconnectProvider,
     checkAllProviders,
     getGroupedProviders,
+    refreshAllExpiredProviders,
   }
 
   return (

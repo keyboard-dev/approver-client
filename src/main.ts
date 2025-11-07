@@ -66,13 +66,6 @@ interface AuthUser {
   profile_picture?: string
 }
 
-// Types for onboarding GitHub provider response
-interface OnboardingGitHubResponse {
-  session_id: string
-  authorization_url: string
-  state: string
-}
-
 // Types for WebSocket message with collection request
 interface WebSocketMessage {
   type: string
@@ -348,10 +341,70 @@ class MenuBarNotificationApp {
 
       // Migrate from old storage format
       await this.migrateTokenStorage()
+
+      // Automatically refresh expired providers on startup
+      await this.refreshAllExpiredProvidersOnStartup()
     }
     catch (error) {
       console.error('❌ Failed to initialize OAuth provider system:', error)
       throw error
+    }
+  }
+
+  /**
+   * Refresh all expired OAuth providers on app startup
+   * This runs once during initialization to silently refresh tokens before the UI loads
+   */
+  private async refreshAllExpiredProvidersOnStartup(): Promise<void> {
+    try {
+      // Get all provider statuses
+      const providerStatuses = await this.perProviderTokenStorage.getProviderStatus()
+
+      // Find expired providers (authenticated but expired)
+      const expiredProviders = Object.entries(providerStatuses)
+        .filter(([, status]) => status?.authenticated && status?.expired)
+        .map(([providerId]) => providerId)
+
+      if (expiredProviders.length === 0) {
+        console.log('✅ No expired OAuth providers to refresh on startup')
+        return
+      }
+
+      console.log(`🔄 Refreshing ${expiredProviders.length} expired OAuth provider(s) on startup:`, expiredProviders)
+
+      let successCount = 0
+      let failedCount = 0
+
+      // Attempt to refresh each expired provider
+      // Do this sequentially to avoid rate limits and be gentle on startup
+      for (const providerId of expiredProviders) {
+        try {
+          const tokens = await this.perProviderTokenStorage.getTokens(providerId)
+          if (!tokens?.refresh_token) {
+            console.log(`⚠️ Skipping ${providerId}: no refresh token available`)
+            failedCount++
+            continue
+          }
+
+          // Attempt to refresh the tokens
+          const refreshedTokens = await this.refreshProviderTokens(providerId, tokens.refresh_token)
+          await this.perProviderTokenStorage.storeTokens(refreshedTokens)
+
+          console.log(`✅ Successfully refreshed ${providerId} on startup`)
+          successCount++
+        }
+        catch (error) {
+          // Silently fail - user can manually refresh from the UI if needed
+          console.log(`⚠️ Failed to refresh ${providerId} on startup (will require manual refresh):`, error instanceof Error ? error.message : 'Unknown error')
+          failedCount++
+        }
+      }
+
+      console.log(`🔄 Startup OAuth refresh complete: ${successCount} succeeded, ${failedCount} failed`)
+    }
+    catch (error) {
+      // Don't throw - we don't want startup refresh failures to break app initialization
+      console.error('❌ Error during startup OAuth provider refresh:', error)
     }
   }
 
@@ -1371,10 +1424,6 @@ class MenuBarNotificationApp {
   }
 
   private async refreshProviderTokens(providerId: string, refreshToken: string): Promise<ProviderTokens> {
-    console.log('refreshing tokens for', providerId)
-    console.log('refreshToken', refreshToken)
-    console.log('======================')
-
     return await this.oauthProviderManager.refreshTokens(providerId, refreshToken)
   }
 
@@ -2211,8 +2260,6 @@ class MenuBarNotificationApp {
     })
 
     ipcMain.handle('refresh-provider-tokens', async (_event, providerId: string): Promise<boolean> => {
-      console.log('refreshing tokens for', providerId)
-      console.log('======================')
       try {
         const tokens = await this.perProviderTokenStorage.getTokens(providerId)
         if (!tokens?.refresh_token) {
