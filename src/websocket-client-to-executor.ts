@@ -132,6 +132,12 @@ export class ExecutorWebSocketClient {
         return false
       }
 
+      // Validate that the codespace is from the codespace-executor repository
+      if (targetCodespace.codespace.repository.name !== 'codespace-executor') {
+        console.error(`❌ Codespace ${codespaceName} is not from codespace-executor repository (found: ${targetCodespace.codespace.repository.name})`)
+        return false
+      }
+
       // Set connection target
       this.currentTarget = {
         type: 'codespace',
@@ -278,6 +284,19 @@ export class ExecutorWebSocketClient {
   // Automatically discover and connect to the best available executor
   async autoConnect(): Promise<boolean> {
     console.log('🔗 Auto-connecting to executor')
+    
+    // Check if currently connected to a valid codespace-executor codespace
+    if (this.isConnected() && this.currentTarget?.type === 'codespace') {
+      const isValidConnection = await this.validateCurrentConnection()
+      if (isValidConnection) {
+        console.log('✅ Current connection is valid, maintaining connection')
+        return true
+      } else {
+        console.log('❌ Current connection is stale or invalid, reconnecting')
+        this.disconnect()
+      }
+    }
+
     if (!this.codespacesService) {
       this.connectToLocalhost()
       return true
@@ -312,6 +331,45 @@ export class ExecutorWebSocketClient {
 
       this.connectToLocalhost()
       return true
+    }
+  }
+
+  // Validate the current connection to ensure it's a codespace-executor repository with owner affiliation
+  private async validateCurrentConnection(): Promise<boolean> {
+    if (!this.currentTarget?.codespaceName || !this.codespacesService) {
+      return false
+    }
+
+    try {
+      // Check if the current codespace still exists and is from codespace-executor repo
+      const currentUser = await (this.codespacesService as any).githubService.getCurrentUser()
+      if (!currentUser) {
+        return false
+      }
+
+      const codespaces = await this.codespacesService.getCodespaceConnectionInfo()
+      const currentCodespace = codespaces.find(cs => 
+        cs.codespace.name === this.currentTarget?.codespaceName &&
+        cs.codespace.repository.name === 'codespace-executor' &&
+        cs.codespace.owner.login === currentUser.login
+      )
+
+      if (!currentCodespace) {
+        console.log('❌ Current codespace not found or not from codespace-executor repo')
+        return false
+      }
+
+      if (!currentCodespace.available) {
+        console.log('❌ Current codespace is no longer available')
+        return false
+      }
+
+      console.log('✅ Current connection validated: codespace-executor repository with owner affiliation')
+      return true
+    }
+    catch (error) {
+      console.error('❌ Failed to validate current connection:', error)
+      return false
     }
   }
 
