@@ -166,6 +166,19 @@ ${abilitiesList})`
             // Add result to response
             enhancedResponse += `\n\n🚀 **${abilityName}** executed\n**Result:**\n${abilityResult}`
 
+            const responsePrompt = `This is the result of the ability call: ${abilityResult}. Please use this result to answer the user's question.
+            
+            User question: ${lastUserMessage.content}
+            `
+            enhancedResponse = await window.electronAPI.sendAIMessage(this.currentProvider.provider, [
+              {
+                role: 'user',
+                content: responsePrompt,
+              },
+            ], { model: this.currentProvider.model })
+
+            console.log('this is the enhanced response', enhancedResponse)
+
             // Check abort signal after tool execution
             if (abortSignal?.aborted) {
               throw new Error('Request was aborted')
