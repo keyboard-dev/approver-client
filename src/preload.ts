@@ -164,6 +164,7 @@ export interface ElectronAPI {
   getProviderTokens: (providerId: string) => Promise<ProviderTokens>
   refreshProviderTokens: (providerId: string) => Promise<boolean>
   clearAllProviderTokens: () => Promise<void>
+  expireAllTokensForTesting: () => Promise<number>
   getOAuthStorageInfo: () => Promise<OAuthStorageInfo>
   onProviderAuthSuccess: (callback: (event: IpcRendererEvent, data: ProviderAuthEventData) => void) => void
   onProviderAuthError: (callback: (event: IpcRendererEvent, error: ProviderAuthErrorData) => void) => void
@@ -336,6 +337,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getProviderTokens: (providerId: string): Promise<ProviderTokens> => ipcRenderer.invoke('get-provider-tokens', providerId),
   refreshProviderTokens: (providerId: string): Promise<boolean> => ipcRenderer.invoke('refresh-provider-tokens', providerId),
   clearAllProviderTokens: (): Promise<void> => ipcRenderer.invoke('clear-all-provider-tokens'),
+  expireAllTokensForTesting: (): Promise<number> => ipcRenderer.invoke('expire-all-tokens-for-testing'),
   getOAuthStorageInfo: (): Promise<OAuthStorageInfo> => ipcRenderer.invoke('get-oauth-storage-info'),
 
   // OAuth Provider event listeners

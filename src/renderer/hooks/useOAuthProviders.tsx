@@ -86,15 +86,15 @@ export const OAuthProvidersProvider: React.FC<OAuthProvidersProviderProps> = ({ 
   }, [checkAllProviders])
 
   /**
-   * Reconnect a provider by disconnecting and restarting the OAuth flow
+   * Reconnect a provider by restarting the OAuth flow
+   * Note: We don't log out first so that if the OAuth flow fails,
+   * the user still has their old (expired) tokens and can retry
    */
   const reconnectProvider = useCallback(async (providerId: string): Promise<boolean> => {
     try {
       setError(null)
-      // First, disconnect the provider
-      await window.electronAPI.logoutProvider(providerId)
-      // Then start the OAuth flow again
-      await window.electronAPI.startProviderOAuth(providerId)
+      // Start the OAuth flow - it will overwrite existing tokens on success
+      await window.electronAPI.startServerProviderOAuth('keyboard-api', providerId)
       return true
     }
     catch (error) {

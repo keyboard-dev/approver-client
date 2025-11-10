@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useConnectionToasts } from './useConnectionToasts'
 
 export type ConnectionStatus = 'connected' | 'disconnected' | 'connecting'
@@ -99,7 +99,7 @@ export const useWebSocketConnection = (
       updateConnectionStatus('disconnected')
     }
 
-    const handleWebSocketReconnecting = (_event: unknown, data: { attempt: number, maxAttempts: number }) => {
+    const handleWebSocketReconnecting = () => {
       if (isOnboardingCompleted) {
         showReconnectingToast()
       }
@@ -173,12 +173,10 @@ export const useWebSocketConnection = (
   // Reconnect to executor
   const reconnectToExecutor = useCallback(async () => {
     try {
-      const success = await window.electronAPI.reconnectToExecutor()
-      return success
+      await window.electronAPI.reconnectToExecutor()
     }
     catch (error) {
       console.error('Failed to reconnect to executor:', error)
-      return false
     }
   }, [])
 

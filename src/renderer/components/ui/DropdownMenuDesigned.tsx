@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { cn } from '../../lib/utils'
 
 type DropdownPosition = 'bottom-left' | 'bottom-right' | 'top-left' | 'top-right'
@@ -38,24 +38,26 @@ export const DropdownMenuDesigned = ({
     }
   }, [isOpen])
 
+  const enhancedTrigger = React.isValidElement(trigger)
+    ? React.cloneElement(trigger, {
+        onClick: (e: React.MouseEvent) => {
+          if (disabled) return
+          trigger.props.onClick?.(e)
+          setIsOpen(!isOpen)
+        },
+      } as React.HTMLAttributes<HTMLElement>)
+    : trigger
+
   return (
     <div
       ref={dropdownRef}
       className={cn(
-        'relative w-fit h-fit',
+        'relative flex shrink-0',
         disabled && 'opacity-50 cursor-not-allowed',
         className,
       )}
     >
-      <div
-        onClick={() => {
-          if (disabled) return
-          setIsOpen(!isOpen)
-        }}
-        className={cn('flex', disabled ? 'cursor-not-allowed' : 'cursor-pointer')}
-      >
-        {trigger}
-      </div>
+      {enhancedTrigger}
 
       <div
         className={cn(

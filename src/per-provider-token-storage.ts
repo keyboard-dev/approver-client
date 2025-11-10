@@ -422,4 +422,37 @@ export class PerProviderTokenStorage {
       throw error
     }
   }
+
+  /**
+   * Expire all tokens for testing auto-refresh functionality
+   * Sets expires_at to a past timestamp without invalidating refresh tokens
+   */
+  async expireAllTokensForTesting(): Promise<number> {
+    try {
+      // Load all provider tokens
+      await this.loadAllProviderTokens()
+
+      let expiredCount = 0
+
+      // Expire each token
+      for (const [providerId, tokens] of this.tokensCache.entries()) {
+        // Set expires_at to 1 hour ago
+        tokens.expires_at = Date.now() - 3600000
+        tokens.updatedAt = Date.now()
+
+        // Save the updated tokens
+        await this.saveProviderTokens(tokens)
+        expiredCount++
+
+        console.log(`🧪 Expired tokens for ${providerId} for testing`)
+      }
+
+      console.log(`🧪 Expired ${expiredCount} provider token(s) for testing`)
+      return expiredCount
+    }
+    catch (error) {
+      console.error('❌ Error expiring tokens for testing:', error)
+      throw error
+    }
+  }
 }

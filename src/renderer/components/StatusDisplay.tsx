@@ -1,9 +1,16 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { GroupedProviderStatus, useOAuthProviders } from '../hooks/useOAuthProviders'
 
-const StatusDisplay = () => {
-  // OAuth providers hook is available for future use
+/*
+ * REACT ROUTER MIGRATION NOTE:
+ *
+ * This component uses React Router's useNavigate() to navigate to the Settings > Connectors page
+ * when users click on expired connector warnings.
+ */
 
+const StatusDisplay = () => {
+  const navigate = useNavigate()
   const { getGroupedProviders } = useOAuthProviders()
 
   const [groupedProviders, setGroupedProviders] = useState<GroupedProviderStatus>(getGroupedProviders())
@@ -26,9 +33,20 @@ const StatusDisplay = () => {
 
   console.log('groupedProviders', groupedProviders)
 
+  const handleClick = () => {
+    if (expired.length > 0) {
+      navigate('/settings/Connectors')
+    }
+  }
+
+  const isClickable = expired.length > 0
+
   return (
     <div
-      className="px-[0.75rem] py-[0.25rem] rounded-full bg-[#EBEBEB] flex items-center gap-[0.63rem]"
+      className={`px-[0.75rem] py-[0.25rem] rounded-full bg-[#EBEBEB] flex items-center gap-[0.63rem] ${
+        isClickable ? 'cursor-pointer hover:bg-[#E0E0E0] transition-colors not-draggable' : ''
+      }`}
+      onClick={handleClick}
     >
       <div
         className={`w-[10px] h-[10px] rounded-full bg-[${statusColor}]`}
@@ -39,7 +57,11 @@ const StatusDisplay = () => {
       >
         {text}
         {' '}
-        <span className={`text-[${statusColor}] font-semibold`}>
+
+        <span
+          className={`text-[${statusColor}] font-semibold`}
+          style={{ color: statusColor }}
+        >
           {coloredText}
         </span>
       </div>

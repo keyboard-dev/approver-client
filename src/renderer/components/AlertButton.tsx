@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import bellIconUrl from '../../../assets/icon-bell.svg'
 import { GroupedProviderStatus, useOAuthProviders } from '../hooks/useOAuthProviders'
 import { getProviderIcon } from '../utils/providerUtils'
@@ -6,15 +6,60 @@ import { ButtonDesigned } from './ui/ButtonDesigned'
 import { DropdownMenuDesigned } from './ui/DropdownMenuDesigned'
 
 const AlertButton = () => {
-  const { getGroupedProviders, refreshProvider } = useOAuthProviders()
+  const { getGroupedProviders, reconnectProvider, refreshAllExpiredProviders } = useOAuthProviders()
   const [groupedProviders, setGroupedProviders] = useState<GroupedProviderStatus>(getGroupedProviders())
   const { expired } = groupedProviders
+
+  // Track if we've attempted to auto-refresh expired providers
+  const hasAttemptedRefresh = useRef(false)
+  const [isAutoRefreshing, setIsAutoRefreshing] = useState(false)
 
   const alertCount = expired.length
 
   useEffect(() => {
     setGroupedProviders(getGroupedProviders())
   }, [getGroupedProviders])
+
+  // Auto-refresh expired providers before showing them in notifications
+  useEffect(() => {
+    if (expired.length > 0 && !hasAttemptedRefresh.current && !isAutoRefreshing) {
+      hasAttemptedRefresh.current = true
+      setIsAutoRefreshing(true)
+
+      // Attempt to refresh all expired providers silently
+      refreshAllExpiredProviders()
+        .then(() => {
+          // Re-fetch providers after refresh attempt
+          setGroupedProviders(getGroupedProviders())
+        })
+        .catch((error) => {
+          // Silent failure - just log to console
+          console.log('Auto-refresh of expired providers completed with errors:', error)
+        })
+        .finally(() => {
+          setIsAutoRefreshing(false)
+        })
+    }
+  }, [expired.length, isAutoRefreshing, refreshAllExpiredProviders, getGroupedProviders])
+
+  // Reset the refresh attempt flag when all expired providers become authenticated
+  useEffect(() => {
+    if (expired.length === 0 && hasAttemptedRefresh.current) {
+      hasAttemptedRefresh.current = false
+    }
+  }, [expired.length])
+
+  const handleExpireTokensForTesting = async () => {
+    try {
+      const count = await window.electronAPI.expireAllTokensForTesting()
+      console.log(`🧪 Expired ${count} provider token(s) for testing. Restart the app to test auto-refresh.`)
+      // Refresh the provider status after expiring
+      setGroupedProviders(getGroupedProviders())
+    }
+    catch (error) {
+      console.error('Failed to expire tokens:', error)
+    }
+  }
 
   const items = [
     <div
@@ -36,6 +81,18 @@ const AlertButton = () => {
         )
       </span>
     </div>,
+    <div
+      className="px-[0.63rem] py-[0.75rem] border-t border-[#E5E5E5] hidden"
+      key="test-expire-tokens"
+    >
+      <ButtonDesigned
+        variant="secondary"
+        className="w-full px-[0.63rem] py-[0.38rem] text-[0.75rem]"
+        onClick={handleExpireTokensForTesting}
+      >
+        🧪 Expire All Tokens (Test)
+      </ButtonDesigned>
+    </div>,
     expired.map((provider) => {
       return (
         <div
@@ -43,23 +100,39 @@ const AlertButton = () => {
           key={`expired-provider-${provider.providerId}`}
         >
           <div
-            className="flex justify-between items-center border-l-2 border-[#D23535] px-[0.63rem]"
+            className="border-l-2 border-[#D23535] px-[0.63rem]"
           >
-            <div className="flex items-center gap-[0.63rem]">
-              <img src={getProviderIcon(undefined, provider.providerId)} alt={provider.providerId} className="w-4 h-4" />
+            <div className="flex flex-col">
+              <div
+                className="flex justify-between items-center"
+              >
+                <div className="flex items-center gap-[0.63rem]">
+                  <img src={getProviderIcon(undefined, provider.providerId)} alt={provider.providerId} className="w-4 h-4" />
 
-              {provider.providerId}
+                  <span className="text-black text-semibold">
+                    Expired
+                  </span>
+                </div>
+
+                <ButtonDesigned
+                  variant="primary-black"
+                  className="px-[0.63rem] py-[0.38rem] rounded-full"
+                  onClick={() => {
+                    reconnectProvider(provider.providerId)
+                  }}
+                >
+                  Reconnect
+                </ButtonDesigned>
+              </div>
+
+              <div>
+                Your
+                {' '}
+                {provider.providerId}
+                {' '}
+                connector has expired.
+              </div>
             </div>
-
-            <ButtonDesigned
-              variant="primary-black"
-              className="px-[0.63rem] py-[0.38rem] rounded-full"
-              onClick={() => {
-                refreshProvider(provider.providerId)
-              }}
-            >
-              Refresh
-            </ButtonDesigned>
           </div>
 
         </div>
