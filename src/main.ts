@@ -311,6 +311,7 @@ class MenuBarNotificationApp {
       this.setupWebSocketServer()
       this.setupRestAPI()
       this.setupIPC()
+      await this.connectToSSE()
 
       // Request notification permissions on all platforms
       await this.requestNotificationPermissions()
@@ -1464,6 +1465,39 @@ class MenuBarNotificationApp {
     }
   }
 
+  private async connectToSSE(): Promise<void> {
+    // Initialize SSE service if it doesn't exist yet
+    if (!this.sseBackgroundService) {
+      const notificationApp = this
+      this.sseBackgroundService = new SSEBackgroundService({
+        serverUrl: 'https://mcp.keyboard.dev',
+      })
+
+      // Set up event handlers (only needed once)
+      this.sseBackgroundService.on('connected', () => {
+        console.log('Connected to SSE')
+      })
+      console.log('authTokens', this.authTokens)
+      // Always ensure we have a valid token and connection
+      if (!this.authTokens?.access_token) {
+        return
+      }
+
+      // Update token and reconnect if needed (setAuthToken handles this)
+      this.sseBackgroundService.setAuthToken(this.authTokens.access_token)
+
+      this.sseBackgroundService.on('codespace-online', async (data: CodespaceData) => {
+        console.log('NEW CODESPACE MESSAGE RECEIVED')
+        const isConnected = this.executorWSClient?.isConnected()
+        if (!isConnected) {
+          console.log('NOT CONNECTED TO EXECUTOR, CONNECTING...')
+          await notificationApp.connectToExecutorWithToken()
+          await notificationApp.executorWSClient?.autoConnect()
+        }
+      })
+    }
+  }
+
   private async exchangeCodeForTokens(code: string): Promise<void> {
     try {
       if (!this.currentPKCE) {
@@ -1512,7 +1546,7 @@ class MenuBarNotificationApp {
 
       // Show the window after successful authentication
       this.windowManager.showWindow()
-      const notificationApp = this
+
       // Show success notification
       this.showNotification({
         id: 'auth-success',
@@ -1522,25 +1556,10 @@ class MenuBarNotificationApp {
         priority: 'normal',
       })
 
-      this.sseBackgroundService = new SSEBackgroundService({
-        serverUrl: 'https://mcp.keyboard.dev',
-      })
-      this.sseBackgroundService.setAuthToken(this.authTokens?.access_token)
-      this.sseBackgroundService.connect()
-      this.sseBackgroundService.on('connected', () => {
-        console.log('Connected to SSE')
-      })
-      // this.sseBackgroundService.on('codespace_online', async (data: CodespaceData) => {
-      //   console.log('Codespace online:', data)
-      //   await notificationApp.connectToExecutorWithToken()
-      //   await notificationApp.executorWSClient?.autoConnect()
-      // })
+      await this.connectToSSE()
 
-      this.sseBackgroundService.on('codespace-online', async (data: CodespaceData) => {
-        await notificationApp.getValidAccessToken()
-        await notificationApp.connectToExecutorWithToken()
-        await notificationApp.executorWSClient?.autoConnect()
-      })
+      // SSE will be initialized automatically on the next getValidAccessToken() call
+      // which happens organically through the app's normal API operations
     }
     catch (error) {
       console.error('❌ Token exchange error:', error)
@@ -1598,6 +1617,15 @@ class MenuBarNotificationApp {
   private async getValidAccessToken(): Promise<string | null> {
     // Use the centralized token validation method
     const isValid = await this.ensureValidAuthTokens()
+    console.log('do i get here?')
+    if (isValid) {
+      try {
+        await this.connectToSSE()
+      }
+      catch (error) {
+        console.error('❌ Failed to get valid access token:', error)
+      }
+    }
 
     if (!isValid) {
       // All token recovery attempts failed, show notification and logout
@@ -1741,6 +1769,7 @@ class MenuBarNotificationApp {
   // Centralized method to ensure this.authTokens is valid and fresh
   private async ensureValidAuthTokens(): Promise<boolean> {
     // Return false if no tokens at all
+
     if (!this.authTokens) {
       return false
     }

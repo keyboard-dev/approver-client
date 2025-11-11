@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useConnectionToasts } from './useConnectionToasts'
 
 export type ConnectionStatus = 'connected' | 'disconnected' | 'connecting'
@@ -7,12 +7,12 @@ export interface UseWebSocketConnectionReturn {
   connectionStatus: ConnectionStatus
   isConnectingToCodespace: boolean
   connectToBestCodespace: () => Promise<void>
-  reconnectToExecutor: () => Promise<void>
+  reconnectToExecutor: () => Promise<boolean>
 }
 
 export const useWebSocketConnection = (
   authStatus: { authenticated: boolean },
-  isSkippingAuth: boolean
+  isSkippingAuth: boolean,
 ): UseWebSocketConnectionReturn => {
   // Connection state
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected')
@@ -40,7 +40,7 @@ export const useWebSocketConnection = (
 
     connectionTimeoutRef.current = setTimeout(() => {
       setConnectionStatus(status)
-    }, 100) // Small debounce to prevent rapid flickering
+    }, 50) // Reduced debounce to 50ms for faster updates
   }, [])
 
   // Check onboarding completion status
@@ -49,7 +49,8 @@ export const useWebSocketConnection = (
       try {
         const completed = await window.electronAPI.checkOnboardingCompleted()
         setIsOnboardingCompleted(completed)
-      } catch (error) {
+      }
+      catch (error) {
         console.error('Failed to check onboarding status:', error)
       }
     }
@@ -59,19 +60,30 @@ export const useWebSocketConnection = (
     }
   }, [authStatus.authenticated, isSkippingAuth])
 
-  // Initialize connection status on app start
+  // Initialize connection status on app start and keep it in sync with polling
   useEffect(() => {
     const initializeConnectionStatus = async () => {
       try {
         const status = await window.electronAPI.getExecutorConnectionStatus()
         updateConnectionStatus(status.connected ? 'connected' : 'disconnected')
-      } catch (error) {
+      }
+      catch (error) {
         console.error('Failed to check initial connection status:', error)
       }
     }
 
     if (authStatus.authenticated || isSkippingAuth) {
+      // Initial status check
       initializeConnectionStatus()
+
+      // Poll every 5 seconds to keep status in sync
+      const pollInterval = setInterval(() => {
+        initializeConnectionStatus()
+      }, 5000)
+
+      return () => {
+        clearInterval(pollInterval)
+      }
     }
   }, [authStatus.authenticated, isSkippingAuth, updateConnectionStatus])
 
@@ -97,7 +109,7 @@ export const useWebSocketConnection = (
       updateConnectionStatus('disconnected')
     }
 
-    const handleWebSocketReconnecting = (_event: unknown, data: { attempt: number, maxAttempts: number }) => {
+    const handleWebSocketReconnecting = () => {
       if (isOnboardingCompleted) {
         showReconnectingToast()
       }
@@ -159,9 +171,11 @@ export const useWebSocketConnection = (
       if (success) {
         updateConnectionStatus('connected')
       }
-    } catch (error) {
+    }
+    catch (error) {
       console.error('Failed to connect to best codespace:', error)
-    } finally {
+    }
+    finally {
       setIsConnectingToCodespace(false)
     }
   }, [authStatus.authenticated, updateConnectionStatus])
@@ -171,7 +185,8 @@ export const useWebSocketConnection = (
     try {
       const success = await window.electronAPI.reconnectToExecutor()
       return success
-    } catch (error) {
+    }
+    catch (error) {
       console.error('Failed to reconnect to executor:', error)
       return false
     }

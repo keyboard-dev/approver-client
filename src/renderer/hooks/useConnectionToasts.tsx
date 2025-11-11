@@ -48,8 +48,8 @@ export const useConnectionToasts = () => {
 
   const showReconnectingToast = useCallback((options: ConnectionToastOptions = {}) => {
     dismissActiveToasts()
-
-    const toastId = toast.loading(
+    console.log('this is the options', options)
+    const toastId = toast.success(
       <div className="flex items-center gap-2">
         <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
         <div>
@@ -71,7 +71,7 @@ export const useConnectionToasts = () => {
   const showSwitchingToast = useCallback((from: string, to: string, options: ConnectionToastOptions = {}) => {
     dismissActiveToasts()
 
-    const toastId = toast.loading(
+    const toastId = toast.success(
       <div className="flex items-center gap-2">
         <RefreshCw className="h-4 w-4 animate-spin text-orange-600" />
         <div>
@@ -147,13 +147,13 @@ export const useConnectionToasts = () => {
   const showConnectingToast = useCallback((target: string, options: ConnectionToastOptions = {}) => {
     dismissActiveToasts()
 
-    const toastId = toast.loading(
+    const toastId = toast.success(
       <div className="flex items-center gap-2">
         <Wifi className="h-4 w-4 animate-pulse text-blue-600" />
         <div>
           <div className="font-medium">Connecting</div>
           <div className="text-sm text-gray-600">
-            Connecting to
+            Connecting bro to
             {target}
             ...
           </div>

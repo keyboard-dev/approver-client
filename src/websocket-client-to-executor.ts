@@ -148,10 +148,11 @@ export class ExecutorWebSocketClient {
         source: 'manual',
       }
 
-      // Emit connecting event
+      // Emit connecting event with dismissible option
       this.windowManager?.sendMessage('websocket-connecting', {
         target: this.currentTarget.name!,
         type: this.currentTarget.type,
+        dismissible: true,
       })
 
       // Connect to the codespace
@@ -174,10 +175,11 @@ export class ExecutorWebSocketClient {
       source: 'auto',
     }
 
-    // Emit connecting event
+    // Emit connecting event with dismissible option
     this.windowManager?.sendMessage('websocket-connecting', {
       target: this.currentTarget.name!,
       type: this.currentTarget.type,
+      dismissible: true,
     })
 
     this.connectToTarget(this.currentTarget)
@@ -237,7 +239,7 @@ export class ExecutorWebSocketClient {
   // Determine if we should switch from current connection to new codespace
   private shouldSwitchToNewCodespace(
     currentTarget: ConnectionTarget,
-    newCodespace: { codespace_id: string, name: string, url: string, state: string },
+    _newCodespace: { codespace_id: string, name: string, url: string, state: string },
   ): boolean {
     // Never switch away from manual connections (user explicitly chose)
     if (currentTarget.source === 'manual') {
@@ -284,21 +286,24 @@ export class ExecutorWebSocketClient {
   // Automatically discover and connect to the best available executor
   async autoConnect(): Promise<boolean> {
     console.log('🔗 Auto-connecting to executor')
-    
+
     // Check if currently connected to a valid codespace-executor codespace
     if (this.isConnected() && this.currentTarget?.type === 'codespace') {
       const isValidConnection = await this.validateCurrentConnection()
       if (isValidConnection) {
         console.log('✅ Current connection is valid, maintaining connection')
         return true
-      } else {
-        console.log('❌ Current connection is stale or invalid, reconnecting')
-        this.disconnect()
       }
+      // validateCurrentConnection() already cleared target and disconnected
+    }
+
+    // Clear any stale target before attempting new connection
+    if (!this.isConnected()) {
+      this.currentTarget = null
     }
 
     if (!this.codespacesService) {
-      this.connectToLocalhost()
+      // this.connectToLocalhost()
       return true
     }
     console.log('🔗 Codespaces service available')
@@ -308,10 +313,18 @@ export class ExecutorWebSocketClient {
       const preparedCodespace = await this.codespacesService.discoverAndPrepareCodespace()
       console.log('🔗 Prepared codespace:', preparedCodespace)
       if (preparedCodespace) {
+        const codespaceName = preparedCodespace.codespace.codespace.display_name || preparedCodespace.codespace.codespace.name
+
+        // Emit codespace discovered event
+        this.windowManager?.sendMessage('websocket-codespace-discovered', {
+          name: codespaceName,
+          url: preparedCodespace.websocketUrl,
+        })
+
         this.currentTarget = {
           type: 'codespace',
           url: preparedCodespace.websocketUrl,
-          name: preparedCodespace.codespace.codespace.display_name || preparedCodespace.codespace.codespace.name,
+          name: codespaceName,
           codespaceName: preparedCodespace.codespace.codespace.name,
           connectedAt: Date.now(),
           source: 'auto',
@@ -323,13 +336,13 @@ export class ExecutorWebSocketClient {
 
       // If no suitable codespace found, fall back to localhost
 
-      this.connectToLocalhost()
+      // this.connectToLocalhost()
       return true
     }
     catch (error) {
       console.error('Failed to auto-discover connection target:', error)
 
-      this.connectToLocalhost()
+      // this.connectToLocalhost()
       return true
     }
   }
@@ -337,6 +350,7 @@ export class ExecutorWebSocketClient {
   // Validate the current connection to ensure it's a codespace-executor repository with owner affiliation
   private async validateCurrentConnection(): Promise<boolean> {
     if (!this.currentTarget?.codespaceName || !this.codespacesService) {
+      this.currentTarget = null
       return false
     }
 
@@ -344,23 +358,29 @@ export class ExecutorWebSocketClient {
       // Check if the current codespace still exists and is from codespace-executor repo
       const currentUser = await (this.codespacesService as any).githubService.getCurrentUser()
       if (!currentUser) {
+        this.currentTarget = null
+        this.disconnect()
         return false
       }
 
       const codespaces = await this.codespacesService.getCodespaceConnectionInfo()
-      const currentCodespace = codespaces.find(cs => 
-        cs.codespace.name === this.currentTarget?.codespaceName &&
-        cs.codespace.repository.name === 'codespace-executor' &&
-        cs.codespace.owner.login === currentUser.login
+      const currentCodespace = codespaces.find(cs =>
+        cs.codespace.name === this.currentTarget?.codespaceName
+        && cs.codespace.repository.name === 'codespace-executor'
+        && cs.codespace.owner.login === currentUser.login,
       )
 
       if (!currentCodespace) {
-        console.log('❌ Current codespace not found or not from codespace-executor repo')
+        console.log('❌ Current codespace no longer exists or is not from codespace-executor')
+        this.currentTarget = null
+        this.disconnect()
         return false
       }
 
       if (!currentCodespace.available) {
         console.log('❌ Current codespace is no longer available')
+        this.currentTarget = null
+        this.disconnect()
         return false
       }
 
@@ -369,6 +389,8 @@ export class ExecutorWebSocketClient {
     }
     catch (error) {
       console.error('❌ Failed to validate current connection:', error)
+      this.currentTarget = null
+      this.disconnect()
       return false
     }
   }
@@ -403,6 +425,9 @@ export class ExecutorWebSocketClient {
         }
         console.log('🔗 WebSocket connected to:', target.url)
 
+        // Dismiss any connecting notification
+        this.windowManager?.sendMessage('websocket-connecting-dismiss')
+
         // Emit connected event
         this.windowManager?.sendMessage('websocket-connected', {
           target: target.name || target.url,
@@ -415,6 +440,13 @@ export class ExecutorWebSocketClient {
         try {
           const message = JSON.parse(data.toString()) as ExecutorMessage
 
+          // Emit message received event
+          this.windowManager?.sendMessage('websocket-message-received', {
+            messageType: message.type,
+            from: target.name || target.url,
+            timestamp: message.timestamp || Date.now(),
+          })
+
           // Forward to message handler
           this.onMessageReceived?.(message)
         }
@@ -425,6 +457,9 @@ export class ExecutorWebSocketClient {
 
       this.ws!.on('close', () => {
         this.ws = null
+
+        // Clear current target to prevent stale state
+        this.currentTarget = null
 
         // Emit disconnected event
         this.windowManager?.sendMessage('websocket-disconnected', {
@@ -443,6 +478,12 @@ export class ExecutorWebSocketClient {
 
         console.error(`❌ WebSocket client error (${target.name}):`, error)
 
+        // Clear current target on error
+        this.currentTarget = null
+
+        // Dismiss any connecting notification
+        this.windowManager?.sendMessage('websocket-connecting-dismiss')
+
         // Emit error event for non-404 errors
         this.windowManager?.sendMessage('websocket-error', {
           target: target.name || target.url,
@@ -454,6 +495,12 @@ export class ExecutorWebSocketClient {
     catch (error) {
       console.error(`Failed to connect to ${target.name}:`, error)
       this.ws = null
+
+      // Clear current target on error
+      this.currentTarget = null
+
+      // Dismiss any connecting notification
+      this.windowManager?.sendMessage('websocket-connecting-dismiss')
 
       // Emit error event
       this.windowManager?.sendMessage('websocket-error', {
