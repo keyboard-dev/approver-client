@@ -12,7 +12,7 @@ export const ButtonDesigned: React.FC<{
   className?: string
   disabled?: boolean
   hasBorder?: boolean
-  onClick?: () => void
+  onClick?: (event: React.MouseEvent<HTMLButtonElement>) => void
   variant: 'primary' | 'primary-black' | 'secondary' | 'destructive' | 'clear'
 }> = ({
   children,

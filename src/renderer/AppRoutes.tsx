@@ -1,5 +1,6 @@
 import { Route, Routes } from 'react-router-dom'
 import { AppContent } from './App'
+import { MessageDetailScreen } from './components/screens/MessageDetailScreen'
 import { SettingsScreen } from './components/screens/settings/SettingsScreen'
 import { Layout } from './Layout'
 
@@ -15,6 +16,7 @@ import { Layout } from './Layout'
  *
  * Current routes:
  * - / : Main view (message list or current message)
+ * - /messages/:messageId : Message detail view (Security Evaluation Request)
  * - /settings : Settings with default tab
  * - /settings/:tab : Settings with specific tab (WebSocket, Security, Notifications, Connectors, Advanced)
  *
@@ -25,6 +27,7 @@ export const AppRoutes = () => {
     <Routes>
       <Route element={<Layout />}>
         <Route path="/" element={<AppContent />} />
+        <Route path="/messages/:messageId" element={<MessageDetailScreen />} />
         <Route path="/settings" element={<SettingsScreen />} />
         <Route path="/settings/:tab" element={<SettingsScreen />} />
       </Route>

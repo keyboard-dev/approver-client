@@ -118,8 +118,9 @@ export interface ProgressInfo {
 }
 
 export interface ElectronAPI {
-  approveMessage: (message: Message, feedback?: string) => Promise<void>
-  rejectMessage: (messageId: string, feedback?: string) => Promise<void>
+  sendMessageResponse: (message: Message, feedback?: string) => Promise<void>
+  approveMessage: (message: Message, feedback?: string) => Promise<void> // @deprecated Use sendMessageResponse instead
+  rejectMessage: (messageId: string, feedback?: string) => Promise<void> // @deprecated Use sendMessageResponse instead
   approveCollectionShare: (messageId: string, updatedRequest: CollectionRequest) => Promise<void>
   rejectCollectionShare: (messageId: string) => Promise<void>
   sendPromptCollectionRequest: (context: { scripts: Script[], prompt: string, images: string[] }) => Promise<string>
@@ -246,7 +247,14 @@ export interface ElectronAPI {
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld('electronAPI', {
-  approveMessage: (message: Message, feedback?: string): Promise<void> => ipcRenderer.invoke('approve-message', message, feedback),
+  sendMessageResponse: (message: Message, feedback?: string): Promise<void> => {
+    return ipcRenderer.invoke('send-message-response', message, feedback)
+  },
+  // @deprecated - kept for backward compatibility
+  approveMessage: (message: Message, feedback?: string): Promise<void> => {
+    return ipcRenderer.invoke('approve-message', message, feedback)
+  },
+  // @deprecated - kept for backward compatibility
   rejectMessage: (messageId: string, feedback?: string): Promise<void> => ipcRenderer.invoke('reject-message', messageId, feedback),
   approveCollectionShare: (messageId: string, updatedRequest: CollectionRequest): Promise<void> => ipcRenderer.invoke('approve-collection-share', messageId, updatedRequest),
   rejectCollectionShare: (messageId: string): Promise<void> => ipcRenderer.invoke('reject-collection-share', messageId),

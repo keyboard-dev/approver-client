@@ -1125,6 +1125,7 @@ class MenuBarNotificationApp {
     }
 
     // Send to renderer for storage in IndexedDB and display
+    console.log('this.windowManager.sendMessage', message)
     this.windowManager.sendMessage('websocket-message', message)
 
     // Auto-show window for high priority messages
@@ -1362,10 +1363,21 @@ class MenuBarNotificationApp {
 
     // Handle requests for all messages (now stored in renderer IndexedDB)
 
-    // Handle approve message
-    ipcMain.handle('approve-message', (_event, message: Message, feedback?: string): void => {
-      // Only send WebSocket response, database update happens in renderer
-      this.handleApproveMessage(message, feedback)
+    // Handle unified message response (approve/reject)
+    // Database update happens in renderer, this just forwards to WebSocket
+    ipcMain.handle('send-message-response', async (_event, message: Message, feedback?: string): Promise<void> => {
+      // Send response back through WebSocket if needed
+      this.sendWebSocketResponse(message)
+
+      // Send to executor based on status
+      if (this.executorWSClient) {
+        if (message.status === 'approved') {
+          this.executorWSClient.sendApproval(message.id, feedback)
+        }
+        else if (message.status === 'rejected') {
+          this.executorWSClient.sendRejection(message.id, feedback)
+        }
+      }
     })
 
     // Handle approve collection share
@@ -1404,17 +1416,6 @@ class MenuBarNotificationApp {
             client.send(JSON.stringify(promptRequest))
           }
         })
-      }
-    })
-
-    // Handle reject message
-    ipcMain.handle('reject-message', async (_event, messageId: string, feedback?: string): Promise<void> => {
-      // Only send WebSocket response, database update happens in renderer
-      this.handleRejectMessage(messageId, feedback)
-
-      // Send rejection to executor
-      if (this.executorWSClient) {
-        this.executorWSClient.sendRejection(messageId, feedback)
       }
     })
 
@@ -1696,7 +1697,6 @@ class MenuBarNotificationApp {
 
     // Send response back through WebSocket if needed
     this.sendWebSocketResponse(updatedMessage)
-
     // Send approval to executor
     if (this.executorWSClient) {
       this.executorWSClient.sendApproval(message.id, feedback)

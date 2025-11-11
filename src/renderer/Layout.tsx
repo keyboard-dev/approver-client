@@ -6,6 +6,7 @@ import AlertButton from './components/AlertButton'
 import StatusDisplay from './components/StatusDisplay'
 import { ButtonDesigned } from './components/ui/ButtonDesigned'
 import { WebSocketStatusDialog } from './components/WebSocketStatusDialog'
+import { useGlobalWebSocketListeners } from './hooks/useGlobalWebSocketListeners'
 import { useWebSocketDialog } from './hooks/useWebSocketDialog'
 
 /**
@@ -23,6 +24,9 @@ import { useWebSocketDialog } from './hooks/useWebSocketDialog'
 export const Layout: React.FC = () => {
   const navigate = useNavigate()
   const { showDialog: showWebSocketDialog, closeDialog: closeWebSocketDialog } = useWebSocketDialog()
+
+  // Register global WebSocket message listeners (persists across route changes)
+  useGlobalWebSocketListeners()
 
   return (
     <div

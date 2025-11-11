@@ -31,8 +31,6 @@ const StatusDisplay = () => {
     coloredText = 'click to review'
   }
 
-  console.log('groupedProviders', groupedProviders)
-
   const handleClick = () => {
     if (expired.length > 0) {
       navigate('/settings/Connectors')
