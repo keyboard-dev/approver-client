@@ -24,12 +24,12 @@ export interface MCPEnhancedChatState {
   // MCP state
   mcpEnabled: boolean
   mcpConnected: boolean
-  mcpTools: number
+  mcpAbilities: number
   mcpError?: string
   
-  // Tool execution state
-  isExecutingTool: boolean
-  currentTool?: string
+  // Ability execution state
+  isExecutingAbility: boolean
+  currentAbility?: string
   
   // Agentic state
   isAgenticMode: boolean
@@ -38,7 +38,7 @@ export interface MCPEnhancedChatState {
   // Control functions
   setMCPEnabled: (enabled: boolean) => void
   refreshMCPConnection: () => void
-  setToolExecutionState: (isExecuting: boolean, toolName?: string) => void
+  setAbilityExecutionState: (isExecuting: boolean, abilityName?: string) => void
   setAgenticMode: (enabled: boolean) => void
 }
 
@@ -49,16 +49,16 @@ export interface MCPEnhancedChatState {
 export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedChatState {
   const [adapter] = useState(() => new AIChatAdapter(config.provider, config.model, config.mcpEnabled))
   const [mcpEnabled, setMCPEnabledState] = useState(config.mcpEnabled)
-  const [isExecutingTool, setIsExecutingTool] = useState(false)
-  const [currentTool, setCurrentTool] = useState<string | undefined>()
+  const [isExecutingAbility, setIsExecutingAbility] = useState(false)
+  const [currentAbility, setCurrentAbility] = useState<string | undefined>()
   const [isAgenticMode, setAgenticModeState] = useState(true) // Default to agentic mode
   const [agenticProgress, setAgenticProgress] = useState<AgenticProgress | undefined>()
 
-  // Simple tool execution state management
-  // The adapter will call these functions directly during tool execution
-  const setToolExecutionState = useCallback((isExecuting: boolean, toolName?: string) => {
-    setIsExecutingTool(isExecuting)
-    setCurrentTool(toolName)
+  // Simple ability execution state management
+  // The adapter will call these functions directly during ability execution
+  const setAbilityExecutionState = useCallback((isExecuting: boolean, abilityName?: string) => {
+    setIsExecutingAbility(isExecuting)
+    setCurrentAbility(abilityName)
   }, [])
 
   // Agentic progress tracking
@@ -93,12 +93,12 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
   useEffect(() => {
     if (mcpEnabled && mcpIntegration.isConnected) {
       adapter.setMCPIntegration(mcpIntegration)
-      adapter.setToolExecutionTracker(setToolExecutionState)
+      adapter.setToolExecutionTracker(setAbilityExecutionState)
       adapter.setTaskProgressTracker(handleTaskProgress)
     } else {
       adapter.setMCPIntegration(null)
     }
-  }, [adapter, mcpEnabled, mcpIntegration, setToolExecutionState, handleTaskProgress])
+  }, [adapter, mcpEnabled, mcpIntegration, setAbilityExecutionState, handleTaskProgress])
 
   // Handle MCP enablement toggle
   const setMCPEnabled = useCallback((enabled: boolean) => {
@@ -121,15 +121,15 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
     adapter,
     mcpEnabled,
     mcpConnected: mcpEnabled ? mcpIntegration.isConnected : false,
-    mcpTools: mcpIntegration.tools?.length || 0,
+    mcpAbilities: mcpIntegration.abilities?.length || 0,
     mcpError: mcpIntegration.error,
-    isExecutingTool,
-    currentTool,
+    isExecutingAbility,
+    currentAbility,
     isAgenticMode,
     agenticProgress,
     setMCPEnabled,
     refreshMCPConnection,
-    setToolExecutionState, // Expose for adapter to call
+    setAbilityExecutionState, // Expose for adapter to call
     setAgenticMode,
   }
 }

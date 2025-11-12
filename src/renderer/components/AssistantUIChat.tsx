@@ -186,7 +186,7 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({ onBack }) => {
                     <span className="font-medium">🚀 Enable keyboard.dev Abilities</span>
                     {mcpChat.mcpConnected && mcpEnabled && (
                       <Badge variant="secondary" className="text-xs">
-                        {mcpChat.mcpTools}
+                        {mcpChat.mcpAbilities}
                         {' '}
                         abilities
                       </Badge>
@@ -258,7 +258,7 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({ onBack }) => {
                         onToggleAgenticMode={mcpChat.setAgenticMode}
                         mcpEnabled={mcpEnabled}
                         mcpConnected={mcpChat.mcpConnected}
-                        mcpTools={mcpChat.mcpTools}
+                        mcpAbilities={mcpChat.mcpAbilities}
                         onToggleMCP={setMCPEnabled}
                         onRefreshMCP={mcpChat.refreshMCPConnection}
                       />
@@ -267,8 +267,8 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({ onBack }) => {
                       <AgenticStatusIndicator
                         isAgenticMode={mcpChat.isAgenticMode}
                         agenticProgress={mcpChat.agenticProgress}
-                        isExecutingTool={mcpChat.isExecutingTool}
-                        currentTool={mcpChat.currentTool}
+                        isExecutingAbility={mcpChat.isExecutingAbility}
+                        currentAbility={mcpChat.currentAbility}
                       />
                       
                       <div className="flex-1">

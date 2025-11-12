@@ -8,7 +8,7 @@ interface AgenticControlsProps {
   onToggleAgenticMode: (enabled: boolean) => void
   mcpEnabled: boolean
   mcpConnected: boolean
-  mcpTools: number
+  mcpAbilities: number
   onToggleMCP: (enabled: boolean) => void
   onRefreshMCP: () => void
 }
@@ -18,7 +18,7 @@ export const AgenticControls: React.FC<AgenticControlsProps> = ({
   onToggleAgenticMode,
   mcpEnabled,
   mcpConnected,
-  mcpTools,
+  mcpAbilities,
   onToggleMCP,
   onRefreshMCP,
 }) => {
@@ -60,7 +60,7 @@ export const AgenticControls: React.FC<AgenticControlsProps> = ({
                 </label>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
                   {mcpConnected
-                    ? `Connected • ${mcpTools} abilities available`
+                    ? `Connected • ${mcpAbilities} abilities available`
                     : 'Disconnected • No abilities available'
                   }
                 </p>

@@ -5,17 +5,17 @@ import { AgenticProgress } from '../hooks/useMCPEnhancedChat'
 interface AgenticStatusIndicatorProps {
   isAgenticMode: boolean
   agenticProgress?: AgenticProgress
-  isExecutingTool: boolean
-  currentTool?: string
+  isExecutingAbility: boolean
+  currentAbility?: string
 }
 
 export const AgenticStatusIndicator: React.FC<AgenticStatusIndicatorProps> = ({
   isAgenticMode,
   agenticProgress,
-  isExecutingTool,
-  currentTool,
+  isExecutingAbility,
+  currentAbility,
 }) => {
-  if (!isAgenticMode && !isExecutingTool) {
+  if (!isAgenticMode && !isExecutingAbility) {
     return null
   }
 
@@ -23,7 +23,7 @@ export const AgenticStatusIndicator: React.FC<AgenticStatusIndicatorProps> = ({
     if (agenticProgress?.isComplete) {
       return <CheckCircle className="h-4 w-4 text-green-500" />
     }
-    if (isExecutingTool) {
+    if (isExecutingAbility) {
       return <Cog className="h-4 w-4 text-blue-500 animate-spin" />
     }
     if (agenticProgress) {
@@ -36,8 +36,8 @@ export const AgenticStatusIndicator: React.FC<AgenticStatusIndicatorProps> = ({
     if (agenticProgress?.isComplete) {
       return "Task completed successfully"
     }
-    if (isExecutingTool && currentTool) {
-      return `Executing: ${currentTool}`
+    if (isExecutingAbility && currentAbility) {
+      return `Executing: ${currentAbility}`
     }
     if (agenticProgress) {
       return agenticProgress.currentAction
