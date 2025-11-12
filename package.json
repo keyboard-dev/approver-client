@@ -127,10 +127,19 @@
       "icon": "assets/keyboard-dock.icns"
     },
     "win": {
-      "icon": "assets/keyboard-dock.icns"
+      "icon": "assets/keyboard-dock.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64", "ia32"]
+        }
+      ],
+      "publisherName": "Keyboard.dev",
+      "verifyUpdateCodeSignature": false
     },
     "linux": {
-      "icon": "assets/keyboard-dock.icns"
+      "icon": "assets/keyboard-dock.png",
+      "category": "Development"
     }
   }
 }

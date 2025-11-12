@@ -5,7 +5,8 @@ require('@dotenvx/dotenvx').config()
 module.exports = {
   packagerConfig: {
     asar: true,
-    icon: 'assets/keyboard-dock.icns',
+    // Platform-specific icon handling will be done by makers
+    icon: process.platform === 'win32' ? 'assets/keyboard-dock' : 'assets/keyboard-dock.icns',
     protocols: [
       {
         name: 'MCP Auth Protocol',
@@ -19,6 +20,11 @@ module.exports = {
         appleApiKeyId: process.env.APPLE_API_KEY_ID,
         appleApiIssuer: process.env.APPLE_API_ISSUER,
       },
+    }),
+    // Windows code signing (when certificates are available)
+    ...(process.platform === 'win32' && process.env.WIN_CSC_LINK && {
+      certificateFile: process.env.WIN_CSC_LINK,
+      certificatePassword: process.env.WIN_CSC_KEY_PASSWORD,
     }),
   },
   makers: [

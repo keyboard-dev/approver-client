@@ -166,6 +166,9 @@ class MenuBarNotificationApp {
       },
       getMessages: () => [], // Messages now stored in renderer DB
       getPendingCount: () => this.pendingCount,
+      onUpdateTaskbarBadge: (count: number) => {
+        this.windowManager.setTaskbarBadge(count)
+      },
     })
 
     // Set up encryption key provider
