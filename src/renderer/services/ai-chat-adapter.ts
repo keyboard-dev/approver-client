@@ -61,15 +61,13 @@ export class AIChatAdapter implements ChatModelAdapter {
     const matchedAbilities = []
     if (!abilities) return []
     for (const message of messagesToCheck) {
-      if (message.role === 'user') {
-        for (const ability of abilities) {
-          if (message.content.includes(ability.function.name)) {
-            matchedAbilities.push({
-              name: ability.function.name,
-              description: ability.function.description,
-              parameters: ability.function.parameters,
-            })
-          }
+      for (const ability of abilities) {
+        if (message.content.includes(ability.function.name)) {
+          matchedAbilities.push({
+            name: ability.function.name,
+            description: ability.function.description,
+            parameters: ability.function.parameters,
+          })
         }
       }
     }
@@ -84,7 +82,25 @@ export class AIChatAdapter implements ChatModelAdapter {
       so here is additional context if you need to use any of these abilities: 
       ${matchedAbilities.map(a => `${a.name}: \n\n parameters: ${JSON.stringify(a.parameters, null, 2)}\n\n description: ${a.description}`).join('\n')}
       </context>`
-      aiMessages[aiMessages.length - 1].content += `\n\n${preContextPrompt}`
+      aiMessages[aiMessages.length - 1].content += `\n\n${preContextPrompt} 
+      
+      When you are ready to call an ability, please use the following JSON format:
+      \`\`\`json
+      {
+        "ability": "ability-name",
+        "parameters": {
+          "param1": "value1",
+          "param2": "value2",
+          "param3": true,
+          "param4": ["value4", "value5"],
+          "param5": {
+            "nested1": "value6",
+            "nested2": "value7"
+          }
+        }
+      }
+      \`\`\`
+      `
     }
     return aiMessages
   }
@@ -242,7 +258,7 @@ export class AIChatAdapter implements ChatModelAdapter {
     if (lastUserMessage?.role === 'user') {
       const searchResult = this.mcpIntegration.searchAbilities(lastUserMessage.content)
       const discoveryPrompt = createAbilityDiscoveryPrompt(lastUserMessage.content, searchResult, this.mcpIntegration.abilityDiscovery['filesystem'])
-      lastUserMessage.content += `\n\n(Note: You are an agentic AI that should work until the user's request is fully completed. I will help you discover relevant abilities as needed.
+      conversationHistory[conversationHistory.length - 1].content += `\n\n(Note: You are an agentic AI that should work until the user's request is fully completed. I will help you discover relevant abilities as needed.
 
 ${discoveryPrompt}
 
@@ -267,16 +283,24 @@ When the task is fully complete, make sure to indicate this clearly in your resp
       }
 
       // Send enhanced message with context
-      const enhancedMessages = this.preContextPrompt([...conversationHistory])
-
+      // const enhancedMessages = this.preContextPrompt([...conversationHistory])
+      const enhancedMessages = conversationHistory
       console.log(`🔄 Agentic Iteration ${currentIteration}/${this.maxAgenticIterations}`)
+      console.log('🔧 Enhanced Messages:', enhancedMessages)
 
-      const response = await window.electronAPI.sendAIMessage(
+      const toolChoiceResponse = await window.electronAPI.sendAIMessage(
         this.currentProvider.provider,
         enhancedMessages,
         { model: this.currentProvider.model },
       )
 
+      const selectedTools = this.preContextPrompt([{ role: 'user', content: toolChoiceResponse }])
+      console.log('🔧 Selected Tools:', selectedTools)
+      const response = await window.electronAPI.sendAIMessage(
+        this.currentProvider.provider,
+        selectedTools,
+        { model: this.currentProvider.model },
+      )
       console.log('📥 AI Response:', response)
       finalResponse = response
 

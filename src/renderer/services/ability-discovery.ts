@@ -1,6 +1,8 @@
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { AbilityFilesystem } from './ability-filesystem'
 
+import { toolsToAbilities } from './ability-tools'
+
 export interface AbilityMatch {
   ability: Tool
   relevanceScore: number
@@ -240,44 +242,53 @@ export function createAbilityDiscoveryPrompt(
   filesystem?: AbilityFilesystem,
 ): string {
   if (searchResult.matches.length === 0) {
-    let prompt = `Based on your request "${userQuery}", I couldn't find any directly relevant abilities.`
-
-    if (filesystem) {
-      const categories = filesystem.getCategories()
-      const topCategories = categories
-        .sort((a, b) => b.abilityCount - a.abilityCount)
-        .slice(0, 5)
-        .map(cat => `${cat.name} (${cat.abilityCount} abilities)`)
-        .join(', ')
-
-      prompt += ` I have ${searchResult.totalAvailable} total abilities organized in categories: ${topCategories}. Would you like me to search in a specific category or with different keywords?`
-    }
-    else {
-      prompt += ` I have ${searchResult.totalAvailable} total abilities available. Would you like me to search with different keywords or proceed without abilities?`
-    }
-
-    return prompt
+    const prompt = `Based on your request "${userQuery}", I couldn't find any directly relevant abilities.`
   }
 
-  const abilityList = searchResult.matches
-    .map(match => `- ${match.ability.name}: ${match.ability.description || 'No description'} (relevance: ${match.relevanceScore})`)
-    .join('\n')
+  return `Based on the user query "${userQuery}", I have some abilities that might be relevant to the task:
+  
+  ${toolsToAbilities.categories['abilities around running tasks'].map(ability => `- ${ability.command}: ${ability.description}`).join('\n')}
 
-  return `Based on your request "${userQuery}", I found ${searchResult.matches.length} relevant abilities:
+  Do you want to use one of these abilities to help you complete the task? If so mention the ability name and I will help you call it.
+  `
 
-${abilityList}
+  // const filesystem = new AbilityFilesystem(searchResult.abilities)
+  // if (filesystem) {
+  //   const categories = filesystem.getCategories()
+  //   const topCategories = categories
+  //     .sort((a, b) => b.abilityCount - a.abilityCount)
+  //     .slice(0, 5)
+  //     .map(cat => `${cat.name} (${cat.abilityCount} abilities)`)
+  //     .join(', ')
 
-If you need to use any of these abilities, provide your ability call in this JSON format:
+  //   prompt += ` I have ${searchResult.totalAvailable} total abilities organized in categories: ${topCategories}. Would you like me to search in a specific category or with different keywords?`
+  // }
+  // else {
+  //   prompt += ` I have ${searchResult.totalAvailable} total abilities available. Would you like me to search with different keywords or proceed without abilities?`
+  // }
 
-\`\`\`json
-{
-  "ability": "ability-name", 
-  "parameters": {
-    "param1": "value1",
-    "param2": "value2"
-  }
-}
-\`\`\`
+  // return prompt
+  //   }
 
-I'll only load the full parameter details for abilities you actually want to use, keeping our conversation efficient.`
+  //   const abilityList = searchResult.matches
+  //     .map(match => `- ${match.ability.name}: ${match.ability.description || 'No description'} (relevance: ${match.relevanceScore})`)
+  //     .join('\n')
+
+  //   return `Based on your request "${userQuery}", I found ${searchResult.matches.length} relevant abilities:
+
+  // ${abilityList}
+
+  // If you need to use any of these abilities, provide your ability call in this JSON format:
+
+  // \`\`\`json
+  // {
+  //   "ability": "ability-name",
+  //   "parameters": {
+  //     "param1": "value1",
+  //     "param2": "value2"
+  //   }
+  // }
+  // \`\`\`
+
+// I'll only load the full parameter details for abilities you actually want to use, keeping our conversation efficient.`
 }
