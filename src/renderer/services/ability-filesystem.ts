@@ -54,14 +54,16 @@ export class AbilityFilesystem {
    */
   private classifyAbility(ability: Tool): AbilityPath {
     const name = ability.name.toLowerCase()
-    
+
     // GitHub/Git operations
     if (name.includes('github') || name.includes('git') || name.includes('codespace') || name.includes('repo')) {
       if (name.includes('codespace')) {
         return { category: 'github', subcategory: 'codespaces', abilityName: ability.name }
-      } else if (name.includes('workflow') || name.includes('action')) {
+      }
+      else if (name.includes('workflow') || name.includes('action')) {
         return { category: 'github', subcategory: 'workflows', abilityName: ability.name }
-      } else {
+      }
+      else {
         return { category: 'github', subcategory: 'repos', abilityName: ability.name }
       }
     }
@@ -70,7 +72,8 @@ export class AbilityFilesystem {
     if (name.includes('file') || name.includes('read') || name.includes('write') || name.includes('edit')) {
       if (name.includes('app') || name.includes('template')) {
         return { category: 'files', subcategory: 'app-management', abilityName: ability.name }
-      } else {
+      }
+      else {
         return { category: 'files', subcategory: 'operations', abilityName: ability.name }
       }
     }
@@ -79,7 +82,8 @@ export class AbilityFilesystem {
     if (name.includes('run') || name.includes('execute') || name.includes('build') || name.includes('command')) {
       if (name.includes('background') || name.includes('job')) {
         return { category: 'execution', subcategory: 'background', abilityName: ability.name }
-      } else {
+      }
+      else {
         return { category: 'execution', subcategory: 'direct', abilityName: ability.name }
       }
     }
@@ -93,7 +97,8 @@ export class AbilityFilesystem {
     if (name.includes('search') || name.includes('find') || name.includes('list') || name.includes('get')) {
       if (name.includes('api') || name.includes('service')) {
         return { category: 'discovery', subcategory: 'api', abilityName: ability.name }
-      } else {
+      }
+      else {
         return { category: 'discovery', subcategory: 'general', abilityName: ability.name }
       }
     }
@@ -141,7 +146,8 @@ export class AbilityFilesystem {
 
       // Add ability to subcategory
       category.subcategories[path.subcategory].abilities.push(ability)
-    } else {
+    }
+    else {
       // Add ability directly to category
       category.abilities.push(ability)
     }
@@ -155,7 +161,7 @@ export class AbilityFilesystem {
    */
   listDirectory(path: string = '/'): AbilityCategory | null {
     const parts = path.split('/').filter(p => p)
-    
+
     if (parts.length === 0) {
       return this.root
     }
@@ -164,7 +170,8 @@ export class AbilityFilesystem {
     for (const part of parts) {
       if (current.subcategories[part]) {
         current = current.subcategories[part]
-      } else {
+      }
+      else {
         return null
       }
     }
@@ -180,7 +187,7 @@ export class AbilityFilesystem {
     if (!categoryNode) return []
 
     const abilities: Tool[] = [...categoryNode.abilities]
-    
+
     // Include abilities from subcategories
     for (const subcategory of Object.values(categoryNode.subcategories)) {
       abilities.push(...subcategory.abilities)
@@ -217,7 +224,8 @@ export class AbilityFilesystem {
       if (subcategory) {
         ability = subcategory.abilities.find(a => a.name === abilityName)
       }
-    } else {
+    }
+    else {
       ability = category.abilities.find(a => a.name === abilityName)
     }
 
@@ -268,8 +276,8 @@ export class AbilityFilesystem {
     const descriptions: Record<string, string> = {
       github: 'GitHub and repository operations',
       files: 'File system operations and app management',
-      execution: 'Code execution and command running',
-      web: 'Web requests and network operations', 
+      execution: 'Code execution for and command running',
+      web: 'Web requests and network operations',
       discovery: 'Search and discovery abilities',
       planning: 'Task planning and management',
       debug: 'Debugging and monitoring abilities',
@@ -290,7 +298,7 @@ export class AbilityFilesystem {
       },
       files: {
         'app-management': 'Application file management',
-        operations: 'Basic file operations',
+        'operations': 'Basic file operations',
       },
       execution: {
         background: 'Background job execution',

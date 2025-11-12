@@ -1,4 +1,4 @@
-import type { Tool, CallToolResult } from '@modelcontextprotocol/sdk/types.js'
+import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
 import { useMcpClient } from '../hooks/useMcpClient'
 import { AbilityDiscoveryService, type AbilitySearchResult } from './ability-discovery'
 import { ResultProcessorService, type ProcessedResult, type ProcessingOptions } from './result-processor'
@@ -75,7 +75,7 @@ export function formatAbilityResult(abilityName: string, result: CallToolResult)
         .filter(item => item.type === 'text')
         .map(item => item.text)
         .join('\n')
-      
+
       if (textContent) {
         return textContent
       }
@@ -83,7 +83,8 @@ export function formatAbilityResult(abilityName: string, result: CallToolResult)
 
     // Fallback to JSON representation
     return JSON.stringify(result, null, 2)
-  } catch (error) {
+  }
+  catch (error) {
     return `Error formatting result from ${abilityName}: ${error instanceof Error ? error.message : 'Unknown error'}`
   }
 }
@@ -92,10 +93,10 @@ export function formatAbilityResult(abilityName: string, result: CallToolResult)
  * React hook for managing MCP ability integration state
  */
 export function useMCPIntegration(serverUrl: string = 'https://mcp.keyboard.dev', clientName: string = 'keyboard-approver-mcp') {
-  const mcpClient = useMcpClient({ 
-    serverUrl, 
-    clientName, 
-    autoReconnect: true 
+  const mcpClient = useMcpClient({
+    serverUrl,
+    clientName,
+    autoReconnect: true,
   })
 
   // Initialize discovery and processing services
@@ -135,14 +136,14 @@ export function useMCPIntegration(serverUrl: string = 'https://mcp.keyboard.dev'
    * Execute an MCP ability call with efficient result processing
    */
   const executeAbilityCall = async (
-    functionName: string, 
-    args: Record<string, unknown>, 
-    processingOptions?: ProcessingOptions
+    functionName: string,
+    args: Record<string, unknown>,
+    processingOptions?: ProcessingOptions,
   ): Promise<ProcessedResult> => {
     console.log('🚀 keyboard.dev-ability Execution: Starting execution for', functionName)
     console.log('📊 MCP Client state:', mcpClient.state)
     console.log('🌐 Server URL:', serverUrl)
-    
+
     try {
       if (mcpClient.state !== 'ready') {
         const error = `MCP client is not ready. Current state: ${mcpClient.state}`
@@ -153,34 +154,35 @@ export function useMCPIntegration(serverUrl: string = 'https://mcp.keyboard.dev'
       console.log('✅ MCP client is ready, proceeding with keyboard.dev-ability call')
       const { name, args: abilityArgs } = prepareMCPAbilityCall(functionName, args)
       console.log('📋 Prepared ability call - Name:', name, 'Args:', abilityArgs)
-      
+
       console.log('🚀 Calling mcpClient.callTool...')
       const startTime = performance.now()
       const result = await mcpClient.callTool(name, abilityArgs)
       const callTime = Math.round(performance.now() - startTime)
-      
+
       console.log('✅ keyboard.dev-ability call completed in', callTime, 'ms')
       console.log('📊 Raw MCP result:', result)
-      
+
       // Process result efficiently
       const processedResult = resultProcessor.processResult(functionName, result, processingOptions)
       console.log('📄 Processed result summary (first 300 chars):', processedResult.summary.slice(0, 300))
       console.log('🔧 Processing stats:', {
         wasFiltered: processedResult.wasFiltered,
         tokenCount: processedResult.tokenCount,
-        filterReason: processedResult.filterReason
+        filterReason: processedResult.filterReason,
       })
-      
+
       return processedResult
-    } catch (error) {
+    }
+    catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
       console.error(`❌ Failed to execute keyboard.dev-ability ${functionName}:`, error)
       console.error('❌ Error details:', {
         name: error instanceof Error ? error.name : 'Unknown',
         message: errorMessage,
-        stack: error instanceof Error ? error.stack : 'No stack trace'
+        stack: error instanceof Error ? error.stack : 'No stack trace',
       })
-      
+
       return {
         summary: `Error executing ${functionName}: ${errorMessage}`,
         tokenCount: errorMessage.length / 4,
@@ -197,9 +199,12 @@ export function useMCPIntegration(serverUrl: string = 'https://mcp.keyboard.dev'
       return ''
     }
 
+    // const abilitiesInfo = integrationState.abilities
+    //   .map(ability => `- ${ability.name}: ${ability.description || 'No description available'}`)
+    //   .join('\n')
+
     const abilitiesInfo = integrationState.abilities
-      .map(ability => `- ${ability.name}: ${ability.description || 'No description available'}`)
-      .join('\n')
+      .map(ability => `- ${ability.name}`).join('\n')
 
     return `You have access to the following keyboard.dev abilities. These are special capabilities that can help you accomplish tasks:
 
@@ -238,10 +243,10 @@ export const ProviderFormats = {
   },
 
   /**
-   * Anthropic tool use format  
+   * Anthropic tool use format
    */
   anthropic: {
-    convertTools: (functions: MCPToolFunction[]) => 
+    convertTools: (functions: MCPToolFunction[]) =>
       functions.map(func => ({
         name: func.function.name,
         description: func.function.description,
@@ -259,7 +264,7 @@ export const ProviderFormats = {
    * Gemini function calling format
    */
   gemini: {
-    convertTools: (functions: MCPToolFunction[]) => 
+    convertTools: (functions: MCPToolFunction[]) =>
       functions.map(func => ({
         function_declarations: [{
           name: func.function.name,

@@ -1,6 +1,6 @@
 import type { ChatModelAdapter } from '@assistant-ui/react'
-import { useMCPIntegration } from './mcp-tool-integration'
 import { createAbilityDiscoveryPrompt } from './ability-discovery'
+import { useMCPIntegration } from './mcp-tool-integration'
 
 interface AIMessage {
   role: 'user' | 'assistant' | 'system'
@@ -124,6 +124,97 @@ export class AIChatAdapter implements ChatModelAdapter {
     return false
   }
 
+  private foundAbilityCallsInResponse(response: string) {
+    const jsonPattern = /```json\s*(.*?)\s*```/gs
+    const jsonMatches = Array.from(response.matchAll(jsonPattern))
+    const abilityCalls: Array<{ ability: string, parameters: Record<string, unknown> }> = []
+
+    for (const match of jsonMatches) {
+      try {
+        const jsonContent = match[1]
+        const parsed = JSON.parse(jsonContent)
+
+        if (parsed.ability && typeof parsed.ability === 'string') {
+          abilityCalls.push({
+            ability: parsed.ability,
+            parameters: parsed.parameters || {},
+          })
+        }
+      }
+      catch (error) {
+        console.log('⚠️ Failed to parse JSON block:', error)
+      }
+    }
+    return abilityCalls
+  }
+
+  private async executeAbilityCalls(abilityCalls: Array<{ ability: string, parameters: Record<string, unknown> }>, currentIteration: number, originalUserMessage: AIMessage, abortSignal?: AbortSignal) {
+    if (!this.mcpIntegration) {
+      throw new Error('MCP integration not available')
+    }
+
+    let abilityResults = ''
+    for (const abilityCall of abilityCalls) {
+      const { ability: abilityName, parameters } = abilityCall
+      console.log(`🔧 Executing: ${abilityName}`)
+
+      this.onTaskProgress?.({
+        step: currentIteration,
+        totalSteps: this.maxAgenticIterations,
+        currentAction: `Executing ${abilityName}`,
+        isComplete: false,
+      })
+
+      const abilityExists = this.mcpIntegration.functions.some(f => f.function.name === abilityName)
+
+      if (abilityExists) {
+        try {
+          this.setToolExecutionState?.(true, abilityName)
+
+          // Execute with context-aware processing options
+          const processingOptions = {
+            maxTokens: 300, // Limit result size for efficient context
+            contextKeywords: this.extractKeywords(originalUserMessage.content),
+            filterSensitiveData: true,
+          }
+
+          console.log('🔧 Processing options:', processingOptions)
+
+          const processedResult = await this.mcpIntegration.executeAbilityCall(abilityName, parameters, processingOptions)
+
+          abilityResults += `\n\n🚀 **${abilityName}** executed`
+          if (processedResult.wasFiltered) {
+            abilityResults += ` (${processedResult.filterReason})`
+          }
+          abilityResults += `\n**Result (${processedResult.tokenCount} tokens):**\n${processedResult.summary}`
+
+          // Check abort signal after tool execution
+          if (abortSignal?.aborted) {
+            throw new Error('Request was aborted')
+          }
+        }
+        catch (error) {
+          abilityResults += `\n\n❌ **Error:** Failed to execute ${abilityName} - ${error instanceof Error ? error.message : 'Unknown error'}`
+        }
+        finally {
+          this.setToolExecutionState?.(false)
+        }
+      }
+      else {
+        // If ability not found, search for similar ones
+        const searchResult = this.mcpIntegration.searchAbilities(abilityName, 3)
+        if (searchResult.matches.length > 0) {
+          const suggestions = searchResult.matches.map(m => m.ability.name).join(', ')
+          abilityResults += `\n\n⚠️ **Error:** Ability '${abilityName}' not found. Similar abilities: ${suggestions}`
+        }
+        else {
+          abilityResults += `\n\n⚠️ **Error:** Ability '${abilityName}' not found`
+        }
+      }
+    }
+    return abilityResults
+  }
+
   private async handleWithAbilityCalling(aiMessages: AIMessage[], abortSignal?: AbortSignal) {
     if (!this.mcpIntegration) {
       throw new Error('MCP integration not available')
@@ -136,12 +227,21 @@ export class AIChatAdapter implements ChatModelAdapter {
 
     // Add efficient tool discovery instruction
     const lastUserMessage = conversationHistory[conversationHistory.length - 1]
+    //     if (lastUserMessage?.role === 'user') {
+    //       // Use progressive ability discovery instead of listing all abilities
+    //       const searchResult = this.mcpIntegration.searchAbilities(lastUserMessage.content)
+
+    //       const discoveryPrompt = createAbilityDiscoveryPrompt(lastUserMessage.content, searchResult, this.mcpIntegration.abilityDiscovery['filesystem'])
+
+    //       lastUserMessage.content += `\n\n(Note: You are an agentic AI that should work until the user's request is fully completed. I will help you discover relevant abilities as needed.
+
+    // ${discoveryPrompt}
+
+    // When the task is fully complete, make sure to indicate this clearly in your response.)`
+    //     }
     if (lastUserMessage?.role === 'user') {
-      // Use progressive ability discovery instead of listing all abilities
       const searchResult = this.mcpIntegration.searchAbilities(lastUserMessage.content)
-
       const discoveryPrompt = createAbilityDiscoveryPrompt(lastUserMessage.content, searchResult, this.mcpIntegration.abilityDiscovery['filesystem'])
-
       lastUserMessage.content += `\n\n(Note: You are an agentic AI that should work until the user's request is fully completed. I will help you discover relevant abilities as needed.
 
 ${discoveryPrompt}
@@ -180,27 +280,7 @@ When the task is fully complete, make sure to indicate this clearly in your resp
       console.log('📥 AI Response:', response)
       finalResponse = response
 
-      // Parse for ability calls
-      const jsonPattern = /```json\s*(.*?)\s*```/gs
-      const jsonMatches = Array.from(response.matchAll(jsonPattern))
-      const abilityCalls: Array<{ ability: string, parameters: Record<string, unknown> }> = []
-
-      for (const match of jsonMatches) {
-        try {
-          const jsonContent = match[1]
-          const parsed = JSON.parse(jsonContent)
-
-          if (parsed.ability && typeof parsed.ability === 'string') {
-            abilityCalls.push({
-              ability: parsed.ability,
-              parameters: parsed.parameters || {},
-            })
-          }
-        }
-        catch (error) {
-          console.log('⚠️ Failed to parse JSON block:', error)
-        }
-      }
+      const abilityCalls = this.foundAbilityCallsInResponse(response)
 
       // If no abilities to execute, check if task is complete
       if (abilityCalls.length === 0) {
@@ -229,63 +309,7 @@ When the task is fully complete, make sure to indicate this clearly in your resp
       }
 
       // Execute abilities with efficient result processing
-      let abilityResults = ''
-      for (const abilityCall of abilityCalls) {
-        const { ability: abilityName, parameters } = abilityCall
-        console.log(`🔧 Executing: ${abilityName}`)
-
-        this.onTaskProgress?.({
-          step: currentIteration,
-          totalSteps: this.maxAgenticIterations,
-          currentAction: `Executing ${abilityName}`,
-          isComplete: false,
-        })
-
-        const abilityExists = this.mcpIntegration.functions.some(f => f.function.name === abilityName)
-
-        if (abilityExists) {
-          try {
-            this.setToolExecutionState?.(true, abilityName)
-
-            // Execute with context-aware processing options
-            const processingOptions = {
-              maxTokens: 300, // Limit result size for efficient context
-              contextKeywords: this.extractKeywords(originalUserMessage.content),
-              filterSensitiveData: true,
-            }
-
-            const processedResult = await this.mcpIntegration.executeAbilityCall(abilityName, parameters, processingOptions)
-
-            abilityResults += `\n\n🚀 **${abilityName}** executed`
-            if (processedResult.wasFiltered) {
-              abilityResults += ` (${processedResult.filterReason})`
-            }
-            abilityResults += `\n**Result (${processedResult.tokenCount} tokens):**\n${processedResult.summary}`
-
-            // Check abort signal after tool execution
-            if (abortSignal?.aborted) {
-              throw new Error('Request was aborted')
-            }
-          }
-          catch (error) {
-            abilityResults += `\n\n❌ **Error:** Failed to execute ${abilityName} - ${error instanceof Error ? error.message : 'Unknown error'}`
-          }
-          finally {
-            this.setToolExecutionState?.(false)
-          }
-        }
-        else {
-          // If ability not found, search for similar ones
-          const searchResult = this.mcpIntegration.searchAbilities(abilityName, 3)
-          if (searchResult.matches.length > 0) {
-            const suggestions = searchResult.matches.map(m => m.ability.name).join(', ')
-            abilityResults += `\n\n⚠️ **Error:** Ability '${abilityName}' not found. Similar abilities: ${suggestions}`
-          }
-          else {
-            abilityResults += `\n\n⚠️ **Error:** Ability '${abilityName}' not found`
-          }
-        }
-      }
+      const abilityResults = await this.executeAbilityCalls(abilityCalls, currentIteration, originalUserMessage, abortSignal)
 
       // Add conversation history for next iteration
       conversationHistory.push({
@@ -347,22 +371,22 @@ When the task is fully complete, make sure to indicate this clearly in your resp
 
       // Add keyboard.dev abilities system message if enabled and available
       if (this.currentProvider.mcpEnabled && this.mcpIntegration?.isConnected) {
-        const abilitiesSystemMessage = this.mcpIntegration.getAbilitiesSystemMessage()
-        if (abilitiesSystemMessage) {
-          // Check if there's already a system message
-          const existingSystemIndex = aiMessages.findIndex(m => m.role === 'system')
-          if (existingSystemIndex >= 0) {
-            // Append to existing system message
-            aiMessages[existingSystemIndex].content += '\n\n' + abilitiesSystemMessage
-          }
-          else {
-            // Add new system message at the beginning
-            aiMessages.unshift({
-              role: 'system',
-              content: abilitiesSystemMessage,
-            })
-          }
-        }
+        // const abilitiesSystemMessage = this.mcpIntegration.getAbilitiesSystemMessage()
+        // if (abilitiesSystemMessage) {
+        //   // Check if there's already a system message
+        //   const existingSystemIndex = aiMessages.findIndex(m => m.role === 'system')
+        //   if (existingSystemIndex >= 0) {
+        //     // Append to existing system message
+        //     aiMessages[existingSystemIndex].content += '\n\n' + abilitiesSystemMessage
+        //   }
+        //   else {
+        //     // Add new system message at the beginning
+        //     aiMessages.unshift({
+        //       role: 'system',
+        //       content: abilitiesSystemMessage,
+        //     })
+        //   }
+        // }
       }
 
       // Check if provider is configured

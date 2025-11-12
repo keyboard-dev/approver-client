@@ -104,7 +104,7 @@ export class AbilityDiscoveryService {
   /**
    * Get minimal ability definitions for efficient context
    */
-  getMinimalAbilityDefinitions(abilityNames: string[]): Array<{name: string, description: string}> {
+  getMinimalAbilityDefinitions(abilityNames: string[]): Array<{ name: string, description: string }> {
     return abilityNames
       .map(name => this.getAbilityByName(name))
       .filter((ability): ability is Tool => ability !== undefined)
@@ -147,8 +147,8 @@ export class AbilityDiscoveryService {
 
     // Description keyword matches
     for (const keyword of queryKeywords) {
-      const matches = abilityKeywords.filter(abilityKeyword => 
-        abilityKeyword.includes(keyword) || keyword.includes(abilityKeyword)
+      const matches = abilityKeywords.filter(abilityKeyword =>
+        abilityKeyword.includes(keyword) || keyword.includes(abilityKeyword),
       ).length
       score += matches * 10
     }
@@ -177,8 +177,8 @@ export class AbilityDiscoveryService {
 
     // Check keyword matches
     for (const keyword of queryKeywords) {
-      const abilityMatches = abilityKeywords.filter(abilityKeyword => 
-        abilityKeyword.includes(keyword) || keyword.includes(abilityKeyword)
+      const abilityMatches = abilityKeywords.filter(abilityKeyword =>
+        abilityKeyword.includes(keyword) || keyword.includes(abilityKeyword),
       )
       matched.push(...abilityMatches.slice(0, 3)) // Limit to avoid noise
     }
@@ -194,10 +194,10 @@ export class AbilityDiscoveryService {
 
     for (const ability of this.abilities) {
       const keywords: string[] = []
-      
+
       // Add name keywords
       keywords.push(...this.extractKeywords(ability.name))
-      
+
       // Add description keywords
       if (ability.description) {
         keywords.push(...this.extractKeywords(ability.description))
@@ -241,7 +241,7 @@ export function createAbilityDiscoveryPrompt(
 ): string {
   if (searchResult.matches.length === 0) {
     let prompt = `Based on your request "${userQuery}", I couldn't find any directly relevant abilities.`
-    
+
     if (filesystem) {
       const categories = filesystem.getCategories()
       const topCategories = categories
@@ -249,12 +249,13 @@ export function createAbilityDiscoveryPrompt(
         .slice(0, 5)
         .map(cat => `${cat.name} (${cat.abilityCount} abilities)`)
         .join(', ')
-      
+
       prompt += ` I have ${searchResult.totalAvailable} total abilities organized in categories: ${topCategories}. Would you like me to search in a specific category or with different keywords?`
-    } else {
+    }
+    else {
       prompt += ` I have ${searchResult.totalAvailable} total abilities available. Would you like me to search with different keywords or proceed without abilities?`
     }
-    
+
     return prompt
   }
 
