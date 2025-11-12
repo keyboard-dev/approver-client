@@ -19,6 +19,7 @@ interface OAuthProvidersContextType {
   checkAllProviders: () => Promise<void>
   getGroupedProviders: () => GroupedProviderStatus
   refreshAllExpiredProviders: () => Promise<{ success: number, failed: number }>
+  getProviderId: (providerName: string) => string | undefined
 }
 
 const OAuthProvidersContext = createContext<OAuthProvidersContextType | undefined>(undefined)
@@ -182,6 +183,16 @@ export const OAuthProvidersProvider: React.FC<OAuthProvidersProviderProps> = ({ 
   }, [getGroupedProviders, refreshProvider])
 
   /**
+   * Get provider ID from provider name (case-insensitive)
+   * Returns the provider ID if it exists in the current providers state
+   */
+  const getProviderId = useCallback((providerName: string): string | undefined => {
+    const normalizedName = providerName.toLowerCase()
+    const foundId = Object.keys(providers).find(id => id.toLowerCase() === normalizedName)
+    return foundId
+  }, [providers])
+
+  /**
    * Handle provider authentication success event
    */
   const handleProviderAuthSuccess = useCallback((
@@ -225,20 +236,20 @@ export const OAuthProvidersProvider: React.FC<OAuthProvidersProviderProps> = ({ 
   /**
    * Handle visibility change - re-check providers when app becomes visible
    */
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        console.log('App became visible, re-checking OAuth provider statuses...')
-        checkAllProviders()
-      }
-    }
+  // useEffect(() => {
+  //   const handleVisibilityChange = () => {
+  //     if (document.visibilityState === 'visible') {
+  //       console.log('App became visible, re-checking OAuth provider statuses...')
+  //       checkAllProviders()
+  //     }
+  //   }
 
-    document.addEventListener('visibilitychange', handleVisibilityChange)
+  //   document.addEventListener('visibilitychange', handleVisibilityChange)
 
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-    }
-  }, [checkAllProviders])
+  //   return () => {
+  //     document.removeEventListener('visibilitychange', handleVisibilityChange)
+  //   }
+  // }, [checkAllProviders])
 
   /**
    * Initialize: Load provider statuses and set up event listeners
@@ -281,6 +292,7 @@ export const OAuthProvidersProvider: React.FC<OAuthProvidersProviderProps> = ({ 
     checkAllProviders,
     getGroupedProviders,
     refreshAllExpiredProviders,
+    getProviderId,
   }
 
   return (
