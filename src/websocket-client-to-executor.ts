@@ -200,7 +200,10 @@ export class ExecutorWebSocketClient {
 
     // Determine if we should switch based on current connection
     if (this.isConnected() && this.currentTarget) {
-      const shouldSwitch = this.shouldSwitchToNewCodespace(this.currentTarget, codespace)
+      const shouldSwitch = this.shouldSwitchToNewCodespace(
+        this.currentTarget,
+        // codespace,
+      )
 
       if (!shouldSwitch) {
         console.log(`⏸️ Staying connected to ${this.currentTarget.name} (manual override or recent connection)`)
@@ -231,7 +234,7 @@ export class ExecutorWebSocketClient {
   // Determine if we should switch from current connection to new codespace
   private shouldSwitchToNewCodespace(
     currentTarget: ConnectionTarget,
-    newCodespace: { codespace_id: string, name: string, url: string, state: string },
+    // _newCodespace: { codespace_id: string, name: string, url: string, state: string },
   ): boolean {
     // Never switch away from manual connections (user explicitly chose)
     if (currentTarget.source === 'manual') {
