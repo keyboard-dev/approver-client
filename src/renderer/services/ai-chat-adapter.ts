@@ -16,6 +16,9 @@ export class AIChatAdapter implements ChatModelAdapter {
   private currentProvider: AIProviderSelection = { provider: 'openai', model: 'gpt-3.5-turbo', mcpEnabled: false }
   private mcpIntegration: ReturnType<typeof useMCPIntegration> | null = null
   private setToolExecutionState?: (isExecuting: boolean, toolName?: string) => void
+  private attempts = 5
+  private maxAgenticIterations = 10
+  private onTaskProgress?: (progress: { step: number, totalSteps: number, currentAction: string, isComplete: boolean }) => void
 
   constructor(provider: string = 'openai', model?: string, mcpEnabled: boolean = false) {
     this.currentProvider = { provider, model, mcpEnabled }
@@ -35,6 +38,10 @@ export class AIChatAdapter implements ChatModelAdapter {
 
   setToolExecutionTracker(tracker: (isExecuting: boolean, toolName?: string) => void) {
     this.setToolExecutionState = tracker
+  }
+
+  setTaskProgressTracker(tracker: (progress: { step: number, totalSteps: number, currentAction: string, isComplete: boolean }) => void) {
+    this.onTaskProgress = tracker
   }
 
   private findMatchedAbilities(aiMessages: AIMessage[], abortSignal?: AbortSignal) {
@@ -72,23 +79,59 @@ export class AIChatAdapter implements ChatModelAdapter {
     return aiMessages
   }
 
+  private isTaskComplete(response: string): boolean {
+    const completionIndicators = [
+      'task completed',
+      'task complete',
+      'finished',
+      'done',
+      'completed successfully',
+      'all set',
+      'no further action needed',
+      'task accomplished'
+    ]
+    
+    const lowerResponse = response.toLowerCase()
+    return completionIndicators.some(indicator => lowerResponse.includes(indicator)) ||
+           !this.hasMoreAbilityCallsInResponse(response)
+  }
+
+  private hasMoreAbilityCallsInResponse(response: string): boolean {
+    const jsonPattern = /```json\s*(.*?)\s*```/gs
+    const jsonMatches = Array.from(response.matchAll(jsonPattern))
+    
+    for (const match of jsonMatches) {
+      try {
+        const parsed = JSON.parse(match[1])
+        if (parsed.ability && typeof parsed.ability === 'string') {
+          return true
+        }
+      } catch (error) {
+        continue
+      }
+    }
+    return false
+  }
+
   private async handleWithAbilityCalling(aiMessages: AIMessage[], abortSignal?: AbortSignal) {
     if (!this.mcpIntegration) {
       throw new Error('MCP integration not available')
     }
 
-    // For now, implement a simple approach: send initial message and check if AI mentions ability usage
-    // In a full implementation, this would need provider-specific function calling support
+    let conversationHistory = [...aiMessages]
+    const originalUserMessage = conversationHistory[conversationHistory.length - 1]
+    let currentIteration = 0
+    let finalResponse = ''
 
-    // Add instruction for two-stage keyboard.dev-ability discovery
-    let enhancedMessages = [...aiMessages]
-    const lastUserMessage = enhancedMessages[enhancedMessages.length - 1]
+    // Add instruction for ability calling
+    const lastUserMessage = conversationHistory[conversationHistory.length - 1]
     if (lastUserMessage?.role === 'user') {
-      // Get list of available ability names
       const availableAbilities = this.mcpIntegration.functions.map(f => f.function.name)
       const abilitiesList = availableAbilities.map(name => `- ${name}`).join('\n')
 
-      lastUserMessage.content += `\n\n(Note: If you need to use any keyboard.dev abilities to answer this question, provide your ability call in this JSON format:
+      lastUserMessage.content += `\n\n(Note: You are an agentic AI that should work until the user's request is fully completed. Use keyboard.dev abilities as needed. When you use an ability, I'll provide the result and you should decide if you need more abilities or if the task is complete.
+
+If you need to use any keyboard.dev abilities, provide your ability call in this JSON format:
 
 \`\`\`json
 {
@@ -100,111 +143,149 @@ export class AIChatAdapter implements ChatModelAdapter {
 }
 \`\`\`
 
+When the task is fully complete, make sure to indicate this clearly in your response.
+
 Here are the available keyboard.dev abilities you can call:
 ${abilitiesList})`
     }
 
-    // Send enhanced message
+    // Agentic loop - continue until task is complete or max iterations reached
+    while (currentIteration < this.maxAgenticIterations) {
+      currentIteration++
+      
+      // Report progress
+      this.onTaskProgress?.({
+        step: currentIteration,
+        totalSteps: this.maxAgenticIterations,
+        currentAction: `Processing step ${currentIteration}`,
+        isComplete: false
+      })
 
-    enhancedMessages = this.preContextPrompt(enhancedMessages)
+      // Check abort signal
+      if (abortSignal?.aborted) {
+        throw new Error('Request was aborted')
+      }
 
-    const response = await window.electronAPI.sendAIMessage(
-      this.currentProvider.provider,
-      enhancedMessages,
-      { model: this.currentProvider.model },
-    )
+      // Send enhanced message with context
+      const enhancedMessages = this.preContextPrompt([...conversationHistory])
+      
+      console.log(`🔄 Agentic Iteration ${currentIteration}/${this.maxAgenticIterations}`)
+      
+      const response = await window.electronAPI.sendAIMessage(
+        this.currentProvider.provider,
+        enhancedMessages,
+        { model: this.currentProvider.model },
+      )
 
-    console.log('📥 AI Response:', response)
+      console.log('📥 AI Response:', response)
+      finalResponse = response
 
-    // Check abort signal
-    if (abortSignal?.aborted) {
-      throw new Error('Request was aborted')
-    }
+      // Parse for ability calls
+      const jsonPattern = /```json\s*(.*?)\s*```/gs
+      const jsonMatches = Array.from(response.matchAll(jsonPattern))
+      const abilityCalls: Array<{ ability: string, parameters: Record<string, unknown> }> = []
 
-    // Look for JSON code blocks with ability calls
+      for (const match of jsonMatches) {
+        try {
+          const jsonContent = match[1]
+          const parsed = JSON.parse(jsonContent)
 
-    const jsonPattern = /```json\s*(.*?)\s*```/gs
-    const jsonMatches = Array.from(response.matchAll(jsonPattern))
-    const abilityCalls: Array<{ ability: string, parameters: Record<string, unknown> }> = []
-
-    for (const match of jsonMatches) {
-      try {
-        const jsonContent = match[1]
-        const parsed = JSON.parse(jsonContent)
-
-        if (parsed.ability && typeof parsed.ability === 'string') {
-          abilityCalls.push({
-            ability: parsed.ability,
-            parameters: parsed.parameters || {},
-          })
+          if (parsed.ability && typeof parsed.ability === 'string') {
+            abilityCalls.push({
+              ability: parsed.ability,
+              parameters: parsed.parameters || {},
+            })
+          }
+        } catch (error) {
+          console.log('⚠️ Failed to parse JSON block:', error)
         }
       }
-      catch (error) {
-        console.log('⚠️ Failed to parse JSON block:', error)
+
+      // If no abilities to execute, check if task is complete
+      if (abilityCalls.length === 0) {
+        if (this.isTaskComplete(response)) {
+          console.log('✅ Task completed - no more abilities needed')
+          this.onTaskProgress?.({
+            step: currentIteration,
+            totalSteps: this.maxAgenticIterations,
+            currentAction: 'Task completed successfully',
+            isComplete: true
+          })
+          break
+        } else {
+          // AI didn't call abilities but task might not be complete - continue for one more iteration
+          conversationHistory.push({
+            role: 'assistant',
+            content: response
+          })
+          conversationHistory.push({
+            role: 'user',
+            content: 'Please continue working on the original request or indicate if you need more information to complete the task.'
+          })
+          continue
+        }
       }
-    }
 
-    if (abilityCalls.length > 0 && this.mcpIntegration.functions.length > 0) {
-      let enhancedResponse = response
-
+      // Execute abilities
+      let abilityResults = ''
       for (const abilityCall of abilityCalls) {
-        console.log('YAKAKA WHAT IS THE ABILITY CALL', abilityCall)
         const { ability: abilityName, parameters } = abilityCall
         console.log(`🔧 Executing: ${abilityName}`)
+        
+        this.onTaskProgress?.({
+          step: currentIteration,
+          totalSteps: this.maxAgenticIterations,
+          currentAction: `Executing ${abilityName}`,
+          isComplete: false
+        })
 
-        // Check if ability exists
         const abilityExists = this.mcpIntegration.functions.some(f => f.function.name === abilityName)
 
         if (abilityExists) {
           try {
-            // Start execution tracking
             this.setToolExecutionState?.(true, abilityName)
-
-            // Execute ability with provided parameters
             const abilityResult = await this.mcpIntegration.executeToolCall(abilityName, parameters)
-
-            // Add result to response
-            enhancedResponse += `\n\n🚀 **${abilityName}** executed\n**Result:**\n${abilityResult}`
-
-            const responsePrompt = `This is the result of the ability call: ${abilityResult}. Please use this result to answer the user's question.
+            abilityResults += `\n\n🚀 **${abilityName}** executed\n**Result:**\n${abilityResult}`
             
-            User question: ${lastUserMessage.content}
-            `
-            enhancedResponse = await window.electronAPI.sendAIMessage(this.currentProvider.provider, [
-              {
-                role: 'user',
-                content: responsePrompt,
-              },
-            ], { model: this.currentProvider.model })
-
-            console.log('this is the enhanced response', enhancedResponse)
-
             // Check abort signal after tool execution
             if (abortSignal?.aborted) {
               throw new Error('Request was aborted')
             }
-          }
-          catch (error) {
-            enhancedResponse += `\n\n❌ **Error:** Failed to execute ${abilityName} - ${error instanceof Error ? error.message : 'Unknown error'}`
-          }
-          finally {
-            // End execution tracking
+          } catch (error) {
+            abilityResults += `\n\n❌ **Error:** Failed to execute ${abilityName} - ${error instanceof Error ? error.message : 'Unknown error'}`
+          } finally {
             this.setToolExecutionState?.(false)
           }
-        }
-        else {
-          enhancedResponse += `\n\n⚠️ **Error:** Ability '${abilityName}' not found`
+        } else {
+          abilityResults += `\n\n⚠️ **Error:** Ability '${abilityName}' not found`
         }
       }
 
-      return {
-        content: [{ type: 'text' as const, text: enhancedResponse }],
-      }
+      // Add conversation history for next iteration
+      conversationHistory.push({
+        role: 'assistant',
+        content: response
+      })
+      
+      conversationHistory.push({
+        role: 'user',
+        content: `Here are the results from the abilities you executed:${abilityResults}\n\nOriginal user request: "${originalUserMessage.content}"\n\nPlease analyze these results and either:\n1. Continue working by calling more abilities if needed, OR\n2. Provide your final response if the task is now complete.\n\nMake sure to clearly indicate when the task is complete.`
+      })
     }
 
-    // No abilities called, return original response
+    // If we've reached max iterations, indicate this
+    if (currentIteration >= this.maxAgenticIterations) {
+      finalResponse += `\n\n⚠️ **Note:** Reached maximum number of agentic iterations (${this.maxAgenticIterations}). The task may not be fully complete.`
+      this.onTaskProgress?.({
+        step: currentIteration,
+        totalSteps: this.maxAgenticIterations,
+        currentAction: 'Maximum iterations reached',
+        isComplete: false
+      })
+    }
+
     return {
-      content: [{ type: 'text' as const, text: response }],
+      content: [{ type: 'text' as const, text: finalResponse }],
     }
   }
 

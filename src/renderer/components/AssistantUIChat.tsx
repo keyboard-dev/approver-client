@@ -3,6 +3,8 @@ import React, { useEffect, useState } from 'react'
 import { useMCPEnhancedChat } from '../hooks/useMCPEnhancedChat'
 import { Thread } from './assistant-ui/thread'
 import { MCPChatComponent } from './MCPChatComponent'
+import { AgenticControls } from './AgenticControls'
+import { AgenticStatusIndicator } from './AgenticStatusIndicator'
 import { Badge } from './ui/badge'
 import { Button } from './ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
@@ -250,27 +252,25 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({ onBack }) => {
                   )
                 : (
                     <div className="flex flex-col h-full">
-                      {mcpEnabled && mcpChat.mcpConnected && (
-                        <div className="mb-3 space-y-2">
-                          <div className="p-2 bg-green-50 dark:bg-green-900/20 rounded text-sm text-green-800 dark:text-green-200">
-                            🚀 keyboard.dev Abilities Active: AI can now access
-                            {' '}
-                            {mcpChat.mcpTools}
-                            {' '}
-                            remote abilities
-                          </div>
-
-                          {mcpChat.isExecutingTool && mcpChat.currentTool && (
-                            <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded text-sm text-blue-800 dark:text-blue-200 flex items-center gap-2">
-                              <div className="animate-spin h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full"></div>
-                              <span>
-                                🚀 Executing keyboard.dev ability:
-                                <strong>{mcpChat.currentTool}</strong>
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      )}
+                      {/* Agentic Controls */}
+                      <AgenticControls
+                        isAgenticMode={mcpChat.isAgenticMode}
+                        onToggleAgenticMode={mcpChat.setAgenticMode}
+                        mcpEnabled={mcpEnabled}
+                        mcpConnected={mcpChat.mcpConnected}
+                        mcpTools={mcpChat.mcpTools}
+                        onToggleMCP={setMCPEnabled}
+                        onRefreshMCP={mcpChat.refreshMCPConnection}
+                      />
+                      
+                      {/* Agentic Status Indicator */}
+                      <AgenticStatusIndicator
+                        isAgenticMode={mcpChat.isAgenticMode}
+                        agenticProgress={mcpChat.agenticProgress}
+                        isExecutingTool={mcpChat.isExecutingTool}
+                        currentTool={mcpChat.currentTool}
+                      />
+                      
                       <div className="flex-1">
                         <Thread />
                       </div>

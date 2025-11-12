@@ -10,6 +10,13 @@ export interface MCPEnhancedChatConfig {
   clientName?: string
 }
 
+export interface AgenticProgress {
+  step: number
+  totalSteps: number
+  currentAction: string
+  isComplete: boolean
+}
+
 export interface MCPEnhancedChatState {
   // Adapter state
   adapter: AIChatAdapter
@@ -24,10 +31,15 @@ export interface MCPEnhancedChatState {
   isExecutingTool: boolean
   currentTool?: string
   
+  // Agentic state
+  isAgenticMode: boolean
+  agenticProgress?: AgenticProgress
+  
   // Control functions
   setMCPEnabled: (enabled: boolean) => void
   refreshMCPConnection: () => void
   setToolExecutionState: (isExecuting: boolean, toolName?: string) => void
+  setAgenticMode: (enabled: boolean) => void
 }
 
 /**
@@ -39,12 +51,31 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
   const [mcpEnabled, setMCPEnabledState] = useState(config.mcpEnabled)
   const [isExecutingTool, setIsExecutingTool] = useState(false)
   const [currentTool, setCurrentTool] = useState<string | undefined>()
+  const [isAgenticMode, setAgenticModeState] = useState(true) // Default to agentic mode
+  const [agenticProgress, setAgenticProgress] = useState<AgenticProgress | undefined>()
 
   // Simple tool execution state management
   // The adapter will call these functions directly during tool execution
   const setToolExecutionState = useCallback((isExecuting: boolean, toolName?: string) => {
     setIsExecutingTool(isExecuting)
     setCurrentTool(toolName)
+  }, [])
+
+  // Agentic progress tracking
+  const handleTaskProgress = useCallback((progress: AgenticProgress) => {
+    setAgenticProgress(progress)
+    if (progress.isComplete) {
+      // Clear progress after a delay when complete
+      setTimeout(() => setAgenticProgress(undefined), 3000)
+    }
+  }, [])
+
+  // Control agentic mode
+  const setAgenticMode = useCallback((enabled: boolean) => {
+    setAgenticModeState(enabled)
+    if (!enabled) {
+      setAgenticProgress(undefined)
+    }
   }, [])
 
   // Initialize MCP integration when enabled
@@ -63,10 +94,11 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
     if (mcpEnabled && mcpIntegration.isConnected) {
       adapter.setMCPIntegration(mcpIntegration)
       adapter.setToolExecutionTracker(setToolExecutionState)
+      adapter.setTaskProgressTracker(handleTaskProgress)
     } else {
       adapter.setMCPIntegration(null)
     }
-  }, [adapter, mcpEnabled, mcpIntegration, setToolExecutionState])
+  }, [adapter, mcpEnabled, mcpIntegration, setToolExecutionState, handleTaskProgress])
 
   // Handle MCP enablement toggle
   const setMCPEnabled = useCallback((enabled: boolean) => {
@@ -93,8 +125,11 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
     mcpError: mcpIntegration.error,
     isExecutingTool,
     currentTool,
+    isAgenticMode,
+    agenticProgress,
     setMCPEnabled,
     refreshMCPConnection,
     setToolExecutionState, // Expose for adapter to call
+    setAgenticMode,
   }
 }
