@@ -39,6 +39,7 @@ export interface TrayManagerOptions {
   onCheckForUpdates: () => void
   getMessages: () => Message[]
   getPendingCount: () => number
+  onUpdateTaskbarBadge?: (count: number) => void // Optional callback for Windows taskbar badge
 }
 
 export class TrayManager {
@@ -365,6 +366,18 @@ export class TrayManager {
       catch (dockError) {
         console.error('Error setting dock badge:', dockError)
         // Don't crash if dock operations fail
+      }
+
+      // Update Windows taskbar overlay icon (with safety)
+      try {
+        if (process.platform === 'win32' && this.options.onUpdateTaskbarBadge) {
+          const pendingCount = this.options?.getPendingCount?.() || 0
+          this.options.onUpdateTaskbarBadge(pendingCount)
+        }
+      }
+      catch (taskbarError) {
+        console.error('Error updating Windows taskbar badge:', taskbarError)
+        // Don't crash if taskbar operations fail
       }
     }
     catch (generalError) {
