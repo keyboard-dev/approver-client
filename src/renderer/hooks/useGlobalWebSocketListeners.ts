@@ -24,6 +24,9 @@ export const useGlobalWebSocketListeners = () => {
   const { authStatus } = useAuth()
   const { addMessage, addShareMessage } = useDatabase()
 
+  // Define message types that should trigger automatic navigation to detail view
+  const MESSAGE_TYPES_WITH_NAVIGATION = ['Security Evaluation Request', 'code response approval']
+
   useEffect(() => {
     // Listen for websocket messages
     const handleWebSocketMessage = async (_event: unknown, message: Message) => {
@@ -38,8 +41,8 @@ export const useGlobalWebSocketListeners = () => {
         // Save to database first (critical for persistence)
         await addMessage(message)
 
-        // For Security Evaluation Request, navigate to detail view
-        if (message.title === 'Security Evaluation Request') {
+        // For Security Evaluation Request and code response approval, navigate to detail view
+        if (MESSAGE_TYPES_WITH_NAVIGATION.includes(message.title)) {
           navigate(`/messages/${message.id}`)
         }
         // For other message types, don't navigate - let the current route handle the message
@@ -47,8 +50,8 @@ export const useGlobalWebSocketListeners = () => {
       }
       catch (error) {
         console.error('Failed to save message to database:', error)
-        // Still attempt navigation for Security Evaluation Request as fallback
-        if (message.title === 'Security Evaluation Request') {
+        // Still attempt navigation for Security Evaluation Request and code response approval as fallback
+        if (MESSAGE_TYPES_WITH_NAVIGATION.includes(message.title)) {
           navigate(`/messages/${message.id}`)
         }
       }
