@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useConnectionToasts } from './useConnectionToasts'
 
 export type ConnectionStatus = 'connected' | 'disconnected' | 'connecting'
@@ -12,7 +12,7 @@ export interface UseWebSocketConnectionReturn {
 
 export const useWebSocketConnection = (
   authStatus: { authenticated: boolean },
-  isSkippingAuth: boolean
+  isSkippingAuth: boolean,
 ): UseWebSocketConnectionReturn => {
   // Connection state
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected')
@@ -49,7 +49,8 @@ export const useWebSocketConnection = (
       try {
         const completed = await window.electronAPI.checkOnboardingCompleted()
         setIsOnboardingCompleted(completed)
-      } catch (error) {
+      }
+      catch (error) {
         console.error('Failed to check onboarding status:', error)
       }
     }
@@ -65,7 +66,8 @@ export const useWebSocketConnection = (
       try {
         const status = await window.electronAPI.getExecutorConnectionStatus()
         updateConnectionStatus(status.connected ? 'connected' : 'disconnected')
-      } catch (error) {
+      }
+      catch (error) {
         console.error('Failed to check initial connection status:', error)
       }
     }
@@ -97,7 +99,7 @@ export const useWebSocketConnection = (
       updateConnectionStatus('disconnected')
     }
 
-    const handleWebSocketReconnecting = (_event: unknown, data: { attempt: number, maxAttempts: number }) => {
+    const handleWebSocketReconnecting = () => {
       if (isOnboardingCompleted) {
         showReconnectingToast()
       }
@@ -159,9 +161,11 @@ export const useWebSocketConnection = (
       if (success) {
         updateConnectionStatus('connected')
       }
-    } catch (error) {
+    }
+    catch (error) {
       console.error('Failed to connect to best codespace:', error)
-    } finally {
+    }
+    finally {
       setIsConnectingToCodespace(false)
     }
   }, [authStatus.authenticated, updateConnectionStatus])
@@ -169,11 +173,10 @@ export const useWebSocketConnection = (
   // Reconnect to executor
   const reconnectToExecutor = useCallback(async () => {
     try {
-      const success = await window.electronAPI.reconnectToExecutor()
-      return success
-    } catch (error) {
+      await window.electronAPI.reconnectToExecutor()
+    }
+    catch (error) {
       console.error('Failed to reconnect to executor:', error)
-      return false
     }
   }, [])
 

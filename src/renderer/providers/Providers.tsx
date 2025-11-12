@@ -1,5 +1,6 @@
 import React, { ReactNode } from 'react'
 import { AuthProvider } from '../hooks/useAuth'
+import { OAuthProvidersProvider } from '../hooks/useOAuthProviders'
 import { PopupProvider } from '../hooks/usePopup'
 import { DatabaseProvider } from './DatabaseProvider'
 
@@ -27,6 +28,8 @@ export const Providers: React.FC<ProvidersProps> = ({ children }) => {
     { component: DatabaseProvider, props: {} },
     // AuthProvider - handles authentication state
     { component: AuthProvider, props: {} },
+    // OAuthProvidersProvider - handles OAuth provider statuses
+    { component: OAuthProvidersProvider, props: {} },
     // PopupProvider - handles modal/popup state
     { component: PopupProvider, props: {} },
     // Add new providers here as your app grows:

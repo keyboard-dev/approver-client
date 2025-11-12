@@ -83,7 +83,8 @@ export async function verifyBearerToken(token: string): Promise<boolean> {
 
     return true
   }
-  catch (error: any) {
+  catch (e) {
+    const error = e as { code?: string, message?: string }
     if (error.code === 'ERR_JWT_EXPIRED') {
       console.error('❌ Token verification failed: Token expired')
     }
@@ -133,7 +134,8 @@ export async function verifyTokensMatch(tokenOne: string, tokenTwo: string): Pro
 
     return match
   }
-  catch (error: any) {
+  catch (e) {
+    const error = e as { message?: string }
     console.error('❌ Token match verification error:', error.message)
     return false
   }
@@ -172,7 +174,7 @@ const createHealthHandler = (
   getAuthTokens: () => AuthTokens | null,
   getWebSocketServerStatus: () => boolean,
 ) => {
-  return (req: Request, res: Response) => {
+  return (_req: Request, res: Response) => {
     res.json({
       status: 'healthy',
       websocket: getWebSocketServerStatus() ? 'running' : 'stopped',
@@ -184,7 +186,7 @@ const createHealthHandler = (
 }
 
 const createAuthStatusHandler = (getAuthTokens: () => AuthTokens | null) => {
-  return (req: Request, res: Response) => {
+  return (_req: Request, res: Response) => {
     const authTokens = getAuthTokens()
     res.json({
       authenticated: !!authTokens,
@@ -357,7 +359,7 @@ const createBatchRejectHandler = (
 }
 
 const createStatsHandler = (getMessages: () => Message[]) => {
-  return (req: AuthenticatedRequest, res: Response) => {
+  return (_req: AuthenticatedRequest, res: Response) => {
     const messages = getMessages()
 
     const stats = {
@@ -381,7 +383,7 @@ const createStatsHandler = (getMessages: () => Message[]) => {
 // Error handling middleware
 const createErrorHandler = () => {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  return (err: Error, req: Request, res: Response, next: NextFunction) => {
+  return (err: Error, _req: Request, res: Response, _next: NextFunction) => {
     console.error('REST API Error:', err)
     res.status(500).json({
       error: 'Internal server error',
@@ -391,7 +393,7 @@ const createErrorHandler = () => {
 }
 
 const createNotFoundHandler = () => {
-  return (req: Request, res: Response) => {
+  return (_req: Request, res: Response) => {
     res.status(404).json({ error: 'Endpoint not found' })
   }
 }

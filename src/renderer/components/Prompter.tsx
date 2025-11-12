@@ -1,11 +1,6 @@
 import { IpcRendererEvent } from 'electron'
-import { AlertCircle, ArrowLeft, CheckCircle, ChevronDown, ChevronUp, Copy, Eye, Play, RefreshCw, Search, Trash } from 'lucide-react'
+import { ArrowLeft, ChevronDown, ChevronUp, Copy, Eye, Play, Search, Trash } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
-import githubLogoIconUrl from '../../../assets/icon-logo-github.svg'
-import googleLogoIconUrl from '../../../assets/icon-logo-google.svg'
-import microsoftLogoIconUrl from '../../../assets/icon-logo-microsoft.svg'
-import xLogoIconUrl from '../../../assets/icon-logo-x-black.svg'
-import squaresIconUrl from '../../../assets/icon-squares.svg'
 import { Script } from '../../main'
 import { ServerProviderInfo } from '../../oauth-providers'
 import { ProviderStatus } from '../../preload'
@@ -33,14 +28,14 @@ export const Prompter: React.FC<PrompterProps> = ({ onBack }) => {
   const [generatedPrompt, setGeneratedPrompt] = useState('')
 
   // Provider-related state
-  const [providerConfigs, setProviderConfigs] = useState<OAuthProviderConfig[]>([])
-  const [providerStatus, setProviderStatus] = useState<Record<string, ProviderStatus>>({})
-  const [providerLoading, setProviderLoading] = useState<Record<string, boolean>>({})
-  const [providerError, setProviderError] = useState<string | null>(null)
+  const [, setProviderConfigs] = useState<OAuthProviderConfig[]>([])
+  const [, setProviderStatus] = useState<Record<string, ProviderStatus>>({})
+  const [, setProviderLoading] = useState<Record<string, boolean>>({})
+  const [, setProviderError] = useState<string | null>(null)
 
   // Server provider state
-  const [servers, setServers] = useState<unknown[]>([])
-  const [serverProviders, setServerProviders] = useState<Record<string, ServerProviderInfo[]>>({})
+  const [, setServers] = useState<unknown[]>([])
+  const [, setServerProviders] = useState<Record<string, ServerProviderInfo[]>>({})
 
   // Load provider configurations and status
   const loadProviderData = async () => {
@@ -83,68 +78,12 @@ export const Prompter: React.FC<PrompterProps> = ({ onBack }) => {
   }
 
   // Get provider icon URL
-  const getProviderIcon = (providerId: string) => {
-    switch (providerId) {
-      case 'google':
-        return googleLogoIconUrl
-      case 'github':
-        return githubLogoIconUrl
-      case 'microsoft':
-        return microsoftLogoIconUrl
-      case 'x':
-        return xLogoIconUrl
-      default:
-        return squaresIconUrl
-    }
-  }
 
   // Handle provider connect
-  const handleProviderConnect = async (providerId: string) => {
-    setProviderLoading(prev => ({ ...prev, [providerId]: true }))
-    setProviderError(null)
-
-    try {
-      await window.electronAPI.startProviderOAuth(providerId)
-    }
-    catch (error) {
-      console.error(`Failed to connect ${providerId}:`, error)
-      setProviderError(`Failed to connect to ${providerId}`)
-      setProviderLoading(prev => ({ ...prev, [providerId]: false }))
-    }
-  }
 
   // Handle provider disconnect
-  const handleProviderDisconnect = async (providerId: string) => {
-    setProviderLoading(prev => ({ ...prev, [providerId]: true }))
-
-    try {
-      await window.electronAPI.logoutProvider(providerId)
-      await loadProviderData()
-    }
-    catch (error) {
-      console.error(`Failed to disconnect ${providerId}:`, error)
-      setProviderError(`Failed to disconnect from ${providerId}`)
-    }
-    finally {
-      setProviderLoading(prev => ({ ...prev, [providerId]: false }))
-    }
-  }
 
   // Handle server provider connect
-  const handleServerProviderConnect = async (serverId: string, providerId: string) => {
-    const loadingKey = `${serverId}-${providerId}`
-    setProviderLoading(prev => ({ ...prev, [loadingKey]: true }))
-    setProviderError(null)
-
-    try {
-      await window.electronAPI.startServerProviderOAuth(serverId, providerId)
-    }
-    catch (error) {
-      console.error(`Failed to connect ${providerId} via server ${serverId}:`, error)
-      setProviderError(`Failed to connect to ${providerId}`)
-      setProviderLoading(prev => ({ ...prev, [loadingKey]: false }))
-    }
-  }
 
   useEffect(() => {
     const getScripts = async () => {
@@ -357,7 +296,7 @@ export const Prompter: React.FC<PrompterProps> = ({ onBack }) => {
         </div>
 
         {/* Provider Status Section */}
-        {(providerConfigs.length > 0 || servers.length > 0) && (
+        {/* {(providerConfigs.length > 0 || servers.length > 0) && (
           <Card className="mb-6">
             <CardHeader className="pb-4">
               <CardTitle className="text-lg">Connected Services</CardTitle>
@@ -456,7 +395,6 @@ export const Prompter: React.FC<PrompterProps> = ({ onBack }) => {
                   )
                 })}
 
-                {/* Server Providers */}
                 {servers.map((server) => {
                   const serverObj = server as { id: string, name: string }
                   const providers = serverProviders[serverObj.id] || []
@@ -555,7 +493,7 @@ export const Prompter: React.FC<PrompterProps> = ({ onBack }) => {
               </div>
             </CardContent>
           </Card>
-        )}
+        )} */}
 
         <div className="mb-6 space-y-4">
           <div className="relative">
