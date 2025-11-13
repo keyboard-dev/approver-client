@@ -242,6 +242,13 @@ export interface ElectronAPI {
 
   // Version install date
   getVersionInstallDate: () => Promise<Date | null>
+
+  // AI Provider management
+  setAIProviderKey: (provider: string, apiKey: string) => Promise<void>
+  getAIProviderKeys: () => Promise<Array<{ provider: string, hasKey: boolean, configured: boolean }>>
+  removeAIProviderKey: (provider: string) => Promise<void>
+  testAIProviderConnection: (provider: string) => Promise<{ success: boolean, error?: string }>
+  sendAIMessage: (provider: string, messages: Array<{ role: 'user' | 'assistant' | 'system', content: string }>, config?: { model?: string }) => Promise<string>
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -448,6 +455,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Version install date
   getVersionInstallDate: (): Promise<Date | null> => ipcRenderer.invoke('get-version-install-date'),
+
+  // AI Provider management
+  setAIProviderKey: (provider: string, apiKey: string): Promise<void> => ipcRenderer.invoke('set-ai-provider-key', provider, apiKey),
+  getAIProviderKeys: (): Promise<Array<{ provider: string, hasKey: boolean, configured: boolean }>> => ipcRenderer.invoke('get-ai-provider-keys'),
+  removeAIProviderKey: (provider: string): Promise<void> => ipcRenderer.invoke('remove-ai-provider-key', provider),
+  testAIProviderConnection: (provider: string): Promise<{ success: boolean, error?: string }> => ipcRenderer.invoke('test-ai-provider-connection', provider),
+  sendAIMessage: (provider: string, messages: Array<{ role: 'user' | 'assistant' | 'system', content: string }>, config?: { model?: string }): Promise<string> => ipcRenderer.invoke('send-ai-message', provider, messages, config),
 } as ElectronAPI)
 
 // Extend the global Window interface

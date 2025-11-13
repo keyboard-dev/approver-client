@@ -6,6 +6,9 @@ import { CollectionRequest, Message, ShareMessage } from '../types'
 import './App.css'
 import { AppRoutes } from './AppRoutes'
 import AuthComponent from './components/AuthComponent'
+import { AssistantUIChat } from './components/AssistantUIChat'
+import { Chat } from './components/Chat'
+import { CopilotKitChat } from './components/CopilotKitChat'
 import GitHubOAuthButton from './components/GitHubOAuthButton'
 import { Prompter } from './components/Prompter'
 import OnboardingView from './components/screens/onboarding/OnboardingView'
@@ -66,6 +69,15 @@ export const AppContent: React.FC = () => {
   // Fetch messages directly from database (no in-memory cache)
   const { messages, shareMessages, refetch: refetchMessages } = useMessagesQuery()
 
+  // WebSocket connection management
+  const { connectionStatus, isConnectingToCodespace, connectToBestCodespace } = useWebSocketConnection(
+    authStatus,
+    isSkippingAuth,
+  )
+
+  // WebSocket status dialog management
+  const { showDialog: showWebSocketDialog, openDialog: openWebSocketDialog, closeDialog: closeWebSocketDialog } = useWebSocketDialog()
+
   // Message and app state (moved back from auth hook)
   const [currentMessage, setCurrentMessage] = useState<Message | null>(null)
   const [currentShareMessage, setCurrentShareMessage] = useState<ShareMessage | null>(null)
@@ -74,6 +86,9 @@ export const AppContent: React.FC = () => {
   const [isGitHubConnected, setIsGitHubConnected] = useState(false)
   const [isCheckingGitHub, setIsCheckingGitHub] = useState(true)
   const [showPrompterOnly, setShowPrompterOnly] = useState(false)
+  const [showChat, setShowChat] = useState(false)
+  const [showCopilotChat, setShowCopilotChat] = useState(false)
+  const [showAssistantChat, setShowAssistantChat] = useState(false)
 
   // Use refs to track state without causing re-renders
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -278,6 +293,9 @@ export const AppContent: React.FC = () => {
     setCurrentShareMessage(null)
     setShowPrompterOnly(false)
     navigate('/') // Use React Router to navigate home
+    setShowChat(false)
+    setShowCopilotChat(false)
+    setShowAssistantChat(false)
     refreshMessages() // Refresh to show updated status
   }
 
@@ -434,6 +452,18 @@ export const AppContent: React.FC = () => {
 
   const getMessageScreen = () => {
     // Special case: Prompter-only mode (opened from button, not a message)
+    if (showAssistantChat) {
+      return <AssistantUIChat onBack={showMessageList} />
+    }
+
+    if (showCopilotChat) {
+      return <CopilotKitChat onBack={showMessageList} />
+    }
+
+    if (showChat) {
+      return <Chat onBack={showMessageList} />
+    }
+
     if (showPrompterOnly) {
       return (
         <Prompter message={{ title: 'prompter-request' }} onBack={handleBackFromPrompter} />
@@ -473,6 +503,226 @@ export const AppContent: React.FC = () => {
           // This should rarely be reached as most messages use routing now
           return null
       }
+            {/* Only show main content if authenticated and GitHub connected */}
+            {(authStatus.authenticated || isSkippingAuth) && isGitHubConnected && (
+              <div className="content-fade-in grow min-h-0">
+                {currentMessage
+                  ? (
+                // Message Detail View
+                      <Card className="w-full h-full flex flex-col gap-6">
+                        <CardHeader>
+                          <div className="flex items-center justify-between">
+                            <Button variant="outline" onClick={showMessageList}>
+                              ← Back to Messages
+                            </Button>
+                            <div className="flex items-center space-x-3">
+                              {/* Connection Status Badge */}
+                              <Badge
+                                variant={connectionStatus === 'connected' ? 'default' : 'destructive'}
+                                className={`connection-status-badge flex items-center space-x-2 px-3 py-2 ${
+                                  connectionStatus === 'connected'
+                                    ? 'bg-green-100 text-green-800 border-green-200 hover:bg-green-100'
+                                    : 'bg-red-100 text-red-800 border-red-200 hover:bg-red-100'
+                                }`}
+                              >
+                                {connectionStatus === 'connected'
+                                  ? (
+                                      <Wifi className="h-3 w-3" />
+                                    )
+                                  : (
+                                      <WifiOff className="h-3 w-3" />
+                                    )}
+                                <span className="text-xs font-medium">
+                                  {connectionStatus === 'connected' ? 'Connected' : 'Disconnected'}
+                                </span>
+                              </Badge>
+                              <div className="flex items-center space-x-2">
+                                {getStatusIcon(currentMessage.status)}
+                                {getStatusBadge(currentMessage.status)}
+                              </div>
+                            </div>
+                          </div>
+                          <CardTitle className="text-2xl font-bold mt-4">
+                            {toSentenceCase(currentMessage.title)}
+                          </CardTitle>
+                          <div className="flex items-center space-x-4 text-sm text-gray-500">
+                            <span>
+                              From:
+                              {currentMessage.sender || 'Unknown'}
+                            </span>
+                            <span>•</span>
+                            <span>{new Date(currentMessage.timestamp).toLocaleString()}</span>
+                            {currentMessage.priority && (
+                              <>
+                                <span>•</span>
+                                {getPriorityBadge(currentMessage.priority)}
+                              </>
+                            )}
+                          </div>
+                        </CardHeader>
+                        <div
+                          className="p-6 grow shrink flex flex-col"
+                        >
+                          {/* Message Body - Show tabs if codeEval is true, otherwise show regular body */}
+                          <div
+                            className="grow shrink flex flex-col"
+                          >
+                            <h3 className="text-lg font-semibold mb-2">Request Details</h3>
+                            {getCodeBlock(currentMessage)}
+                          </div>
+
+                          <Separator />
+
+                          {/* Action Buttons */}
+                          {currentMessage.status === 'pending' || !currentMessage.status
+                            ? (
+                                <div className="space-y-4">
+                                  <h3 className="text-lg font-semibold">Actions Required</h3>
+
+                                  {/* Feedback Section Toggle */}
+                                  <div className="flex items-center space-x-2">
+                                    <input
+                                      type="checkbox"
+                                      id="show-feedback"
+                                      checked={showFeedback}
+                                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                                        setShowFeedback(e.target.checked)}
+                                      className="rounded"
+                                    />
+                                    <label htmlFor="show-feedback" className="text-sm">
+                                      Add feedback/comments
+                                    </label>
+                                  </div>
+
+                                  {/* Feedback Textarea */}
+                                  {showFeedback && (
+                                    <div className="space-y-2">
+                                      <label className="text-sm font-medium">Feedback</label>
+                                      <Textarea
+                                        placeholder="Enter your feedback or comments..."
+                                        value={feedback}
+                                        onChange={e => setFeedback(e.target.value)}
+                                        className="min-h-[100px]"
+                                      />
+                                    </div>
+                                  )}
+
+                                  {/* Action Buttons */}
+                                  <div className="flex space-x-4">
+                                    <Button
+                                      onClick={approveMessage}
+                                      className="bg-green-600 hover:bg-green-700 text-white"
+                                    >
+                                      <CheckCircle className="mr-2 h-4 w-4" />
+                                      Approve
+                                    </Button>
+                                    <Button
+                                      onClick={rejectMessage}
+                                      variant="destructive"
+                                    >
+                                      <XCircle className="mr-2 h-4 w-4" />
+                                      Reject
+                                    </Button>
+                                  </div>
+                                </div>
+                              )
+                            : (
+                                <div className="space-y-4">
+                                  <h3 className="text-lg font-semibold">Status</h3>
+                                  <div className="flex items-center space-x-2">
+                                    {getStatusIcon(currentMessage.status)}
+                                    <span className="text-sm">
+                                      This request has been
+                                      {' '}
+                                      {currentMessage.status}
+                                    </span>
+                                  </div>
+
+                                  {currentMessage.feedback && (
+                                    <div className="space-y-2">
+                                      <label className="text-sm font-medium">Feedback</label>
+                                      <div className="bg-gray-100 p-3 rounded-lg text-sm">
+                                        {currentMessage.feedback}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                        </div>
+                      </Card>
+                    )
+                  : (
+                // Message List View
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h1 className="text-3xl font-bold">
+                            {showSettings ? 'Settings' : 'Message Approvals'}
+                          </h1>
+                          <div className="flex items-center space-x-3">
+                            {!showSettings && (
+                              <Button
+                                variant="outline"
+                                onClick={() => setShowAssistantChat(true)}
+                                className="flex items-center space-x-2"
+                              >
+                                <span>Chat</span>
+                              </Button>
+                            )}
+                            {!showSettings && (
+                              <Button
+                                variant="outline"
+                                onClick={openPrompterOnly}
+                                className="flex items-center space-x-2"
+                              >
+                                <span>Open Prompter</span>
+                              </Button>
+                            )}
+                            {!showSettings && (
+                              <GitHubOAuthButton />
+                            )}
+                            {!showSettings && (messages.length > 0 || shareMessages.length > 0) && (
+                              <Button
+                                variant="outline"
+                                onClick={() => clearNonPendingMessages()}
+                                className="flex items-center space-x-2"
+                              >
+                                <span>Clear Non-Pending</span>
+                              </Button>
+                            )}
+                            <Button
+                              variant="outline"
+                              onClick={toggleSettings}
+                              className="flex items-center space-x-2"
+                            >
+                              <span>{showSettings ? 'Back to Messages' : 'Settings'}</span>
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Message List View */}
+                        {(messages.length === 0 && shareMessages.length === 0)
+                          ? (
+                              <Card>
+                                <CardContent className="p-8 text-center">
+                                  <Clock className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                                  <p className="text-gray-500">
+                                    {isLoading ? 'Loading messages...' : 'No messages to approve. Waiting for WebSocket messages...'}
+                                  </p>
+                                </CardContent>
+                              </Card>
+                            )
+                          : (
+                              <div className={`grid gap-4 ${isLoading ? 'loading-fade' : ''}`}>
+                                {getMessagesDisplay()}
+                              </div>
+                            )}
+
+                      </div>
+                    )}
+              </div>
+            )}
+          </div>
+        )
     }
 
     // Main screen: Authentication + Message List
@@ -490,6 +740,35 @@ export const AppContent: React.FC = () => {
                 <p className="text-gray-600">Checking GitHub connection...</p>
               </CardContent>
             </Card>
+  return (
+    <div
+      className="flex flex-col w-full h-screen bg-transparent draggable rounded-[0.5rem] p-[0.63rem] pt-0 items-center text-[0.88rem] text-[#171717] font-medium font-inter"
+    >
+      <div className="flex w-full -h-[1.56rem] mx-[1.25rem] my-[0.5rem] justify-between z-20">
+        <div
+          className="px-[0.5rem] py-[0.25rem] w-4 h-4"
+        />
+        <button
+          className="px-[0.75rem] py-[0.25rem] rounded-full bg-[#EBEBEB] flex items-center gap-[0.63rem] hover:bg-[#DCDCDC] transition-colors cursor-pointer not-draggable"
+          onClick={openWebSocketDialog}
+          type="button"
+        >
+          <div
+            className={`w-[10px] h-[10px] rounded-full ${
+              connectionStatus === 'connected' ? 'bg-[#0B8A1C]' : 'bg-[#DC2626]'
+            }`}
+          />
+          <div
+            className="text-[#737373]"
+          >
+            All systems are
+            {' '}
+            <span className={`font-semibold ${
+              connectionStatus === 'connected' ? 'text-[#0B8A1C]' : 'text-[#DC2626]'
+            }`}
+            >
+              {connectionStatus === 'connected' ? 'normal' : 'offline'}
+            </span>
           </div>
         )}
 
@@ -548,6 +827,13 @@ export const AppContent: React.FC = () => {
   }
 
   return getMessageScreen()
+      {/* WebSocket Status Dialog */}
+      <WebSocketStatusDialog
+        open={showWebSocketDialog}
+        onOpenChange={open => !open && closeWebSocketDialog()}
+      />
+    </div>
+  )
 }
 
 const App: React.FC = () => {
