@@ -56,10 +56,10 @@ export class ContentParser {
     .use(remarkStringify)
 
   private htmlToMarkdownProcessor = unified()
-    .use(rehypeParse, { fragment: true })
-    .use(rehypeRemark)
+    .use(rehypeParse as any, { fragment: true })
+    .use(rehypeRemark as any)
     .use(remarkGfm)
-    .use(remarkStringify)
+    .use(remarkStringify as any)
 
   /**
    * Parse content from various formats into a unified structure
@@ -137,7 +137,7 @@ export class ContentParser {
         relevantHeadings.push(heading)
         // Extract section content around this heading
         const section = this.extractSectionContent(parsedContent.markdown, heading)
-        if (section) relevantSections.push(section)
+        if (section.trim()) relevantSections.push(section)
       }
     })
 
@@ -146,7 +146,7 @@ export class ContentParser {
       const topSections = parsedContent.headings.slice(0, 3)
       topSections.forEach(heading => {
         const section = this.extractSectionContent(parsedContent.markdown, heading)
-        if (section) relevantSections.push(section)
+        if (section.trim()) relevantSections.push(section)
       })
     }
 
@@ -160,7 +160,7 @@ export class ContentParser {
       headings: relevantHeadings,
       metadata: {
         ...parsedContent.metadata,
-        wordCount: filteredMarkdown.split(' ').length
+        wordCount: (filteredMarkdown || '').split(' ').length
       }
     }
   }
@@ -231,6 +231,7 @@ export class ContentParser {
         title = this.extractTextFromNode(node)
         return false // Stop visiting
       }
+      return true // Continue visiting
     })
 
     return {
@@ -249,7 +250,7 @@ export class ContentParser {
     const hasQueryTerms = queryWords.some(word => codeContent.includes(word))
     
     // Boost relevance for API examples
-    const isApiExample = block.isExample && (
+    const isApiExample = (block.isExample || false) && (
       codeContent.includes('api') ||
       codeContent.includes('fetch') ||
       codeContent.includes('request') ||
@@ -264,7 +265,7 @@ export class ContentParser {
     return queryWords.some(word => headingText.includes(word))
   }
 
-  private extractSectionContent(markdown: string, heading: Heading): string | null {
+  private extractSectionContent(markdown: string, heading: Heading): string {
     const lines = markdown.split('\n')
     const headingPattern = new RegExp(`^#{1,${heading.level}}\\s+.*${this.escapeRegex(heading.text)}`, 'i')
     
@@ -279,7 +280,7 @@ export class ContentParser {
       }
     }
     
-    if (startIndex === -1) return null
+    if (startIndex === -1) return ''
     
     // Find next heading of same or higher level
     for (let i = startIndex + 1; i < lines.length; i++) {

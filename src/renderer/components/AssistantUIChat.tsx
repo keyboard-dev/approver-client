@@ -36,8 +36,9 @@ const PROVIDERS: ProviderConfig[] = [
     name: 'Anthropic',
     supportsMCP: true,
     models: [
-      { id: 'claude-3-sonnet-20240229', name: 'Claude 3 Sonnet' },
-      { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku' },
+      { id: 'claude-sonnet-4-5', name: 'Claude 4.5 Sonnet (Recommended)' },
+      { id: 'claude-haiku-4-5', name: 'Claude 4.5 Haiku (Fastest)' },
+      { id: 'claude-opus-4-1', name: 'Claude 4.1 Opus (Advanced)' },
     ],
   },
   {

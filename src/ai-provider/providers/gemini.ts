@@ -21,8 +21,19 @@ export class GeminiProvider implements AIProvider {
     })
 
     if (!response.ok) {
-      console.log('this is the response', response)
-      throw new Error(`Gemini API error: ${response.status} ${response.statusText}`)
+      const errorText = await response.text().catch(() => 'Unable to read error response')
+      console.error('❌ Gemini API Error:', {
+        status: response.status,
+        statusText: response.statusText,
+        url: response.url,
+        errorBody: errorText
+      })
+      
+      if (response.status === 503) {
+        throw new Error(`Gemini service unavailable (503). This may be due to invalid request format or temporary service issues. Error: ${errorText}`)
+      }
+      
+      throw new Error(`Gemini API error: ${response.status} ${response.statusText}. ${errorText}`)
     }
 
     const data = await response.json() as any
@@ -47,7 +58,19 @@ export class GeminiProvider implements AIProvider {
     })
 
     if (!response.ok) {
-      throw new Error(`Gemini API error: ${response.status} ${response.statusText}`)
+      const errorText = await response.text().catch(() => 'Unable to read error response')
+      console.error('❌ Gemini Streaming API Error:', {
+        status: response.status,
+        statusText: response.statusText,
+        url: response.url,
+        errorBody: errorText
+      })
+      
+      if (response.status === 503) {
+        throw new Error(`Gemini service unavailable (503). This may be due to invalid request format or temporary service issues. Error: ${errorText}`)
+      }
+      
+      throw new Error(`Gemini API error: ${response.status} ${response.statusText}. ${errorText}`)
     }
 
     const reader = response.body?.getReader()
@@ -336,26 +359,85 @@ export class GeminiProvider implements AIProvider {
   }
 
   private convertMessagesToGeminiFormat(messages: AIMessage[]) {
-    const contents = []
-
-    for (const message of messages) {
-      if (message.role === 'system') {
-        // Gemini doesn't have a system role, prepend to first user message
+    const contents: Array<{ role: 'user' | 'model', parts: Array<{ text: string }> }> = []
+    
+    // Extract system message first
+    const systemMessage = messages.find(m => m.role === 'system')
+    const nonSystemMessages = messages.filter(m => m.role !== 'system')
+    
+    if (nonSystemMessages.length === 0) {
+      return contents
+    }
+    
+    let currentRole: 'user' | 'model' | null = null
+    let currentContent: string[] = []
+    
+    for (const message of nonSystemMessages) {
+      const geminiRole = message.role === 'assistant' ? 'model' : 'user'
+      
+      // Skip empty content
+      if (!message.content || message.content.trim() === '') {
         continue
       }
-
+      
+      if (currentRole === null) {
+        // First message
+        currentRole = geminiRole
+        currentContent = [message.content]
+      } else if (currentRole === geminiRole) {
+        // Same role as previous - merge content
+        currentContent.push(message.content)
+      } else {
+        // Role changed - push current content and start new
+        contents.push({
+          role: currentRole,
+          parts: [{ text: currentContent.join('\n\n') }]
+        })
+        
+        currentRole = geminiRole
+        currentContent = [message.content]
+      }
+    }
+    
+    // Push final content if exists
+    if (currentRole && currentContent.length > 0) {
       contents.push({
-        role: message.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: message.content }],
+        role: currentRole,
+        parts: [{ text: currentContent.join('\n\n') }]
       })
     }
-
+    
     // Add system message to first user message if exists
-    const systemMessage = messages.find(m => m.role === 'system')
-    if (systemMessage && contents.length > 0 && contents[0].role === 'user') {
-      contents[0].parts[0].text = `${systemMessage.content}\n\n${contents[0].parts[0].text}`
+    if (systemMessage && contents.length > 0) {
+      // Find first user message to prepend system content
+      const firstUserIndex = contents.findIndex(c => c.role === 'user')
+      if (firstUserIndex !== -1) {
+        const originalText = contents[firstUserIndex].parts[0].text
+        contents[firstUserIndex].parts[0].text = `${systemMessage.content}\n\n${originalText}`
+      } else {
+        // No user messages, create one with system content
+        contents.unshift({
+          role: 'user',
+          parts: [{ text: systemMessage.content }]
+        })
+      }
     }
-
+    
+    // Ensure conversation starts with user message
+    if (contents.length > 0 && contents[0].role === 'model') {
+      // If first message is from model, add a generic user starter
+      contents.unshift({
+        role: 'user',
+        parts: [{ text: 'Please assist me with the following.' }]
+      })
+    }
+    
+    console.log('🔄 Converted messages for Gemini:', {
+      originalCount: messages.length,
+      convertedCount: contents.length,
+      roles: contents.map(c => c.role)
+    })
+    
     return contents
   }
 }
