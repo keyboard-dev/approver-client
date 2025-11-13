@@ -5,15 +5,21 @@ import React, { useEffect, useState } from 'react'
 
 import { Message } from '../../../types'
 
+import redCautionIconUrl from '../../../../assets/icon-caution-red.svg'
 import blueCheckIconUrl from '../../../../assets/icon-check-blue.svg'
 import checkIconUrl from '../../../../assets/icon-check.svg'
 import clockIconUrl from '../../../../assets/icon-clock.svg'
 import codeIconUrl from '../../../../assets/icon-code.svg'
+import informationIconUrl from '../../../../assets/icon-information.svg'
 import thinkingIconUrl from '../../../../assets/icon-thinking.svg'
 import greyXIconUrl from '../../../../assets/icon-x-grey.svg'
 import xIconUrl from '../../../../assets/icon-x.svg'
+
+import { useOAuthProviders } from '../../hooks/useOAuthProviders'
 import { useWindowDimensions } from '../../hooks/useWindowDimensions'
+import { getProviderIcon } from '../../utils/providerUtils'
 import { ButtonDesigned } from '../ui/ButtonDesigned'
+import { TooltipDesigned } from '../ui/TooltipDesigned'
 
 interface ApprovalScreenProps {
   message: Message
@@ -28,10 +34,33 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
   onBack,
   onReject,
 }) => {
+  const {
+    getProviderId,
+    providers: oauthProviders,
+    reconnectProvider,
+    refreshProvider,
+  } = useOAuthProviders()
+
   const [activeTab, setActiveTab] = useState<'code' | 'explanation'>('explanation')
   const [isFontLoaded, setIsFontLoaded] = useState(false)
 
   const { isThin } = useWindowDimensions()
+
+  const { providers: providerNames = [] } = message
+
+  useEffect(() => {
+    providerNames.forEach((providerName) => {
+      const providerId = getProviderId(providerName)
+      if (!providerId) {
+        return
+      }
+      const providerStatus = oauthProviders[providerId]
+      if (!providerStatus || !providerStatus.expired) {
+        return
+      }
+      refreshProvider(providerId)
+    })
+  }, [providerNames, oauthProviders, refreshProvider, getProviderId])
 
   useEffect(() => {
     let timeoutId: NodeJS.Timeout | null = null
@@ -100,6 +129,80 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
   }
 
   const createdAt = new Date(timestamp).toLocaleString()
+
+  const getProviderBox = (providerName: string) => {
+    const providerId = getProviderId(providerName)
+    if (!providerId) {
+      return null
+    }
+    const oauthProvider = oauthProviders[providerId]
+    // oauthProvider.expired = true // temp test
+    // let className = 'p-[0.38rem] border border-[#CCC] rounded-[0.5rem]'
+    const appearance = (
+      <div
+        key={`approval-panel-provider-${providerId}`}
+        className="p-[0.38rem] border border-[#CCC] rounded-[0.5rem]"
+      >
+        <img
+          src={getProviderIcon(undefined, providerId)}
+          alt={providerId}
+          className="w-[1rem] h-[1rem]"
+        />
+      </div>
+    )
+
+    let element = appearance
+    if (!oauthProvider || oauthProvider.expired) {
+      element = (
+        <TooltipDesigned
+          key={`approval-panel-provider-${providerId}-tooltip`}
+          className="relative w-fit h-fit"
+          tooltipClassName="top-[1.5rem] left-[0.5rem]"
+          position="bottom-right"
+          tooltipText={(
+            <div
+              className="p-[0.63rem] flex flex-col gap-[0.31rem] w-[14.75rem]"
+            >
+              <div
+                className="text-[#000] font-semibold"
+              >
+                Token is expired!
+              </div>
+              <div
+                className="text-[#737373] text-[0.75rem]"
+              >
+                You must re-authenticate this token in order to use the connector.
+              </div>
+
+              <ButtonDesigned
+                className="rounded-full w-fit px-[0.63rem] py-[0.38rem]"
+                variant="primary-black"
+                onClick={() => {
+                  reconnectProvider(providerId)
+                }}
+              >
+                Refresh token
+              </ButtonDesigned>
+
+            </div>
+          )}
+        >
+          <div
+            className="opacity-25"
+          >
+            {appearance}
+          </div>
+          <img
+            src={redCautionIconUrl}
+            alt="expired"
+            className="absolute bottom-0 right-[-0.25rem] w-[0.75rem] h-[0.65rem] z-10"
+          />
+        </TooltipDesigned>
+      )
+    }
+
+    return element
+  }
 
   return (
     <>
@@ -197,6 +300,31 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
           Generated script
         </button>
       </div>
+
+      {providerNames.length && (
+        <div
+          className="rounded-[0.38rem] border border-[#E5E5E5] w-full px-[0.63rem] py-[0.44rem] flex gap-[0.63rem] items-center"
+        >
+          <img src={informationIconUrl} alt="info" className="w-[1.5rem] h-[1.5rem] p-[0.13rem]" />
+          <div
+            className="flex flex-col gap-[0.31rem] w-full"
+          >
+            <div
+              className="text-[#171717] w-full"
+            >
+              Required connectors
+            </div>
+
+            <div
+              className="flex gap-[0.25rem] w-full"
+            >
+              {providerNames.map(providerName => (
+                getProviderBox(providerName)
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {activeTab === 'explanation' && (
         <div

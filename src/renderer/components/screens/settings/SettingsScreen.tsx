@@ -1,9 +1,24 @@
 import React, { useEffect, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 
 import { AdvancedPanel } from './panels/AdvancedPanel'
 import { ConnectorPanel } from './panels/ConnectorPanel'
 import { KeyPanel } from './panels/KeyPanel'
 import { NotificationPanel } from './panels/NotificationPanel'
+
+/*
+ * REACT ROUTER MIGRATION NOTE:
+ *
+ * This component now uses React Router for navigation:
+ * - useParams() reads the initial tab from the URL
+ * - useNavigate() handles back navigation to main view
+ *
+ * Internal tab switching still uses state-based navigation for backward compatibility.
+ *
+ * Future improvements:
+ * - Update setActiveTab to also update the URL using navigate()
+ * - This will enable browser-like back/forward navigation within settings tabs
+ */
 
 const TABS = [
   'WebSocket',
@@ -15,14 +30,14 @@ const TABS = [
 
 type TabType = typeof TABS[number]
 
-export const SettingsScreen: React.FC<{
-  onBack: () => void
-}> = ({
-  onBack,
-}) => {
+export const SettingsScreen: React.FC = () => {
+  const navigate = useNavigate()
+  const { tab } = useParams<{ tab?: string }>()
   const [tabsWidth, setTabsWidth] = useState<number>(0)
 
-  const [activeTab, setActiveTab] = useState<TabType>(TABS[0])
+  // Initialize activeTab from URL params if provided, otherwise default to first tab
+  const initialTab = (tab && TABS.includes(tab as TabType)) ? (tab as TabType) : TABS[0]
+  const [activeTab, setActiveTab] = useState<TabType>(initialTab)
 
   useEffect(() => {
     const tempTabs = document.createElement('div')
@@ -95,7 +110,7 @@ export const SettingsScreen: React.FC<{
   return (
     <>
       <button
-        onClick={onBack}
+        onClick={() => navigate('/')}
         className="text-[#737373]"
       >
         &lt;  Back to requests

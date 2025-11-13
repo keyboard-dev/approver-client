@@ -146,12 +146,16 @@ export class PerProviderTokenStorage {
         file.startsWith('oauth-tokens.') && file.endsWith('.encrypted'),
       )
 
-      for (const file of tokenFiles) {
-        const providerId = file.replace('oauth-tokens.', '').replace('.encrypted', '')
-        if (!this.loadedProviders.has(providerId)) {
-          await this.loadProviderTokens(providerId)
-        }
-      }
+      // Load all provider tokens in parallel
+      await Promise.all(
+        tokenFiles.map((file) => {
+          const providerId = file.replace('oauth-tokens.', '').replace('.encrypted', '')
+          if (!this.loadedProviders.has(providerId)) {
+            return this.loadProviderTokens(providerId)
+          }
+          return Promise.resolve()
+        }),
+      )
     }
     catch (error) {
       console.error('❌ Error loading all provider tokens:', error)
@@ -263,24 +267,25 @@ export class PerProviderTokenStorage {
   }>> {
     await this.loadAllProviderTokens()
 
-    const status: Record<string, {
-      authenticated: boolean
-      expired: boolean
-      user?: UserInfo
-      storedAt?: number
-      updatedAt?: number
-    }> = {}
+    // Process all providers in parallel
+    const statusEntries = await Promise.all(
+      Array.from(this.tokensCache.entries()).map(async ([providerId, tokens]) => {
+        const expired = await this.areTokensExpired(providerId)
+        return [
+          providerId,
+          {
+            authenticated: true,
+            expired,
+            user: tokens.user,
+            storedAt: tokens.storedAt,
+            updatedAt: tokens.updatedAt,
+          },
+        ] as const
+      }),
+    )
 
-    for (const [providerId, tokens] of this.tokensCache.entries()) {
-      const expired = await this.areTokensExpired(providerId)
-      status[providerId] = {
-        authenticated: true,
-        expired,
-        user: tokens.user,
-        storedAt: tokens.storedAt,
-        updatedAt: tokens.updatedAt,
-      }
-    }
+    // Convert array of entries back to an object
+    const status = Object.fromEntries(statusEntries)
 
     return status
   }
@@ -414,6 +419,39 @@ export class PerProviderTokenStorage {
     }
     catch (error) {
       console.error('Error clearing onboarding token:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Expire all tokens for testing auto-refresh functionality
+   * Sets expires_at to a past timestamp without invalidating refresh tokens
+   */
+  async expireAllTokensForTesting(): Promise<number> {
+    try {
+      // Load all provider tokens
+      await this.loadAllProviderTokens()
+
+      let expiredCount = 0
+
+      // Expire each token
+      for (const [providerId, tokens] of this.tokensCache.entries()) {
+        // Set expires_at to 1 hour ago
+        tokens.expires_at = Date.now() - 3600000
+        tokens.updatedAt = Date.now()
+
+        // Save the updated tokens
+        await this.saveProviderTokens(tokens)
+        expiredCount++
+
+        console.log(`🧪 Expired tokens for ${providerId} for testing`)
+      }
+
+      console.log(`🧪 Expired ${expiredCount} provider token(s) for testing`)
+      return expiredCount
+    }
+    catch (error) {
+      console.error('❌ Error expiring tokens for testing:', error)
       throw error
     }
   }

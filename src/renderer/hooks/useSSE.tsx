@@ -108,14 +108,15 @@ export const useSSE = (
       if (authStatus.authenticated && authStatus.user) {
         // Get OAuth token - this would need to be adapted based on your token storage
         // For now, we'll need to get the token from your OAuth system
-        getOAuthToken().then(token => {
+        getOAuthToken().then((token) => {
           if (token && sseServiceRef.current) {
             sseServiceRef.current.setAuthToken(token)
           }
-        }).catch(error => {
+        }).catch((error) => {
           console.error('Failed to get OAuth token for SSE:', error)
         })
-      } else {
+      }
+      else {
         sseServiceRef.current.setAuthToken(null)
       }
     }
@@ -143,7 +144,8 @@ export const useSSE = (
       // Use the existing IPC call to get access token from main process
       const token = await window.electronAPI.getAccessToken()
       return token
-    } catch (error) {
+    }
+    catch (error) {
       console.error('Error getting OAuth token for SSE:', error)
       return null
     }

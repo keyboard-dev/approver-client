@@ -98,22 +98,22 @@ export const WebSocketStatusDialog: React.FC<WebSocketStatusDialogProps> = ({
     }
   }
 
-  const handleReconnect = async () => {
-    setIsReconnecting(true)
-    try {
-      const success = await window.electronAPI.reconnectToExecutor()
-      if (success) {
-        // Refresh status after successful reconnection
-        await fetchConnectionStatus()
-      }
-    }
-    catch (error) {
-      console.error('Failed to reconnect:', error)
-    }
-    finally {
-      setIsReconnecting(false)
-    }
-  }
+  // const handleReconnect = async () => {
+  //   setIsReconnecting(true)
+  //   try {
+  //     const success = await window.electronAPI.reconnectToExecutor()
+  //     if (success) {
+  //       // Refresh status after successful reconnection
+  //       await fetchConnectionStatus()
+  //     }
+  //   }
+  //   catch (error) {
+  //     console.error('Failed to reconnect:', error)
+  //   }
+  //   finally {
+  //     setIsReconnecting(false)
+  //   }
+  // }
 
   const handleConnectToBestCodespace = async () => {
     setIsReconnecting(true)
