@@ -1,4 +1,4 @@
-import { AIProvider, AIProviderConfig, AIMessage, AIResponse } from './index'
+import { AIProvider, AIProviderConfig, AIMessage, AIResponse, WebSearchQuery, WebSearchResponse } from './index'
 import { encryptedAIKeyStorage } from './encrypted-storage'
 
 export class AIRuntime {
@@ -64,6 +64,34 @@ export class AIRuntime {
     }
 
     yield* provider.streamMessage(messages, fullConfig)
+  }
+
+  async webSearch(
+    providerName: string,
+    query: WebSearchQuery,
+    config: Partial<AIProviderConfig>,
+  ): Promise<WebSearchResponse> {
+    const provider = this.providers.get(providerName)
+    if (!provider || !provider.webSearch) {
+      throw new Error(`Provider ${providerName} not found or does not support web search`)
+    }
+
+    const fullConfig: AIProviderConfig = {
+      name: providerName,
+      apiKey: config.apiKey || this.getStoredApiKey(providerName),
+      baseUrl: config.baseUrl,
+      model: config.model,
+    }
+
+    if (!provider.validateConfig(fullConfig)) {
+      throw new Error(`Invalid configuration for provider ${providerName}`)
+    }
+
+    console.log('Web search request:', { provider: providerName, query })
+    const response = await provider.webSearch(query, fullConfig)
+    console.log('Web search response:', response)
+    
+    return response
   }
 
   setApiKey(providerName: string, apiKey: string): void {

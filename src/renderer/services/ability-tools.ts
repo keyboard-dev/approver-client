@@ -11,7 +11,7 @@ export const toolsToAbilities = {
       },
       {
         command: 'web-search',
-        description: 'use this ability to search the web for information.  Feel free to run this after planning so can gather more information more info before you run-code',
+        description: 'use this ability to search the web for developer documentation, API references, and technical information. Automatically fetches full content from docs sites, processes markdown files, and extracts relevant code examples. Perfect for finding API documentation, tutorials, and technical resources. Example: {"ability": "web-search", "parameters": {"query": "stripe payment intents api"}}',
       },
     ],
   },

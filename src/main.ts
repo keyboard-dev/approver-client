@@ -2692,6 +2692,16 @@ class MenuBarNotificationApp {
         throw new Error(`Failed to send message to ${provider}: ${error instanceof Error ? error.message : 'Unknown error'}`)
       }
     })
+
+    ipcMain.handle('web-search', async (_event, provider: string, query: any, config?: { model?: string }) => {
+      try {
+        const response = await aiRuntime.webSearch(provider, query, config || {})
+        return response
+      }
+      catch (error) {
+        throw new Error(`Failed to perform web search with ${provider}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      }
+    })
   }
 
   private handleApproveMessage(message: Message, feedback?: string): Message {

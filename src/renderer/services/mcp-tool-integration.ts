@@ -2,6 +2,7 @@ import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
 import { useMcpClient } from '../hooks/useMcpClient'
 import { AbilityDiscoveryService, type AbilitySearchResult } from './ability-discovery'
 import { ResultProcessorService, type ProcessedResult, type ProcessingOptions } from './result-processor'
+import { webSearchTool } from './web-search-tool'
 
 /**
  * Universal MCP Ability Integration Service
@@ -90,6 +91,79 @@ export function formatAbilityResult(abilityName: string, result: CallToolResult)
 }
 
 /**
+ * Execute web search using local enhanced implementation
+ */
+async function executeLocalWebSearch(
+  args: Record<string, unknown>,
+  processingOptions?: ProcessingOptions,
+): Promise<ProcessedResult> {
+  const startTime = performance.now()
+  
+  try {
+    // Validate and prepare web search parameters
+    const query = args.query as string
+    if (!query || typeof query !== 'string') {
+      throw new Error('Web search requires a valid query string')
+    }
+
+    const searchParams = {
+      query,
+      maxResults: (args.maxResults as number) || 5,
+      prioritizeMarkdown: (args.prioritizeMarkdown as boolean) || false,
+      prioritizeDocs: (args.prioritizeDocs as boolean) || true,
+      includeDomains: (args.includeDomains as string[]) || undefined,
+      excludeDomains: (args.excludeDomains as string[]) || undefined
+    }
+
+    console.log('🔍 Executing enhanced web search:', searchParams)
+
+    // Execute web search using our enhanced tool
+    const searchResult = await webSearchTool.execute(searchParams)
+    
+    // Format results for AI consumption
+    const formattedContent = webSearchTool.formatResultsForAI(searchResult)
+    
+    const callTime = Math.round(performance.now() - startTime)
+    console.log('✅ Enhanced web search completed in', callTime, 'ms')
+    console.log('📊 Search results:', {
+      totalResults: searchResult.totalResults,
+      provider: searchResult.provider,
+      searchTime: searchResult.searchTime
+    })
+
+    // Return in ProcessedResult format for MCP compatibility
+    return {
+      summary: formattedContent,
+      tokenCount: Math.ceil(formattedContent.length / 4), // Rough token estimate
+      wasFiltered: false,
+      metadata: {
+        searchQuery: searchResult.searchQuery,
+        provider: searchResult.provider,
+        totalResults: searchResult.totalResults,
+        searchTime: searchResult.searchTime,
+        enhancedSearch: true
+      }
+    }
+    
+  } catch (error) {
+    const callTime = Math.round(performance.now() - startTime)
+    console.error('❌ Enhanced web search failed:', error)
+    
+    // Return error in ProcessedResult format
+    const errorMessage = `Enhanced web search failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+    return {
+      summary: errorMessage,
+      tokenCount: Math.ceil(errorMessage.length / 4),
+      wasFiltered: false,
+      metadata: {
+        error: true,
+        callTime
+      }
+    }
+  }
+}
+
+/**
  * React hook for managing MCP ability integration state
  */
 export function useMCPIntegration(serverUrl: string = 'https://mcp.keyboard.dev', clientName: string = 'keyboard-approver-mcp') {
@@ -145,6 +219,12 @@ export function useMCPIntegration(serverUrl: string = 'https://mcp.keyboard.dev'
     console.log('🌐 Server URL:', serverUrl)
 
     try {
+      // Intercept web-search calls and route to local implementation
+      if (functionName === 'web-search') {
+        console.log('🔍 Intercepting web-search call for enhanced local processing')
+        return await executeLocalWebSearch(args, processingOptions)
+      }
+
       if (mcpClient.state !== 'ready') {
         const error = `MCP client is not ready. Current state: ${mcpClient.state}`
         console.error('❌', error)

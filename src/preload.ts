@@ -247,6 +247,7 @@ export interface ElectronAPI {
   removeAIProviderKey: (provider: string) => Promise<void>
   testAIProviderConnection: (provider: string) => Promise<{ success: boolean, error?: string }>
   sendAIMessage: (provider: string, messages: Array<{ role: 'user' | 'assistant' | 'system', content: string }>, config?: { model?: string }) => Promise<string>
+  webSearch: (provider: string, query: any, config?: { model?: string }) => Promise<any>
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -452,6 +453,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   removeAIProviderKey: (provider: string): Promise<void> => ipcRenderer.invoke('remove-ai-provider-key', provider),
   testAIProviderConnection: (provider: string): Promise<{ success: boolean, error?: string }> => ipcRenderer.invoke('test-ai-provider-connection', provider),
   sendAIMessage: (provider: string, messages: Array<{ role: 'user' | 'assistant' | 'system', content: string }>, config?: { model?: string }): Promise<string> => ipcRenderer.invoke('send-ai-message', provider, messages, config),
+  webSearch: (provider: string, query: any, config?: { model?: string }): Promise<any> => ipcRenderer.invoke('web-search', provider, query, config),
 } as ElectronAPI)
 
 // Extend the global Window interface
