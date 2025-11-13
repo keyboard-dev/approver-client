@@ -14,7 +14,6 @@ export interface Message {
   explanation?: string
   type?: string
   risk_level?: 'low' | 'medium' | 'high'
-  providers?: string[]
   codespaceResponse?: { data: Record<string, unknown> & { stdout?: string, stderr?: string } }
 }
 

@@ -1,60 +1,60 @@
-import { AlertTriangle, CheckCircle, Clock, XCircle } from 'lucide-react'
+import Editor from '@monaco-editor/react'
+import { Separator } from '@radix-ui/react-separator'
+import { AlertTriangle, CheckCircle, Clock, Wifi, WifiOff, XCircle } from 'lucide-react'
+import * as monaco from 'monaco-editor'
+import lazyTheme from 'monaco-themes/themes/Lazy.json'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { MemoryRouter, useNavigate } from 'react-router-dom'
 
+import iconGearUrl from '../../assets/icon-gear.svg'
+import { Textarea } from '../components/ui/textarea'
+import { ElectronAPI } from '../preload'
 import { CollectionRequest, Message, ShareMessage } from '../types'
 import './App.css'
-import { AppRoutes } from './AppRoutes'
 import AuthComponent from './components/AuthComponent'
 import { AssistantUIChat } from './components/AssistantUIChat'
 import { Chat } from './components/Chat'
 import { CopilotKitChat } from './components/CopilotKitChat'
 import GitHubOAuthButton from './components/GitHubOAuthButton'
 import { Prompter } from './components/Prompter'
+import { ApprovalScreen } from './components/screens/ApprovalPanel'
 import OnboardingView from './components/screens/onboarding/OnboardingView'
+import { SettingsScreen } from './components/screens/settings/SettingsScreen'
 import { Share } from './components/Share'
 import { Badge } from './components/ui/badge'
 import { Button } from './components/ui/button'
-import { Card, CardContent } from './components/ui/card'
+import { ButtonDesigned } from './components/ui/ButtonDesigned'
+import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card'
 import { Toaster } from './components/ui/sonner'
+import { WebSocketStatusDialog } from './components/WebSocketStatusDialog'
 import { useAuth } from './hooks/useAuth'
 import { useMessagesQuery } from './hooks/useMessagesQuery'
+import { useWebSocketConnection } from './hooks/useWebSocketConnection'
+import { useWebSocketDialog } from './hooks/useWebSocketDialog'
 import { useDatabase } from './providers/DatabaseProvider'
 import { Providers } from './providers/Providers'
+
+const handleEditorWillMount = (monacoInstance: typeof monaco) => {
+  monacoInstance.editor.defineTheme('lazy', lazyTheme as monaco.editor.IStandaloneThemeData)
+}
+
+const getEditorOptions = (): monaco.editor.IStandaloneEditorConstructionOptions => ({
+  automaticLayout: true,
+  fontFamily: '"Fira Code", monospace',
+  fontSize: 14,
+  fontWeight: '400',
+  lineHeight: 1.5,
+  lineNumbersMinChars: 0,
+  minimap: { enabled: false },
+  scrollBeyondLastLine: false,
+  wordWrap: 'on',
+})
 
 // Utility function to convert to sentence case
 const toSentenceCase = (text: string): string => {
   return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase()
 }
 
-/*
- * REACT ROUTER MIGRATION NOTE:
- *
- * This app uses React Router for navigation with MemoryRouter.
- *
- * Routing Structure:
- * - / : Message list view (this component)
- * - /messages/:messageId : Message detail view (MessageDetailScreen)
- *   - Security Evaluation Request → ApprovalPanel
- *   - code response approval → CodeResponseApprovalPanel
- * - /settings/:tab? : Settings screen
- *
- * Why MemoryRouter?
- * - Electron apps use file:// protocol, which doesn't work well with BrowserRouter
- * - MemoryRouter keeps history in memory, perfect for desktop apps
- * - No URL bar in Electron, so memory-based routing is ideal
- *
- * Migration Status:
- * ✅ Security Evaluation Request migrated to /messages/:messageId route
- * ✅ code response approval migrated to /messages/:messageId route
- * ✅ Settings screen uses /settings/:tab routes
- * ⏳ Prompter-only mode still uses state (showPrompterOnly) - special case
- *
- * See ROUTER_MIGRATION.md for detailed migration guide.
- */
-
-export const AppContent: React.FC = () => {
-  const navigate = useNavigate()
+const AppContent: React.FC = () => {
   // Auth state from useAuth hook (clean separation)
   const {
     authStatusRef,
@@ -64,7 +64,7 @@ export const AppContent: React.FC = () => {
   } = useAuth()
 
   // Database hook for initialization and mutations
-  const { isInitialized: isDbInitialized, deleteMessages, updateShareMessage, addMessage } = useDatabase()
+  const { isInitialized: isDbInitialized, deleteMessages, updateMessage, updateShareMessage } = useDatabase()
 
   // Fetch messages directly from database (no in-memory cache)
   const { messages, shareMessages, refetch: refetchMessages } = useMessagesQuery()
@@ -81,8 +81,12 @@ export const AppContent: React.FC = () => {
   // Message and app state (moved back from auth hook)
   const [currentMessage, setCurrentMessage] = useState<Message | null>(null)
   const [currentShareMessage, setCurrentShareMessage] = useState<ShareMessage | null>(null)
+  const [feedback, setFeedback] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [showFeedback, setShowFeedback] = useState(false)
   const [isInitialized, setIsInitialized] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
+  const [isFontLoaded, setIsFontLoaded] = useState(false)
   const [isGitHubConnected, setIsGitHubConnected] = useState(false)
   const [isCheckingGitHub, setIsCheckingGitHub] = useState(true)
   const [showPrompterOnly, setShowPrompterOnly] = useState(false)
@@ -92,6 +96,31 @@ export const AppContent: React.FC = () => {
 
   // Use refs to track state without causing re-renders
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Font loading effect
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout | null = null
+
+    // Wait for Fira Code font to load before initializing Monaco Editor
+    const checkFontLoaded = async () => {
+      try {
+        await document.fonts.load('400 16px "Fira Code"')
+        // Small delay to ensure font is fully rendered
+        timeoutId = setTimeout(() => setIsFontLoaded(true), 100)
+      }
+      catch {
+        setIsFontLoaded(true)
+      }
+    }
+
+    checkFontLoaded()
+
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+      }
+    }
+  }, [])
 
   // Check GitHub connection status
   const checkGitHubConnection = useCallback(async () => {
@@ -167,6 +196,8 @@ export const AppContent: React.FC = () => {
       // Messages will be cleared from IndexedDB if needed
       setCurrentMessage(null)
       setCurrentShareMessage(null)
+      setFeedback('')
+      setShowFeedback(false)
       setIsInitialized(false)
     }
     else if (!isInitialized && isAuthenticated && isDbInitialized) {
@@ -179,69 +210,120 @@ export const AppContent: React.FC = () => {
   // Initialize event listeners only once
   useEffect(() => {
     // Listen for regular messages from main process
-    const handleShowMessage = async (_event: unknown, message: Message) => {
+    const handleShowMessage = (_event: unknown, message: Message) => {
       // Only handle messages if authenticated
       if (!authStatusRef.current.authenticated) {
         return
       }
 
-      try {
-        // CRITICAL: Save to database FIRST to prevent race conditions
-        await addMessage(message)
-
-        // For Security Evaluation Request and code response approval, use routing instead of state
-        if (message.title === 'Security Evaluation Request' || message.title === 'code response approval') {
-          // Navigate to the message detail route
-          navigate(`/messages/${message.id}`)
-        }
-        else {
-          // For other message types, keep existing state-based behavior
-          setCurrentMessage(message)
-        }
-      }
-      catch (error) {
-        console.error('Failed to save message to database:', error)
-        // Still proceed with UI update as fallback (DatabaseProvider listener may save it)
-        if (message.title === 'Security Evaluation Request' || message.title === 'code response approval') {
-          navigate(`/messages/${message.id}`)
-        }
-        else {
-          setCurrentMessage(message)
-        }
-      }
+      setCurrentMessage(message)
+      // Message is automatically added to IndexedDB by DatabaseProvider
     }
 
-    // NOTE: WebSocket message listeners (websocket-message, collection-share-request, show-share-message)
-    // are now handled globally in Layout via useGlobalWebSocketListeners hook.
-    // This ensures they persist across route changes and don't get cleaned up when this component unmounts.
+    // Listen for websocket messages
+    const handleWebSocketMessage = (_event: unknown, message: Message) => {
+      // Only handle messages if authenticated
+      if (!authStatusRef.current.authenticated) {
+        return
+      }
+
+      setCurrentMessage(message)
+      // Message is automatically added to IndexedDB by DatabaseProvider
+    }
+
+    // Listen for collection share requests
+    const handleCollectionShareRequest = (_event: unknown, shareMessage: ShareMessage) => {
+      // Only handle messages if authenticated
+      if (!authStatusRef.current.authenticated) {
+        return
+      }
+
+      setCurrentShareMessage(shareMessage)
+      // Share message stored in currentShareMessage state
+    }
+
+    // Listen for show share message
+    const handleShowShareMessage = (_event: unknown, shareMessage: ShareMessage) => {
+      setCurrentShareMessage(shareMessage)
+    }
 
     window.electronAPI.onShowMessage(handleShowMessage)
+    window.electronAPI.onWebSocketMessage(handleWebSocketMessage)
+    window.electronAPI.onCollectionShareRequest(handleCollectionShareRequest)
+    window.electronAPI.onShowShareMessage(handleShowShareMessage)
 
     // Cleanup listeners on unmount
     return () => {
       window.electronAPI.removeAllListeners('show-message')
-      // NOTE: websocket-message, collection-share-request, show-share-message cleanup
-      // is handled by useGlobalWebSocketListeners in Layout
+      window.electronAPI.removeAllListeners('websocket-message')
+      window.electronAPI.removeAllListeners('collection-share-request')
+      window.electronAPI.removeAllListeners('show-share-message')
 
       // Clean up timeouts
       if (loadingTimeoutRef.current) {
         clearTimeout(loadingTimeoutRef.current)
       }
     }
-  }, [authStatusRef, navigate, addMessage]) // Removed addShareMessage since we no longer use it here
+  }, [authStatusRef]) // Only depend on the stable auth ref
+
+  // Approve message
+  const approveMessage = async () => {
+    if (!currentMessage || !authStatusRef.current.authenticated) return
+
+    try {
+      // 1. Update database directly
+      await updateMessage(currentMessage.id, {
+        status: 'approved',
+        feedback: showFeedback ? feedback : undefined,
+      })
+
+      // 2. Notify main process for WebSocket response only
+      currentMessage.status = 'approved'
+      await window.electronAPI.approveMessage(currentMessage, showFeedback ? feedback : undefined)
+
+      // Note: No immediate refetch needed - list will refresh when navigating back via showMessageList()
+
+      setFeedback('')
+      setShowFeedback(false)
+    }
+    catch (error) {
+      console.error('Error approving message:', error)
+    }
+  }
+
+  // Reject message
+  const rejectMessage = async () => {
+    if (!currentMessage || !authStatusRef.current.authenticated) return
+
+    try {
+      // 1. Update database directly
+      await updateMessage(currentMessage.id, {
+        status: 'rejected',
+        feedback: showFeedback ? feedback : undefined,
+      })
+
+      // 2. Notify main process for WebSocket response only
+      await window.electronAPI.rejectMessage(currentMessage.id, showFeedback ? feedback : undefined)
+
+      currentMessage.status = 'rejected'
+
+      // Note: No immediate refetch needed - list will refresh when navigating back via showMessageList()
+
+      setFeedback('')
+      setShowFeedback(false)
+    }
+    catch (error) {
+      console.error('Error rejecting message:', error)
+    }
+  }
 
   // Show message detail
   const showMessageDetail = (message: Message) => {
     if (!authStatusRef.current.authenticated) return
 
-    // For Security Evaluation Request and code response approval, use routing instead of state
-    if (message.title === 'Security Evaluation Request' || message.title === 'code response approval') {
-      navigate(`/messages/${message.id}`)
-    }
-    else {
-      // For other message types, keep existing state-based behavior
-      setCurrentMessage(message)
-    }
+    setCurrentMessage(message)
+    setFeedback(message.feedback || '')
+    setShowFeedback(false)
   }
 
   // Approve collection share
@@ -291,12 +373,21 @@ export const AppContent: React.FC = () => {
   const showMessageList = () => {
     setCurrentMessage(null)
     setCurrentShareMessage(null)
+    setFeedback('')
+    setShowFeedback(false)
+    setShowSettings(false)
     setShowPrompterOnly(false)
-    navigate('/') // Use React Router to navigate home
     setShowChat(false)
     setShowCopilotChat(false)
     setShowAssistantChat(false)
     refreshMessages() // Refresh to show updated status
+  }
+
+  const toggleSettings = () => {
+    setShowSettings(!showSettings)
+    setCurrentMessage(null)
+    setFeedback('')
+    setShowFeedback(false)
   }
 
   const getStatusIcon = useCallback((status?: string) => {
@@ -383,7 +474,7 @@ export const AppContent: React.FC = () => {
         <Card
           key={`message-display-${message.id}`}
           className="cursor-pointer hover:shadow-md transition-shadow"
-          onClick={() => showMessageDetail(message as Message)}
+          onClick={() => showMessageDetail(message)}
         >
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
@@ -414,13 +505,90 @@ export const AppContent: React.FC = () => {
     })
   }
 
+  const getCodeBlock = useCallback((message: Message) => {
+    switch (message.title) {
+      case 'code response approval': {
+        if (!currentMessage || !currentMessage.codespaceResponse) return
+        // const parsedBody = extractJsonFromCodeApproval(currentMessage.body)
+        const { codespaceResponse } = currentMessage
+        const { data: codespaceResponseData } = codespaceResponse
+        if (!codespaceResponseData) return
+        const hasError = Boolean(codespaceResponseData.stderr)
+
+        return (
+          <div className="bg-gray-100 p-4 rounded-lg grow shrink overflow-hidden flex flex-col">
+            {/* Standard Output */}
+            <div className="mb-2 grow shrink flex flex-col">
+              <div className="text-sm font-medium text-gray-700 mb-1">Output:</div>
+              <div className="border border-gray-200 rounded grow shrink">
+                {isFontLoaded
+                  ? (
+                      <Editor
+                        className="grow shrink min-h-24"
+                        language="plaintext"
+                        defaultValue="No output"
+                        value={codespaceResponseData.stdout}
+                        onChange={value => codespaceResponseData.stdout = value}
+                        theme="lazy"
+                        beforeMount={handleEditorWillMount}
+                        options={getEditorOptions()}
+                      />
+                    )
+                  : (
+                      <div className="flex items-center justify-center h-full text-gray-500">
+                        Loading editor...
+                      </div>
+                    )}
+              </div>
+            </div>
+
+            {/* Error Output */}
+            {hasError && (
+              <div className="mt-2 grow shrink flex flex-col">
+                <div className="text-sm font-medium text-red-700 mb-1">
+                  Error Output (Please review to see if there are any sensitive content):
+                </div>
+                <div className="border border-red-200 rounded bg-red-50 grow shrink">
+                  {isFontLoaded
+                    ? (
+                        <Editor
+                          className="min-h-24"
+                          language="plaintext"
+                          value={codespaceResponseData.stderr}
+                          onChange={value => codespaceResponseData.stderr = value}
+                          theme="lazy"
+                          beforeMount={handleEditorWillMount}
+                          options={getEditorOptions()}
+                        />
+                      )
+                    : (
+                        <div className="flex items-center justify-center h-full text-red-500">
+                          Loading editor...
+                        </div>
+                      )}
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      }
+      default:
+        return (
+          <div className="bg-gray-100 p-4 rounded-lg max-h-96 overflow-auto">
+            <pre className="whitespace-pre-wrap text-sm">
+              {message.body}
+            </pre>
+          </div>
+        )
+    }
+  }, [currentMessage, isFontLoaded, handleEditorWillMount, getEditorOptions])
+
   const getMessageSummary = useCallback((message: Message) => {
     switch (message.title) {
       case 'code response approval': {
         const { codespaceResponse } = message
         if (!codespaceResponse) return message.body
         const { data: codespaceResponseData } = codespaceResponse
-        if (!codespaceResponseData) return message.body
         const { stdout, stderr } = codespaceResponseData
         return (
           <>
@@ -445,13 +613,7 @@ export const AppContent: React.FC = () => {
     setShowPrompterOnly(true)
   }
 
-  const handleBackFromPrompter = () => {
-    setShowPrompterOnly(false)
-    navigate('/')
-  }
-
   const getMessageScreen = () => {
-    // Special case: Prompter-only mode (opened from button, not a message)
     if (showAssistantChat) {
       return <AssistantUIChat onBack={showMessageList} />
     }
@@ -466,16 +628,10 @@ export const AppContent: React.FC = () => {
 
     if (showPrompterOnly) {
       return (
-        <Prompter message={{ title: 'prompter-request' }} onBack={handleBackFromPrompter} />
+        <Prompter message={{ title: 'prompter-request' }} onBack={showMessageList} />
       )
     }
 
-    // Check if onboarding is needed
-    if ((authStatus.authenticated || isSkippingAuth) && !isCheckingGitHub && !isGitHubConnected) {
-      return <OnboardingView onComplete={checkGitHubConnection} />
-    }
-
-    // Show collection share request if present
     if (currentShareMessage) {
       return (
         <Share
@@ -487,22 +643,43 @@ export const AppContent: React.FC = () => {
       )
     }
 
-    // Show message detail if present
-    if (currentMessage) {
-      switch (currentMessage.title) {
-        // NOTE: Security Evaluation Request and code response approval now use routing (/messages/:messageId)
-        // They are handled by MessageDetailScreen component
+    if ((authStatus.authenticated || isSkippingAuth) && !isCheckingGitHub && !isGitHubConnected) {
+      return <OnboardingView onComplete={checkGitHubConnection} />
+    }
 
-        case 'prompter-request':
-          return (
-            <Prompter message={currentMessage} onBack={showMessageList} />
-          )
+    switch (currentMessage?.title) {
+      case 'Security Evaluation Request':
+        return (
+          <ApprovalScreen
+            message={currentMessage}
+            onApprove={approveMessage}
+            onBack={showMessageList}
+            onReject={rejectMessage}
+          />
+        )
+      case 'prompter-request':
+        return (
+          <Prompter message={currentMessage} />
+        )
 
-        default:
-          // For any other message types not yet migrated to routing
-          // This should rarely be reached as most messages use routing now
-          return null
-      }
+      default:
+        return (
+          <div className="w-full grow min-h-0 mx-auto flex flex-col">
+            {/* Authentication Component */}
+            <AuthComponent />
+
+            {/* Show loading while checking GitHub connection */}
+            {(authStatus.authenticated || isSkippingAuth) && isCheckingGitHub && (
+              <div className="flex items-center justify-center min-h-screen">
+                <Card className="p-6">
+                  <CardContent className="flex items-center space-x-4">
+                    <Clock className="h-6 w-6 text-gray-400 animate-pulse" />
+                    <p className="text-gray-600">Checking GitHub connection...</p>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
             {/* Only show main content if authenticated and GitHub connected */}
             {(authStatus.authenticated || isSkippingAuth) && isGitHubConnected && (
               <div className="content-fade-in grow min-h-0">
@@ -724,22 +901,8 @@ export const AppContent: React.FC = () => {
           </div>
         )
     }
+  }
 
-    // Main screen: Authentication + Message List
-    return (
-      <div className="w-full grow min-h-0 mx-auto flex flex-col">
-        {/* Authentication Component */}
-        <AuthComponent />
-
-        {/* Show loading while checking GitHub connection */}
-        {(authStatus.authenticated || isSkippingAuth) && isCheckingGitHub && (
-          <div className="flex items-center justify-center min-h-screen">
-            <Card className="p-6">
-              <CardContent className="flex items-center space-x-4">
-                <Clock className="h-6 w-6 text-gray-400 animate-pulse" />
-                <p className="text-gray-600">Checking GitHub connection...</p>
-              </CardContent>
-            </Card>
   return (
     <div
       className="flex flex-col w-full h-screen bg-transparent draggable rounded-[0.5rem] p-[0.63rem] pt-0 items-center text-[0.88rem] text-[#171717] font-medium font-inter"
@@ -770,63 +933,28 @@ export const AppContent: React.FC = () => {
               {connectionStatus === 'connected' ? 'normal' : 'offline'}
             </span>
           </div>
-        )}
-
-        {/* Only show main content if authenticated and GitHub connected */}
-        {(authStatus.authenticated || isSkippingAuth) && isGitHubConnected && (
-          <div className="content-fade-in grow min-h-0">
-            {/* Message List View */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h1 className="text-3xl font-bold">
-                  Message Approvals
-                </h1>
-                <div className="flex items-center space-x-3">
-                  <Button
-                    variant="outline"
-                    onClick={openPrompterOnly}
-                    className="flex items-center space-x-2"
-                  >
-                    <span>Open Prompter</span>
-                  </Button>
-                  <GitHubOAuthButton />
-                  {(messages.length > 0 || shareMessages.length > 0) && (
-                    <Button
-                      variant="outline"
-                      onClick={() => clearNonPendingMessages()}
-                      className="flex items-center space-x-2"
-                    >
-                      <span>Clear Non-Pending</span>
-                    </Button>
-                  )}
-                </div>
-              </div>
-
-              {/* Message List View */}
-              {(messages.length === 0 && shareMessages.length === 0)
-                ? (
-                    <Card>
-                      <CardContent className="p-8 text-center">
-                        <Clock className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                        <p className="text-gray-500">
-                          {isLoading ? 'Loading messages...' : 'No messages to approve. Waiting for WebSocket messages...'}
-                        </p>
-                      </CardContent>
-                    </Card>
-                  )
-                : (
-                    <div className={`grid gap-4 ${isLoading ? 'loading-fade' : ''}`}>
-                      {getMessagesDisplay()}
-                    </div>
-                  )}
-            </div>
-          </div>
-        )}
+        </button>
+        <ButtonDesigned
+          className="px-[0.5rem] py-[0.25rem] rounded-full not-draggable"
+          variant="secondary"
+          onClick={toggleSettings}
+        >
+          <img src={iconGearUrl} alt="Settings" className="w-4 h-4" />
+        </ButtonDesigned>
       </div>
-    )
-  }
 
-  return getMessageScreen()
+      <div
+        className="flex flex-col w-full min-w-0 grow min-h-0 bg-white rounded-[0.5rem] px-[0.63rem] py-[0.75rem] not-draggable gap-[0.63rem] items-start overflow-auto"
+      >
+        {showSettings
+          ? (
+              <SettingsScreen
+                onBack={showMessageList}
+              />
+            )
+          : getMessageScreen()}
+      </div>
+
       {/* WebSocket Status Dialog */}
       <WebSocketStatusDialog
         open={showWebSocketDialog}
@@ -839,9 +967,7 @@ export const AppContent: React.FC = () => {
 const App: React.FC = () => {
   return (
     <Providers>
-      <MemoryRouter>
-        <AppRoutes />
-      </MemoryRouter>
+      <AppContent />
       <Toaster />
     </Providers>
   )

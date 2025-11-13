@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef } from 'react'
-import { CodespaceData } from '../../services/SSEBackgroundService'
-import { ExecutorWebSocketClient } from '../../websocket-client-to-executor'
 import { useSSE } from '../hooks/useSSE'
+import { ExecutorWebSocketClient } from '../../websocket-client-to-executor'
+import { CodespaceData } from '../../services/SSEBackgroundService'
 
 interface SSEWebSocketIntegrationProps {
   serverUrl: string
@@ -66,7 +66,7 @@ export const SSEWebSocketIntegration: React.FC<SSEWebSocketIntegrationProps> = (
   }, [])
 
   // Initialize SSE connection with event handlers
-  const { sseState } = useSSE(
+  const { sseState, sseService } = useSSE(
     serverUrl,
     handleCodespaceOnline,
     handleCodespaceOffline,

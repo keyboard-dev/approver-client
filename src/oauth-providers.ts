@@ -340,9 +340,6 @@ export class OAuthProviderManager {
     }
 
     const rawTokenData = await response.json() as Record<string, unknown>
-    console.log('rawTokenData', rawTokenData)
-    console.log('======================')
-
     const tokenData = this.parseTokenData(rawTokenData)
 
     // Fetch user info if userInfoUrl is provided
@@ -386,7 +383,6 @@ export class OAuthProviderManager {
 
     // If we have a local provider configuration with client credentials, use direct refresh
     if (provider && provider.clientId && provider.clientId.trim() !== '') {
-      console.log('refreshing tokens directly for', providerId)
       try {
         return await this.refreshTokensDirect(providerId, refreshToken, provider)
       }
@@ -395,7 +391,6 @@ export class OAuthProviderManager {
       }
     }
 
-    console.log('falling back to server refresh for', providerId)
     // Fallback to server provider refresh (for tokens obtained via server OAuth)
     return await this.refreshTokensViaServer(providerId, refreshToken)
   }

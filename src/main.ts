@@ -4,18 +4,19 @@ import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
 import * as WebSocket from 'ws'
-import { setEncryptionKeyProvider } from './encryption'
+import { CodespaceEncryptionConfig, encryptWithCodespaceKey } from './codespace-encryption'
+import { decrypt, encrypt, setEncryptionKeyProvider } from './encryption'
 import { GithubService } from './Github'
 import { deleteScriptTemplate } from './keyboard-shortcuts'
-import { OAuthProvider, ServerProvider, ServerProviderInfo } from './oauth-providers'
-import { StoredProviderTokens } from './oauth-token-storage'
+import { OAuthCallbackData, OAuthHttpServer } from './oauth-http-server'
+import { PKCEParams as NewPKCEParams, OAuthProvider, OAuthProviderManager, ProviderTokens, ServerProvider, ServerProviderInfo } from './oauth-providers'
+import { OAuthTokenStorage, StoredProviderTokens } from './oauth-token-storage'
+import { PerProviderTokenStorage } from './per-provider-token-storage'
 import { OAuthProviderConfig } from './provider-storage'
 import { createRestAPIServer } from './rest-api'
-import { AuthService } from './services/auth-service'
-import { OAuthService } from './services/oauth-service'
-import { SSEBackgroundService } from './services/SSEBackgroundService'
+import { CodespaceData, SSEBackgroundService } from './services/SSEBackgroundService'
 import { TrayManager } from './tray-manager'
-import { CollectionRequest, Message, ShareMessage } from './types'
+import { AuthorizeResponse, AuthTokens, CollectionRequest, ErrorResponse, Message, PKCEParams, ShareMessage, TokenResponse } from './types'
 import { CODE_APPROVAL_ORDER, CodeApprovalLevel, RESPONSE_APPROVAL_ORDER, ResponseApprovalLevel } from './types/settings-types'
 import { ExecutorWebSocketClient } from './websocket-client-to-executor'
 import { WindowManager } from './window-manager'
@@ -57,13 +58,20 @@ interface RestAPIServerInterface {
 }
 
 // Types for user objects in auth responses
-export interface AuthUser {
+interface AuthUser {
   id?: string
   email?: string
   firstName?: string
   lastName?: string
   name?: string
   profile_picture?: string
+}
+
+// Types for onboarding GitHub provider response
+interface OnboardingGitHubResponse {
+  session_id: string
+  authorization_url: string
+  state: string
 }
 
 // Types for WebSocket message with collection request
@@ -94,8 +102,16 @@ class MenuBarNotificationApp {
   private readonly OAUTH_SERVER_URL = process.env.OAUTH_SERVER_URL || 'https://api.keyboard.dev'
   private readonly SKIP_AUTH = process.env.SKIP_AUTH === 'true'
   private readonly CUSTOM_PROTOCOL = 'mcpauth'
+  private currentPKCE: PKCEParams | null = null
+  private authTokens: AuthTokens | null = null
   private sseBackgroundService: SSEBackgroundService | null = null
+  // New OAuth provider system (initialized later after encryption is ready)
+  private oauthProviderManager!: OAuthProviderManager
   private githubService!: GithubService
+  private oauthTokenStorage!: OAuthTokenStorage
+  private perProviderTokenStorage!: PerProviderTokenStorage
+  private currentProviderPKCE: NewPKCEParams | null = null
+  private oauthHttpServer: OAuthHttpServer
   // WebSocket security
   private wsConnectionKey: string | null = null
   private readonly STORAGE_DIR = path.join(os.homedir(), '.keyboard-mcp')
@@ -119,11 +135,10 @@ class MenuBarNotificationApp {
   // Executor WebSocket client
   private executorWSClient: ExecutorWebSocketClient | null = null
 
-  // OAuth Services
-  private authService!: AuthService
-  private oauthService!: OAuthService
-
   constructor() {
+    // Initialize HTTP server (doesn't need encryption)
+    this.oauthHttpServer = new OAuthHttpServer(this.OAUTH_PORT)
+
     // Initialize managers
     this.windowManager = new WindowManager({
       onWindowClosed: () => {
@@ -162,7 +177,7 @@ class MenuBarNotificationApp {
     // Initialize executor WebSocket client
     this.executorWSClient = new ExecutorWebSocketClient((message) => {
       this.handleExecutorMessage(message)
-    })
+    }, this.windowManager)
 
     this.initializeApp()
   }
@@ -185,8 +200,8 @@ class MenuBarNotificationApp {
 
         // Only handle our custom protocol URLs, ignore HTTP URLs
         if (url.startsWith(`${this.CUSTOM_PROTOCOL}://`)) {
-          // Custom protocol URLs should only go to legacy OAuth handler - delegate to AuthService
-          this.authService?.handleOAuthCallback(url)
+          // Custom protocol URLs should only go to legacy OAuth handler
+          this.handleOAuthCallback(url)
         }
         // else {
         // }
@@ -198,8 +213,8 @@ class MenuBarNotificationApp {
       // Find protocol URL in command line arguments
       const url = commandLine.find(arg => arg.startsWith(`${this.CUSTOM_PROTOCOL}://`))
       if (url) {
-        // Custom protocol URLs should only go to legacy OAuth handler - delegate to AuthService
-        this.authService?.handleOAuthCallback(url)
+        // Custom protocol URLs should only go to legacy OAuth handler
+        this.handleOAuthCallback(url)
       }
 
       // Show the window if it exists
@@ -240,15 +255,14 @@ class MenuBarNotificationApp {
       // Initialize version timestamp tracking
       await this.getVersionInstallTimestamp()
 
+      // NOW initialize OAuth provider system (after encryption is ready)
+      await this.initializeOAuthProviderSystem()
+
+      // Try to load persisted auth tokens
+      await this.loadPersistedAuthTokens()
+
       // Initialize GitHub service
       await this.initializeGithubService()
-
-      // Initialize OAuth services (after encryption is ready)
-      // This creates both authService and oauthService instances
-      await this.initializeOAuthServices()
-
-      // Setup IPC handlers early so renderer can communicate with main process
-      this.setupIPC()
 
       // Try to connect to executor with onboarding token
       await this.connectToExecutorWithToken()
@@ -320,44 +334,25 @@ class MenuBarNotificationApp {
     })
   }
 
+  // OAuth Provider System Initialization
   /**
-   * Initialize OAuth services (both AuthService and OAuthService)
+   * Initialize OAuth provider system after encryption is ready
    */
-  private async initializeOAuthServices(): Promise<void> {
+  private async initializeOAuthProviderSystem(): Promise<void> {
     try {
-      // Initialize AuthService for main app authentication
-      this.authService = new AuthService(
-        this.windowManager,
-        this.showNotification.bind(this),
-        () => this.sseBackgroundService,
-        (service: SSEBackgroundService) => { this.sseBackgroundService = service },
-        this.OAUTH_SERVER_URL,
-        this.CUSTOM_PROTOCOL,
-        this.KEYBOARD_AUTH_TOKENS,
-        this.SKIP_AUTH,
-      )
+      // Initialize OAuth provider system
+      this.oauthProviderManager = new OAuthProviderManager()
+      this.oauthTokenStorage = new OAuthTokenStorage() // Keep for migration
+      this.perProviderTokenStorage = new PerProviderTokenStorage()
 
-      // Load persisted auth tokens BEFORE initializing OAuth provider system
-      // This ensures main access token is available for provider token refresh
-      await this.authService.loadPersistedAuthTokens()
+      // Inject main access token getter for server provider refresh
+      this.oauthProviderManager.setMainAccessTokenGetter(() => this.getValidAccessToken())
 
-      // Initialize OAuthService for provider authentication
-      this.oauthService = new OAuthService(
-        this.windowManager,
-        this.showNotification.bind(this),
-        () => this.executorWSClient,
-        () => this.githubService,
-        () => this.getActiveEncryptionKey(),
-        () => this.authService.getValidAccessToken('provider'),
-        this.OAUTH_PORT,
-        this.SKIP_AUTH,
-      )
-
-      // Initialize the OAuth provider system (this will trigger provider token refresh)
-      await this.oauthService.initializeOAuthProviderSystem()
+      // Migrate from old storage format
+      await this.migrateTokenStorage()
     }
     catch (error) {
-      console.error('❌ Failed to initialize OAuth services:', error)
+      console.error('❌ Failed to initialize OAuth provider system:', error)
       throw error
     }
   }
@@ -382,7 +377,11 @@ class MenuBarNotificationApp {
   private async connectToExecutorWithToken(): Promise<void> {
     try {
       // Try to get onboarding GitHub token
-      const onboardingToken = await this.oauthService.getValidProviderAccessToken('onboarding')
+
+      const onboardingToken = await this.perProviderTokenStorage.getValidAccessToken(
+        'onboarding',
+        this.refreshProviderTokens.bind(this),
+      )
 
       if (onboardingToken && this.executorWSClient) {
         this.executorWSClient.setGitHubToken(onboardingToken)
@@ -422,17 +421,17 @@ class MenuBarNotificationApp {
           break
 
         case 'request-provider-token':
-          // Handle provider token requests from executor - delegate to OAuthService
-          this.oauthService.handleExecutorProviderTokenRequest(message)
+          // Handle provider token requests from executor
+          this.handleExecutorProviderTokenRequest(message)
           break
 
         case 'request-provider-status':
-          // Handle provider status requests from executor - delegate to OAuthService
-          this.oauthService.handleExecutorProviderStatusRequest(message)
+          // Handle provider status requests from executor
+          this.handleExecutorProviderStatusRequest(message)
           break
 
         case 'request-token':
-          // Handle legacy OAuth token requests from executor - delegate to AuthService
+          // Handle legacy OAuth token requests from executor
           this.handleExecutorTokenRequest(message)
           break
 
@@ -445,11 +444,155 @@ class MenuBarNotificationApp {
   }
 
   /**
+   * Helper function to encrypt provider token using codespace encryption
+   */
+  private async encryptProviderToken(token: string): Promise<{
+    encryptedToken: string
+    encrypted: boolean
+    encryptionMethod: string
+  }> {
+    let encryptedToken = token
+    let encrypted = false
+    let encryptionMethod = 'none'
+
+    if (token) {
+      try {
+        const onboardingToken = await this.perProviderTokenStorage.getValidAccessToken(
+          'onboarding',
+          this.refreshProviderTokens.bind(this),
+        )
+        const accessToken = await this.getValidAccessToken()
+
+        if (onboardingToken && accessToken) {
+          const config: CodespaceEncryptionConfig = {
+            codespaceUrl: 'auto', // Will be auto-discovered
+            bearerToken: accessToken, // Use GitHub token for authentication
+            githubToken: onboardingToken,
+          }
+
+          // This will auto-discover the codespace URL and encrypt the token
+          encryptedToken = await encryptWithCodespaceKey(token, config)
+          encrypted = true
+          encryptionMethod = 'rsa-codespace'
+        }
+      }
+      catch (encryptionError) {
+        console.error('❌ Failed to encrypt provider token:', encryptionError)
+        // Continue with unencrypted token as fallback
+      }
+    }
+
+    return { encryptedToken, encrypted, encryptionMethod }
+  }
+
+  /**
+   * Handle provider token request from executor WebSocket
+   */
+  private async handleExecutorProviderTokenRequest(message: { providerId?: string, requestId?: string }): Promise<void> {
+    const { providerId } = message
+
+    if (!providerId) {
+      // Send error response back through executor client
+      if (this.executorWSClient) {
+        this.executorWSClient.send({
+          type: 'provider-auth-token',
+          error: 'Provider ID is required',
+          timestamp: Date.now(),
+          requestId: message.requestId,
+        })
+      }
+      return
+    }
+
+    try {
+      const token = await this.getValidProviderAccessToken(providerId.toLowerCase())
+      const providerStatus = await this.perProviderTokenStorage.getProviderStatus()
+      const providerInfo = providerStatus[providerId]
+      const provider = await this.oauthProviderManager.getProvider(providerId)
+      if (!token) {
+        throw new Error('No token available')
+      }
+      // Encrypt token using codespace encryption if available
+
+      const { encryptedToken, encrypted, encryptionMethod } = await this.encryptProviderToken(token)
+      if (!encrypted) {
+        throw new Error('Failed to encrypt token')
+      }
+
+      const tokenResponse = {
+        type: 'provider-auth-token',
+        providerId: providerId,
+        token: encryptedToken,
+        encrypted: encrypted,
+        encryptionMethod: encryptionMethod,
+        timestamp: Date.now(),
+        requestId: message.requestId,
+        authenticated: !!token || this.SKIP_AUTH,
+        user: providerInfo?.user || (this.SKIP_AUTH ? { email: 'test@example.com', firstName: 'Test Provider' } : null),
+        providerName: provider?.name || providerId,
+      }
+
+      // Send response back through executor client
+      if (this.executorWSClient) {
+        this.executorWSClient.send(tokenResponse)
+      }
+    }
+    catch (error) {
+      // Send error response back through executor client
+      if (this.executorWSClient) {
+        this.executorWSClient.send({
+          type: 'provider-auth-token',
+          providerId: providerId,
+          error: `Failed to get token: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          timestamp: Date.now(),
+          requestId: message.requestId,
+        })
+      }
+    }
+  }
+
+  /**
+   * Handle provider status request from executor WebSocket
+   */
+  private async handleExecutorProviderStatusRequest(message: { requestId?: string }): Promise<void> {
+    try {
+      const providerStatus = await this.perProviderTokenStorage.getProviderStatus()
+
+      // Check ALL stored provider tokens (both direct and server provider tokens)
+      const tokensAvailable = Object.entries(providerStatus)
+        .filter(([, status]) => status?.authenticated)
+        .map(([providerId]) => `KEYBOARD_PROVIDER_USER_TOKEN_FOR_${providerId.toUpperCase()}`)
+
+      const statusResponse = {
+        type: 'user-tokens-available',
+        tokensAvailable: tokensAvailable,
+        timestamp: Date.now(),
+        requestId: message.requestId,
+      }
+
+      // Send response back through executor client
+      if (this.executorWSClient) {
+        this.executorWSClient.send(statusResponse)
+      }
+    }
+    catch (error) {
+      // Send error response back through executor client
+      if (this.executorWSClient) {
+        this.executorWSClient.send({
+          type: 'user-tokens-available',
+          error: `Failed to get provider status: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          timestamp: Date.now(),
+          requestId: message.requestId,
+        })
+      }
+    }
+  }
+
+  /**
    * Handle legacy OAuth token request from executor WebSocket
    */
   private async handleExecutorTokenRequest(message: { requestId?: string }): Promise<void> {
-    const token = await this.authService.getValidAccessToken()
-    const authTokens = this.authService.getAuthTokens()
+    const token = await this.getValidAccessToken()
 
     const tokenResponse = {
       type: 'auth-token',
@@ -457,12 +600,31 @@ class MenuBarNotificationApp {
       timestamp: Date.now(),
       requestId: message.requestId, // Echo back request ID if provided
       authenticated: !!token || this.SKIP_AUTH,
-      user: token ? authTokens?.user : (this.SKIP_AUTH ? { email: 'test@example.com', firstName: 'Test' } : null),
+      user: token ? this.authTokens?.user : (this.SKIP_AUTH ? { email: 'test@example.com', firstName: 'Test' } : null),
     }
 
     // Send response back through executor client
     if (this.executorWSClient) {
       this.executorWSClient.send(tokenResponse)
+    }
+  }
+
+  /**
+   * Migrate tokens from old single-file storage to new per-provider storage
+   */
+  private async migrateTokenStorage(): Promise<void> {
+    try {
+      const oldTokens = await this.oauthTokenStorage.getAllTokens()
+      if (Object.keys(oldTokens).length > 0) {
+        await this.perProviderTokenStorage.migrateFromOldStorage(oldTokens)
+
+        // After successful migration, optionally clear old storage
+        // Uncomment the next line if you want to remove the old file after migration
+        // await this.oauthTokenStorage.clearAllTokens();
+      }
+    }
+    catch (error) {
+      console.error('❌ Error during token storage migration:', error)
     }
   }
 
@@ -922,8 +1084,555 @@ class MenuBarNotificationApp {
     }
   }
 
+  private generatePKCE(): PKCEParams {
+    const codeVerifier = crypto.randomBytes(32).toString('base64url')
+    const codeChallenge = crypto
+      .createHash('sha256')
+      .update(codeVerifier)
+      .digest('base64url')
+    const state = crypto.randomBytes(16).toString('hex')
+
+    return { codeVerifier, codeChallenge, state }
+  }
+
+  // New OAuth provider methods
+  private async startProviderOAuthFlow(providerId: string): Promise<void> {
+    try {
+      const provider = await this.oauthProviderManager.getProvider(providerId)
+      if (!provider) {
+        throw new Error(`Provider ${providerId} not found`)
+      }
+
+      if (!provider.clientId) {
+        throw new Error(`Provider ${providerId} is not configured (missing client ID)`)
+      }
+
+      // Generate PKCE parameters
+      this.currentProviderPKCE = this.oauthProviderManager.generatePKCE(providerId)
+
+      // Start HTTP server to handle OAuth callback
+      await this.oauthHttpServer.startServer((callbackData: OAuthCallbackData) => {
+        this.handleOAuthHttpCallback(callbackData)
+      })
+
+      // Build authorization URL
+      const authUrl = await this.oauthProviderManager.buildAuthorizationUrl(providerId, this.currentProviderPKCE)
+
+      // Open browser for user authentication
+      await shell.openExternal(authUrl)
+    }
+    catch (error) {
+      console.error(`❌ OAuth flow error for ${providerId}:`, error)
+      await this.notifyProviderAuthError(providerId, 'Failed to start authentication')
+      this.oauthHttpServer.stopServer() // Clean up on error
+      throw error
+    }
+  }
+
+  // private async handleProviderOAuthCallback(url: string): Promise<void> {
+  //   try {
+  //     const urlObj = new URL(url)
+  //     const code = urlObj.searchParams.get('code')
+  //     const state = urlObj.searchParams.get('state')
+  //     const error = urlObj.searchParams.get('error')
+
+  //     if (error) {
+  //       throw new Error(`OAuth error: ${error} - ${urlObj.searchParams.get('error_description')}`)
+  //     }
+
+  //     if (!code || !state) {
+  //       throw new Error('Missing authorization code or state')
+  //     }
+
+  //     if (!this.currentProviderPKCE || state !== this.currentProviderPKCE.state) {
+  //       throw new Error('State mismatch - potential CSRF attack')
+  //     }
+
+  //     // Exchange code for tokens
+  //     await this.exchangeProviderCodeForTokens(this.currentProviderPKCE.providerId, code, this.currentProviderPKCE)
+  //   }
+  //   catch (error) {
+  //     console.error('❌ Provider OAuth callback error:', error)
+  //     const providerId = this.currentProviderPKCE?.providerId || 'unknown'
+  //     await this.notifyProviderAuthError(providerId, `Authentication failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+  //   }
+  // }
+
+  // Server provider OAuth flow
+  private async startServerProviderOAuthFlow(serverId: string, provider: string): Promise<void> {
+    try {
+      const server = await this.oauthProviderManager.getServerProvider(serverId)
+      if (!server) {
+        throw new Error(`Server provider ${serverId} not found`)
+      }
+
+      // Generate state for the flow
+      const state = crypto.randomBytes(16).toString('hex')
+      const accessToken = await this.getValidAccessToken() || undefined
+      // Start HTTP server to handle OAuth callback
+      await this.oauthHttpServer.startServer((callbackData: OAuthCallbackData) => {
+        this.handleServerOAuthHttpCallback(callbackData, serverId, provider, { oauthToken: accessToken })
+      })
+
+      // Fetch authorization URL from server
+      const { authUrl, sessionId } = await this.oauthProviderManager.fetchServerAuthorizationUrl(
+        serverId,
+        provider,
+        state,
+        accessToken || undefined,
+      )
+
+      // Store session info for callback
+      this.currentProviderPKCE = {
+        codeVerifier: '',
+        codeChallenge: '',
+        state: state,
+        providerId: provider, // Use just the provider name (e.g., "google")
+        sessionId: sessionId,
+      }
+
+      // Open browser for user authentication
+      await shell.openExternal(authUrl)
+    }
+    catch (error) {
+      console.error(`❌ Server OAuth flow error for ${serverId}/${provider}:`, error)
+      this.notifyProviderAuthError(provider, 'Failed to start authentication')
+      this.oauthHttpServer.stopServer() // Clean up on error
+    }
+  }
+
+  private async fetchOnboardingGithubProvider(): Promise<void> {
+    const provider = 'onboarding'
+
+    const response = await fetch(`https://api.keyboard.dev/auth/keyboard_github/onboarding`)
+    const data = await response.json() as OnboardingGitHubResponse
+    const sessionId = data.session_id
+    const authUrl = data.authorization_url
+    const state = data.state
+    this.currentProviderPKCE = {
+      codeVerifier: '',
+      codeChallenge: '',
+      state: state,
+      providerId: provider, // Use just the provider name (e.g., "google")
+      sessionId: sessionId,
+    }
+    await this.oauthHttpServer.startServer((callbackData: OAuthCallbackData) => {
+      this.handleServerOAuthHttpCallback(callbackData, 'onboarding', provider)
+    })
+    if (!authUrl) throw new Error('No authorization URL found')
+    await shell.openExternal(authUrl)
+  }
+
+  private async handleServerOAuthHttpCallback(
+    callbackData: OAuthCallbackData,
+    serverId: string,
+    provider: string,
+    options?: {
+      oauthToken?: string
+    },
+  ): Promise<void> {
+    try {
+      if (callbackData.error) {
+        throw new Error(`OAuth error: ${callbackData.error} - ${callbackData.error_description || ''}`)
+      }
+
+      if (!callbackData.code || !callbackData.state) {
+        throw new Error('Missing authorization code or state')
+      }
+
+      if (!this.currentProviderPKCE) {
+        throw new Error('No session data stored - possible callback timeout')
+      }
+
+      if (callbackData.state !== this.currentProviderPKCE.state) {
+        console.error('❌ State mismatch:', {
+          received: callbackData.state,
+          expected: this.currentProviderPKCE.state,
+        })
+        throw new Error('State mismatch - potential security issue')
+      }
+
+      // Exchange code for tokens using server
+      let accessToken = options?.oauthToken
+      if (!accessToken) {
+        accessToken = await this.getValidAccessToken() || undefined
+      }
+      const tokens = await this.oauthProviderManager.exchangeServerCodeForTokens(
+        serverId,
+        provider,
+        callbackData.code,
+        callbackData.state,
+        this.currentProviderPKCE.sessionId!,
+        accessToken || undefined,
+      )
+      // Store tokens securely
+      await this.perProviderTokenStorage.storeTokens(tokens)
+      if (provider === 'onboarding') {
+        await this.perProviderTokenStorage.saveOnboardingTokens(tokens)
+        await this.githubService.initializeToken()
+        await this.githubService.createFork('keyboard-dev', 'codespace-executor')
+        await this.githubService.createFork('keyboard-dev', 'app-creator')
+
+        // Connect to executor with the new onboarding token
+        if (this.executorWSClient) {
+          this.executorWSClient.setGitHubToken(tokens.access_token)
+        }
+      }
+
+      this.currentProviderPKCE = null
+
+      // Notify the renderer process
+      const providerConfig = await this.oauthProviderManager.getProvider(provider)
+      this.windowManager.sendMessage('provider-auth-success', {
+        providerId: tokens.providerId,
+        providerName: providerConfig?.name || provider,
+        user: tokens.user,
+        authenticated: true,
+      })
+
+      // Show the window after successful authentication
+      this.windowManager.showWindow()
+
+      // Show success notification
+      this.showNotification({
+        id: `auth-success-${tokens.providerId}`,
+        title: `Server OAuth Authentication Successful`,
+        body: `Successfully connected to ${serverId} (${provider})${tokens.user ? ` as ${tokens.user.name || tokens.user.email}` : ''}`,
+        timestamp: Date.now(),
+        priority: 'normal',
+      })
+    }
+    catch (error) {
+      console.error(`❌ Server OAuth callback error for ${serverId}/${provider}:`, error)
+      this.notifyProviderAuthError(provider, `Authentication failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  private async handleOAuthHttpCallback(callbackData: OAuthCallbackData): Promise<void> {
+    try {
+      if (callbackData.error) {
+        throw new Error(`OAuth error: ${callbackData.error} - ${callbackData.error_description || ''}`)
+      }
+
+      if (!callbackData.code || !callbackData.state) {
+        throw new Error('Missing authorization code or state')
+      }
+
+      if (!this.currentProviderPKCE) {
+        throw new Error('No PKCE parameters stored - possible callback timeout or duplicate callback')
+      }
+
+      if (callbackData.state !== this.currentProviderPKCE.state) {
+        console.error('❌ State mismatch details:', {
+          received: callbackData.state,
+          expected: this.currentProviderPKCE.state,
+          providerId: this.currentProviderPKCE.providerId,
+        })
+        throw new Error('State mismatch - potential CSRF attack')
+      }
+
+      // Exchange code for tokens
+      await this.exchangeProviderCodeForTokens(this.currentProviderPKCE.providerId, callbackData.code, this.currentProviderPKCE)
+    }
+    catch (error) {
+      console.error('❌ OAuth HTTP callback error:', error)
+      const providerId = this.currentProviderPKCE?.providerId || 'unknown'
+      this.notifyProviderAuthError(providerId, `Authentication failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  private async exchangeProviderCodeForTokens(providerId: string, code: string, pkceParams: NewPKCEParams): Promise<void> {
+    try {
+      // Exchange code for tokens using provider manager
+      const tokens = await this.oauthProviderManager.exchangeCodeForTokens(providerId, code, pkceParams)
+
+      // Store tokens securely
+      await this.perProviderTokenStorage.storeTokens(tokens)
+
+      // Clear PKCE data
+      this.currentProviderPKCE = null
+
+      // Get provider info for notifications
+      const provider = await this.oauthProviderManager.getProvider(providerId)
+      const providerName = provider?.name || providerId
+
+      // Notify the renderer process
+      this.windowManager.sendMessage('provider-auth-success', {
+        providerId: providerId,
+        providerName: providerName,
+        user: tokens.user,
+        authenticated: true,
+      })
+
+      // Show the window after successful authentication
+      this.windowManager.showWindow()
+
+      // Show success notification
+      this.showNotification({
+        id: `auth-success-${providerId}`,
+        title: `${providerName} Authentication Successful`,
+        body: `Successfully connected to ${providerName}${tokens.user ? ` as ${tokens.user.name || tokens.user.email}` : ''}`,
+        timestamp: Date.now(),
+        priority: 'normal',
+      })
+    }
+    catch (error) {
+      console.error(`❌ Token exchange error for ${providerId}:`, error)
+      await this.notifyProviderAuthError(providerId, `Token exchange failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  private async refreshProviderTokens(providerId: string, refreshToken: string): Promise<ProviderTokens> {
+    return await this.oauthProviderManager.refreshTokens(providerId, refreshToken)
+  }
+
+  private async getValidProviderAccessToken(providerId: string): Promise<string | null> {
+    return await this.perProviderTokenStorage.getValidAccessToken(
+      providerId,
+      this.refreshProviderTokens.bind(this),
+    )
+  }
+
+  private async notifyProviderAuthError(providerId: string, message: string): Promise<void> {
+    console.error(`🔐 Auth Error for ${providerId}:`, message)
+
+    this.windowManager.sendMessage('provider-auth-error', {
+      providerId,
+      message,
+    })
+
+    const provider = await this.oauthProviderManager.getProvider(providerId)
+    const providerName = provider?.name || providerId
+
+    this.showNotification({
+      id: `auth-error-${providerId}`,
+      title: `${providerName} Authentication Error`,
+      body: message,
+      timestamp: Date.now(),
+      priority: 'high',
+    })
+  }
+
+  private async logoutProvider(providerId: string): Promise<void> {
+    await this.perProviderTokenStorage.removeTokens(providerId)
+    this.windowManager.sendMessage('provider-auth-logout', { providerId })
+  }
+
+  private async startOAuthFlow(): Promise<void> {
+    try {
+      // Generate PKCE parameters
+      this.currentPKCE = this.generatePKCE()
+
+      // Get authorization URL from server
+      const params = new URLSearchParams({
+        redirect_uri: `${this.CUSTOM_PROTOCOL}://callback`,
+        state: this.currentPKCE.state,
+        code_challenge: this.currentPKCE.codeChallenge,
+        code_challenge_method: 'S256',
+      })
+
+      const response = await fetch(`${this.OAUTH_SERVER_URL}/oauth/authorize?${params}`)
+
+      if (!response.ok) {
+        throw new Error(`Failed to get authorization URL: ${response.statusText}`)
+      }
+
+      const data = await response.json() as AuthorizeResponse
+
+      // Open browser for user authentication
+      await shell.openExternal(data.authorization_url)
+    }
+    catch (error) {
+      console.error('❌ OAuth flow error:', error)
+      this.notifyAuthError('Failed to start authentication')
+    }
+  }
+
+  private async handleOAuthCallback(url: string): Promise<void> {
+    try {
+      const urlObj = new URL(url)
+      const code = urlObj.searchParams.get('code')
+      const state = urlObj.searchParams.get('state')
+      const error = urlObj.searchParams.get('error')
+
+      if (error) {
+        throw new Error(`OAuth error: ${error} - ${urlObj.searchParams.get('error_description')}`)
+      }
+
+      if (!code || !state) {
+        throw new Error('Missing authorization code or state')
+      }
+
+      if (!this.currentPKCE || state !== this.currentPKCE.state) {
+        throw new Error('State mismatch - potential CSRF attack')
+      }
+
+      // Exchange code for tokens
+      await this.exchangeCodeForTokens(code)
+    }
+    catch (error) {
+      console.error('❌ OAuth callback error:', error)
+      this.notifyAuthError(`Authentication failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  private async exchangeCodeForTokens(code: string): Promise<void> {
+    try {
+      if (!this.currentPKCE) {
+        throw new Error('No PKCE parameters available')
+      }
+
+      const response = await fetch(`${this.OAUTH_SERVER_URL}/oauth/token`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          code: code,
+          redirect_uri: `${this.CUSTOM_PROTOCOL}://callback`,
+          code_verifier: this.currentPKCE.codeVerifier,
+          grant_type: 'authorization_code',
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({})) as ErrorResponse
+        throw new Error(`Token exchange failed: ${errorData.error_description || response.statusText}`)
+      }
+
+      const tokens = await response.json() as TokenResponse
+
+      // Calculate expiration time and create AuthTokens object
+      const authTokens: AuthTokens = {
+        ...tokens,
+        expires_at: Date.now() + (tokens.expires_in * 1000),
+      }
+
+      this.authTokens = authTokens
+      await this.refreshTokens()
+
+      // Store tokens securely to encrypted storage
+      await this.saveAuthTokens(this.authTokens)
+
+      this.currentPKCE = null // Clear PKCE data
+
+      // Notify the renderer process
+      this.windowManager.sendMessage('auth-success', {
+        user: tokens.user,
+        authenticated: true,
+      })
+
+      // Show the window after successful authentication
+      this.windowManager.showWindow()
+      const notificationApp = this
+      // Show success notification
+      this.showNotification({
+        id: 'auth-success',
+        title: 'Authentication Successful',
+        body: `Welcome back, ${tokens.user.firstName || tokens.user.email}!`,
+        timestamp: Date.now(),
+        priority: 'normal',
+      })
+
+      this.sseBackgroundService = new SSEBackgroundService({
+        serverUrl: 'https://mcp.keyboard.dev',
+      })
+      this.sseBackgroundService.setAuthToken(this.authTokens?.access_token)
+      this.sseBackgroundService.connect()
+      this.sseBackgroundService.on('connected', () => {
+        console.log('Connected to SSE')
+      })
+      // this.sseBackgroundService.on('codespace_online', async (data: CodespaceData) => {
+      //   console.log('Codespace online:', data)
+      //   await notificationApp.connectToExecutorWithToken()
+      //   await notificationApp.executorWSClient?.autoConnect()
+      // })
+
+      this.sseBackgroundService.on('codespace-online', async (data: CodespaceData) => {
+        await notificationApp.getValidAccessToken()
+        await notificationApp.connectToExecutorWithToken()
+        await notificationApp.executorWSClient?.autoConnect()
+      })
+    }
+    catch (error) {
+      console.error('❌ Token exchange error:', error)
+      this.notifyAuthError(`Token exchange failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  private async refreshTokens(): Promise<boolean> {
+    try {
+      if (!this.authTokens?.refresh_token) {
+        this.authTokens = await this.loadAuthTokens()
+        if (!this.authTokens?.refresh_token) {
+          return false
+        }
+      }
+
+      const response = await fetch(`${this.OAUTH_SERVER_URL}/oauth/refresh`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          refresh_token: this.authTokens.refresh_token,
+          grant_type: 'refresh_token',
+        }),
+      })
+
+      if (!response.ok) {
+        console.error('❌ Token refresh failed:', response.statusText)
+        return false
+      }
+
+      const tokens = await response.json() as TokenResponse
+      // Update tokens
+
+      this.authTokens = {
+        ...this.authTokens,
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token,
+        expires_in: tokens.expires_in,
+        expires_at: Date.now() + (tokens.expires_in * 1000),
+      }
+
+      // Save updated tokens to encrypted storage
+      await this.saveAuthTokens(this.authTokens)
+
+      return true
+    }
+    catch (error) {
+      console.error('❌ Token refresh error:', error)
+      return false
+    }
+  }
+
+  private async getValidAccessToken(): Promise<string | null> {
+    // Use the centralized token validation method
+    const isValid = await this.ensureValidAuthTokens()
+
+    if (!isValid) {
+      // All token recovery attempts failed, show notification and logout
+      console.log('🔐 Authentication failed, logging out user')
+      this.showNotification({
+        id: 'session-expired',
+        title: 'Session Expired',
+        body: 'Your session has expired. Please log in again to continue.',
+        timestamp: Date.now(),
+        priority: 'high',
+      })
+
+      // Log the user out completely and show login screen
+      this.logout()
+      this.windowManager.showWindow() // Bring app to foreground
+      return null
+    }
+
+    return this.authTokens!.access_token
+  }
+
   private async getScripts(): Promise<Script[]> {
-    const accessToken = await this.authService.getValidAccessToken()
+    const accessToken = await this.getValidAccessToken()
     const response = await fetch(`${this.OAUTH_SERVER_URL}/api/scripts`, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -937,6 +1646,162 @@ class MenuBarNotificationApp {
     const scriptsResponse = await response.json() as { scripts: Script[] }
     const scripts = scriptsResponse?.scripts || []
     return scripts
+  }
+
+  private notifyAuthError(message: string): void {
+    console.error('🔐 Auth Error:', message)
+
+    this.windowManager.sendMessage('auth-error', { message })
+
+    this.showNotification({
+      id: 'auth-error',
+      title: 'Authentication Error',
+      body: message,
+      timestamp: Date.now(),
+      priority: 'high',
+    })
+  }
+
+  // Auth Token Persistence Methods
+  private async saveAuthTokens(authTokens: AuthTokens): Promise<void> {
+    try {
+      const tokenData = JSON.stringify(authTokens)
+      const encryptedData = encrypt(tokenData)
+
+      // Ensure directory exists
+      const dir = path.dirname(this.KEYBOARD_AUTH_TOKENS)
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true })
+      }
+
+      // Write with secure permissions
+      fs.writeFileSync(this.KEYBOARD_AUTH_TOKENS, encryptedData, { mode: 0o600 })
+    }
+    catch (error) {
+      console.error('❌ Failed to save auth tokens:', error)
+    }
+  }
+
+  private async loadAuthTokens(): Promise<AuthTokens | null> {
+    try {
+      if (!fs.existsSync(this.KEYBOARD_AUTH_TOKENS)) {
+        return null
+      }
+
+      const encryptedData = fs.readFileSync(this.KEYBOARD_AUTH_TOKENS, 'utf8')
+      const decryptedData = decrypt(encryptedData)
+
+      if (!decryptedData) {
+        return null
+      }
+
+      const authTokens = JSON.parse(decryptedData) as AuthTokens
+
+      // Validate token structure
+      if (!authTokens.access_token || !authTokens.refresh_token || !authTokens.expires_at) {
+        return null
+      }
+
+      // Check if tokens are expired (with 5 minute buffer)
+      const bufferTime = 5 * 60 * 1000 // 5 minutes
+      if (Date.now() >= (authTokens.expires_at - bufferTime)) {
+        return null
+      }
+
+      return authTokens
+    }
+    catch (error) {
+      console.error('❌ Failed to load auth tokens:', error)
+      return null
+    }
+  }
+
+  private async clearAuthTokens(): Promise<void> {
+    try {
+      if (fs.existsSync(this.KEYBOARD_AUTH_TOKENS)) {
+        fs.unlinkSync(this.KEYBOARD_AUTH_TOKENS)
+      }
+    }
+    catch (error) {
+      console.error('❌ Failed to clear auth tokens:', error)
+    }
+  }
+
+  private async loadPersistedAuthTokens(): Promise<void> {
+    // Only load if we don't already have tokens in memory
+    if (this.authTokens) {
+      return
+    }
+
+    const persistedTokens = await this.loadAuthTokens()
+    if (persistedTokens) {
+      this.authTokens = persistedTokens
+
+      // Notify the renderer process about restored auth
+      this.windowManager.sendMessage('auth-success', {
+        user: persistedTokens.user,
+        authenticated: true,
+      })
+
+      // Set up SSE service with restored token
+      if (this.sseBackgroundService) {
+        this.sseBackgroundService.setAuthToken(persistedTokens.access_token)
+      }
+    }
+  }
+
+  // Centralized method to ensure this.authTokens is valid and fresh
+  private async ensureValidAuthTokens(): Promise<boolean> {
+    // Return false if no tokens at all
+    if (!this.authTokens) {
+      return false
+    }
+
+    // Check if token is expired (with 5 minute buffer)
+    const bufferTime = 5 * 60 * 1000 // 5 minutes
+    if (Date.now() < (this.authTokens.expires_at - bufferTime)) {
+      // Token is still valid, no action needed
+      return true
+    }
+
+    // Token is expired/expiring, try to refresh
+    console.log('🔐 Auth tokens expiring soon, refreshing...')
+    const refreshed = await this.refreshTokens()
+
+    if (refreshed) {
+      console.log('✅ Auth tokens refreshed successfully')
+      return true
+    }
+
+    // Refresh failed, try storage fallback
+    console.log('🔐 Token refresh failed, trying storage fallback...')
+    const storageTokens = await this.loadAuthTokens()
+
+    if (storageTokens && storageTokens.access_token !== this.authTokens.access_token) {
+      // Found different tokens in storage, use them
+      this.authTokens = storageTokens
+      console.log('🔐 Successfully recovered from storage fallback')
+      return true
+    }
+
+    // All recovery attempts failed
+    console.log('❌ All token refresh attempts failed')
+    return false
+  }
+
+  private logout(): void {
+    this.authTokens = null
+    this.currentPKCE = null
+
+    // Clear stored tokens
+    this.clearAuthTokens()
+
+    // Disconnect from SSE when logging out
+    if (this.sseBackgroundService) {
+      this.sseBackgroundService.disconnect()
+    }
+
+    this.windowManager.sendMessage('auth-logout')
   }
 
   private setupWebSocketServer(): void {
@@ -978,10 +1843,9 @@ class MenuBarNotificationApp {
         try {
           const message = JSON.parse(data.toString())
 
-          // Handle token request (legacy OAuth) - delegate to AuthService
+          // Handle token request (legacy OAuth)
           if (message.type === 'request-token') {
-            const token = await this.authService.getValidAccessToken()
-            const authTokens = this.authService.getAuthTokens()
+            const token = await this.getValidAccessToken()
 
             const tokenResponse = {
               type: 'auth-token',
@@ -989,26 +1853,92 @@ class MenuBarNotificationApp {
               timestamp: Date.now(),
               requestId: message.requestId, // Echo back request ID if provided
               authenticated: !!token || this.SKIP_AUTH,
-              user: token ? authTokens?.user : (this.SKIP_AUTH ? { email: 'test@example.com', firstName: 'Test' } : null),
+              user: token ? this.authTokens?.user : (this.SKIP_AUTH ? { email: 'test@example.com', firstName: 'Test' } : null),
             }
 
             ws.send(JSON.stringify(tokenResponse))
             return
           }
 
-          // Handle provider token request - delegate to OAuthService
+          // Handle provider token request (new OAuth provider system)
           if (message.type === 'request-provider-token') {
-            const tokenResponse = await this.oauthService.handleWebSocketProviderTokenRequest(message.providerId)
-            tokenResponse.requestId = message.requestId
-            ws.send(JSON.stringify(tokenResponse))
+            const { providerId } = message
+
+            if (!providerId) {
+              ws.send(JSON.stringify({
+                type: 'provider-auth-token',
+                error: 'Provider ID is required',
+                timestamp: Date.now(),
+                requestId: message.requestId,
+              }))
+              return
+            }
+
+            try {
+              const token = await this.getValidProviderAccessToken(providerId.toLowerCase())
+              const providerStatus = await this.perProviderTokenStorage.getProviderStatus()
+              const providerInfo = providerStatus[providerId]
+              const provider = await this.oauthProviderManager.getProvider(providerId)
+
+              // Encrypt token using codespace encryption if available
+              const { encryptedToken, encrypted, encryptionMethod } = token
+                ? await this.encryptProviderToken(token)
+                : { encryptedToken: token, encrypted: false, encryptionMethod: 'none' }
+
+              const tokenResponse = {
+                type: 'provider-auth-token',
+                providerId: providerId,
+                token: encryptedToken,
+                encrypted: encrypted,
+                encryptionMethod: encryptionMethod,
+                timestamp: Date.now(),
+                requestId: message.requestId,
+                authenticated: !!token || this.SKIP_AUTH,
+                user: providerInfo?.user || (this.SKIP_AUTH ? { email: 'test@example.com', firstName: 'Test Provider' } : null),
+                providerName: provider?.name || providerId,
+              }
+
+              ws.send(JSON.stringify(tokenResponse))
+            }
+            catch (error) {
+              ws.send(JSON.stringify({
+                type: 'provider-auth-token',
+                providerId: providerId,
+                error: `Failed to get token: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                timestamp: Date.now(),
+                requestId: message.requestId,
+              }))
+            }
             return
           }
 
-          // Handle provider status request - delegate to OAuthService
+          // Handle provider status request
           if (message.type === 'request-provider-status') {
-            const statusResponse = await this.oauthService.handleWebSocketProviderStatusRequest()
-            statusResponse.requestId = message.requestId
-            ws.send(JSON.stringify(statusResponse))
+            try {
+              const providerStatus = await this.perProviderTokenStorage.getProviderStatus()
+
+              // Check ALL stored provider tokens (both direct and server provider tokens)
+              const tokensAvailable = Object.entries(providerStatus)
+                .filter(([, status]) => status?.authenticated)
+                .map(([providerId]) => `KEYBOARD_PROVIDER_USER_TOKEN_FOR_${providerId.toUpperCase()}`)
+
+              const statusResponse = {
+                type: 'user-tokens-available',
+                tokensAvailable: tokensAvailable,
+                timestamp: Date.now(),
+                requestId: message.requestId,
+              }
+
+              ws.send(JSON.stringify(statusResponse))
+            }
+            catch (error) {
+              ws.send(JSON.stringify({
+                type: 'user-tokens-available',
+                error: `Failed to get provider status: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                timestamp: Date.now(),
+                requestId: message.requestId,
+              }))
+            }
             return
           }
 
@@ -1110,7 +2040,6 @@ class MenuBarNotificationApp {
         if (!codespaceResponse) break
 
         const { data: codespaceResponseData } = codespaceResponse
-        if (!codespaceResponseData) break
         const { stderr } = codespaceResponseData
 
         switch (this.automaticResponseApproval) {
@@ -1138,7 +2067,6 @@ class MenuBarNotificationApp {
     }
 
     // Send to renderer for storage in IndexedDB and display
-    console.log('this.windowManager.sendMessage', message)
     this.windowManager.sendMessage('websocket-message', message)
 
     // Auto-show window for high priority messages
@@ -1227,13 +2155,16 @@ class MenuBarNotificationApp {
   }
 
   private setupIPC(): void {
-    // OAuth-related IPC handlers (Legacy) - delegate to AuthService
+    // OAuth-related IPC handlers (Legacy)
     ipcMain.handle('start-oauth', async (): Promise<void> => {
-      await this.authService.startOAuthFlow()
+      await this.startOAuthFlow()
     })
 
     ipcMain.handle('get-auth-status', (): { authenticated: boolean, user?: AuthUser } => {
-      return this.authService.getAuthStatus()
+      return {
+        authenticated: !!this.authTokens,
+        user: this.authTokens?.user,
+      }
     })
 
     ipcMain.handle('get-version-install-date', async (): Promise<Date | null> => {
@@ -1241,11 +2172,11 @@ class MenuBarNotificationApp {
     })
 
     ipcMain.handle('logout', (): void => {
-      this.authService.logout()
+      this.logout()
     })
 
     ipcMain.handle('get-access-token', async (): Promise<string | null> => {
-      return await this.authService.getValidAccessToken()
+      return await this.getValidAccessToken()
     })
 
     ipcMain.handle('get-scripts', async (): Promise<Script[]> => {
@@ -1253,7 +2184,7 @@ class MenuBarNotificationApp {
     })
 
     ipcMain.handle('delete-script', async (_event, scriptId: string): Promise<void> => {
-      const accessToken = await this.authService.getValidAccessToken()
+      const accessToken = await this.getValidAccessToken()
       if (!accessToken) {
         throw new Error('No access token available')
       }
@@ -1263,39 +2194,40 @@ class MenuBarNotificationApp {
       }
     })
 
-    // OAuth Provider IPC handlers - delegate to OAuthService
+    // New OAuth Provider IPC handlers
     ipcMain.handle('get-available-providers', async (): Promise<OAuthProvider[]> => {
-      return await this.oauthService.getAvailableProviders()
+      return await this.oauthProviderManager.getAvailableProviders()
     })
 
     ipcMain.handle('start-provider-oauth', async (_event, providerId: string): Promise<void> => {
-      await this.oauthService.startProviderOAuthFlow(providerId)
+      await this.startProviderOAuthFlow(providerId)
     })
 
     ipcMain.handle('get-provider-auth-status', async (): Promise<Record<string, unknown>> => {
-      return await this.oauthService.getProviderAuthStatus()
+      return await this.perProviderTokenStorage.getProviderStatus()
     })
 
     ipcMain.handle('get-provider-access-token', async (_event, providerId: string): Promise<string | null> => {
-      return await this.oauthService.getValidProviderAccessToken(providerId)
+      return await this.getValidProviderAccessToken(providerId)
     })
 
     ipcMain.handle('logout-provider', async (_event, providerId: string): Promise<void> => {
-      await this.oauthService.logoutProvider(providerId)
+      await this.logoutProvider(providerId)
     })
 
     ipcMain.handle('get-provider-tokens', async (_event, providerId: string): Promise<StoredProviderTokens | null> => {
-      return await this.oauthService.getProviderTokens(providerId)
+      return await this.perProviderTokenStorage.getTokens(providerId)
     })
 
     ipcMain.handle('refresh-provider-tokens', async (_event, providerId: string): Promise<boolean> => {
       try {
-        const tokens = await this.oauthService.getProviderTokens(providerId)
+        const tokens = await this.perProviderTokenStorage.getTokens(providerId)
         if (!tokens?.refresh_token) {
           return false
         }
 
-        await this.oauthService.refreshProviderTokens(providerId, tokens.refresh_token)
+        const refreshedTokens = await this.refreshProviderTokens(providerId, tokens.refresh_token)
+        await this.perProviderTokenStorage.storeTokens(refreshedTokens)
         return true
       }
       catch (error) {
@@ -1305,61 +2237,65 @@ class MenuBarNotificationApp {
     })
 
     ipcMain.handle('clear-all-provider-tokens', async (): Promise<void> => {
-      await this.oauthService.clearAllProviderTokens()
-    })
-
-    ipcMain.handle('expire-all-tokens-for-testing', async (): Promise<number> => {
-      return await this.oauthService.expireAllTokensForTesting()
+      await this.perProviderTokenStorage.clearAllTokens()
     })
 
     ipcMain.handle('get-oauth-storage-info', (): Record<string, unknown> => {
-      return this.oauthService.getOAuthStorageInfo()
+      return {
+        ...this.perProviderTokenStorage.getStorageInfo(),
+        providerStorage: this.oauthProviderManager.getProviderStorageInfo(),
+      }
     })
 
-    // Manual Provider Management IPC handlers - delegate to OAuthService
+    // Manual Provider Management IPC handlers
     ipcMain.handle('get-all-provider-configs', async (): Promise<OAuthProviderConfig[]> => {
-      return await this.oauthService.getAllProviderConfigs()
+      return await this.oauthProviderManager.getAllProviderConfigs()
     })
 
     ipcMain.handle('save-provider-config', async (_event, config: Omit<OAuthProviderConfig, 'createdAt' | 'updatedAt'>): Promise<void> => {
-      await this.oauthService.saveProviderConfig(config)
+      await this.oauthProviderManager.saveProviderConfig(config)
     })
 
     ipcMain.handle('remove-provider-config', async (_event, providerId: string): Promise<void> => {
-      await this.oauthService.removeProviderConfig(providerId)
+      await this.oauthProviderManager.removeProviderConfig(providerId)
     })
 
     ipcMain.handle('get-provider-config', async (_event, providerId: string): Promise<OAuthProviderConfig | null> => {
-      return await this.oauthService.getProviderConfig(providerId)
+      const provider = await this.oauthProviderManager.getProvider(providerId)
+      if (!provider) return null
+
+      // Get full config including metadata
+      const configs = await this.oauthProviderManager.getAllProviderConfigs()
+      return configs.find(c => c.id === providerId) || null
     })
 
-    // Server Provider IPC handlers - delegate to OAuthService
+    // Server Provider IPC handlers
     ipcMain.handle('add-server-provider', async (_event, server: ServerProvider): Promise<void> => {
-      await this.oauthService.addServerProvider(server)
+      await this.oauthProviderManager.addServerProvider(server)
     })
 
     ipcMain.handle('remove-server-provider', async (_event, serverId: string): Promise<void> => {
-      await this.oauthService.removeServerProvider(serverId)
+      await this.oauthProviderManager.removeServerProvider(serverId)
     })
 
     ipcMain.handle('get-server-providers', async (): Promise<ServerProvider[]> => {
-      return await this.oauthService.getServerProviders()
+      return await this.oauthProviderManager.getServerProviders()
     })
 
     ipcMain.handle('start-server-provider-oauth', async (_event, serverId: string, provider: string): Promise<void> => {
-      await this.oauthService.startServerProviderOAuthFlow(serverId, provider)
+      await this.startServerProviderOAuthFlow(serverId, provider)
     })
 
     ipcMain.handle('fetch-onboarding-github-provider', async (): Promise<void> => {
-      await this.oauthService.fetchOnboardingGithubProvider()
+      await this.fetchOnboardingGithubProvider()
     })
 
     ipcMain.handle('check-onboarding-github-token', async (): Promise<boolean> => {
-      return await this.oauthService.checkOnboardingTokenExists()
+      return await this.perProviderTokenStorage.checkOnboardingTokenExists()
     })
 
     ipcMain.handle('clear-onboarding-github-token', async (): Promise<void> => {
-      await this.oauthService.clearOnboardingToken()
+      await this.perProviderTokenStorage.clearOnboardingToken()
     })
 
     ipcMain.handle('check-onboarding-completed', async (): Promise<boolean> => {
@@ -1371,26 +2307,17 @@ class MenuBarNotificationApp {
     })
 
     ipcMain.handle('fetch-server-providers', async (_event, serverId: string): Promise<ServerProviderInfo[]> => {
-      return await this.oauthService.fetchServerProviders(serverId)
+      const accessToken = await this.getValidAccessToken()
+      const serverProviders = await this.oauthProviderManager.fetchServerProviders(serverId, accessToken || undefined)
+      return serverProviders
     })
 
     // Handle requests for all messages (now stored in renderer IndexedDB)
 
-    // Handle unified message response (approve/reject)
-    // Database update happens in renderer, this just forwards to WebSocket
-    ipcMain.handle('send-message-response', async (_event, message: Message, feedback?: string): Promise<void> => {
-      // Send response back through WebSocket if needed
-      this.sendWebSocketResponse(message)
-
-      // Send to executor based on status
-      if (this.executorWSClient) {
-        if (message.status === 'approved') {
-          this.executorWSClient.sendApproval(message.id, feedback)
-        }
-        else if (message.status === 'rejected') {
-          this.executorWSClient.sendRejection(message.id, feedback)
-        }
-      }
+    // Handle approve message
+    ipcMain.handle('approve-message', (_event, message: Message, feedback?: string): void => {
+      // Only send WebSocket response, database update happens in renderer
+      this.handleApproveMessage(message, feedback)
     })
 
     // Handle approve collection share
@@ -1429,6 +2356,17 @@ class MenuBarNotificationApp {
             client.send(JSON.stringify(promptRequest))
           }
         })
+      }
+    })
+
+    // Handle reject message
+    ipcMain.handle('reject-message', async (_event, messageId: string, feedback?: string): Promise<void> => {
+      // Only send WebSocket response, database update happens in renderer
+      this.handleRejectMessage(messageId, feedback)
+
+      // Send rejection to executor
+      if (this.executorWSClient) {
+        this.executorWSClient.sendRejection(messageId, feedback)
       }
     })
 
@@ -1600,11 +2538,6 @@ class MenuBarNotificationApp {
       if (this.executorWSClient) {
         this.executorWSClient.disconnect()
       }
-
-      // Disconnect from SSE when executor disconnects
-      if (this.sseBackgroundService) {
-        this.sseBackgroundService.disconnect()
-      }
     })
 
     // Codespace discovery and management IPC handlers
@@ -1767,6 +2700,7 @@ class MenuBarNotificationApp {
 
     // Send response back through WebSocket if needed
     this.sendWebSocketResponse(updatedMessage)
+
     // Send approval to executor
     if (this.executorWSClient) {
       this.executorWSClient.sendApproval(message.id, feedback)
@@ -1852,7 +2786,7 @@ class MenuBarNotificationApp {
   private setupRestAPI(): void {
     this.restApiServer = createRestAPIServer({
       getMessages: () => [], // Messages now stored in renderer IndexedDB
-      getAuthTokens: () => this.authService.getAuthTokens(),
+      getAuthTokens: () => this.authTokens,
       getWebSocketServerStatus: () => !!this.wsServer,
       updateMessageStatus: (messageId: string, status: 'approved' | 'rejected', feedback?: string) => {
         // Use helper method to handle message status update
@@ -1885,9 +2819,9 @@ class MenuBarNotificationApp {
       this.wsServer.close()
     }
 
-    // Stop OAuth HTTP server - delegate to OAuthService
-    if (this.oauthService) {
-      this.oauthService.stopOAuthHttpServer()
+    // Stop OAuth HTTP server
+    if (this.oauthHttpServer) {
+      this.oauthHttpServer.stopServer()
     }
 
     // Disconnect from executor

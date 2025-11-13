@@ -1,4 +1,3 @@
-import _ from 'lodash'
 import { Message, ShareMessage } from '../../types'
 
 const DB_NAME = 'keyboard-approver-db'
@@ -96,7 +95,6 @@ export class DatabaseService {
       }
       transaction.onerror = () => reject(transaction.error)
 
-      // Sanitize the message to prevent DataCloneError
       store.put(messageWithStatus)
     })
   }
@@ -120,7 +118,7 @@ export class DatabaseService {
       getRequest.onsuccess = () => {
         const message = getRequest.result
         if (message) {
-          const updatedMessage = _.merge({}, message, updates)
+          const updatedMessage = { ...message, ...updates }
           store.put(updatedMessage)
         }
         else {
@@ -316,7 +314,7 @@ export class DatabaseService {
       getRequest.onsuccess = () => {
         const shareMessage = getRequest.result
         if (shareMessage) {
-          const updatedShareMessage = _.merge({}, shareMessage, updates)
+          const updatedShareMessage = { ...shareMessage, ...updates }
           store.put(updatedShareMessage)
         }
         else {
