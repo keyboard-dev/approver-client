@@ -59,9 +59,29 @@ export class WebSearchTool {
 
       const searchTime = Date.now() - startTime
 
+      // Extract web search results from the nested API response structure
+      // API returns: {success: true, data: {content: [...]} }
+      console.log('YO WHAT IS THE RESPONSE', response)
+      const webSearchResults = response?.data?.content?.filter((item: { type: string }) => item.type === 'web_search_tool_result') || []
+      const results = webSearchResults.content.map(function (item: any) {
+        const data: any = {}
+        if (item.url) data.url = item.url
+        if (item.text) data.text = item.text
+        if (item.title) data.title = item.title
+        if (item.citations) data.citations = item.citations.map(function (citation: any) {
+          return {
+            url: citation.url,
+            text: citation.cited_text,
+            title: citation.title,
+          }
+        })
+      })
+
       return {
-        ...response,
-        totalResults: response.results.length,
+        results: results,
+        searchQuery: params.query,
+        provider: provider,
+        totalResults: results.length,
         searchTime,
       }
     }

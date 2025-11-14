@@ -1,8 +1,9 @@
 import React, { useState } from 'react'
-import { ChevronDown, ChevronRight, CheckCircle, XCircle, Clock, Zap } from 'lucide-react'
+import { ChevronDown, ChevronRight, CheckCircle, XCircle, Clock } from 'lucide-react'
 import { Card, CardContent, CardHeader } from './ui/card'
 import { Button } from './ui/button'
 import { Badge } from './ui/badge'
+import { ResultsDialog } from './ResultsDialog'
 import type { AbilityExecution } from '../hooks/useMCPEnhancedChat'
 
 interface AbilityExecutionCardProps {
@@ -11,6 +12,7 @@ interface AbilityExecutionCardProps {
 
 export const AbilityExecutionCard: React.FC<AbilityExecutionCardProps> = ({ execution }) => {
   const [expandedSection, setExpandedSection] = useState<'parameters' | 'results' | null>(null)
+  const [showFullResults, setShowFullResults] = useState(false)
 
   const getStatusIcon = () => {
     switch (execution.status) {
@@ -58,19 +60,16 @@ export const AbilityExecutionCard: React.FC<AbilityExecutionCardProps> = ({ exec
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             {getStatusIcon()}
-            <h4 className="font-medium text-sm">{execution.name}</h4>
+            <h4 className="font-medium text-sm">{execution.abilityName}</h4>
             <Badge variant="outline" className="text-xs">
               {execution.status}
             </Badge>
           </div>
           <div className="flex items-center gap-2 text-xs text-gray-500">
-            {execution.tokenCount && (
-              <span className="flex items-center gap-1">
-                <Zap className="w-3 h-3" />
-                {execution.tokenCount}
-              </span>
-            )}
             {getDuration() && <span>{getDuration()}</span>}
+            {execution.provider && (
+              <span className="text-xs bg-gray-100 px-1 rounded">{execution.provider}</span>
+            )}
           </div>
         </div>
       </CardHeader>
@@ -102,7 +101,7 @@ export const AbilityExecutionCard: React.FC<AbilityExecutionCardProps> = ({ exec
         </div>
 
         {/* Results Section */}
-        {(execution.results || execution.processedResult || execution.error) && (
+        {(execution.response || execution.error) && (
           <div>
             <Button
               variant="ghost"
@@ -131,20 +130,21 @@ export const AbilityExecutionCard: React.FC<AbilityExecutionCardProps> = ({ exec
                   </div>
                 )}
                 
-                {execution.processedResult && (
-                  <div className="bg-green-50 rounded p-2 border border-green-200 mb-2">
-                    <p className="text-xs text-green-700 font-medium mb-1">Processed Result:</p>
-                    <pre className="text-xs text-gray-700 whitespace-pre-wrap overflow-auto max-h-32">
-                      {execution.processedResult}
-                    </pre>
-                  </div>
-                )}
-                
-                {execution.results && (
+                {execution.response && (
                   <div className="bg-gray-50 rounded p-2 border">
-                    <p className="text-xs text-gray-600 font-medium mb-1">Raw Results:</p>
-                    <pre className="text-xs text-gray-700 whitespace-pre-wrap overflow-auto max-h-32">
-                      {formatJson(execution.results)}
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs text-gray-600 font-medium">Response:</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-xs h-6 px-2"
+                        onClick={() => setShowFullResults(true)}
+                      >
+                        View Full Results
+                      </Button>
+                    </div>
+                    <pre className="text-xs text-gray-700 whitespace-pre-wrap overflow-auto max-h-48">
+                      {formatJson(execution.response)}
                     </pre>
                   </div>
                 )}
@@ -153,6 +153,13 @@ export const AbilityExecutionCard: React.FC<AbilityExecutionCardProps> = ({ exec
           </div>
         )}
       </CardContent>
+      
+      {/* Results Dialog */}
+      <ResultsDialog
+        execution={execution}
+        isOpen={showFullResults}
+        onClose={() => setShowFullResults(false)}
+      />
     </Card>
   )
 }

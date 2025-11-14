@@ -22,6 +22,7 @@ export const webSearch = async function (args: WebSearchQueryArgs) {
   }
   const response = await fetch('https://api.keyboard.dev/api/search/developer-docs/web-search', requestOptions)
   const result = await response.json()
+  console.log('YO WHAT IS THE RESULTS', result)
   return JSON.stringify(result, null, 2)
 }
 
