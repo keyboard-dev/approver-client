@@ -5,6 +5,7 @@ import { Thread } from './assistant-ui/thread'
 import { MCPChatComponent } from './MCPChatComponent'
 import { AgenticControls } from './AgenticControls'
 import { AgenticStatusIndicator } from './AgenticStatusIndicator'
+import { AbilityExecutionPanel } from './AbilityExecutionPanel'
 import { Badge } from './ui/badge'
 import { Button } from './ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
@@ -65,6 +66,7 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({ onBack }) => {
   const [selectedModel, setSelectedModel] = useState('gpt-3.5-turbo')
   const [mcpEnabled, setMCPEnabled] = useState(false)
   const [availableProviders, setAvailableProviders] = useState<string[]>([])
+  const [showExecutionPanel, setShowExecutionPanel] = useState(false)
 
   // Initialize MCP enhanced chat
   const mcpChat = useMCPEnhancedChat({
@@ -264,6 +266,20 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({ onBack }) => {
                         onRefreshMCP={mcpChat.refreshMCPConnection}
                       />
                       
+                      {/* Execution Panel Toggle */}
+                      {mcpEnabled && (
+                        <div className="mb-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setShowExecutionPanel(!showExecutionPanel)}
+                            className="text-xs"
+                          >
+                            🔍 View Executions ({mcpChat.executions.length})
+                          </Button>
+                        </div>
+                      )}
+                      
                       {/* Agentic Status Indicator */}
                       <AgenticStatusIndicator
                         isAgenticMode={mcpChat.isAgenticMode}
@@ -281,6 +297,16 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({ onBack }) => {
           </CardContent>
         </Card>
       </AssistantRuntimeProvider>
+      
+      {/* Ability Execution Panel - Fixed overlay */}
+      <AbilityExecutionPanel
+        executions={mcpChat.executions}
+        isVisible={showExecutionPanel}
+        onClose={() => setShowExecutionPanel(false)}
+        currentStep={mcpChat.agenticProgress?.step}
+        totalSteps={mcpChat.agenticProgress?.totalSteps}
+        currentAction={mcpChat.agenticProgress?.currentAction}
+      />
     </TooltipProvider>
   )
 }

@@ -125,7 +125,14 @@ async function executeLocalWebSearch(
 /**
  * React hook for managing MCP ability integration state
  */
-export function useMCPIntegration(serverUrl: string = 'https://mcp.keyboard.dev', clientName: string = 'keyboard-approver-mcp') {
+export function useMCPIntegration(
+  serverUrl: string = 'https://mcp.keyboard.dev', 
+  clientName: string = 'keyboard-approver-mcp',
+  executionTracker?: {
+    addExecution: (abilityName: string, parameters: Record<string, unknown>, provider?: string) => string
+    updateExecution: (id: string, updates: Partial<any>) => void
+  }
+) {
   const mcpClient = useMcpClient({
     serverUrl,
     clientName,
@@ -177,6 +184,9 @@ export function useMCPIntegration(serverUrl: string = 'https://mcp.keyboard.dev'
     console.log('📊 MCP Client state:', mcpClient.state)
     console.log('🌐 Server URL:', serverUrl)
 
+    // Start execution tracking
+    const executionId = executionTracker?.addExecution(functionName, args, typeof args.provider === 'string' ? args.provider : undefined)
+
     try {
       // Intercept web-search calls and route to local implementation
       if (functionName === 'web-search') {
@@ -190,7 +200,7 @@ export function useMCPIntegration(serverUrl: string = 'https://mcp.keyboard.dev'
           throw new Error('Company parameter is required for web search and must be a string')
         }
 
-        return await webSearchTool.execute({
+        const result = await webSearchTool.execute({
           provider: typeof args.provider === 'string' ? args.provider : undefined,
           query: args.query,
           company: args.company,
@@ -200,6 +210,20 @@ export function useMCPIntegration(serverUrl: string = 'https://mcp.keyboard.dev'
           includeDomains: Array.isArray(args.includeDomains) ? args.includeDomains as string[] : undefined,
           excludeDomains: Array.isArray(args.excludeDomains) ? args.excludeDomains as string[] : undefined,
         })
+
+        // Update execution with success
+        if (executionId) {
+          executionTracker?.updateExecution(executionId, {
+            status: 'success',
+            response: result,
+            metadata: {
+              isLocalExecution: true,
+              intercepted: true,
+            },
+          })
+        }
+
+        return result
       }
 
       if (mcpClient.state !== 'ready') {
@@ -219,6 +243,20 @@ export function useMCPIntegration(serverUrl: string = 'https://mcp.keyboard.dev'
 
       console.log('✅ keyboard.dev-ability call completed in', callTime, 'ms')
       console.log('📊 Raw MCP result:', result)
+
+      // Update execution with success
+      if (executionId) {
+        executionTracker?.updateExecution(executionId, {
+          status: 'success',
+          response: result,
+          metadata: {
+            isLocalExecution: false,
+            intercepted: false,
+            callTime,
+          },
+        })
+      }
+
       return JSON.stringify(result, null, 2)
 
       // Process result efficiently
@@ -240,6 +278,14 @@ export function useMCPIntegration(serverUrl: string = 'https://mcp.keyboard.dev'
         message: errorMessage,
         stack: error instanceof Error ? error.stack : 'No stack trace',
       })
+
+      // Update execution with error
+      if (executionId) {
+        executionTracker?.updateExecution(executionId, {
+          status: 'error',
+          error: errorMessage,
+        })
+      }
 
       return {
         summary: `Error executing ${functionName}: ${errorMessage}`,

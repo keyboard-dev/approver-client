@@ -17,6 +17,24 @@ export interface AgenticProgress {
   isComplete: boolean
 }
 
+export interface AbilityExecution {
+  id: string
+  abilityName: string
+  status: 'executing' | 'success' | 'error'
+  startTime: number
+  endTime?: number
+  duration?: number
+  parameters: Record<string, unknown>
+  response?: any
+  error?: string
+  provider?: string
+  metadata?: {
+    isLocalExecution?: boolean
+    intercepted?: boolean
+    [key: string]: any
+  }
+}
+
 export interface MCPEnhancedChatState {
   // Adapter state
   adapter: AIChatAdapter
@@ -30,6 +48,7 @@ export interface MCPEnhancedChatState {
   // Ability execution state
   isExecutingAbility: boolean
   currentAbility?: string
+  executions: AbilityExecution[]
   
   // Agentic state
   isAgenticMode: boolean
@@ -40,6 +59,11 @@ export interface MCPEnhancedChatState {
   refreshMCPConnection: () => void
   setAbilityExecutionState: (isExecuting: boolean, abilityName?: string) => void
   setAgenticMode: (enabled: boolean) => void
+  
+  // Execution tracking functions
+  addExecution: (abilityName: string, parameters: Record<string, unknown>, provider?: string) => string
+  updateExecution: (id: string, updates: Partial<AbilityExecution>) => void
+  clearExecutions: () => void
 }
 
 /**
@@ -53,6 +77,7 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
   const [currentAbility, setCurrentAbility] = useState<string | undefined>()
   const [isAgenticMode, setAgenticModeState] = useState(true) // Default to agentic mode
   const [agenticProgress, setAgenticProgress] = useState<AgenticProgress | undefined>()
+  const [executions, setExecutions] = useState<AbilityExecution[]>([])
 
   // Simple ability execution state management
   // The adapter will call these functions directly during ability execution
@@ -70,6 +95,50 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
     }
   }, [])
 
+  // Execution tracking functions
+  const addExecution = useCallback((abilityName: string, parameters: Record<string, unknown>, provider?: string): string => {
+    const id = `exec_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
+    const execution: AbilityExecution = {
+      id,
+      abilityName,
+      status: 'executing',
+      startTime: Date.now(),
+      parameters,
+      provider,
+      metadata: {
+        isLocalExecution: abilityName === 'web-search',
+        intercepted: abilityName === 'web-search'
+      }
+    }
+    
+    setExecutions(prev => {
+      // Keep only the last 50 executions to prevent memory bloat
+      const updated = [execution, ...prev].slice(0, 50)
+      return updated
+    })
+    
+    return id
+  }, [])
+
+  const updateExecution = useCallback((id: string, updates: Partial<AbilityExecution>) => {
+    setExecutions(prev => prev.map(exec => {
+      if (exec.id === id) {
+        const updated = { ...exec, ...updates }
+        // Calculate duration if ending
+        if (updates.status !== 'executing' && !updated.endTime) {
+          updated.endTime = Date.now()
+          updated.duration = updated.endTime - updated.startTime
+        }
+        return updated
+      }
+      return exec
+    }))
+  }, [])
+
+  const clearExecutions = useCallback(() => {
+    setExecutions([])
+  }, [])
+
   // Control agentic mode
   const setAgenticMode = useCallback((enabled: boolean) => {
     setAgenticModeState(enabled)
@@ -81,7 +150,8 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
   // Initialize MCP integration when enabled
   const mcpIntegration = useMCPIntegration(
     config.serverUrl || 'https://mcp.keyboard.dev',
-    config.clientName || 'keyboard-approver-mcp'
+    config.clientName || 'keyboard-approver-mcp',
+    { addExecution, updateExecution }
   )
 
   // Update adapter when provider/model/MCP settings change
@@ -125,11 +195,15 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
     mcpError: mcpIntegration.error,
     isExecutingAbility,
     currentAbility,
+    executions,
     isAgenticMode,
     agenticProgress,
     setMCPEnabled,
     refreshMCPConnection,
     setAbilityExecutionState, // Expose for adapter to call
     setAgenticMode,
+    addExecution,
+    updateExecution,
+    clearExecutions,
   }
 }
