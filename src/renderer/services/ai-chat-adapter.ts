@@ -199,10 +199,10 @@ export class AIChatAdapter implements ChatModelAdapter {
           const processedResult = await this.mcpIntegration.executeAbilityCall(abilityName, parameters, processingOptions)
 
           abilityResults += `\n\n🚀 **${abilityName}** executed`
-          if (processedResult.wasFiltered) {
-            abilityResults += ` (${processedResult.filterReason})`
-          }
-          abilityResults += `\n**Result (${processedResult.tokenCount} tokens):**\n${processedResult.summary}`
+          // if (processedResult.wasFiltered) {
+          //   abilityResults += ` (${processedResult.filterReason})`
+          // }
+          abilityResults += `\n**Result ${processedResult}`
 
           // Check abort signal after tool execution
           if (abortSignal?.aborted) {

@@ -4,6 +4,8 @@ import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
 import * as WebSocket from 'ws'
+import { aiRuntime, initializeAIProviders } from './ai-provider/setup'
+import { webSearch } from './ai-provider/utils/dedicated-web'
 import { CodespaceEncryptionConfig, encryptWithCodespaceKey } from './codespace-encryption'
 import { decrypt, encrypt, setEncryptionKeyProvider } from './encryption'
 import { GithubService } from './Github'
@@ -20,7 +22,6 @@ import { AuthorizeResponse, AuthTokens, CollectionRequest, ErrorResponse, Messag
 import { CODE_APPROVAL_ORDER, CodeApprovalLevel, RESPONSE_APPROVAL_ORDER, ResponseApprovalLevel } from './types/settings-types'
 import { ExecutorWebSocketClient } from './websocket-client-to-executor'
 import { WindowManager } from './window-manager'
-import { aiRuntime, initializeAIProviders } from './ai-provider/setup'
 
 // Helper function to find assets directory reliably
 export function getAssetsPath(): string {
@@ -2693,9 +2694,10 @@ class MenuBarNotificationApp {
       }
     })
 
-    ipcMain.handle('web-search', async (_event, provider: string, query: any, config?: { model?: string }) => {
+    ipcMain.handle('web-search', async (_event, provider: string, query: string, company: string) => {
       try {
-        const response = await aiRuntime.webSearch(provider, query, config || {})
+        const accessToken = await this.authTokens?.access_token || ''
+        const response = await webSearch({ accessToken, query, company })
         return response
       }
       catch (error) {

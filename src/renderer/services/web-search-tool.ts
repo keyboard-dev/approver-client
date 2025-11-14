@@ -5,6 +5,7 @@
 
 export interface WebSearchToolParams {
   query: string
+  company: string
   maxResults?: number
   prioritizeMarkdown?: boolean
   prioritizeDocs?: boolean
@@ -37,36 +38,34 @@ export class WebSearchTool {
   async execute(params: WebSearchToolParams): Promise<WebSearchToolResult> {
     try {
       const startTime = Date.now()
-      
+
+      // Validate required parameters
+      if (!params.query?.trim()) {
+        throw new Error('Query parameter is required and cannot be empty')
+      }
+      if (!params.company?.trim()) {
+        throw new Error('Company parameter is required and cannot be empty')
+      }
+
       // Determine which provider to use
       const provider = params.provider || this.getCurrentProvider()
-      
+
       if (!provider) {
         throw new Error('No AI provider available for web search')
       }
 
-      // Prepare search query object
-      const searchQuery = {
-        query: params.query,
-        maxResults: params.maxResults || 5,
-        prioritizeMarkdown: params.prioritizeMarkdown || false,
-        prioritizeDocs: params.prioritizeDocs || true, // Default to prioritizing docs
-        includeDomains: params.includeDomains || this.getDefaultDomains(params.query),
-        excludeDomains: params.excludeDomains
-      }
+      // Call the provider's web search through IPC with all required parameters
+      const response = await window.electronAPI.webSearch(provider, params.query, params.company)
 
-      // Call the provider's web search through IPC
-      const response = await window.electronAPI.webSearch(provider, searchQuery)
-      
       const searchTime = Date.now() - startTime
 
       return {
         ...response,
         totalResults: response.results.length,
-        searchTime
+        searchTime,
       }
-
-    } catch (error) {
+    }
+    catch (error) {
       console.error('Web search tool error:', error)
       throw new Error(`Web search failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
@@ -83,9 +82,10 @@ export class WebSearchTool {
       // Check if provider is configured and supports web search
       const providers = await window.electronAPI.getAIProviderKeys()
       const providerInfo = providers.find(p => p.provider === targetProvider)
-      
-      return providerInfo?.configured && this.supportsWebSearch(targetProvider)
-    } catch (error) {
+
+      return !!(providerInfo?.configured && this.supportsWebSearch(targetProvider))
+    }
+    catch (error) {
       console.error('Error checking web search availability:', error)
       return false
     }
@@ -116,34 +116,34 @@ Results include processed content with code examples when available.`
       properties: {
         query: {
           type: 'string',
-          description: 'Search query for web content (e.g., "stripe payment api", "react hooks tutorial")'
+          description: 'Search query for web content (e.g., "stripe payment api", "react hooks tutorial")',
         },
         maxResults: {
           type: 'number',
           description: 'Maximum number of results to return (default: 5)',
           minimum: 1,
-          maximum: 10
+          maximum: 10,
         },
         prioritizeMarkdown: {
           type: 'boolean',
-          description: 'Prioritize markdown files and README documents (default: false)'
+          description: 'Prioritize markdown files and README documents (default: false)',
         },
         prioritizeDocs: {
           type: 'boolean',
-          description: 'Prioritize documentation websites and developer guides (default: true)'
+          description: 'Prioritize documentation websites and developer guides (default: true)',
         },
         includeDomains: {
           type: 'array',
           items: { type: 'string' },
-          description: 'Specific domains to focus on (e.g., ["docs.stripe.com", "developer.mozilla.org"])'
+          description: 'Specific domains to focus on (e.g., ["docs.stripe.com", "developer.mozilla.org"])',
         },
         excludeDomains: {
           type: 'array',
           items: { type: 'string' },
-          description: 'Domains to exclude from search results'
-        }
+          description: 'Domains to exclude from search results',
+        },
       },
-      required: ['query']
+      required: ['query'],
     }
   }
 
@@ -159,14 +159,14 @@ Results include processed content with code examples when available.`
     results.forEach((item, index) => {
       output += `## ${index + 1}. ${item.title}\n`
       output += `**URL:** ${item.url}\n`
-      
+
       if (item.contentFormat) {
         output += `**Format:** ${item.contentFormat}`
       }
       if (item.isMarkdown) output += ' | 📝 Markdown'
       if (item.isDocs) output += ' | 📚 Documentation'
       if (item.codeExamples && item.codeExamples > 0) output += ` | 💻 ${item.codeExamples} code examples`
-      
+
       output += '\n\n'
       output += item.snippet
       output += '\n\n---\n\n'
@@ -192,7 +192,8 @@ Results include processed content with code examples when available.`
 
       // Default to gemini if available since it has the best web search support
       return 'gemini'
-    } catch (error) {
+    }
+    catch (error) {
       console.warn('Could not determine current provider:', error)
       return 'gemini' // Default fallback
     }

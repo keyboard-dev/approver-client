@@ -2,7 +2,7 @@ import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
 import { useMcpClient } from '../hooks/useMcpClient'
 import { AbilityDiscoveryService, type AbilitySearchResult } from './ability-discovery'
 import { ResultProcessorService, type ProcessedResult, type ProcessingOptions } from './result-processor'
-import { webSearchTool } from './web-search-tool'
+import { webSearchTool, WebSearchToolParams } from './web-search-tool'
 
 /**
  * Universal MCP Ability Integration Service
@@ -98,57 +98,16 @@ async function executeLocalWebSearch(
   processingOptions?: ProcessingOptions,
 ): Promise<ProcessedResult> {
   const startTime = performance.now()
-  
+
   try {
-    // Validate and prepare web search parameters
-    const query = args.query as string
-    if (!query || typeof query !== 'string') {
-      throw new Error('Web search requires a valid query string')
-    }
+    const searchResult = await webSearchTool.execute(args)
 
-    const searchParams = {
-      query,
-      maxResults: (args.maxResults as number) || 5,
-      prioritizeMarkdown: (args.prioritizeMarkdown as boolean) || false,
-      prioritizeDocs: (args.prioritizeDocs as boolean) || true,
-      includeDomains: (args.includeDomains as string[]) || undefined,
-      excludeDomains: (args.excludeDomains as string[]) || undefined
-    }
-
-    console.log('🔍 Executing enhanced web search:', searchParams)
-
-    // Execute web search using our enhanced tool
-    const searchResult = await webSearchTool.execute(searchParams)
-    
-    // Format results for AI consumption
-    const formattedContent = webSearchTool.formatResultsForAI(searchResult)
-    
-    const callTime = Math.round(performance.now() - startTime)
-    console.log('✅ Enhanced web search completed in', callTime, 'ms')
-    console.log('📊 Search results:', {
-      totalResults: searchResult.totalResults,
-      provider: searchResult.provider,
-      searchTime: searchResult.searchTime
-    })
-
-    // Return in ProcessedResult format for MCP compatibility
-    return {
-      summary: formattedContent,
-      tokenCount: Math.ceil(formattedContent.length / 4), // Rough token estimate
-      wasFiltered: false,
-      metadata: {
-        searchQuery: searchResult.searchQuery,
-        provider: searchResult.provider,
-        totalResults: searchResult.totalResults,
-        searchTime: searchResult.searchTime,
-        enhancedSearch: true
-      }
-    }
-    
-  } catch (error) {
+    return searchResult
+  }
+  catch (error) {
     const callTime = Math.round(performance.now() - startTime)
     console.error('❌ Enhanced web search failed:', error)
-    
+
     // Return error in ProcessedResult format
     const errorMessage = `Enhanced web search failed: ${error instanceof Error ? error.message : 'Unknown error'}`
     return {
@@ -157,8 +116,8 @@ async function executeLocalWebSearch(
       wasFiltered: false,
       metadata: {
         error: true,
-        callTime
-      }
+        callTime,
+      },
     }
   }
 }
@@ -213,7 +172,7 @@ export function useMCPIntegration(serverUrl: string = 'https://mcp.keyboard.dev'
     functionName: string,
     args: Record<string, unknown>,
     processingOptions?: ProcessingOptions,
-  ): Promise<ProcessedResult> => {
+  ) => {
     console.log('🚀 keyboard.dev-ability Execution: Starting execution for', functionName)
     console.log('📊 MCP Client state:', mcpClient.state)
     console.log('🌐 Server URL:', serverUrl)
@@ -222,7 +181,25 @@ export function useMCPIntegration(serverUrl: string = 'https://mcp.keyboard.dev'
       // Intercept web-search calls and route to local implementation
       if (functionName === 'web-search') {
         console.log('🔍 Intercepting web-search call for enhanced local processing')
-        return await executeLocalWebSearch(args, processingOptions)
+
+        // Validate required parameters for web search
+        if (!args.query || typeof args.query !== 'string') {
+          throw new Error('Query parameter is required for web search and must be a string')
+        }
+        if (!args.company || typeof args.company !== 'string') {
+          throw new Error('Company parameter is required for web search and must be a string')
+        }
+
+        return await webSearchTool.execute({
+          provider: typeof args.provider === 'string' ? args.provider : undefined,
+          query: args.query,
+          company: args.company,
+          maxResults: typeof args.maxResults === 'number' ? args.maxResults : undefined,
+          prioritizeMarkdown: typeof args.prioritizeMarkdown === 'boolean' ? args.prioritizeMarkdown : undefined,
+          prioritizeDocs: typeof args.prioritizeDocs === 'boolean' ? args.prioritizeDocs : undefined,
+          includeDomains: Array.isArray(args.includeDomains) ? args.includeDomains as string[] : undefined,
+          excludeDomains: Array.isArray(args.excludeDomains) ? args.excludeDomains as string[] : undefined,
+        })
       }
 
       if (mcpClient.state !== 'ready') {
@@ -242,17 +219,18 @@ export function useMCPIntegration(serverUrl: string = 'https://mcp.keyboard.dev'
 
       console.log('✅ keyboard.dev-ability call completed in', callTime, 'ms')
       console.log('📊 Raw MCP result:', result)
+      return JSON.stringify(result, null, 2)
 
       // Process result efficiently
-      const processedResult = resultProcessor.processResult(functionName, result, processingOptions)
-      console.log('📄 Processed result summary (first 300 chars):', processedResult.summary.slice(0, 300))
-      console.log('🔧 Processing stats:', {
-        wasFiltered: processedResult.wasFiltered,
-        tokenCount: processedResult.tokenCount,
-        filterReason: processedResult.filterReason,
-      })
+      // const processedResult = resultProcessor.processResult(functionName, result, processingOptions)
+      // console.log('📄 Processed result summary (first 300 chars):', processedResult.summary.slice(0, 300))
+      // console.log('🔧 Processing stats:', {
+      //   wasFiltered: processedResult.wasFiltered,
+      //   tokenCount: processedResult.tokenCount,
+      //   filterReason: processedResult.filterReason,
+      // })
 
-      return processedResult
+      // return processedResult
     }
     catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
@@ -312,7 +290,7 @@ export const ProviderFormats = {
    * OpenAI function calling format
    */
   openai: {
-    convertTools: (functions: MCPToolFunction[]) => functions,
+    convertTools: (functions: MCPAbilityFunction[]) => functions,
     formatToolCall: (functionName: string, args: Record<string, unknown>) => ({
       type: 'function' as const,
       function: {
@@ -326,7 +304,7 @@ export const ProviderFormats = {
    * Anthropic tool use format
    */
   anthropic: {
-    convertTools: (functions: MCPToolFunction[]) =>
+    convertTools: (functions: MCPAbilityFunction[]) =>
       functions.map(func => ({
         name: func.function.name,
         description: func.function.description,
@@ -334,7 +312,7 @@ export const ProviderFormats = {
       })),
     formatToolCall: (functionName: string, args: Record<string, unknown>) => ({
       type: 'tool_use' as const,
-      id: `tool_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: `tool_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
       name: functionName,
       input: args,
     }),
@@ -344,7 +322,7 @@ export const ProviderFormats = {
    * Gemini function calling format
    */
   gemini: {
-    convertTools: (functions: MCPToolFunction[]) =>
+    convertTools: (functions: MCPAbilityFunction[]) =>
       functions.map(func => ({
         function_declarations: [{
           name: func.function.name,

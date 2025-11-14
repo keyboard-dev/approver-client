@@ -1,8 +1,14 @@
-import { AIProvider, AIProviderConfig, AIMessage, AIResponse, WebSearchQuery, WebSearchResponse } from './index'
+import { AuthTokens } from '@/types'
+import * as fs from 'fs'
+import * as os from 'os'
+import path from 'path'
+import { decrypt } from '../encryption'
 import { encryptedAIKeyStorage } from './encrypted-storage'
+import { AIMessage, AIProvider, AIProviderConfig, AIResponse, WebSearchQuery, WebSearchResponse } from './index'
 
 export class AIRuntime {
   private providers = new Map<string, AIProvider>()
+  private readonly KEYBOARD_AUTH_TOKENS = path.join(os.homedir(), '.keyboard-mcp', '.keyboard-mcp-tokens.json')
 
   registerProvider(provider: AIProvider) {
     this.providers.set(provider.name, provider)
@@ -90,7 +96,7 @@ export class AIRuntime {
     console.log('Web search request:', { provider: providerName, query })
     const response = await provider.webSearch(query, fullConfig)
     console.log('Web search response:', response)
-    
+
     return response
   }
 
@@ -100,6 +106,40 @@ export class AIRuntime {
 
   removeApiKey(providerName: string): void {
     encryptedAIKeyStorage.removeAPIKey(providerName)
+  }
+
+  private async loadAuthTokens(): Promise<AuthTokens | null> {
+    try {
+      if (!fs.existsSync(this.KEYBOARD_AUTH_TOKENS)) {
+        return null
+      }
+
+      const encryptedData = fs.readFileSync(this.KEYBOARD_AUTH_TOKENS, 'utf8')
+      const decryptedData = decrypt(encryptedData)
+
+      if (!decryptedData) {
+        return null
+      }
+
+      const authTokens = JSON.parse(decryptedData) as AuthTokens
+
+      // Validate token structure
+      if (!authTokens.access_token || !authTokens.refresh_token || !authTokens.expires_at) {
+        return null
+      }
+
+      // Check if tokens are expired (with 5 minute buffer)
+      const bufferTime = 5 * 60 * 1000 // 5 minutes
+      if (Date.now() >= (authTokens.expires_at - bufferTime)) {
+        return null
+      }
+
+      return authTokens
+    }
+    catch (error) {
+      console.error('❌ Failed to load auth tokens:', error)
+      return null
+    }
   }
 
   private getStoredApiKey(providerName: string): string {

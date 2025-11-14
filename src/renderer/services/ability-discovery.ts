@@ -19,6 +19,24 @@ export interface AbilitySearchResult {
  * Progressive ability discovery service
  * Implements efficient ability search and relevance scoring
  */
+
+const webSearchAbility: Tool = {
+  name: 'web-search',
+  description: 'use this ability to search the web for developer documentation, API references, and technical information. Automatically fetches full content from docs sites, processes markdown files, and extracts relevant code examples. Perfect for finding API documentation, tutorials, and technical resources. Example: {"ability": "web-search", "parameters": {"query": "stripe payment intents api", "company": "mycompany"}}',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      query: { type: 'string', description: 'Search query for web content' },
+      company: { type: 'string', description: 'Company context for the search' },
+      provider: { type: 'string', description: 'AI provider to use (optional)' },
+      maxResults: { type: 'number', description: 'Maximum number of results' },
+      prioritizeMarkdown: { type: 'boolean', description: 'Prioritize markdown files' },
+      prioritizeDocs: { type: 'boolean', description: 'Prioritize documentation sites' },
+    },
+    required: ['query', 'company'],
+  },
+}
+
 export class AbilityDiscoveryService {
   private abilities: Tool[] = []
   private abilityKeywords: Map<string, string[]> = new Map()
@@ -34,6 +52,7 @@ export class AbilityDiscoveryService {
    */
   updateAbilities(abilities: Tool[]): void {
     this.abilities = abilities
+    this.abilities.push(webSearchAbility)
     this.filesystem.organizeAbilities(abilities)
     this.rebuildKeywordIndex()
   }
