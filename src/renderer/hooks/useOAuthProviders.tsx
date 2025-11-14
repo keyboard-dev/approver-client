@@ -2,6 +2,9 @@ import { IpcRendererEvent } from 'electron'
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { ProviderAuthErrorData, ProviderAuthEventData, ProviderStatus } from '../../preload'
 
+// Provider IDs to exclude from OAuth provider management
+const EXCLUDED_PROVIDER_IDS = ['onboarding']
+
 // Grouped provider status by authentication state
 export interface GroupedProviderStatus {
   authenticated: Array<{ providerId: string } & ProviderStatus>
@@ -49,11 +52,17 @@ export const OAuthProvidersProvider: React.FC<OAuthProvidersProviderProps> = ({ 
       setError(null)
 
       const status = await window.electronAPI.getProviderAuthStatus()
-      setProviders(status)
+
+      // Filter out excluded providers
+      const filteredStatus = Object.fromEntries(
+        Object.entries(status).filter(([id]) => !EXCLUDED_PROVIDER_IDS.includes(id)),
+      )
+
+      setProviders(filteredStatus)
       setLastChecked(Date.now())
 
-      // Track which providers exist
-      Object.keys(status).forEach(id => availableProviderIds.current.add(id))
+      // Track which providers exist (excluding excluded ones)
+      Object.keys(filteredStatus).forEach(id => availableProviderIds.current.add(id))
     }
     catch (error) {
       console.error('Error fetching provider statuses:', error)
@@ -119,7 +128,12 @@ export const OAuthProvidersProvider: React.FC<OAuthProvidersProviderProps> = ({ 
       ...Array.from(availableProviderIds.current),
     ])
 
+    // Filter out excluded providers
     allProviderIds.forEach((providerId) => {
+      if (EXCLUDED_PROVIDER_IDS.includes(providerId)) {
+        return
+      }
+
       const status = providers[providerId]
 
       if (!status || !status.authenticated) {
@@ -188,7 +202,9 @@ export const OAuthProvidersProvider: React.FC<OAuthProvidersProviderProps> = ({ 
    */
   const getProviderId = useCallback((providerName: string): string | undefined => {
     const normalizedName = providerName.toLowerCase()
-    const foundId = Object.keys(providers).find(id => id.toLowerCase() === normalizedName)
+    const foundId = Object.keys(providers).find(
+      id => id.toLowerCase() === normalizedName && !EXCLUDED_PROVIDER_IDS.includes(id),
+    )
     return foundId
   }, [providers])
 
@@ -199,6 +215,11 @@ export const OAuthProvidersProvider: React.FC<OAuthProvidersProviderProps> = ({ 
     _event: IpcRendererEvent,
     data: ProviderAuthEventData,
   ) => {
+    // Skip excluded providers
+    if (EXCLUDED_PROVIDER_IDS.includes(data.providerId)) {
+      return
+    }
+
     setProviders(prev => ({
       ...prev,
       [data.providerId]: data.status,
@@ -225,6 +246,11 @@ export const OAuthProvidersProvider: React.FC<OAuthProvidersProviderProps> = ({ 
     _event: IpcRendererEvent,
     data: ProviderAuthEventData,
   ) => {
+    // Skip excluded providers
+    if (EXCLUDED_PROVIDER_IDS.includes(data.providerId)) {
+      return
+    }
+
     setProviders((prev) => {
       const updated = { ...prev }
       delete updated[data.providerId]
