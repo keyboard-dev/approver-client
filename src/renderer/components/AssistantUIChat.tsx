@@ -160,7 +160,7 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
   return (
     <TooltipProvider>
       <AssistantRuntimeProvider runtime={runtime}>
-        <Card className="w-full h-full flex flex-col">
+        <Card className="w-full h-full flex flex-col overflow-hidden">
           <CardHeader className="pb-3">
             {/* Compact single-row header */}
             <div className="flex items-center justify-between gap-3">
