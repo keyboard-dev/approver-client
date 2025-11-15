@@ -35,7 +35,12 @@ export const ChatApprovalMessage: React.FC<ChatApprovalMessageProps> = ({
     risk_level,
     status,
     timestamp,
+    title,
+    codespaceResponse,
   } = message
+
+  // Determine if this is a code response approval
+  const isCodeResponseApproval = title === 'code response approval'
 
   // Risk level styling
   let riskLevelColor, riskLevelBgColor
@@ -104,13 +109,15 @@ export const ChatApprovalMessage: React.FC<ChatApprovalMessageProps> = ({
   const createdAt = new Date(timestamp).toLocaleString()
 
   return (
-    <Card className={`border-l-4 border-l-orange-400 ${riskLevelBgColor}`}>
+    <Card className={`border-l-4 ${isCodeResponseApproval ? 'border-l-blue-400' : 'border-l-orange-400'} ${riskLevelBgColor}`}>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Shield className="w-5 h-5 text-orange-500" />
+            <Shield className={`w-5 h-5 ${isCodeResponseApproval ? 'text-blue-500' : 'text-orange-500'}`} />
             <div>
-              <h3 className="font-semibold text-sm">Security Approval Required</h3>
+              <h3 className="font-semibold text-sm">
+                {isCodeResponseApproval ? 'Code Execution Approval Required' : 'Security Approval Required'}
+              </h3>
               <p className="text-xs text-gray-500">{createdAt}</p>
             </div>
           </div>
@@ -125,13 +132,48 @@ export const ChatApprovalMessage: React.FC<ChatApprovalMessageProps> = ({
 
       <CardContent className="space-y-3">
         {/* Explanation */}
-        <div className="p-3 bg-white rounded-md border">
-          <h4 className="font-medium text-sm mb-2">What the AI wants to do:</h4>
-          <p className="text-sm text-gray-700">{explanation}</p>
-        </div>
+        {!isCodeResponseApproval && explanation && (
+          <div className="p-3 bg-white rounded-md border">
+            <h4 className="font-medium text-sm mb-2">What the AI wants to do:</h4>
+            <p className="text-sm text-gray-700">{explanation}</p>
+          </div>
+        )}
+
+        {/* Code Execution Results */}
+        {isCodeResponseApproval && codespaceResponse?.data && (
+          <div className="space-y-3">
+            <div className="p-3 bg-white rounded-md border">
+              <h4 className="font-medium text-sm mb-2">Code Execution Results:</h4>
+              
+              {/* Standard Output */}
+              {codespaceResponse.data.stdout && (
+                <div className="mb-3">
+                  <div className="text-xs font-medium text-gray-600 mb-1">Output:</div>
+                  <pre className="text-xs bg-gray-100 p-2 rounded border overflow-x-auto max-h-32">
+                    {codespaceResponse.data.stdout}
+                  </pre>
+                </div>
+              )}
+
+              {/* Error Output */}
+              {codespaceResponse.data.stderr && (
+                <div className="mb-3">
+                  <div className="text-xs font-medium text-red-600 mb-1">Error Output:</div>
+                  <pre className="text-xs bg-red-50 border border-red-200 p-2 rounded overflow-x-auto max-h-32 text-red-800">
+                    {codespaceResponse.data.stderr}
+                  </pre>
+                </div>
+              )}
+
+              {!codespaceResponse.data.stdout && !codespaceResponse.data.stderr && (
+                <p className="text-sm text-gray-500 italic">No output available</p>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Expandable code section */}
-        {code && (
+        {!isCodeResponseApproval && code && (
           <div className="border rounded-md">
             <button
               onClick={() => setIsExpanded(!isExpanded)}
@@ -168,7 +210,11 @@ export const ChatApprovalMessage: React.FC<ChatApprovalMessageProps> = ({
               disabled={isApproving || isRejecting}
               className="bg-green-600 hover:bg-green-700 text-white"
             >
-              {isApproving ? 'Approving...' : 'Approve'}
+              {isApproving 
+                ? 'Approving...' 
+                : isCodeResponseApproval 
+                  ? 'Approve Execution' 
+                  : 'Approve'}
             </Button>
             <Button
               onClick={() => onViewFullDetails(message)}
@@ -186,7 +232,10 @@ export const ChatApprovalMessage: React.FC<ChatApprovalMessageProps> = ({
           <div className="pt-2">
             <p className="text-sm text-gray-600 flex items-center gap-2">
               {getStatusIcon()}
-              {status === 'approved' ? 'Code execution approved' : 'Code execution rejected'}
+              {status === 'approved' 
+                ? (isCodeResponseApproval ? 'Code execution approved' : 'Security request approved')
+                : (isCodeResponseApproval ? 'Code execution rejected' : 'Security request rejected')
+              }
             </p>
           </div>
         )}

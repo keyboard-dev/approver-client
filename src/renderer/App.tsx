@@ -619,7 +619,12 @@ const AppContent: React.FC = () => {
       return (
         <AssistantUIChat
           onBack={showMessageList}
-          currentApprovalMessage={currentMessage?.title === 'Security Evaluation Request' ? currentMessage : undefined}
+          currentApprovalMessage={
+            (currentMessage?.title === 'Security Evaluation Request'
+              || currentMessage?.title === 'code response approval')
+              ? currentMessage
+              : undefined
+          }
           onApproveMessage={async (message) => {
             // Set the currentMessage to match what App.tsx expects, then call approveMessage
             setCurrentMessage(message)
