@@ -221,8 +221,6 @@ const AppContent: React.FC = () => {
 
     // Listen for websocket messages
     const handleWebSocketMessage = (_event: unknown, message: Message) => {
-      console.log('YO WHAT IS THE MESSAGE', message)
-      window.alert('YO WHAT IS THE MESSAGE')
       // Only handle messages if authenticated
       if (!authStatusRef.current.authenticated) {
         return
