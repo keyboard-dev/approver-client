@@ -5,13 +5,18 @@ import { useAuth } from '../hooks/useAuth'
 import { useMCPEnhancedChat } from '../hooks/useMCPEnhancedChat'
 import { useWebSocketConnection } from '../hooks/useWebSocketConnection'
 import { AbilityExecutionPanel } from './AbilityExecutionPanel'
-import { AgenticControls } from './AgenticControls'
 import { AgenticStatusIndicator } from './AgenticStatusIndicator'
 import { Thread } from './assistant-ui/thread'
 import { MCPChatComponent } from './MCPChatComponent'
 import { Badge } from './ui/badge'
 import { Button } from './ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
+import { Card, CardContent, CardHeader } from './ui/card'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from './ui/dropdown-menu'
 import { TooltipProvider } from './ui/tooltip'
 
 interface AssistantUIChatProps {
@@ -77,7 +82,7 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
 }) => {
   const [selectedProvider, setSelectedProvider] = useState('openai')
   const [selectedModel, setSelectedModel] = useState('gpt-3.5-turbo')
-  const [mcpEnabled, setMCPEnabled] = useState(false)
+  const mcpEnabled = true // Always enabled
   const [availableProviders, setAvailableProviders] = useState<string[]>([])
   const [showExecutionPanel, setShowExecutionPanel] = useState(false)
 
@@ -144,10 +149,11 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
   // Get current provider config
   const currentProvider = PROVIDERS.find(p => p.id === selectedProvider)
 
-  // Update MCP state when toggle changes
+  // Set MCP to always enabled
   useEffect(() => {
-    mcpChat.setMCPEnabled(mcpEnabled)
-  }, [mcpEnabled, mcpChat])
+    mcpChat.setMCPEnabled(true)
+    mcpChat.setAgenticMode(true)
+  }, [mcpChat])
 
   const runtime = useLocalRuntime(mcpChat.adapter)
 
@@ -155,123 +161,122 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
     <TooltipProvider>
       <AssistantRuntimeProvider runtime={runtime}>
         <Card className="w-full h-full flex flex-col">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <Button variant="outline" onClick={onBack}>
-                ← Back to Messages
+          <CardHeader className="pb-3">
+            {/* Compact single-row header */}
+            <div className="flex items-center justify-between gap-3">
+              <Button variant="outline" size="sm" onClick={onBack}>
+                ← Back
               </Button>
-              <CardTitle className="text-2xl font-bold">Assistant Chat</CardTitle>
-              <div className="w-32" />
-              {' '}
-              {/* Spacer for centering title */}
-            </div>
 
-            {/* Provider and Model Selection */}
-            <div className="flex gap-4 items-center">
-              <div className="flex items-center gap-2">
-                <label className="text-sm font-medium">Provider:</label>
-                <select
-                  value={selectedProvider}
-                  onChange={(e) => {
-                    setSelectedProvider(e.target.value)
-                    const provider = PROVIDERS.find(p => p.id === e.target.value)
-                    if (provider?.models[0]) {
-                      setSelectedModel(provider.models[0].id)
-                    }
-                  }}
-                  className="px-3 py-1 border border-gray-300 rounded text-sm"
-                  disabled={availableProviders.length === 0}
-                >
-                  {PROVIDERS
-                    .filter(p => availableProviders.includes(p.id))
-                    .map(provider => (
-                      <option key={provider.id} value={provider.id}>
-                        {provider.name}
-                      </option>
-                    ))}
-                </select>
+              <div className="flex items-center gap-3 flex-1">
+                {/* Provider Dropdown */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" disabled={availableProviders.length === 0}>
+                      <span className="text-xs font-medium">
+                        {currentProvider?.name || 'Provider'}
+                      </span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                    {PROVIDERS
+                      .filter(p => availableProviders.includes(p.id))
+                      .map(provider => (
+                        <DropdownMenuItem
+                          key={provider.id}
+                          onClick={() => {
+                            setSelectedProvider(provider.id)
+                            if (provider.models[0]) {
+                              setSelectedModel(provider.models[0].id)
+                            }
+                          }}
+                        >
+                          {provider.name}
+                        </DropdownMenuItem>
+                      ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                {/* Model Dropdown */}
+                {currentProvider && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm" className="max-w-[200px]">
+                        <span className="text-xs font-medium truncate">
+                          {currentProvider.models.find(m => m.id === selectedModel)?.name || 'Model'}
+                        </span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                      {currentProvider.models.map(model => (
+                        <DropdownMenuItem
+                          key={model.id}
+                          onClick={() => setSelectedModel(model.id)}
+                        >
+                          {model.name}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+
+                {selectedProvider === 'mcp' && (
+                  <Badge variant="outline" className="text-xs">
+                    🔌 MCP Legacy Mode
+                  </Badge>
+                )}
+
+                {availableProviders.length === 0 && (
+                  <Badge variant="destructive" className="text-xs">
+                    No providers configured
+                  </Badge>
+                )}
               </div>
 
-              {currentProvider && (
-                <div className="flex items-center gap-2">
-                  <label className="text-sm font-medium">Model:</label>
-                  <select
-                    value={selectedModel}
-                    onChange={e => setSelectedModel(e.target.value)}
-                    className="px-3 py-1 border border-gray-300 rounded text-sm"
-                  >
-                    {currentProvider.models.map(model => (
-                      <option key={model.id} value={model.id}>
-                        {model.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {/* MCP Integration Toggle */}
+              {/* MCP Status & Controls */}
               {currentProvider?.supportsMCP && selectedProvider !== 'mcp' && (
                 <div className="flex items-center gap-2">
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={mcpEnabled}
-                      onChange={e => setMCPEnabled(e.target.checked)}
-                      className="rounded border-gray-300"
-                    />
-                    <span className="font-medium">🚀 Enable keyboard.dev Abilities</span>
-                    {mcpChat.mcpConnected && mcpEnabled && (
-                      <Badge variant="secondary" className="text-xs">
+                  <div className="flex items-center gap-2 bg-background border rounded-lg px-3 py-1.5">
+                    <span className="text-xs font-medium">🚀</span>
+                    {mcpChat.mcpConnected && (
+                      <Badge variant="secondary" className="text-xs h-5">
                         {mcpChat.mcpAbilities}
-                        {' '}
-                        abilities
                       </Badge>
                     )}
-                  </label>
-
-                  {mcpEnabled && (
-                    <div className="flex items-center gap-2">
-                      {mcpChat.mcpConnected
+                    {mcpChat.mcpConnected
+                      ? (
+                          <Badge variant="default" className="text-xs h-5 bg-green-100 text-green-800 border-0">
+                            Connected
+                          </Badge>
+                        )
+                      : mcpChat.mcpError
                         ? (
-                            <Badge variant="default" className="text-xs bg-green-100 text-green-800">
-                              🟢 Connected
-                            </Badge>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={mcpChat.refreshMCPConnection}
+                              className="text-xs h-5 px-2"
+                            >
+                              Retry
+                            </Button>
                           )
-                        : mcpChat.mcpError
-                          ? (
-                              <div className="flex items-center gap-1">
-                                <Badge variant="destructive" className="text-xs">
-                                  🔴 Error
-                                </Badge>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={mcpChat.refreshMCPConnection}
-                                  className="text-xs h-6 px-2"
-                                >
-                                  Retry
-                                </Button>
-                              </div>
-                            )
-                          : (
-                              <Badge variant="secondary" className="text-xs">
-                                🟡 Connecting...
-                              </Badge>
-                            )}
-                    </div>
-                  )}
-                </div>
-              )}
+                        : (
+                            <Badge variant="secondary" className="text-xs h-5">
+                              Connecting...
+                            </Badge>
+                          )}
+                  </div>
 
-              {availableProviders.length === 0 && (
-                <div className="text-sm text-red-600">
-                  No AI providers configured. Go to Settings → AI Providers to set up API keys.
-                </div>
-              )}
-
-              {selectedProvider === 'mcp' && (
-                <div className="text-sm text-blue-600 bg-blue-50 dark:bg-blue-900/20 p-2 rounded">
-                  🔌 MCP (Model Context Protocol) - Legacy direct connection mode
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowExecutionPanel(!showExecutionPanel)}
+                    className="text-xs"
+                  >
+                    🔍
+                    {' '}
+                    {mcpChat.executions.length}
+                  </Button>
                 </div>
               )}
             </div>
@@ -288,40 +293,17 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
                   )
                 : (
                     <div className="flex flex-col h-full">
-                      {/* Agentic Controls */}
-                      <AgenticControls
-                        isAgenticMode={mcpChat.isAgenticMode}
-                        onToggleAgenticMode={mcpChat.setAgenticMode}
-                        mcpEnabled={mcpEnabled}
-                        mcpConnected={mcpChat.mcpConnected}
-                        mcpAbilities={mcpChat.mcpAbilities}
-                        onToggleMCP={setMCPEnabled}
-                        onRefreshMCP={mcpChat.refreshMCPConnection}
-                      />
-
-                      {/* Execution Panel Toggle */}
-                      {mcpEnabled && (
+                      {/* Agentic Status Indicator - only shown when actively working */}
+                      {mcpEnabled && (mcpChat.isExecutingAbility || mcpChat.agenticProgress) && (
                         <div className="mb-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setShowExecutionPanel(!showExecutionPanel)}
-                            className="text-xs"
-                          >
-                            🔍 View Executions (
-                            {mcpChat.executions.length}
-                            )
-                          </Button>
+                          <AgenticStatusIndicator
+                            isAgenticMode={mcpChat.isAgenticMode}
+                            agenticProgress={mcpChat.agenticProgress}
+                            isExecutingAbility={mcpChat.isExecutingAbility}
+                            currentAbility={mcpChat.currentAbility}
+                          />
                         </div>
                       )}
-
-                      {/* Agentic Status Indicator */}
-                      <AgenticStatusIndicator
-                        isAgenticMode={mcpChat.isAgenticMode}
-                        agenticProgress={mcpChat.agenticProgress}
-                        isExecutingAbility={mcpChat.isExecutingAbility}
-                        currentAbility={mcpChat.currentAbility}
-                      />
 
                       <div className="flex-1 flex flex-col gap-3">
                         <Thread
