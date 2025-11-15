@@ -635,6 +635,10 @@ const AppContent: React.FC = () => {
             setCurrentMessage(message)
             await rejectMessage()
           }}
+          onClearApprovalMessage={() => {
+            // Clear the current approval message after action is complete
+            setCurrentMessage(null)
+          }}
         />
       )
     }

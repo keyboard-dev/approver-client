@@ -6,12 +6,14 @@ interface ApprovalMessageProps {
   currentApprovalMessage?: Message
   onApproveMessage?: (message: Message) => void
   onRejectMessage?: (message: Message) => void
+  onClearMessage?: () => void
 }
 
 export const ApprovalMessage: FC<ApprovalMessageProps> = ({
   currentApprovalMessage,
   onApproveMessage,
   onRejectMessage,
+  onClearMessage,
 }) => {
   if (!currentApprovalMessage) {
     return null
@@ -28,6 +30,11 @@ export const ApprovalMessage: FC<ApprovalMessageProps> = ({
       onReject={async () => {
         if (onRejectMessage) {
           await onRejectMessage(currentApprovalMessage)
+        }
+      }}
+      onComplete={() => {
+        if (onClearMessage) {
+          onClearMessage()
         }
       }}
     />

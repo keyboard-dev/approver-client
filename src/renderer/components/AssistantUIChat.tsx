@@ -8,7 +8,6 @@ import { AbilityExecutionPanel } from './AbilityExecutionPanel'
 import { AgenticControls } from './AgenticControls'
 import { AgenticStatusIndicator } from './AgenticStatusIndicator'
 import { Thread } from './assistant-ui/thread'
-import { ChatApprovalMessage } from './ChatApprovalMessage'
 import { MCPChatComponent } from './MCPChatComponent'
 import { Badge } from './ui/badge'
 import { Button } from './ui/button'
@@ -20,6 +19,7 @@ interface AssistantUIChatProps {
   currentApprovalMessage?: Message
   onApproveMessage?: (message: Message) => void
   onRejectMessage?: (message: Message) => void
+  onClearApprovalMessage?: () => void
 }
 
 interface ProviderConfig {
@@ -73,6 +73,7 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
   currentApprovalMessage,
   onApproveMessage,
   onRejectMessage,
+  onClearApprovalMessage,
 }) => {
   const [selectedProvider, setSelectedProvider] = useState('openai')
   const [selectedModel, setSelectedModel] = useState('gpt-3.5-turbo')
@@ -323,14 +324,11 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
                       />
 
                       <div className="flex-1 flex flex-col gap-3">
-                        <Thread 
+                        <Thread
                           currentApprovalMessage={currentApprovalMessage}
                           onApproveMessage={onApproveMessage}
                           onRejectMessage={onRejectMessage}
-                          onViewFullDetails={(message) => {
-                            // This could trigger the full approval screen, but for now just log
-                            console.log('View full details:', message)
-                          }}
+                          onClearMessage={onClearApprovalMessage}
                         />
                       </div>
                     </div>

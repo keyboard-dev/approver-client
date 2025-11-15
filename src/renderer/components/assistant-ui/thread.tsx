@@ -41,14 +41,14 @@ interface ThreadCustomProps {
   currentApprovalMessage?: Message
   onApproveMessage?: (message: Message) => void
   onRejectMessage?: (message: Message) => void
-  onViewFullDetails?: (message: Message) => void
+  onClearMessage?: () => void
 }
 
 export const Thread: FC<ThreadCustomProps> = ({
   currentApprovalMessage,
   onApproveMessage,
   onRejectMessage,
-  onViewFullDetails,
+  onClearMessage,
 }) => {
   return (
     <LazyMotion features={domAnimation}>
@@ -76,7 +76,7 @@ export const Thread: FC<ThreadCustomProps> = ({
               currentApprovalMessage={currentApprovalMessage}
               onApproveMessage={onApproveMessage}
               onRejectMessage={onRejectMessage}
-              onViewFullDetails={onViewFullDetails}
+              onClearMessage={onClearMessage}
             />
 
             <ThreadPrimitive.If empty={false}>
