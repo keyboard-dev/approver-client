@@ -19,23 +19,37 @@ import {
   ThreadPrimitive,
 } from '@assistant-ui/react'
 
-import type { FC } from 'react'
 import { LazyMotion, MotionConfig, domAnimation } from 'motion/react'
 import * as m from 'motion/react-m'
+import type { FC } from 'react'
 
 import { Button } from '../ui/button'
-import { MarkdownText } from './markdown-text'
-import { ToolFallback } from './tool-fallback'
-import { TooltipIconButton } from './tooltip-icon-button'
 import {
   ComposerAddAttachment,
   ComposerAttachments,
   UserMessageAttachments,
 } from './attachment'
+import { MarkdownText } from './markdown-text'
+import { ToolFallback } from './tool-fallback'
+import { TooltipIconButton } from './tooltip-icon-button'
 
+import { Message } from '../../../types'
 import { cn } from '../../lib/utils'
+import { ApprovalMessage } from './ApprovalMessage'
 
-export const Thread: FC = () => {
+interface ThreadCustomProps {
+  currentApprovalMessage?: Message
+  onApproveMessage?: (message: Message) => void
+  onRejectMessage?: (message: Message) => void
+  onViewFullDetails?: (message: Message) => void
+}
+
+export const Thread: FC<ThreadCustomProps> = ({
+  currentApprovalMessage,
+  onApproveMessage,
+  onRejectMessage,
+  onViewFullDetails,
+}) => {
   return (
     <LazyMotion features={domAnimation}>
       <MotionConfig reducedMotion="user">
@@ -56,6 +70,13 @@ export const Thread: FC = () => {
                 EditComposer,
                 AssistantMessage,
               }}
+            />
+
+            <ApprovalMessage
+              currentApprovalMessage={currentApprovalMessage}
+              onApproveMessage={onApproveMessage}
+              onRejectMessage={onRejectMessage}
+              onViewFullDetails={onViewFullDetails}
             />
 
             <ThreadPrimitive.If empty={false}>

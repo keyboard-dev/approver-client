@@ -1,19 +1,19 @@
 import { AssistantRuntimeProvider, useLocalRuntime } from '@assistant-ui/react'
 import React, { useEffect, useState } from 'react'
+import { Message } from '../../types'
+import { useAuth } from '../hooks/useAuth'
 import { useMCPEnhancedChat } from '../hooks/useMCPEnhancedChat'
 import { useWebSocketConnection } from '../hooks/useWebSocketConnection'
-import { useAuth } from '../hooks/useAuth'
-import { Thread } from './assistant-ui/thread'
-import { MCPChatComponent } from './MCPChatComponent'
+import { AbilityExecutionPanel } from './AbilityExecutionPanel'
 import { AgenticControls } from './AgenticControls'
 import { AgenticStatusIndicator } from './AgenticStatusIndicator'
-import { AbilityExecutionPanel } from './AbilityExecutionPanel'
+import { Thread } from './assistant-ui/thread'
 import { ChatApprovalMessage } from './ChatApprovalMessage'
+import { MCPChatComponent } from './MCPChatComponent'
 import { Badge } from './ui/badge'
 import { Button } from './ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { TooltipProvider } from './ui/tooltip'
-import { Message } from '../../types'
 
 interface AssistantUIChatProps {
   onBack: () => void
@@ -68,11 +68,11 @@ const PROVIDERS: ProviderConfig[] = [
   },
 ]
 
-const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({ 
-  onBack, 
-  currentApprovalMessage, 
-  onApproveMessage, 
-  onRejectMessage 
+const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
+  onBack,
+  currentApprovalMessage,
+  onApproveMessage,
+  onRejectMessage,
 }) => {
   const [selectedProvider, setSelectedProvider] = useState('openai')
   const [selectedModel, setSelectedModel] = useState('gpt-3.5-turbo')
@@ -90,7 +90,8 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
       if ((authStatus.authenticated || isSkippingAuth) && connectionStatus === 'disconnected') {
         try {
           await connectToBestCodespace()
-        } catch (error) {
+        }
+        catch (error) {
           console.error('Failed to auto-connect to codespace:', error)
         }
       }
@@ -105,7 +106,6 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
     model: selectedModel,
     mcpEnabled,
   })
-
 
   // Load available providers on mount
   useEffect(() => {
@@ -297,7 +297,7 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
                         onToggleMCP={setMCPEnabled}
                         onRefreshMCP={mcpChat.refreshMCPConnection}
                       />
-                      
+
                       {/* Execution Panel Toggle */}
                       {mcpEnabled && (
                         <div className="mb-2">
@@ -307,11 +307,13 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
                             onClick={() => setShowExecutionPanel(!showExecutionPanel)}
                             className="text-xs"
                           >
-                            🔍 View Executions ({mcpChat.executions.length})
+                            🔍 View Executions (
+                            {mcpChat.executions.length}
+                            )
                           </Button>
                         </div>
                       )}
-                      
+
                       {/* Agentic Status Indicator */}
                       <AgenticStatusIndicator
                         isAgenticMode={mcpChat.isAgenticMode}
@@ -319,35 +321,17 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
                         isExecutingAbility={mcpChat.isExecutingAbility}
                         currentAbility={mcpChat.currentAbility}
                       />
-                      
+
                       <div className="flex-1 flex flex-col gap-3">
-                        <Thread />
-                        
-                        {/* Approval Message from App.tsx */}
-                        {currentApprovalMessage && (
-                          <div className="border-t pt-3">
-                            <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2 mb-3">
-                              🛡️ Security Approval Required
-                            </h3>
-                            <ChatApprovalMessage
-                              message={currentApprovalMessage}
-                              onApprove={async (messageId) => {
-                                if (onApproveMessage) {
-                                  await onApproveMessage(currentApprovalMessage)
-                                }
-                              }}
-                              onReject={async (messageId) => {
-                                if (onRejectMessage) {
-                                  await onRejectMessage(currentApprovalMessage)
-                                }
-                              }}
-                              onViewFullDetails={(message) => {
-                                // This could trigger the full approval screen, but for now just log
-                                console.log('View full details:', message)
-                              }}
-                            />
-                          </div>
-                        )}
+                        <Thread 
+                          currentApprovalMessage={currentApprovalMessage}
+                          onApproveMessage={onApproveMessage}
+                          onRejectMessage={onRejectMessage}
+                          onViewFullDetails={(message) => {
+                            // This could trigger the full approval screen, but for now just log
+                            console.log('View full details:', message)
+                          }}
+                        />
                       </div>
                     </div>
                   )}
@@ -355,7 +339,7 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
           </CardContent>
         </Card>
       </AssistantRuntimeProvider>
-      
+
       {/* Ability Execution Panel - Fixed overlay */}
       <AbilityExecutionPanel
         executions={mcpChat.executions}
