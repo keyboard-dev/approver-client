@@ -35,7 +35,7 @@ export class WebSearchTool {
   /**
    * Execute web search using the current or specified AI provider
    */
-  async execute(params: WebSearchToolParams): Promise<WebSearchToolResult> {
+  async execute(params: WebSearchToolParams) {
     try {
       const startTime = Date.now()
 
@@ -62,26 +62,12 @@ export class WebSearchTool {
       // Extract web search results from the nested API response structure
       // API returns: {success: true, data: {content: [...]} }
       console.log('YO WHAT IS THE RESPONSE', response)
-      const webSearchResults = response?.data?.content?.filter((item: { type: string }) => item.type === 'web_search_tool_result') || []
-      const results = webSearchResults.content.map(function (item: any) {
-        const data: any = {}
-        if (item.url) data.url = item.url
-        if (item.text) data.text = item.text
-        if (item.title) data.title = item.title
-        if (item.citations) data.citations = item.citations.map(function (citation: any) {
-          return {
-            url: citation.url,
-            text: citation.cited_text,
-            title: citation.title,
-          }
-        })
-      })
 
       return {
-        results: results,
+        results: JSON.stringify(response, null, 2),
         searchQuery: params.query,
         provider: provider,
-        totalResults: results.length,
+        totalResults: response?.data?.length,
         searchTime,
       }
     }

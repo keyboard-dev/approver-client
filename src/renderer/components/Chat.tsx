@@ -1,7 +1,9 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Button } from './ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { ChatInput } from './ChatInput'
+import { useWebSocketConnection } from '../hooks/useWebSocketConnection'
+import { useAuth } from '../hooks/useAuth'
 
 interface ChatProps {
   onBack: () => void
@@ -17,9 +19,38 @@ interface ChatMessage {
 export const Chat: React.FC<ChatProps> = ({ onBack }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputValue, setInputValue] = useState('')
+  
+  // Auth and WebSocket connection management
+  const { authStatus, isSkippingAuth } = useAuth()
+  const { connectionStatus, connectToBestCodespace } = useWebSocketConnection(authStatus, isSkippingAuth)
 
-  const handleSendMessage = () => {
+  // Auto-connect to codespace when chat opens
+  useEffect(() => {
+    const ensureConnection = async () => {
+      if ((authStatus.authenticated || isSkippingAuth) && connectionStatus === 'disconnected') {
+        try {
+          await connectToBestCodespace()
+        } catch (error) {
+          console.error('Failed to auto-connect to codespace:', error)
+        }
+      }
+    }
+
+    ensureConnection()
+  }, [authStatus.authenticated, isSkippingAuth, connectionStatus, connectToBestCodespace])
+
+  const handleSendMessage = async () => {
     if (!inputValue.trim()) return
+
+    // Ensure we have a connection before sending
+    if (connectionStatus === 'disconnected') {
+      try {
+        await connectToBestCodespace()
+      } catch (error) {
+        console.error('Failed to connect before sending message:', error)
+        return
+      }
+    }
 
     const newMessage: ChatMessage = {
       id: Date.now().toString(),

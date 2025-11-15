@@ -7,11 +7,10 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 
 import iconGearUrl from '../../assets/icon-gear.svg'
 import { Textarea } from '../components/ui/textarea'
-import { ElectronAPI } from '../preload'
 import { CollectionRequest, Message, ShareMessage } from '../types'
 import './App.css'
-import AuthComponent from './components/AuthComponent'
 import { AssistantUIChat } from './components/AssistantUIChat'
+import AuthComponent from './components/AuthComponent'
 import { Chat } from './components/Chat'
 import { CopilotKitChat } from './components/CopilotKitChat'
 import GitHubOAuthButton from './components/GitHubOAuthButton'
@@ -222,6 +221,8 @@ const AppContent: React.FC = () => {
 
     // Listen for websocket messages
     const handleWebSocketMessage = (_event: unknown, message: Message) => {
+      console.log('YO WHAT IS THE MESSAGE', message)
+      window.alert('YO WHAT IS THE MESSAGE')
       // Only handle messages if authenticated
       if (!authStatusRef.current.authenticated) {
         return
@@ -615,7 +616,22 @@ const AppContent: React.FC = () => {
 
   const getMessageScreen = () => {
     if (showAssistantChat) {
-      return <AssistantUIChat onBack={showMessageList} />
+      return (
+        <AssistantUIChat
+          onBack={showMessageList}
+          currentApprovalMessage={currentMessage?.title === 'Security Evaluation Request' ? currentMessage : undefined}
+          onApproveMessage={async (message) => {
+            // Set the currentMessage to match what App.tsx expects, then call approveMessage
+            setCurrentMessage(message)
+            await approveMessage()
+          }}
+          onRejectMessage={async (message) => {
+            // Set the currentMessage to match what App.tsx expects, then call rejectMessage
+            setCurrentMessage(message)
+            await rejectMessage()
+          }}
+        />
+      )
     }
 
     if (showCopilotChat) {

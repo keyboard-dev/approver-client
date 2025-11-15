@@ -1,18 +1,25 @@
 import { AssistantRuntimeProvider, useLocalRuntime } from '@assistant-ui/react'
 import React, { useEffect, useState } from 'react'
 import { useMCPEnhancedChat } from '../hooks/useMCPEnhancedChat'
+import { useWebSocketConnection } from '../hooks/useWebSocketConnection'
+import { useAuth } from '../hooks/useAuth'
 import { Thread } from './assistant-ui/thread'
 import { MCPChatComponent } from './MCPChatComponent'
 import { AgenticControls } from './AgenticControls'
 import { AgenticStatusIndicator } from './AgenticStatusIndicator'
 import { AbilityExecutionPanel } from './AbilityExecutionPanel'
+import { ChatApprovalMessage } from './ChatApprovalMessage'
 import { Badge } from './ui/badge'
 import { Button } from './ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { TooltipProvider } from './ui/tooltip'
+import { Message } from '../../types'
 
 interface AssistantUIChatProps {
   onBack: () => void
+  currentApprovalMessage?: Message
+  onApproveMessage?: (message: Message) => void
+  onRejectMessage?: (message: Message) => void
 }
 
 interface ProviderConfig {
@@ -61,12 +68,36 @@ const PROVIDERS: ProviderConfig[] = [
   },
 ]
 
-const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({ onBack }) => {
+const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({ 
+  onBack, 
+  currentApprovalMessage, 
+  onApproveMessage, 
+  onRejectMessage 
+}) => {
   const [selectedProvider, setSelectedProvider] = useState('openai')
   const [selectedModel, setSelectedModel] = useState('gpt-3.5-turbo')
   const [mcpEnabled, setMCPEnabled] = useState(false)
   const [availableProviders, setAvailableProviders] = useState<string[]>([])
   const [showExecutionPanel, setShowExecutionPanel] = useState(false)
+
+  // Auth and WebSocket connection management
+  const { authStatus, isSkippingAuth } = useAuth()
+  const { connectionStatus, connectToBestCodespace } = useWebSocketConnection(authStatus, isSkippingAuth)
+
+  // Auto-connect to codespace when assistant chat opens
+  useEffect(() => {
+    const ensureConnection = async () => {
+      if ((authStatus.authenticated || isSkippingAuth) && connectionStatus === 'disconnected') {
+        try {
+          await connectToBestCodespace()
+        } catch (error) {
+          console.error('Failed to auto-connect to codespace:', error)
+        }
+      }
+    }
+
+    ensureConnection()
+  }, [authStatus.authenticated, isSkippingAuth, connectionStatus, connectToBestCodespace])
 
   // Initialize MCP enhanced chat
   const mcpChat = useMCPEnhancedChat({
@@ -74,6 +105,7 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({ onBack }) => {
     model: selectedModel,
     mcpEnabled,
   })
+
 
   // Load available providers on mount
   useEffect(() => {
@@ -288,8 +320,34 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({ onBack }) => {
                         currentAbility={mcpChat.currentAbility}
                       />
                       
-                      <div className="flex-1">
+                      <div className="flex-1 flex flex-col gap-3">
                         <Thread />
+                        
+                        {/* Approval Message from App.tsx */}
+                        {currentApprovalMessage && (
+                          <div className="border-t pt-3">
+                            <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2 mb-3">
+                              🛡️ Security Approval Required
+                            </h3>
+                            <ChatApprovalMessage
+                              message={currentApprovalMessage}
+                              onApprove={async (messageId) => {
+                                if (onApproveMessage) {
+                                  await onApproveMessage(currentApprovalMessage)
+                                }
+                              }}
+                              onReject={async (messageId) => {
+                                if (onRejectMessage) {
+                                  await onRejectMessage(currentApprovalMessage)
+                                }
+                              }}
+                              onViewFullDetails={(message) => {
+                                // This could trigger the full approval screen, but for now just log
+                                console.log('View full details:', message)
+                              }}
+                            />
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
@@ -311,6 +369,6 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({ onBack }) => {
   )
 }
 
-export const AssistantUIChat: React.FC<AssistantUIChatProps> = ({ onBack }) => {
-  return <AssistantUIChatContent onBack={onBack} />
+export const AssistantUIChat: React.FC<AssistantUIChatProps> = (props) => {
+  return <AssistantUIChatContent {...props} />
 }
