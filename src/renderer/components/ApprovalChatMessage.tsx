@@ -1,24 +1,26 @@
-// Note: MessagePrimitive.Root removed - this component is now designed to be used within ThreadPrimitive.Messages
-import { ChevronDown, ChevronRight, Shield, Clock, CheckCircle, XCircle } from 'lucide-react'
 import React, { useState } from 'react'
+import blueCheckIconUrl from '../../../assets/icon-check-blue.svg'
+import checkIconUrl from '../../../assets/icon-check.svg'
+import clockIconUrl from '../../../assets/icon-clock.svg'
+import codeIconUrl from '../../../assets/icon-code.svg'
+import thinkingIconUrl from '../../../assets/icon-thinking.svg'
+import greyXIconUrl from '../../../assets/icon-x-grey.svg'
+import xIconUrl from '../../../assets/icon-x.svg'
 import { Message } from '../../types'
-import { Button } from './ui/button'
-import { Badge } from './ui/badge'
+import { ButtonDesigned } from './ui/ButtonDesigned'
 
 interface ApprovalChatMessageProps {
   message: Message
   onApprove: (messageId: string) => void
   onReject: (messageId: string) => void
-  onViewFullDetails: (message: Message) => void
 }
 
 export const ApprovalChatMessage: React.FC<ApprovalChatMessageProps> = ({
   message,
   onApprove,
   onReject,
-  onViewFullDetails,
 }) => {
-  const [isExpanded, setIsExpanded] = useState(false)
+  const [activeTab, setActiveTab] = useState<'explanation' | 'code' | 'output'>('explanation')
   const [isApproving, setIsApproving] = useState(false)
   const [isRejecting, setIsRejecting] = useState(false)
 
@@ -36,45 +38,48 @@ export const ApprovalChatMessage: React.FC<ApprovalChatMessageProps> = ({
   // Determine if this is a code response approval
   const isCodeResponseApproval = title === 'code response approval'
 
-  // Risk level styling
-  let riskLevelColor, riskLevelBgColor
+  // Risk level styling - matching ApprovalScreen
+  let riskLevelTextColor, riskLevelBgColor
   switch (risk_level) {
     case 'low':
-      riskLevelColor = 'text-green-600'
-      riskLevelBgColor = 'bg-green-50'
+      riskLevelTextColor = '#7BB750'
+      riskLevelBgColor = '#98C37926'
       break
     case 'medium':
-      riskLevelColor = 'text-yellow-600'
-      riskLevelBgColor = 'bg-yellow-50'
+      riskLevelTextColor = '#E9AA34'
+      riskLevelBgColor = '#E5C07B26'
       break
     case 'high':
-      riskLevelColor = 'text-red-600'
-      riskLevelBgColor = 'bg-red-50'
+      riskLevelTextColor = '#E06C75'
+      riskLevelBgColor = '#E06C7526'
       break
     default:
-      riskLevelColor = 'text-gray-600'
-      riskLevelBgColor = 'bg-gray-50'
+      riskLevelTextColor = '#737373'
+      riskLevelBgColor = '#F3F3F3'
   }
 
-  // Status icon
-  const getStatusIcon = () => {
-    switch (status) {
-      case 'pending':
-        return <Clock className="w-4 h-4 text-yellow-500" />
-      case 'approved':
-        return <CheckCircle className="w-4 h-4 text-green-500" />
-      case 'rejected':
-        return <XCircle className="w-4 h-4 text-red-500" />
-      default:
-        return <Clock className="w-4 h-4 text-gray-500" />
-    }
+  // Status icon - matching ApprovalScreen
+  let statusIconUrl
+  switch (status) {
+    case 'pending':
+      statusIconUrl = clockIconUrl
+      break
+    case 'approved':
+      statusIconUrl = checkIconUrl
+      break
+    case 'rejected':
+      statusIconUrl = xIconUrl
+      break
+    default:
+      statusIconUrl = clockIconUrl
   }
 
   const handleApprove = async () => {
     setIsApproving(true)
     try {
       await onApprove(id)
-    } finally {
+    }
+    finally {
       setIsApproving(false)
     }
   }
@@ -83,7 +88,8 @@ export const ApprovalChatMessage: React.FC<ApprovalChatMessageProps> = ({
     setIsRejecting(true)
     try {
       await onReject(id)
-    } finally {
+    }
+    finally {
       setIsRejecting(false)
     }
   }
@@ -92,137 +98,166 @@ export const ApprovalChatMessage: React.FC<ApprovalChatMessageProps> = ({
 
   return (
     <div
-      className="mx-auto w-full max-w-[var(--thread-max-width)] animate-in py-4 duration-150 ease-out fade-in slide-in-from-bottom-1"
+      className="mx-auto w-full max-w-[var(--thread-max-width)] animate-in py-2 duration-150 ease-out fade-in slide-in-from-bottom-1"
       data-role="system"
     >
-        <div className={`rounded-3xl p-4 ${isCodeResponseApproval ? 'bg-blue-50 border-l-4 border-l-blue-400' : 'bg-orange-50 border-l-4 border-l-orange-400'}`}>
-          {/* Header */}
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <Shield className={`w-4 h-4 ${isCodeResponseApproval ? 'text-blue-500' : 'text-orange-500'}`} />
-              <span className="font-semibold text-sm">
-                {isCodeResponseApproval ? 'Code Execution Approval' : 'Security Approval'}
-              </span>
-              {getStatusIcon()}
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge variant={risk_level === 'low' ? 'secondary' : risk_level === 'medium' ? 'outline' : 'destructive'} className={`text-xs ${riskLevelColor}`}>
-                {risk_level} risk
-              </Badge>
-              <span className="text-xs text-gray-500">{createdAt}</span>
-            </div>
-          </div>
+      <div className="rounded-[0.38rem] border border-[#E5E5E5] bg-white p-[0.63rem] flex flex-col gap-[0.5rem]">
+        {/* Title */}
+        <div className="font-bold text-[1rem]">
+          {isCodeResponseApproval ? 'Code execution approval' : 'Security evaluation request'}
+        </div>
 
-          {/* Content */}
-          <div className="space-y-3">
-            {/* Explanation for Security Evaluation Request */}
-            {!isCodeResponseApproval && explanation && (
-              <div className="p-2 bg-white rounded border">
-                <div className="text-xs font-medium text-gray-600 mb-1">What the AI wants to do:</div>
-                <div className="text-sm text-gray-700">{explanation}</div>
-              </div>
-            )}
-
-            {/* Code Execution Results */}
-            {isCodeResponseApproval && codespaceResponse?.data && (
-              <div className="space-y-2">
-                <div className="text-xs font-medium text-gray-700">Code Execution Results:</div>
-                
-                {/* Standard Output */}
-                {codespaceResponse.data.stdout && (
-                  <div>
-                    <div className="text-xs font-medium text-gray-600 mb-1">Output:</div>
-                    <pre className="text-xs bg-gray-100 p-2 rounded border overflow-x-auto max-h-20 text-gray-800">
-                      {codespaceResponse.data.stdout}
-                    </pre>
-                  </div>
-                )}
-
-                {/* Error Output */}
-                {codespaceResponse.data.stderr && (
-                  <div>
-                    <div className="text-xs font-medium text-red-600 mb-1">Error Output:</div>
-                    <pre className="text-xs bg-red-50 border border-red-200 p-2 rounded overflow-x-auto max-h-20 text-red-800">
-                      {codespaceResponse.data.stderr}
-                    </pre>
-                  </div>
-                )}
-
-                {!codespaceResponse.data.stdout && !codespaceResponse.data.stderr && (
-                  <div className="text-xs text-gray-500 italic">No output available</div>
-                )}
-              </div>
-            )}
-
-            {/* Expandable code section for Security Evaluation */}
-            {!isCodeResponseApproval && code && (
-              <div className="border rounded">
-                <button
-                  onClick={() => setIsExpanded(!isExpanded)}
-                  className="w-full flex items-center justify-between p-2 text-left bg-gray-50 hover:bg-gray-100 rounded-t"
-                >
-                  <span className="text-xs font-medium">Generated Code</span>
-                  {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-                </button>
-                {isExpanded && (
-                  <div className="p-2 border-t bg-white">
-                    <pre className="text-xs bg-gray-900 text-gray-100 p-2 rounded overflow-x-auto max-h-32">
-                      <code>{code}</code>
-                    </pre>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Actions */}
-          {status === 'pending' && (
-            <div className="flex items-center gap-2 mt-3 pt-2 border-t">
-              <Button
-                onClick={handleReject}
-                variant="outline"
-                size="sm"
-                disabled={isRejecting || isApproving}
-                className="text-red-600 border-red-200 hover:bg-red-50 text-xs h-7 px-2"
+        {/* Info Bar */}
+        <div className="rounded-[0.38rem] border border-[#E5E5E5] w-full px-[0.63rem] py-[0.44rem] flex justify-between text-[0.75rem]">
+          {risk_level && (
+            <div>
+              <div className="text-[#737373] mb-1">Risk level</div>
+              <div
+                className="rounded-full px-[0.5rem] py-[0.25rem] w-fit capitalize"
+                style={{
+                  color: riskLevelTextColor,
+                  backgroundColor: riskLevelBgColor,
+                }}
               >
-                {isRejecting ? 'Rejecting...' : 'Reject'}
-              </Button>
-              <Button
-                onClick={handleApprove}
-                size="sm"
-                disabled={isApproving || isRejecting}
-                className="bg-green-600 hover:bg-green-700 text-white text-xs h-7 px-2"
-              >
-                {isApproving 
-                  ? 'Approving...' 
-                  : isCodeResponseApproval 
-                    ? 'Approve Execution' 
-                    : 'Approve'}
-              </Button>
-              <Button
-                onClick={() => onViewFullDetails(message)}
-                variant="ghost"
-                size="sm"
-                className="text-gray-600 hover:text-gray-800 text-xs h-7 px-2"
-              >
-                Full Details
-              </Button>
+                {risk_level}
+              </div>
             </div>
           )}
 
-          {/* Status message for completed approvals */}
-          {status !== 'pending' && (
-            <div className="mt-3 pt-2 border-t">
-              <div className="text-xs text-gray-600 flex items-center gap-2">
-                {getStatusIcon()}
-                {status === 'approved' 
-                  ? (isCodeResponseApproval ? 'Code execution approved' : 'Security request approved')
-                  : (isCodeResponseApproval ? 'Code execution rejected' : 'Security request rejected')
-                }
+          {status && (
+            <div>
+              <div className="text-[#737373] mb-1">Status</div>
+              <div className="flex items-center gap-[0.25rem] capitalize">
+                <img src={statusIconUrl} alt="Status" className="w-[0.75rem] h-[0.75rem]" />
+                {status}
               </div>
             </div>
+          )}
+
+          <div>
+            <div className="text-[#737373] mb-1">Created</div>
+            <div className="text-[0.7rem]">{createdAt}</div>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex w-full gap-[0.31rem] border border-[#E5E5E5] rounded-[0.38rem] bg-[#F3F3F3] p-[0.25rem] text-[#737373] font-semibold text-[0.75rem]">
+          <button
+            onClick={() => setActiveTab('explanation')}
+            className={`grow basis-0 flex items-center justify-center py-[0.5rem] rounded-[0.25rem] gap-[0.31rem] border-none outline-none ${
+              activeTab === 'explanation'
+                ? 'bg-white'
+                : 'hover:bg-[#E6E6E6]'
+            }`}
+          >
+            <img src={thinkingIconUrl} alt="thinking" className="w-[0.75rem] h-[0.75rem]" />
+            {isCodeResponseApproval ? 'Output' : 'What the model wants to do'}
+          </button>
+          {!isCodeResponseApproval && code && (
+            <button
+              onClick={() => setActiveTab('code')}
+              className={`grow basis-0 flex items-center justify-center py-[0.5rem] rounded-[0.25rem] gap-[0.31rem] border-none outline-none ${
+                activeTab === 'code'
+                  ? 'bg-white'
+                  : 'hover:bg-[#E6E6E6]'
+              }`}
+            >
+              <img src={codeIconUrl} alt="code" className="w-[0.75rem] h-[0.75rem]" />
+              Generated script
+            </button>
           )}
         </div>
+
+        {/* Content */}
+        {activeTab === 'explanation' && !isCodeResponseApproval && explanation && (
+          <div className="p-[0.75rem] border border-[#E5E5E5] rounded-[0.38rem] w-full text-[0.88rem] max-h-[200px] overflow-auto">
+            {explanation}
+          </div>
+        )}
+
+        {activeTab === 'explanation' && isCodeResponseApproval && codespaceResponse?.data && (
+          <div className="border border-[#E5E5E5] rounded-[0.38rem] w-full max-h-[200px] overflow-auto">
+            <div className="p-[0.75rem]">
+              {codespaceResponse.data.stdout && (
+                <div className="mb-3">
+                  <div className="text-[0.75rem] font-medium text-[#737373] mb-1">Output:</div>
+                  <pre className="text-[0.75rem] bg-[#F3F3F3] p-2 rounded overflow-x-auto">
+                    {codespaceResponse.data.stdout}
+                  </pre>
+                </div>
+              )}
+              {codespaceResponse.data.stderr && (
+                <div>
+                  <div className="text-[0.75rem] font-medium mb-1" style={{ color: '#E06C75' }}>
+                    Error Output:
+                  </div>
+                  <pre className="text-[0.75rem] p-2 rounded overflow-x-auto" style={{ backgroundColor: '#E06C7526', color: '#E06C75' }}>
+                    {codespaceResponse.data.stderr}
+                  </pre>
+                </div>
+              )}
+              {!codespaceResponse.data.stdout && !codespaceResponse.data.stderr && (
+                <div className="text-[0.75rem] text-[#737373] italic">No output available</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'code' && code && (
+          <div className="border border-[#E5E5E5] rounded-[0.38rem] w-full max-h-[200px] overflow-auto">
+            <pre className="text-[0.75rem] p-[0.75rem] overflow-x-auto bg-[#282c34] text-[#abb2bf] font-mono">
+              <code>{code}</code>
+            </pre>
+          </div>
+        )}
+
+        {/* Actions */}
+        {status === 'pending' && (
+          <div className="w-full flex flex-col gap-[0.5rem]">
+            <div className="w-full flex gap-[0.31rem]">
+              <ButtonDesigned
+                variant="secondary"
+                onClick={handleReject}
+                disabled={isRejecting || isApproving}
+                className="grow shrink basis-0 min-w-0 flex gap-[0.31rem] items-center justify-center"
+              >
+                <img src={greyXIconUrl} alt="x" className="w-[0.75rem] h-[0.75rem]" />
+                {isRejecting ? 'Rejecting...' : 'Reject'}
+              </ButtonDesigned>
+
+              <ButtonDesigned
+                variant="primary"
+                onClick={handleApprove}
+                disabled={isApproving || isRejecting}
+                className="grow shrink basis-0 min-w-0 flex gap-[0.31rem] items-center justify-center"
+              >
+                <img src={blueCheckIconUrl} alt="check" className="w-[0.75rem] h-[0.75rem]" />
+                {isApproving
+                  ? 'Approving...'
+                  : isCodeResponseApproval
+                    ? 'Approve execution'
+                    : 'Approve script execution'}
+              </ButtonDesigned>
+            </div>
+
+            <div className="text-[#737373] text-[0.75rem] text-center w-full">
+              AI can make mistakes. Always review before approving.
+            </div>
+          </div>
+        )}
+
+        {/* Status message for completed approvals */}
+        {status !== 'pending' && (
+          <div className="w-full pt-2 border-t border-[#E5E5E5]">
+            <div className="text-[0.75rem] text-[#737373] flex items-center gap-2">
+              <img src={statusIconUrl} alt="Status" className="w-[0.75rem] h-[0.75rem]" />
+              {status === 'approved'
+                ? (isCodeResponseApproval ? 'Code execution approved' : 'Security request approved')
+                : (isCodeResponseApproval ? 'Code execution rejected' : 'Security request rejected')}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
