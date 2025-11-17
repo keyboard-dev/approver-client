@@ -10,7 +10,6 @@ export class KeyboardProvider implements AIProvider {
     }
 
     const url = 'https://api.keyboard.dev/api/ai/inference'
-    
 
     const response = await fetch(url, {
       method: 'POST',
@@ -35,7 +34,7 @@ export class KeyboardProvider implements AIProvider {
     }
 
     const data = await response.json() as any
-    
+
     const { response: responseData } = data
     // Handle different response formats based on your API
     if (responseData.content && Array.isArray(responseData.content) && responseData.content[0]?.text) {
