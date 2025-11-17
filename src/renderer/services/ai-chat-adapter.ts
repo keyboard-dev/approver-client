@@ -417,7 +417,7 @@ When the task is fully complete, make sure to indicate this clearly in your resp
       const providerStatus = await window.electronAPI.getAIProviderKeys()
       const currentProviderStatus = providerStatus.find(p => p.provider === this.currentProvider.provider)
 
-      if (!currentProviderStatus?.configured) {
+      if (!currentProviderStatus?.configured && this.currentProvider.provider !== 'keyboard') {
         return {
           content: [{
             type: 'text' as const,

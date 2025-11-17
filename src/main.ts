@@ -2686,7 +2686,7 @@ class MenuBarNotificationApp {
 
     ipcMain.handle('send-ai-message', async (_event, provider: string, messages: Array<{ role: 'user' | 'assistant' | 'system', content: string }>, config?: { model?: string }): Promise<string> => {
       try {
-        const response = await aiRuntime.sendMessage(provider, messages, config || {})
+        const response = await aiRuntime.sendMessage(provider, messages, config || {}, this.authTokens || undefined)
         return response.content
       }
       catch (error) {

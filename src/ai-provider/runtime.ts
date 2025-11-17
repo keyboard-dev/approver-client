@@ -22,6 +22,7 @@ export class AIRuntime {
     providerName: string,
     messages: AIMessage[],
     config: Partial<AIProviderConfig>,
+    authTokens?: AuthTokens,
   ): Promise<AIResponse> {
     const provider = this.providers.get(providerName)
     if (!provider) {
@@ -30,7 +31,7 @@ export class AIRuntime {
 
     const fullConfig: AIProviderConfig = {
       name: providerName,
-      apiKey: config.apiKey || this.getStoredApiKey(providerName),
+      apiKey: providerName === 'keyboard' ? '' : (config.apiKey || this.getStoredApiKey(providerName)),
       baseUrl: config.baseUrl,
       model: config.model,
     }
@@ -39,7 +40,12 @@ export class AIRuntime {
       throw new Error(`Invalid configuration for provider ${providerName}`)
     }
     console.log('this is the messages', messages)
-    const content = await provider.sendMessage(messages, fullConfig)
+
+    // For keyboard provider, pass auth tokens; for others, use existing method signature
+    const content = providerName === 'keyboard'
+      ? await (provider as any).sendMessage(messages, fullConfig, authTokens || await this.loadAuthTokens())
+      : await provider.sendMessage(messages, fullConfig)
+
     console.log('this is the content', content)
     return {
       content,
@@ -52,6 +58,7 @@ export class AIRuntime {
     providerName: string,
     messages: AIMessage[],
     config: Partial<AIProviderConfig>,
+    authTokens?: AuthTokens,
   ): AsyncGenerator<string, void, unknown> {
     const provider = this.providers.get(providerName)
     if (!provider || !provider.streamMessage) {
@@ -60,7 +67,7 @@ export class AIRuntime {
 
     const fullConfig: AIProviderConfig = {
       name: providerName,
-      apiKey: config.apiKey || this.getStoredApiKey(providerName),
+      apiKey: providerName === 'keyboard' ? '' : (config.apiKey || this.getStoredApiKey(providerName)),
       baseUrl: config.baseUrl,
       model: config.model,
     }
@@ -69,7 +76,13 @@ export class AIRuntime {
       throw new Error(`Invalid configuration for provider ${providerName}`)
     }
 
-    yield* provider.streamMessage(messages, fullConfig)
+    // For keyboard provider, pass auth tokens; for others, use existing method signature
+    if (providerName === 'keyboard') {
+      yield* (provider as any).streamMessage(messages, fullConfig, authTokens || await this.loadAuthTokens())
+    }
+    else {
+      yield* provider.streamMessage(messages, fullConfig)
+    }
   }
 
   async webSearch(
@@ -143,6 +156,9 @@ export class AIRuntime {
   }
 
   private getStoredApiKey(providerName: string): string {
+    if (providerName === 'keyboard') {
+      return '' // Keyboard provider doesn't use API keys
+    }
     const apiKey = encryptedAIKeyStorage.getAPIKey(providerName)
     if (!apiKey) {
       throw new Error(`No API key found for provider ${providerName}`)
@@ -155,6 +171,9 @@ export class AIRuntime {
   }
 
   hasApiKey(providerName: string): boolean {
+    if (providerName === 'keyboard') {
+      return true // Keyboard provider always available via auth tokens
+    }
     return encryptedAIKeyStorage.hasAPIKey(providerName)
   }
 
