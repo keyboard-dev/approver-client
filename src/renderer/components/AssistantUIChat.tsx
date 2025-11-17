@@ -305,7 +305,7 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
                         </div>
                       )}
 
-                      <div className="flex-1 flex flex-col gap-3">
+                      <div className="flex-1 flex flex-col gap-3 min-h-0">
                         <Thread
                           currentApprovalMessage={currentApprovalMessage}
                           onApproveMessage={onApproveMessage}
