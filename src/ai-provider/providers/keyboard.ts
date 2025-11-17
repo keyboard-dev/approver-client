@@ -9,6 +9,11 @@ export class KeyboardProvider implements AIProvider {
       throw new Error('Authentication tokens required for Keyboard AI provider')
     }
 
+    const systemMessage = messages.find(m => m.role === 'system')
+    const messagesWithoutSystem = messages.filter(m => m.role !== 'system')
+    console.log('this is the messages without system', messagesWithoutSystem)
+    console.log('this is the system message', systemMessage?.content)
+
     const url = 'https://api.keyboard.dev/api/ai/inference'
 
     const response = await fetch(url, {
@@ -19,7 +24,8 @@ export class KeyboardProvider implements AIProvider {
       },
       body: JSON.stringify({
         model: config.model || 'claude-sonnet-4-5-20250929',
-        messages: messages.map(msg => ({
+        system: systemMessage?.content,
+        messages: messagesWithoutSystem.map(msg => ({
           role: msg.role,
           content: msg.content,
         })),
@@ -65,8 +71,12 @@ export class KeyboardProvider implements AIProvider {
       throw new Error('Authentication tokens required for Keyboard AI provider')
     }
 
-    const url = 'https://api.keyboard.dev/api/ai/inference'
+    const systemMessage = messages.find(m => m.role === 'system')
+    const messagesWithoutSystem = messages.filter(m => m.role !== 'system')
 
+    console.log('this is the messages', messages)
+
+    const url = 'https://api.keyboard.dev/api/ai/inference'
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -75,7 +85,8 @@ export class KeyboardProvider implements AIProvider {
       },
       body: JSON.stringify({
         model: config.model || 'claude-sonnet-4-5-20250929',
-        messages: messages.map(msg => ({
+        system: systemMessage?.content,
+        messages: messagesWithoutSystem.map(msg => ({
           role: msg.role,
           content: msg.content,
         })),

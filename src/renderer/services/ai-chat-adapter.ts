@@ -1,5 +1,5 @@
 import type { ChatModelAdapter } from '@assistant-ui/react'
-import { createAbilityDiscoveryPrompt } from './ability-discovery'
+import { getSystemsAbilitiesPrompt } from '../utils/ai-promts'
 import { useMCPIntegration } from './mcp-tool-integration'
 
 interface AIMessage {
@@ -236,34 +236,12 @@ export class AIChatAdapter implements ChatModelAdapter {
       throw new Error('MCP integration not available')
     }
 
+    let abilitiesRan = ``
+
     const conversationHistory = [...aiMessages]
     const originalUserMessage = conversationHistory[conversationHistory.length - 1]
     let currentIteration = 0
-    let finalResponse = ''
-
-    // Add efficient tool discovery instruction
-    const lastUserMessage = conversationHistory[conversationHistory.length - 1]
-    //     if (lastUserMessage?.role === 'user') {
-    //       // Use progressive ability discovery instead of listing all abilities
-    //       const searchResult = this.mcpIntegration.searchAbilities(lastUserMessage.content)
-
-    //       const discoveryPrompt = createAbilityDiscoveryPrompt(lastUserMessage.content, searchResult, this.mcpIntegration.abilityDiscovery['filesystem'])
-
-    //       lastUserMessage.content += `\n\n(Note: You are an agentic AI that should work until the user's request is fully completed. I will help you discover relevant abilities as needed.
-
-    // ${discoveryPrompt}
-
-    // When the task is fully complete, make sure to indicate this clearly in your response.)`
-    //     }
-    if (lastUserMessage?.role === 'user') {
-      const searchResult = this.mcpIntegration.searchAbilities(lastUserMessage.content)
-      const discoveryPrompt = createAbilityDiscoveryPrompt(lastUserMessage.content, searchResult, this.mcpIntegration.abilityDiscovery['filesystem'])
-      conversationHistory[conversationHistory.length - 1].content += `\n\n(Note: You are an agentic AI that should work until the user's request is fully completed. I will help you discover relevant abilities as needed.
-
-${discoveryPrompt}
-
-When the task is fully complete, make sure to indicate this clearly in your response.)`
-    }
+    let finalResponse = ``
 
     // Agentic loop - continue until task is complete or max iterations reached
     while (currentIteration < this.maxAgenticIterations) {
@@ -334,18 +312,13 @@ When the task is fully complete, make sure to indicate this clearly in your resp
 
       // Execute abilities with efficient result processing
       const abilityResults = await this.executeAbilityCalls(abilityCalls, currentIteration, originalUserMessage, abortSignal)
+      abilitiesRan += `\n\n results from the abilities you executed: ${abilityResults}`
 
       // Add conversation history for next iteration
       conversationHistory.push({
         role: 'assistant',
         content: response,
       })
-
-      // For next iteration, provide efficient context and new ability discovery
-      const nextSearchResult = this.mcpIntegration.searchAbilities(originalUserMessage.content + ' ' + abilityResults, 5)
-      const nextDiscoveryPrompt = nextSearchResult.matches.length > 0
-        ? `\n\nIf you need more abilities, here are relevant options based on current context:\n${nextSearchResult.matches.map(m => `- ${m.ability.name}: ${m.ability.description}`).join('\n')}`
-        : '\n\nIf you need to search for other abilities, let me know what type of operation you want to perform.'
 
       conversationHistory.push({
         role: 'user',
@@ -363,9 +336,9 @@ When the task is fully complete, make sure to indicate this clearly in your resp
         isComplete: false,
       })
     }
-
+    const finalResponseWithAbilitiesRan = `${finalResponse}\n\n${abilitiesRan}`
     return {
-      content: [{ type: 'text' as const, text: finalResponse }],
+      content: [{ type: 'text' as const, text: `${finalResponseWithAbilitiesRan}` }],
     }
   }
 
@@ -395,22 +368,16 @@ When the task is fully complete, make sure to indicate this clearly in your resp
 
       // Add keyboard.dev abilities system message if enabled and available
       if (this.currentProvider.mcpEnabled && this.mcpIntegration?.isConnected) {
-        // const abilitiesSystemMessage = this.mcpIntegration.getAbilitiesSystemMessage()
-        // if (abilitiesSystemMessage) {
-        //   // Check if there's already a system message
-        //   const existingSystemIndex = aiMessages.findIndex(m => m.role === 'system')
-        //   if (existingSystemIndex >= 0) {
-        //     // Append to existing system message
-        //     aiMessages[existingSystemIndex].content += '\n\n' + abilitiesSystemMessage
-        //   }
-        //   else {
-        //     // Add new system message at the beginning
-        //     aiMessages.unshift({
-        //       role: 'system',
-        //       content: abilitiesSystemMessage,
-        //     })
-        //   }
-        // }
+        const abilitiesSystemMessage = getSystemsAbilitiesPrompt()
+        const isThereASystemPrompt = aiMessages.some(m => m.role === 'system')
+        console.log('this is the is there a system prompt', isThereASystemPrompt)
+        if (!isThereASystemPrompt) {
+          aiMessages.unshift({
+            role: 'system',
+            content: abilitiesSystemMessage,
+          })
+          console.log('this is the ai messages', aiMessages)
+        }
       }
 
       // Check if provider is configured
