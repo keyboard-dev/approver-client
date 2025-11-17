@@ -1,13 +1,27 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" style="overflow: hidden; scrollbar-width: none; -ms-overflow-style: none; scrollbar-gutter: none;">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Message Viewer</title>
     <link rel="stylesheet" href="dist/main.css">
+    <style>
+        html, body {
+            overflow: hidden;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+
+        }
+        html::-webkit-scrollbar,
+        body::-webkit-scrollbar {
+            display: none;
+            width: 0;
+            height: 0;
+        }
+    </style>
 </head>
-<body>
+<body style="overflow: hidden; margin: 0; padding: 0; scrollbar-gutter: none;">
     <div id="root"></div>
     <script type="module" src="dist/main.js"></script>
 </body>
-</html> 
+</html>

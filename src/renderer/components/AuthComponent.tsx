@@ -1,111 +1,46 @@
-import React, { useState, useEffect } from 'react';
-import { Button } from './ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { Alert, AlertDescription } from '../../components/ui/alert';
-import { Badge } from './ui/badge';
-import { User, LogIn, LogOut, Shield, AlertCircle, CheckCircle } from 'lucide-react';
-import { AuthStatus, AuthError } from '../../preload';
+import { AlertCircle, CheckCircle, LogOut, Shield, User } from 'lucide-react'
+import React, { useState } from 'react'
 
-interface AuthComponentProps {
-  onAuthChange: (authStatus: AuthStatus) => void;
-}
+import { Alert, AlertDescription } from '../../components/ui/alert'
+import { useAuth } from '../hooks/useAuth'
+import { Badge } from './ui/badge'
+import { Button } from './ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 
-const AuthComponent: React.FC<AuthComponentProps> = ({ onAuthChange }) => {
-  const [authStatus, setAuthStatus] = useState<AuthStatus>({ authenticated: false });
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [showAuthDetails, setShowAuthDetails] = useState(false);
+import keyboardLogo from '../assets/keyboard-logo.png'
 
-  // Load initial auth status
-  useEffect(() => {
-    loadAuthStatus();
-    
-    // Listen for auth events
-    const handleAuthSuccess = (event: any, data: AuthStatus) => {
-      setAuthStatus(data);
-      setError(null);
-      setIsLoading(false);
-      onAuthChange(data);
-    };
-
-    const handleAuthError = (event: any, errorData: AuthError) => {
-      console.error('Auth error:', errorData);
-      setError(errorData.message);
-      setIsLoading(false);
-    };
-
-    const handleAuthLogout = () => {
-      setAuthStatus({ authenticated: false });
-      setError(null);
-      onAuthChange({ authenticated: false });
-    };
-
-    window.electronAPI.onAuthSuccess(handleAuthSuccess);
-    window.electronAPI.onAuthError(handleAuthError);
-    window.electronAPI.onAuthLogout(handleAuthLogout);
-
-    return () => {
-      window.electronAPI.removeAllListeners('auth-success');
-      window.electronAPI.removeAllListeners('auth-error');
-      window.electronAPI.removeAllListeners('auth-logout');
-    };
-  }, [onAuthChange]);
-
-  const loadAuthStatus = async () => {
-    try {
-      const status = await window.electronAPI.getAuthStatus();
-      setAuthStatus(status);
-      onAuthChange(status);
-    } catch (error) {
-      console.error('Error loading auth status:', error);
-    }
-  };
-
-  const handleLogin = async () => {
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      await window.electronAPI.startOAuth();
-      // The actual authentication will be handled by the OAuth flow
-      // and the auth-success event will be triggered
-    } catch (error) {
-      console.error('Error starting OAuth:', error);
-      setError('Failed to start authentication');
-      setIsLoading(false);
-    }
-  };
-
-  const handleLogout = async () => {
-    try {
-      await window.electronAPI.logout();
-      // The auth-logout event will be triggered
-    } catch (error) {
-      console.error('Error logging out:', error);
-      setError('Failed to logout');
-    }
-  };
-
-  if (authStatus.authenticated) {
+const AuthComponent: React.FC = () => {
+  const {
+    authStatus,
+    isSkippingAuth,
+    isLoading,
+    error,
+    login,
+    logout,
+  } = useAuth()
+  const [showAuthDetails, setShowAuthDetails] = useState(false)
+  if (authStatus.authenticated || isSkippingAuth) {
     return (
       <Card className="w-full mb-4">
         <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
+          <div className="flex items-start justify-between">
             <CardTitle className="text-lg flex items-center space-x-2">
               <Shield className="h-5 w-5 text-green-600" />
-              <span>Authenticated</span>
+              {isSkippingAuth ? 'Skipping Authentication' : 'Authenticated'}
             </CardTitle>
             <div className="flex items-center space-x-2">
               <Badge variant="default" className="bg-green-100 text-green-800 border-green-200">
                 <CheckCircle className="h-3 w-3 mr-1" />
-                Logged In
+                {isSkippingAuth ? 'Skipping Authentication' : 'Logged In'}
               </Badge>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setShowAuthDetails(!showAuthDetails)}
               >
-                {showAuthDetails ? 'Hide' : 'Show'} Details
+                {showAuthDetails ? 'Hide' : 'Show'}
+                {' '}
+                Details
               </Button>
             </div>
           </div>
@@ -118,10 +53,15 @@ const AuthComponent: React.FC<AuthComponentProps> = ({ onAuthChange }) => {
                   <User className="h-8 w-8 text-gray-600" />
                   <div>
                     <p className="font-medium text-sm">
-                      {authStatus.user.firstName} {authStatus.user.lastName}
+                      {authStatus.user.firstName}
+                      {' '}
+                      {authStatus.user.lastName}
                     </p>
                     <p className="text-xs text-gray-500">{authStatus.user.email}</p>
-                    <p className="text-xs text-gray-400">ID: {authStatus.user.id}</p>
+                    <p className="text-xs text-gray-400">
+                      ID:
+                      {authStatus.user.id}
+                    </p>
                   </div>
                 </div>
               )}
@@ -129,7 +69,7 @@ const AuthComponent: React.FC<AuthComponentProps> = ({ onAuthChange }) => {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={handleLogout}
+                  onClick={logout}
                   className="text-red-600 border-red-200 hover:bg-red-50"
                 >
                   <LogOut className="h-4 w-4 mr-2" />
@@ -140,49 +80,96 @@ const AuthComponent: React.FC<AuthComponentProps> = ({ onAuthChange }) => {
           )}
         </CardContent>
       </Card>
-    );
+    )
   }
 
   return (
-    <Card className="w-full mb-4">
-      <CardHeader>
-        <CardTitle className="text-lg flex items-center space-x-2">
-          <AlertCircle className="h-5 w-5 text-orange-600" />
-          <span>Authentication Required</span>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <p className="text-sm text-gray-600">
-          Please authenticate to access the message approval system. This will open your browser for secure login.
-        </p>
-        
-        {error && (
-          <Alert className="border-red-200 bg-red-50">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription className="text-red-800">
-              {error}
-            </AlertDescription>
-          </Alert>
-        )}
+    <div className="w-full h-full flex flex-col justify-between items-center gap-4">
+      <div className="w-full flex-1 px-2.5 py-3 bg-white rounded-lg flex flex-col justify-center items-center gap-4">
+        <div className="w-full flex-1 px-6 sm:px-12 lg:px-24 pt-4 pb-8 sm:pt-6 sm:pb-12 flex flex-col justify-center items-center gap-6">
+          <div className="w-full max-w-md flex flex-col justify-start items-start gap-8">
+            {/* Logo */}
+            <div className="w-16 h-16  flex items-center justify-center">
+              <img src={keyboardLogo} alt="Keyboard Logo" />
+              {/* <img src={advancedSettingsImg} alt="Advanced Settings" />
+              <img src={installExtensionImg} alt="Install Extension" /> */}
+            </div>
 
-        <div className="flex justify-center">
-          <Button
-            onClick={handleLogin}
-            disabled={isLoading}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
-          >
-            <LogIn className="h-4 w-4 mr-2" />
-            {isLoading ? 'Authenticating...' : 'Sign In'}
-          </Button>
+            {/* Title */}
+            <div className="flex flex-col justify-start items-start gap-2.5">
+              <h1 className="text-gray-900 text-xl font-semibold font-inter">Get started with Keyboard</h1>
+            </div>
+
+            {/* Main Content */}
+            <div className="self-stretch flex-1 flex flex-col justify-start items-start gap-4">
+              {error && (
+                <Alert className="self-stretch border-red-200 bg-red-50 mb-4">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription className="text-red-800">
+                    {error}
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {/* Sign in button */}
+              <button
+                onClick={login}
+                disabled={isLoading}
+                className="self-stretch h-10 px-5 py-2 rounded border border-gray-300 hover:border-gray-400 hover:bg-gray-50 disabled:opacity-50 flex justify-center items-center gap-2.5 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-200"
+              >
+                <span className="text-gray-900 text-sm font-medium font-inter">
+                  {isLoading ? 'Authenticating...' : 'Sign in with browser'}
+                </span>
+              </button>
+
+              {/* OR divider */}
+              {/* <div className="self-stretch flex justify-center items-center gap-2.5">
+                <div className="flex-1 h-px border-t border-gray-300"></div>
+                <span className="text-gray-400 text-xs font-medium font-inter">OR</span>
+                <div className="flex-1 h-px border-t border-gray-300"></div>
+              </div> */}
+
+              {/* Continue without authenticating */}
+              {/* <div className="self-stretch flex flex-col justify-start items-start">
+                <button
+                  onClick={skipAuth}
+                  disabled={isLoading}
+                  className="self-stretch flex justify-between items-center hover:bg-gray-50 p-2 rounded transition-colors disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-gray-200"
+                >
+                  <span className="text-gray-900 text-sm font-medium font-inter text-left">
+                    Continue without authenticating
+                  </span>
+                  <div className="w-6 h-6 flex justify-center items-center">
+                    <ChevronRight className="w-4 h-4 text-gray-900" />
+                  </div>
+                </button>
+                <span className="text-gray-400 text-xs font-medium font-inter ml-2 mt-1">Certain features will be limited.</span>
+              </div> */}
+            </div>
+
+            {/* Help text */}
+          </div>
         </div>
+      </div>
+      <div className="w-full max-w-md text-center">
+        <span className="text-gray-400 text-sm font-medium font-inter">Need help? </span>
+        <span
+          className="text-gray-900 text-sm font-medium font-inter cursor-pointer hover:underline"
+          onClick={() => window.electronAPI.openExternalUrl('https://discord.com/invite/UxsRWtV6M2')}
+        >
+          Ask in our Discord
+        </span>
+        <span className="text-gray-400 text-sm font-medium font-inter"> or read the </span>
+        <span
+          className="text-gray-900 text-sm font-medium font-inter cursor-pointer hover:underline"
+          onClick={() => window.electronAPI.openExternalUrl('https://docs.keyboard.dev')}
+        >
+          docs
+        </span>
+        <span className="text-gray-400 text-sm font-medium font-inter">.</span>
+      </div>
+    </div>
+  )
+}
 
-        <div className="text-xs text-gray-500 text-center">
-          <p>This will open your default browser for secure authentication.</p>
-          <p>You'll be redirected back to this app after login.</p>
-        </div>
-      </CardContent>
-    </Card>
-  );
-};
-
-export default AuthComponent; 
+export default AuthComponent

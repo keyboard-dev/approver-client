@@ -1,10 +1,60 @@
+/* eslint-disable css/use-baseline */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* Fira Code Font Family */
+@font-face {
+  font-family: 'Fira Code';
+  src: url('../../assets/fonts/FiraCode-Light.woff2') format('woff2');
+  font-weight: 300;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Fira Code';
+  src: url('../../assets/fonts/FiraCode-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Fira Code';
+  src: url('../../assets/fonts/FiraCode-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Fira Code';
+  src: url('../../assets/fonts/FiraCode-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('../../assets/fonts/Inter-VariableFont_opsz,wght.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('../../assets/fonts/Inter-Italic-VariableFont_opsz,wght.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: block;
+}
+
 @layer base {
   :root {
-    --background: 0 0% 100%;
+    --background: transparent;
     --foreground: 222.2 84% 4.9%;
     --card: 0 0% 100%;
     --card-foreground: 222.2 84% 4.9%;
@@ -31,7 +81,7 @@
     --radius: 0.5rem
   }
   .dark {
-    --background: 222.2 84% 4.9%;
+    --background: transparent;
     --foreground: 210 40% 98%;
     --card: 222.2 84% 4.9%;
     --card-foreground: 210 40% 98%;
@@ -65,4 +115,28 @@
   body {
     @apply bg-background text-foreground;
   }
-} 
+}
+
+@layer utilities {
+  .hide-scrollbar {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* Internet Explorer 10+ */
+  }
+
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none; /* WebKit */
+  }
+}
+
+/* Monaco Editor Font Fixes */
+.monaco-editor .view-line {
+  font-feature-settings: "liga" 1, "calt" 1;
+}
+
+.monaco-editor .cursors-layer .cursor {
+  box-sizing: border-box;
+}
+
+.monaco-editor .view-lines {
+  font-variant-ligatures: common-ligatures;
+}

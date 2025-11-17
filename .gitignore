@@ -1,6 +1,7 @@
 node_modules
 dist
 dist-build
+dist-react
 .env
 .env.local
 .env.development.local
@@ -9,3 +10,11 @@ dist-build
 .DS_Store
 .env.keys
 .env*
+out
+out/
+.log*
+.log
+scripts/build-signed.sh
+poc*
+.keyboard-mcp*
+*.keyboard-mcp*

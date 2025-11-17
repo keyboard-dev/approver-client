@@ -1,7 +1,7 @@
-import React from 'react';
-import { Button } from './ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { Badge } from './ui/badge';
+import React from 'react'
+import { Button } from './ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
+import { Badge } from './ui/badge'
 
 const TailwindTest: React.FC = () => {
   return (
@@ -10,7 +10,7 @@ const TailwindTest: React.FC = () => {
         <h1 className="text-4xl font-bold text-gray-800 mb-8 text-center">
           🎉 Tailwind CSS Test Component
         </h1>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {/* Card 1 - Colors and Shadows */}
           <div className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow duration-300">
@@ -19,7 +19,7 @@ const TailwindTest: React.FC = () => {
             </div>
             <h3 className="text-xl font-semibold text-gray-800 mb-2">Colors & Shadows</h3>
             <p className="text-gray-600">
-              This card demonstrates Tailwind's color palette, shadows, and hover effects.
+              This card demonstrates Tailwind&apos;s color palette, shadows, and hover effects.
             </p>
           </div>
 
@@ -91,7 +91,7 @@ const TailwindTest: React.FC = () => {
         {/* Shadcn/UI Components Section */}
         <div className="mt-12 bg-white rounded-lg shadow-md p-6">
           <h3 className="text-2xl font-semibold text-gray-800 mb-6">Shadcn/UI Components</h3>
-          
+
           {/* Shadcn/UI Buttons */}
           <div className="mb-8">
             <h4 className="text-lg font-medium text-gray-700 mb-4">Shadcn/UI Buttons</h4>
@@ -121,7 +121,7 @@ const TailwindTest: React.FC = () => {
                   <p>Card content goes here with some example text.</p>
                 </CardContent>
               </Card>
-              
+
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -203,13 +203,13 @@ const TailwindTest: React.FC = () => {
         {/* Responsive Text */}
         <div className="mt-8 text-center">
           <p className="text-sm md:text-base lg:text-lg xl:text-xl text-gray-600">
-            This text changes size based on screen width: 
+            This text changes size based on screen width:
             <span className="font-semibold text-blue-600"> responsive typography!</span>
           </p>
         </div>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default TailwindTest; 
+export default TailwindTest
