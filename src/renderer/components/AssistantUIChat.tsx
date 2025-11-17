@@ -36,6 +36,15 @@ interface ProviderConfig {
 
 const PROVIDERS: ProviderConfig[] = [
   {
+    id: 'keyboard',
+    name: 'Keyboard (Default)',
+    supportsMCP: true,
+    models: [
+      { id: 'claude-sonnet-4-5-20250929', name: 'Claude 4.5 Sonnet (Default)' },
+      { id: 'claude-haiku-4-5-20250929', name: 'Claude 4.5 Haiku (Fastest)' },
+    ],
+  },
+  {
     id: 'openai',
     name: 'OpenAI',
     supportsMCP: true,
@@ -80,8 +89,8 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
   onRejectMessage,
   onClearApprovalMessage,
 }) => {
-  const [selectedProvider, setSelectedProvider] = useState('openai')
-  const [selectedModel, setSelectedModel] = useState('gpt-3.5-turbo')
+  const [selectedProvider, setSelectedProvider] = useState('keyboard')
+  const [selectedModel, setSelectedModel] = useState('claude-sonnet-4-5-20250929')
   const mcpEnabled = true // Always enabled
   const [availableProviders, setAvailableProviders] = useState<string[]>([])
   const [showExecutionPanel, setShowExecutionPanel] = useState(false)
@@ -122,8 +131,8 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
           .filter(p => p.configured)
           .map(p => p.provider)
 
-        // Always include MCP as it doesn't require traditional API keys
-        const allAvailable = [...configured, 'mcp']
+        // Always include Keyboard and MCP as they don't require traditional API keys
+        const allAvailable = ['keyboard', ...configured, 'mcp']
         setAvailableProviders(allAvailable)
 
         // Set default to first available provider

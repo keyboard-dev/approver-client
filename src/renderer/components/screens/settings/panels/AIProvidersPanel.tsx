@@ -10,11 +10,20 @@ interface AIProviderKey {
 
 const AI_PROVIDERS = [
   {
+    id: 'keyboard',
+    name: 'Keyboard (Default)',
+    description: 'Claude 4.5 models via Keyboard API',
+    placeholder: '',
+    helpUrl: '',
+    isBuiltIn: true,
+  },
+  {
     id: 'openai',
     name: 'OpenAI',
     description: 'GPT-4, GPT-3.5-turbo models',
     placeholder: 'sk-...',
     helpUrl: 'https://platform.openai.com/api-keys',
+    isBuiltIn: false,
   },
   {
     id: 'anthropic',
@@ -22,6 +31,7 @@ const AI_PROVIDERS = [
     description: 'Claude models',
     placeholder: 'sk-ant-...',
     helpUrl: 'https://console.anthropic.com/',
+    isBuiltIn: false,
   },
   {
     id: 'gemini',
@@ -29,6 +39,7 @@ const AI_PROVIDERS = [
     description: 'Gemini Pro models',
     placeholder: 'AIza...',
     helpUrl: 'https://makersuite.google.com/app/apikey',
+    isBuiltIn: false,
   },
 ] as const
 
@@ -147,23 +158,25 @@ export const AIProvidersPanel: React.FC = () => {
                 <div>
                   <div className="font-semibold flex items-center gap-2">
                     {provider.name}
-                    {isConfigured && (
-                      <span className="text-green-600 text-sm">✓ Configured</span>
+                    {(isConfigured || provider.isBuiltIn) && (
+                      <span className="text-green-600 text-sm">✓ {provider.isBuiltIn ? 'Built-in' : 'Configured'}</span>
                     )}
                   </div>
                   <div className="text-[#737373] text-sm">{provider.description}</div>
                 </div>
-                <a
-                  href={provider.helpUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-600 hover:text-blue-800 text-sm"
-                >
-                  Get API Key →
-                </a>
+                {!provider.isBuiltIn && provider.helpUrl && (
+                  <a
+                    href={provider.helpUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:text-blue-800 text-sm"
+                  >
+                    Get API Key →
+                  </a>
+                )}
               </div>
 
-              {!isConfigured
+              {!isConfigured && !provider.isBuiltIn
                 ? (
                     <div className="flex flex-col gap-3">
                       <div className="flex gap-2">
@@ -203,14 +216,16 @@ export const AIProvidersPanel: React.FC = () => {
                         {testing === provider.id ? 'Testing...' : 'Test Connection'}
                       </ButtonDesigned>
 
-                      <ButtonDesigned
-                        onClick={() => setDeleteConfirmation(provider.id)}
-                        className="px-4 py-2"
-                        variant="destructive"
-                        hasBorder
-                      >
-                        Remove Key
-                      </ButtonDesigned>
+                      {!provider.isBuiltIn && (
+                        <ButtonDesigned
+                          onClick={() => setDeleteConfirmation(provider.id)}
+                          className="px-4 py-2"
+                          variant="destructive"
+                          hasBorder
+                        >
+                          Remove Key
+                        </ButtonDesigned>
+                      )}
                     </div>
                   )}
 
