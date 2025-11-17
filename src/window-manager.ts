@@ -18,8 +18,27 @@ export class WindowManager {
     this.options = options
   }
 
+  private getIconPath(): string {
+    // Use platform-specific icon format
+    if (process.platform === 'win32') {
+      // Try .ico first for Windows, fallback to .png
+      const icoPath = path.join(__dirname, '../assets/keyboard-dock.ico')
+      const pngPath = path.join(__dirname, '../assets/keyboard-dock.png')
+      // TODO: Check if .ico exists when available
+      return icoPath // Will use .ico when generated
+    }
+    else if (process.platform === 'darwin') {
+      return path.join(__dirname, '../assets/keyboard-dock.icns')
+    }
+    else {
+      // Linux and others use PNG
+      return path.join(__dirname, '../assets/keyboard-dock.png')
+    }
+  }
+
   public createMainWindow(): void {
-    const iconPath = path.join(__dirname, '../assets/keyboard-dock.icns')
+    // Use platform-specific icon format
+    const iconPath = this.getIconPath()
 
     // Get or create a persistent session explicitly
     const persistentSession = session.fromPartition('persist:main', { cache: true })
@@ -43,6 +62,12 @@ export class WindowManager {
         type: 'panel',
         vibrancy: 'under-window',
         visualEffectState: 'active',
+      }),
+      ...(process.platform === 'win32' && {
+        alwaysOnTop: false,
+        titleBarStyle: 'hidden',
+        backgroundColor: '#00000000', // Transparent background for Windows
+        skipTaskbar: false, // Show in taskbar on Windows
       }),
     })
 
@@ -156,6 +181,24 @@ export class WindowManager {
     if (this.mainWindow) {
       this.mainWindow.close()
       this.mainWindow = null
+    }
+  }
+
+  public setTaskbarBadge(count: number): void {
+    if (!this.mainWindow) return
+
+    if (process.platform === 'win32') {
+      // Windows taskbar overlay icon
+      if (count > 0) {
+        // Create a small overlay icon with the count
+        // For now, we'll use a simple overlay indicating pending items
+        // In production, you'd want to generate a proper badge icon
+        const overlayIconPath = path.join(__dirname, '../assets/notification.png')
+        this.mainWindow.setOverlayIcon(overlayIconPath, `${count} pending notifications`)
+      }
+      else {
+        this.mainWindow.setOverlayIcon(null, '')
+      }
     }
   }
 }
