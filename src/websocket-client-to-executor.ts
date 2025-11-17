@@ -41,6 +41,13 @@ export class ExecutorWebSocketClient {
   private onMessageReceived?: (message: ExecutorMessage) => void
   private windowManager?: IWindowManager
 
+  // Keepalive and connection health
+  private readonly CLIENT_PING_INTERVAL = 35000 // 35 seconds (offset from server's 30s)
+  private connectionAliveStatus: boolean = false
+  private lastPongReceived: number = 0
+  private clientPingInterval: NodeJS.Timeout | null = null
+  private lastActivityTime: number = Date.now()
+
   constructor(
     onMessageReceived?: (message: ExecutorMessage) => void,
     windowManager?: IWindowManager,
@@ -85,6 +92,63 @@ export class ExecutorWebSocketClient {
     return {
       connected: this.isConnected(),
       target: this.currentTarget || undefined,
+    }
+  }
+
+  // Get enhanced connection info with ping test and health data
+  async getEnhancedConnectionInfo(): Promise<{
+    connected: boolean
+    target?: ConnectionTarget
+    pingTest?: {
+      success: boolean
+      error?: string
+    }
+    connectionHealth?: {
+      isAlive: boolean
+      lastActivity: number
+      lastPong: number
+      timeSinceLastActivity: number
+      timeSinceLastPong: number
+    }
+  }> {
+    const basicInfo = this.getConnectionInfo()
+    
+    if (!basicInfo.connected) {
+      return basicInfo
+    }
+
+    try {
+      console.log('🏓 Performing manual ping test...')
+      const pingResult = await this.sendManualPing()
+      console.log('🏓 Ping test result:', {
+        success: pingResult.success,
+        error: pingResult.error,
+        connectionHealth: pingResult.connectionHealth,
+      })
+      return {
+        ...basicInfo,
+        pingTest: {
+          success: pingResult.success,
+          error: pingResult.error,
+        },
+        connectionHealth: {
+          isAlive: pingResult.connectionHealth.isAlive,
+          lastActivity: pingResult.connectionHealth.lastActivity,
+          lastPong: pingResult.connectionHealth.lastPong,
+          timeSinceLastActivity: pingResult.connectionHealth.timeSinceLastActivity,
+          timeSinceLastPong: pingResult.connectionHealth.timeSinceLastPong,
+        },
+      }
+    }
+    catch (error) {
+      return {
+        ...basicInfo,
+        pingTest: {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        },
+        connectionHealth: this.getConnectionHealth(),
+      }
     }
   }
 
@@ -345,6 +409,9 @@ export class ExecutorWebSocketClient {
         }
         console.log('🔗 WebSocket connected to:', target.url)
 
+        // Set up keepalive for this connection
+        this.setupConnectionKeepalive()
+
         // Emit connected event
         this.windowManager?.sendMessage('websocket-connected', {
           target: target.name || target.url,
@@ -355,6 +422,9 @@ export class ExecutorWebSocketClient {
 
       this.ws!.on('message', (data: WebSocket.Data) => {
         try {
+          // Update activity time for any message received
+          this.lastActivityTime = Date.now()
+
           const message = JSON.parse(data.toString()) as ExecutorMessage
 
           // Forward to message handler
@@ -365,8 +435,27 @@ export class ExecutorWebSocketClient {
         }
       })
 
+      // Set up ping/pong handlers for keepalive
+      this.ws!.on('ping', (data: Buffer) => {
+        // Respond to server ping with pong
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+          this.ws.pong(data)
+          this.lastActivityTime = Date.now()
+        }
+      })
+
+      this.ws!.on('pong', () => {
+        // Server responded to our ping
+        this.connectionAliveStatus = true
+        this.lastPongReceived = Date.now()
+        this.lastActivityTime = Date.now()
+      })
+
       this.ws!.on('close', () => {
         this.ws = null
+
+        // Clean up keepalive resources
+        this.cleanupKeepalive()
 
         // Emit disconnected event
         this.windowManager?.sendMessage('websocket-disconnected', {
@@ -444,6 +533,8 @@ export class ExecutorWebSocketClient {
   send(message: unknown): void {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(message))
+      // Update activity time when sending messages
+      this.lastActivityTime = Date.now()
     }
     else {
       console.error('❌ Cannot send message: WebSocket not connected')
@@ -480,6 +571,9 @@ export class ExecutorWebSocketClient {
       this.reconnectTimeout = null
     }
 
+    // Clean up keepalive resources
+    this.cleanupKeepalive()
+
     if (this.ws) {
       this.ws.close()
       this.ws = null
@@ -488,5 +582,165 @@ export class ExecutorWebSocketClient {
     // Reset reconnect attempts
     this.reconnectAttempts = 0
     this.currentTarget = null
+  }
+
+  /**
+   * Sets up client-side keepalive system to prevent idle disconnections
+   * Sends periodic pings to server and monitors connection health
+   */
+  private setupConnectionKeepalive(): void {
+    // Initialize connection state
+    this.connectionAliveStatus = true
+    this.lastPongReceived = Date.now()
+    this.lastActivityTime = Date.now()
+
+    // Clean up any existing interval
+    this.cleanupKeepalive()
+
+    // Set up periodic ping to server (complementary to server's ping)
+    this.clientPingInterval = setInterval(() => {
+      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+        return
+      }
+
+      const timeSinceLastActivity = Date.now() - this.lastActivityTime
+      const timeSinceLastPong = Date.now() - this.lastPongReceived
+
+      // If connection seems dead (no pong responses), don't send more pings
+      if (timeSinceLastPong > 90000 && !this.connectionAliveStatus) { // 90 seconds
+        console.warn('⚠️ Connection appears dead, stopping client pings')
+        return
+      }
+
+      // Send ping to server
+      try {
+        this.ws.ping()
+        this.connectionAliveStatus = false // Will be set to true when pong is received
+
+        // Also send a keepalive message if we've been idle
+        if (timeSinceLastActivity > 25000) { // 25 seconds of no messages
+          this.sendKeepaliveMessage()
+        }
+      }
+      catch (error) {
+        console.error('❌ Error sending keepalive ping:', error)
+      }
+    }, this.CLIENT_PING_INTERVAL)
+
+    console.log('🔄 Client-side keepalive system started')
+  }
+
+  /**
+   * Sends a keepalive message to prevent server-side timeout
+   */
+  private sendKeepaliveMessage(): void {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      try {
+        this.ws.send(JSON.stringify({
+          type: 'keepalive',
+          timestamp: Date.now(),
+          clientId: 'keyboard-approver-client',
+        }))
+      }
+      catch (error) {
+        console.error('❌ Error sending keepalive message:', error)
+      }
+    }
+  }
+
+  /**
+   * Cleans up keepalive resources
+   */
+  private cleanupKeepalive(): void {
+    if (this.clientPingInterval) {
+      clearInterval(this.clientPingInterval)
+      this.clientPingInterval = null
+    }
+
+    // Reset connection state
+    this.connectionAliveStatus = false
+    this.lastPongReceived = 0
+  }
+
+  /**
+   * Gets connection health information for monitoring
+   */
+  getConnectionHealth(): {
+    isAlive: boolean
+    lastActivity: number
+    lastPong: number
+    timeSinceLastActivity: number
+    timeSinceLastPong: number
+  } {
+    const now = Date.now()
+    return {
+      isAlive: this.connectionAliveStatus,
+      lastActivity: this.lastActivityTime,
+      lastPong: this.lastPongReceived,
+      timeSinceLastActivity: now - this.lastActivityTime,
+      timeSinceLastPong: now - this.lastPongReceived,
+    }
+  }
+
+  /**
+   * Send a manual ping for testing and debugging
+   */
+  async sendManualPing(): Promise<{
+    success: boolean
+    error?: string
+    connectionHealth: {
+      isAlive: boolean
+      lastActivity: number
+      lastPong: number
+      timeSinceLastActivity: number
+      timeSinceLastPong: number
+      connected: boolean
+    }
+  }> {
+    const startTime = Date.now()
+    
+    try {
+      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+        return {
+          success: false,
+          error: 'WebSocket not connected',
+          connectionHealth: {
+            ...this.getConnectionHealth(),
+            connected: false,
+          },
+        }
+      }
+
+      // Store the previous connectionAliveStatus to reset it
+      const previousAliveStatus = this.connectionAliveStatus
+
+      // Send manual ping
+      this.ws.ping()
+      this.connectionAliveStatus = false // Will be set to true when pong is received
+
+      // Wait a short time for pong response
+      await new Promise(resolve => setTimeout(resolve, 1000))
+
+      const endTime = Date.now()
+      const pingTime = endTime - startTime
+
+      return {
+        success: true,
+        connectionHealth: {
+          ...this.getConnectionHealth(),
+          connected: this.ws?.readyState === WebSocket.OPEN,
+        },
+      }
+    }
+    catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        connectionHealth: {
+          ...this.getConnectionHealth(),
+          connected: this.ws?.readyState === WebSocket.OPEN || false,
+        },
+      }
+    }
   }
 }

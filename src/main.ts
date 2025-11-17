@@ -2521,11 +2521,11 @@ class MenuBarNotificationApp {
     })
 
     // Executor WebSocket client IPC handlers
-    ipcMain.handle('get-executor-connection-status', () => {
+    ipcMain.handle('get-executor-connection-status', async () => {
       if (!this.executorWSClient) {
         return { connected: false }
       }
-      return this.executorWSClient.getConnectionInfo()
+      return await this.executorWSClient.getEnhancedConnectionInfo()
     })
 
     ipcMain.handle('reconnect-to-executor', async (): Promise<boolean> => {
