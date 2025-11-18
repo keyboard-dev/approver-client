@@ -234,6 +234,18 @@ export interface ElectronAPI {
   connectToBestCodespace: () => Promise<boolean>
   connectToLocalhost: () => Promise<void>
   getLastKnownCodespaces: () => Promise<Array<{ codespace: unknown, websocketUrl?: string, available: boolean, error?: string }>>
+  sendManualPing: () => Promise<{
+    success: boolean
+    error?: string
+    connectionHealth: {
+      isAlive: boolean
+      lastActivity: number
+      lastPong: number
+      timeSinceLastActivity: number
+      timeSinceLastPong: number
+      connected: boolean
+    }
+  }>
 
   // Database notification (no return value needed)
   dbPendingCountUpdated: (count: number) => void
@@ -440,6 +452,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   connectToBestCodespace: (): Promise<boolean> => ipcRenderer.invoke('connect-to-best-codespace'),
   connectToLocalhost: (): Promise<void> => ipcRenderer.invoke('connect-to-localhost'),
   getLastKnownCodespaces: () => ipcRenderer.invoke('get-last-known-codespaces'),
+  sendManualPing: () => ipcRenderer.invoke('send-manual-ping'),
 
   // Database notification (no return value needed)
   dbPendingCountUpdated: (count: number): void => {

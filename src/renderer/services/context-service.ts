@@ -1,10 +1,11 @@
 import { generatePlanningToken, toolsToAbilities } from './ability-tools'
+import type { MCPAbilityFunction } from './mcp-tool-integration'
 
 export interface CodespaceInfo {
   success: boolean
   data?: {
     keyName?: string
-    resources?: any[]
+    resources?: unknown[]
     services?: string[]
     environment?: Record<string, string>
   }
@@ -29,6 +30,33 @@ export interface EnhancedContext {
 export class ContextService {
   private cachedContext: EnhancedContext | null = null
   private contextExpiry: number = 5 * 60 * 1000 // 5 minutes
+  private mcpFunctions: MCPAbilityFunction[] = []
+
+  /**
+   * Set MCP functions for the context service
+   */
+  setMCPFunctions(functions: MCPAbilityFunction[]): void {
+    this.mcpFunctions = functions
+  }
+
+  /**
+   * Get MCP tools filtered out from toolsToAbilities
+   */
+  private getFilteredMCPTools(): MCPAbilityFunction[] {
+    const keyboardAbilityNames = new Set<string>()
+    console.log('mcpFunctions', this.mcpFunctions)
+    // Extract all ability names from toolsToAbilities
+    Object.values(toolsToAbilities.categories).forEach((abilities) => {
+      abilities.forEach((ability) => {
+        keyboardAbilityNames.add(ability.command)
+      })
+    })
+
+    // Filter out tools that are in toolsToAbilities
+    return this.mcpFunctions.filter(func =>
+      keyboardAbilityNames.has(func.function.name),
+    )
+  }
 
   /**
    * Get comprehensive context for AI system prompt
@@ -84,6 +112,25 @@ export class ContextService {
 
     const abilitiesList = JSON.stringify(toolsToAbilities, null, 2)
 
+    // Get filtered MCP tools (excluding keyboard abilities)
+    const filteredMCPTools = this.getFilteredMCPTools()
+    const additionalToolsList = filteredMCPTools.length > 0
+      ? filteredMCPTools.map(func => ({
+          name: func.function.name,
+          description: func.function.description,
+          parameters: func.function.parameters,
+        }))
+      : []
+
+    const additionalToolsSection = additionalToolsList.length > 0
+      ? `
+
+ADDITIONAL MCP TOOLS AVAILABLE:
+${JSON.stringify(additionalToolsList, null, 2)}
+
+Note: These are additional MCP tools beyond the core keyboard abilities. You can call these using the same JSON format.`
+      : ''
+
     return `You are a helpful AI assistant with access to a secure code execution environment.  Any code you will try to execute will also be reviewed by a human before execution so you can execute and write code with confidence.
 
 This is a real planning token to pass the run-code ability.  Make sure to use it when calling the run-code ability.
@@ -107,8 +154,8 @@ API RESEARCH GUIDANCE:
 - Check for rate limits, authentication requirements, and error handling
 - Only after you tried to use the web-search ability, and it didn't work, then you can use the run-code ability to execute code but the idea is to use the web-search ability first.
 
-AVAILABLE ABILITIES:
-${abilitiesList}
+Full abilities description and schema:
+${abilitiesList}${additionalToolsSection}
 
 INSTRUCTIONS:
 - You can execute abilities directly using JSON format: {"ability": "ability-name", "parameters": {...}}
@@ -153,7 +200,7 @@ USER REQUEST: ${userMessage}`
       console.log('🏗️ Fetching codespace info...')
 
       // Get codespace info via electron API
-      const codespaceInfo = await window.electronAPI?.getCodespaceInfo?.() as any
+      const codespaceInfo = await window.electronAPI?.getCodespaceInfo?.() as CodespaceInfo | undefined
       console.log('codespaceInfo from fetchCodespaceInfo', codespaceInfo)
 
       if (codespaceInfo) {

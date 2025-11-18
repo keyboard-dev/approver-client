@@ -2579,6 +2579,24 @@ class MenuBarNotificationApp {
       return this.executorWSClient.getLastKnownCodespaces()
     })
 
+    ipcMain.handle('send-manual-ping', async () => {
+      if (!this.executorWSClient) {
+        return { 
+          success: false, 
+          error: 'WebSocket client not available',
+          connectionHealth: {
+            isAlive: false,
+            lastActivity: 0,
+            lastPong: 0,
+            timeSinceLastActivity: 0,
+            timeSinceLastPong: 0,
+            connected: false
+          }
+        }
+      }
+      return await this.executorWSClient.sendManualPing()
+    })
+
     // Auto-updater IPC handlers (only available on macOS and Windows)
     ipcMain.handle('check-for-updates', async (): Promise<void> => {
       if (process.platform === 'darwin' || process.platform === 'win32') {
