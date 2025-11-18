@@ -69,7 +69,7 @@ const AppContent: React.FC = () => {
   const { messages, shareMessages, refetch: refetchMessages } = useMessagesQuery()
 
   // WebSocket connection management
-  const { connectionStatus, isConnectingToCodespace, connectToBestCodespace } = useWebSocketConnection(
+  const { connectionStatus } = useWebSocketConnection(
     authStatus,
     isSkippingAuth,
   )
