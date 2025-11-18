@@ -240,6 +240,7 @@ export class AIChatAdapter implements ChatModelAdapter {
     const originalUserMessage = conversationHistory[conversationHistory.length - 1]
     let currentIteration = 0
     let finalResponse = ''
+    let abilitiesRan = ''
 
     // Add efficient tool discovery instruction
     const lastUserMessage = conversationHistory[conversationHistory.length - 1]
@@ -334,7 +335,7 @@ When the task is fully complete, make sure to indicate this clearly in your resp
 
       // Execute abilities with efficient result processing
       const abilityResults = await this.executeAbilityCalls(abilityCalls, currentIteration, originalUserMessage, abortSignal)
-
+      abilitiesRan += abilityResults
       // Add conversation history for next iteration
       conversationHistory.push({
         role: 'assistant',
@@ -364,8 +365,104 @@ When the task is fully complete, make sure to indicate this clearly in your resp
       })
     }
 
+    // Get AI analysis of the results
+    const analysisResponse = await this.getAbilityResultsAnalysis(finalResponse, abilitiesRan, originalUserMessage.content)
+
+    // Format the complete response with collapsible JSON results
+    const formattedResponse = `${finalResponse}
+
+<details>
+<summary>🔧 Execution Results (Click to expand)</summary>
+
+\`\`\`ability-result
+${this.formatAbilityResultsAsJSON(abilitiesRan)}
+\`\`\`
+
+</details>
+
+## Analysis
+${analysisResponse}`
+
     return {
-      content: [{ type: 'text' as const, text: finalResponse }],
+      content: [{ type: 'text' as const, text: formattedResponse }],
+    }
+  }
+
+  private formatAbilityResultsAsJSON(abilitiesRan: string): string {
+    try {
+      // Parse the ability results and format as clean JSON
+      const lines = abilitiesRan.split('\n').filter(line => line.trim())
+      const results = []
+
+      for (const line of lines) {
+        const match = line.match(/^(\d+)\.\s*(.+):\s*(.+)$/)
+        if (match) {
+          const [, index, ability, result] = match
+          results.push({
+            step: parseInt(index),
+            ability: ability.trim(),
+            result: result.trim(),
+            timestamp: new Date().toISOString(),
+          })
+        }
+        else {
+          // Fallback for non-standard format
+          results.push({
+            raw_output: line.trim(),
+            timestamp: new Date().toISOString(),
+          })
+        }
+      }
+
+      return JSON.stringify({ execution_results: results }, null, 2)
+    }
+    catch (error) {
+      // Fallback to simple JSON structure
+      return JSON.stringify({
+        execution_results: [
+          {
+            raw_output: abilitiesRan,
+            error: 'Failed to parse structured results',
+            timestamp: new Date().toISOString(),
+          },
+        ],
+      }, null, 2)
+    }
+  }
+
+  private async getAbilityResultsAnalysis(finalResponse: string, abilitiesRan: string, originalRequest: string): Promise<string> {
+    try {
+      const analysisPrompt = [{
+        role: 'user' as const,
+        content: `Please analyze the following execution results and provide a clear summary:
+
+**Original Request:** ${originalRequest}
+
+**AI Response:** ${finalResponse}
+
+**Execution Results:**
+${abilitiesRan}
+
+Provide a concise analysis covering:
+1. What was accomplished
+2. Key results or outputs
+3. Whether the original request was fully satisfied
+4. Any important findings or next steps
+
+Keep it clear and actionable.`,
+      }]
+
+      const analysis = await window.electronAPI.sendAIMessage(
+        this.currentProvider.provider,
+        analysisPrompt,
+        { model: this.currentProvider.model },
+      )
+
+      return analysis
+    }
+    catch (error) {
+      console.error('Failed to get AI analysis:', error)
+      return `**Summary**: ${abilitiesRan.split('\n').length} abilities were executed. See detailed results above.`
     }
   }
 

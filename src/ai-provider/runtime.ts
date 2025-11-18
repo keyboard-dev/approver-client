@@ -39,14 +39,23 @@ export class AIRuntime {
     if (!provider.validateConfig(fullConfig)) {
       throw new Error(`Invalid configuration for provider ${providerName}`)
     }
-    console.log('this is the messages', messages)
+    console.log('🚀 AI Runtime sendMessage:', {
+      provider: providerName,
+      messagesCount: messages.length,
+      config: fullConfig,
+      hasAuthTokens: !!authTokens,
+      hasAccessToken: !!authTokens?.access_token
+    })
 
     // For keyboard provider, pass auth tokens; for others, use existing method signature
     const content = providerName === 'keyboard'
       ? await (provider as any).sendMessage(messages, fullConfig, authTokens || await this.loadAuthTokens())
       : await provider.sendMessage(messages, fullConfig)
 
-    console.log('this is the content', content)
+    console.log('✅ AI Runtime content received:', {
+      contentLength: content?.length,
+      contentPreview: content?.substring(0, 100) + '...'
+    })
     return {
       content,
       provider: providerName,

@@ -1,11 +1,10 @@
-import { ChevronDown, ChevronRight, Shield, Clock, CheckCircle, XCircle } from 'lucide-react'
+import { CheckCircle, ChevronDown, ChevronRight, Clock, Shield, XCircle } from 'lucide-react'
 import React, { useState } from 'react'
 import { Message } from '../../types'
+import { useAuth } from '../hooks/useAuth'
+import { Badge } from './ui/badge'
 import { Button } from './ui/button'
 import { Card, CardContent, CardHeader } from './ui/card'
-import { Badge } from './ui/badge'
-import { useWebSocketConnection } from '../hooks/useWebSocketConnection'
-import { useAuth } from '../hooks/useAuth'
 
 interface ChatApprovalMessageProps {
   message: Message
@@ -26,7 +25,6 @@ export const ChatApprovalMessage: React.FC<ChatApprovalMessageProps> = ({
 
   // Auth and WebSocket connection management
   const { authStatus, isSkippingAuth } = useAuth()
-  const { connectionStatus, connectToBestCodespace } = useWebSocketConnection(authStatus, isSkippingAuth)
 
   const {
     id,
@@ -79,14 +77,12 @@ export const ChatApprovalMessage: React.FC<ChatApprovalMessageProps> = ({
   const handleApprove = async () => {
     setIsApproving(true)
     try {
-      // Ensure we have a connection before approving
-      if (connectionStatus === 'disconnected') {
-        await connectToBestCodespace()
-      }
       await onApprove(id)
-    } catch (error) {
+    }
+    catch (error) {
       console.error('Failed to approve message:', error)
-    } finally {
+    }
+    finally {
       setIsApproving(false)
     }
   }
@@ -94,14 +90,12 @@ export const ChatApprovalMessage: React.FC<ChatApprovalMessageProps> = ({
   const handleReject = async () => {
     setIsRejecting(true)
     try {
-      // Ensure we have a connection before rejecting
-      if (connectionStatus === 'disconnected') {
-        await connectToBestCodespace()
-      }
       await onReject(id)
-    } catch (error) {
+    }
+    catch (error) {
       console.error('Failed to reject message:', error)
-    } finally {
+    }
+    finally {
       setIsRejecting(false)
     }
   }
@@ -123,7 +117,9 @@ export const ChatApprovalMessage: React.FC<ChatApprovalMessageProps> = ({
           </div>
           <div className="flex items-center gap-2">
             <Badge variant={risk_level === 'low' ? 'secondary' : risk_level === 'medium' ? 'outline' : 'destructive'} className={riskLevelColor}>
-              {risk_level} risk
+              {risk_level}
+              {' '}
+              risk
             </Badge>
             {getStatusIcon()}
           </div>
@@ -144,7 +140,7 @@ export const ChatApprovalMessage: React.FC<ChatApprovalMessageProps> = ({
           <div className="space-y-3">
             <div className="p-3 bg-white rounded-md border">
               <h4 className="font-medium text-sm mb-2">Code Execution Results:</h4>
-              
+
               {/* Standard Output */}
               {codespaceResponse.data.stdout && (
                 <div className="mb-3">
@@ -210,10 +206,10 @@ export const ChatApprovalMessage: React.FC<ChatApprovalMessageProps> = ({
               disabled={isApproving || isRejecting}
               className="bg-green-600 hover:bg-green-700 text-white"
             >
-              {isApproving 
-                ? 'Approving...' 
-                : isCodeResponseApproval 
-                  ? 'Approve Execution' 
+              {isApproving
+                ? 'Approving...'
+                : isCodeResponseApproval
+                  ? 'Approve Execution'
                   : 'Approve'}
             </Button>
             <Button
@@ -232,10 +228,9 @@ export const ChatApprovalMessage: React.FC<ChatApprovalMessageProps> = ({
           <div className="pt-2">
             <p className="text-sm text-gray-600 flex items-center gap-2">
               {getStatusIcon()}
-              {status === 'approved' 
+              {status === 'approved'
                 ? (isCodeResponseApproval ? 'Code execution approved' : 'Security request approved')
-                : (isCodeResponseApproval ? 'Code execution rejected' : 'Security request rejected')
-              }
+                : (isCodeResponseApproval ? 'Code execution rejected' : 'Security request rejected')}
             </p>
           </div>
         )}

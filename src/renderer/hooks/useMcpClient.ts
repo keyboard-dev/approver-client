@@ -13,6 +13,7 @@ export interface UseMcpClientOptions {
   serverUrl: string
   clientName?: string
   autoReconnect?: boolean
+  timeout?: number // Timeout in milliseconds for MCP operations
 }
 
 export interface UseMcpClientResult {
@@ -243,16 +244,26 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
     }
 
     try {
-      return await client.callTool({
+      // Add timeout wrapper for long-running tools like run-code
+      const timeout = options.timeout || 300000 // Default 5 minutes
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => {
+          reject(new Error(`Tool '${name}' timed out after ${timeout}ms`))
+        }, timeout)
+      })
+
+      const toolPromise = client.callTool({
         name,
         arguments: args,
       })
+
+      return await Promise.race([toolPromise, timeoutPromise]) as CallToolResult
     }
     catch (err) {
       console.error(`Failed to call tool ${name}:`, err)
       throw err
     }
-  }, [state])
+  }, [state, options.timeout])
 
   // Resource reading function
   const readResource = useCallback(async (uri: string): Promise<ReadResourceResult> => {

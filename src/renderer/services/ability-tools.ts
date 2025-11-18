@@ -1,3 +1,12 @@
+export function generatePlanningToken(): string {
+  const timestamp = Date.now()
+  const randomHex = Array.from({ length: 16 }, () =>
+    Math.floor(Math.random() * 256).toString(16).padStart(2, '0'),
+  ).join('')
+
+  return `plan_${timestamp}_${randomHex}`
+}
+
 export const toolsToAbilities = {
   categories: {
     'abilities around running tasks': [

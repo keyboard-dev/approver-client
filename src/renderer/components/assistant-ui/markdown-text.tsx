@@ -8,12 +8,12 @@ import {
   unstable_memoizeMarkdownComponents as memoizeMarkdownComponents,
   useIsMarkdownCodeBlock,
 } from '@assistant-ui/react-markdown'
-import remarkGfm from 'remark-gfm'
-import { type FC, memo, useState } from 'react'
 import { CheckIcon, CopyIcon } from 'lucide-react'
+import { type FC, memo, useState } from 'react'
+import remarkGfm from 'remark-gfm'
 
-import { TooltipIconButton } from './tooltip-icon-button'
 import { cn } from '../../lib/utils'
+import { TooltipIconButton } from './tooltip-icon-button'
 
 const MarkdownTextImpl = () => {
   return (
@@ -34,9 +34,20 @@ const CodeHeader: FC<CodeHeaderProps> = ({ language, code }) => {
     copyToClipboard(code)
   }
 
+  const isAbilityResult = language === 'ability-result'
+  const headerStyles = isAbilityResult
+    ? 'bg-gradient-to-r from-blue-500/20 to-purple-500/20 border-b-2 border-blue-500/50 dark:from-blue-600/25 dark:to-purple-600/25'
+    : 'bg-muted-foreground/15 dark:bg-muted-foreground/20'
+
   return (
-    <div className="aui-code-header-root mt-4 flex items-center justify-between gap-4 rounded-t-lg bg-muted-foreground/15 px-4 py-2 text-sm font-semibold text-foreground dark:bg-muted-foreground/20">
-      <span className="aui-code-header-language lowercase [&>span]:text-xs">
+    <div
+      className={cn(
+        'aui-code-header-root mt-4 flex items-center justify-between gap-4 rounded-t-lg px-4 py-2 text-sm font-semibold text-foreground',
+        headerStyles,
+      )}
+    >
+      <span className="aui-code-header-language flex items-center gap-2 lowercase [&>span]:text-xs">
+        {isAbilityResult && <span className="text-base">🚀</span>}
         {language}
       </span>
       <TooltipIconButton tooltip="Copy" onClick={onCopy}>

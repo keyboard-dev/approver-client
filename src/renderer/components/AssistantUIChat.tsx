@@ -3,7 +3,6 @@ import React, { useEffect, useState } from 'react'
 import { Message } from '../../types'
 import { useAuth } from '../hooks/useAuth'
 import { useMCPEnhancedChat } from '../hooks/useMCPEnhancedChat'
-import { useWebSocketConnection } from '../hooks/useWebSocketConnection'
 import { AbilityExecutionPanel } from './AbilityExecutionPanel'
 import { AgenticStatusIndicator } from './AgenticStatusIndicator'
 import { Thread } from './assistant-ui/thread'
@@ -97,23 +96,8 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
 
   // Auth and WebSocket connection management
   const { authStatus, isSkippingAuth } = useAuth()
-  const { connectionStatus, connectToBestCodespace } = useWebSocketConnection(authStatus, isSkippingAuth)
 
   // Auto-connect to codespace when assistant chat opens
-  useEffect(() => {
-    const ensureConnection = async () => {
-      if ((authStatus.authenticated || isSkippingAuth) && connectionStatus === 'disconnected') {
-        try {
-          await connectToBestCodespace()
-        }
-        catch (error) {
-          console.error('Failed to auto-connect to codespace:', error)
-        }
-      }
-    }
-
-    ensureConnection()
-  }, [authStatus.authenticated, isSkippingAuth, connectionStatus, connectToBestCodespace])
 
   // Initialize MCP enhanced chat
   const mcpChat = useMCPEnhancedChat({
