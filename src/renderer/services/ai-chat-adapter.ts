@@ -1,5 +1,5 @@
 import type { ChatModelAdapter } from '@assistant-ui/react'
-import { getSystemsAbilitiesPrompt } from '../utils/ai-promts'
+import { createAbilityDiscoveryPrompt } from './ability-discovery'
 import { useMCPIntegration } from './mcp-tool-integration'
 
 interface AIMessage {
@@ -236,12 +236,35 @@ export class AIChatAdapter implements ChatModelAdapter {
       throw new Error('MCP integration not available')
     }
 
-    let abilitiesRan = ``
-
     const conversationHistory = [...aiMessages]
     const originalUserMessage = conversationHistory[conversationHistory.length - 1]
     let currentIteration = 0
-    let finalResponse = ``
+    let finalResponse = ''
+    let abilitiesRan = ''
+
+    // Add efficient tool discovery instruction
+    const lastUserMessage = conversationHistory[conversationHistory.length - 1]
+    //     if (lastUserMessage?.role === 'user') {
+    //       // Use progressive ability discovery instead of listing all abilities
+    //       const searchResult = this.mcpIntegration.searchAbilities(lastUserMessage.content)
+
+    //       const discoveryPrompt = createAbilityDiscoveryPrompt(lastUserMessage.content, searchResult, this.mcpIntegration.abilityDiscovery['filesystem'])
+
+    //       lastUserMessage.content += `\n\n(Note: You are an agentic AI that should work until the user's request is fully completed. I will help you discover relevant abilities as needed.
+
+    // ${discoveryPrompt}
+
+    // When the task is fully complete, make sure to indicate this clearly in your response.)`
+    //     }
+    if (lastUserMessage?.role === 'user') {
+      const searchResult = this.mcpIntegration.searchAbilities(lastUserMessage.content)
+      const discoveryPrompt = createAbilityDiscoveryPrompt(lastUserMessage.content, searchResult, this.mcpIntegration.abilityDiscovery['filesystem'])
+      conversationHistory[conversationHistory.length - 1].content += `\n\n(Note: You are an agentic AI that should work until the user's request is fully completed. I will help you discover relevant abilities as needed.
+
+${discoveryPrompt}
+
+When the task is fully complete, make sure to indicate this clearly in your response.)`
+    }
 
     // Agentic loop - continue until task is complete or max iterations reached
     while (currentIteration < this.maxAgenticIterations) {
@@ -312,13 +335,18 @@ export class AIChatAdapter implements ChatModelAdapter {
 
       // Execute abilities with efficient result processing
       const abilityResults = await this.executeAbilityCalls(abilityCalls, currentIteration, originalUserMessage, abortSignal)
-      abilitiesRan += `\n\n results from the abilities you executed: ${abilityResults}`
-
+      abilitiesRan += abilityResults
       // Add conversation history for next iteration
       conversationHistory.push({
         role: 'assistant',
         content: response,
       })
+
+      // For next iteration, provide efficient context and new ability discovery
+      const nextSearchResult = this.mcpIntegration.searchAbilities(originalUserMessage.content + ' ' + abilityResults, 5)
+      const nextDiscoveryPrompt = nextSearchResult.matches.length > 0
+        ? `\n\nIf you need more abilities, here are relevant options based on current context:\n${nextSearchResult.matches.map(m => `- ${m.ability.name}: ${m.ability.description}`).join('\n')}`
+        : '\n\nIf you need to search for other abilities, let me know what type of operation you want to perform.'
 
       conversationHistory.push({
         role: 'user',
@@ -336,9 +364,105 @@ export class AIChatAdapter implements ChatModelAdapter {
         isComplete: false,
       })
     }
-    const finalResponseWithAbilitiesRan = `${finalResponse}\n\n${abilitiesRan}`
+
+    // Get AI analysis of the results
+    const analysisResponse = await this.getAbilityResultsAnalysis(finalResponse, abilitiesRan, originalUserMessage.content)
+
+    // Format the complete response with collapsible JSON results
+    const formattedResponse = `${finalResponse}
+
+<details>
+<summary>🔧 Execution Results (Click to expand)</summary>
+
+\`\`\`ability-result
+${this.formatAbilityResultsAsJSON(abilitiesRan)}
+\`\`\`
+
+</details>
+
+## Analysis
+${analysisResponse}`
+
     return {
-      content: [{ type: 'text' as const, text: `${finalResponseWithAbilitiesRan}` }],
+      content: [{ type: 'text' as const, text: formattedResponse }],
+    }
+  }
+
+  private formatAbilityResultsAsJSON(abilitiesRan: string): string {
+    try {
+      // Parse the ability results and format as clean JSON
+      const lines = abilitiesRan.split('\n').filter(line => line.trim())
+      const results = []
+
+      for (const line of lines) {
+        const match = line.match(/^(\d+)\.\s*(.+):\s*(.+)$/)
+        if (match) {
+          const [, index, ability, result] = match
+          results.push({
+            step: parseInt(index),
+            ability: ability.trim(),
+            result: result.trim(),
+            timestamp: new Date().toISOString(),
+          })
+        }
+        else {
+          // Fallback for non-standard format
+          results.push({
+            raw_output: line.trim(),
+            timestamp: new Date().toISOString(),
+          })
+        }
+      }
+
+      return JSON.stringify({ execution_results: results }, null, 2)
+    }
+    catch (error) {
+      // Fallback to simple JSON structure
+      return JSON.stringify({
+        execution_results: [
+          {
+            raw_output: abilitiesRan,
+            error: 'Failed to parse structured results',
+            timestamp: new Date().toISOString(),
+          },
+        ],
+      }, null, 2)
+    }
+  }
+
+  private async getAbilityResultsAnalysis(finalResponse: string, abilitiesRan: string, originalRequest: string): Promise<string> {
+    try {
+      const analysisPrompt = [{
+        role: 'user' as const,
+        content: `Please analyze the following execution results and provide a clear summary:
+
+**Original Request:** ${originalRequest}
+
+**AI Response:** ${finalResponse}
+
+**Execution Results:**
+${abilitiesRan}
+
+Provide a concise analysis covering:
+1. What was accomplished
+2. Key results or outputs
+3. Whether the original request was fully satisfied
+4. Any important findings or next steps
+
+Keep it clear and actionable.`,
+      }]
+
+      const analysis = await window.electronAPI.sendAIMessage(
+        this.currentProvider.provider,
+        analysisPrompt,
+        { model: this.currentProvider.model },
+      )
+
+      return analysis
+    }
+    catch (error) {
+      console.error('Failed to get AI analysis:', error)
+      return `**Summary**: ${abilitiesRan.split('\n').length} abilities were executed. See detailed results above.`
     }
   }
 
@@ -368,16 +492,22 @@ export class AIChatAdapter implements ChatModelAdapter {
 
       // Add keyboard.dev abilities system message if enabled and available
       if (this.currentProvider.mcpEnabled && this.mcpIntegration?.isConnected) {
-        const abilitiesSystemMessage = getSystemsAbilitiesPrompt()
-        const isThereASystemPrompt = aiMessages.some(m => m.role === 'system')
-        console.log('this is the is there a system prompt', isThereASystemPrompt)
-        if (!isThereASystemPrompt) {
-          aiMessages.unshift({
-            role: 'system',
-            content: abilitiesSystemMessage,
-          })
-          console.log('this is the ai messages', aiMessages)
-        }
+        // const abilitiesSystemMessage = this.mcpIntegration.getAbilitiesSystemMessage()
+        // if (abilitiesSystemMessage) {
+        //   // Check if there's already a system message
+        //   const existingSystemIndex = aiMessages.findIndex(m => m.role === 'system')
+        //   if (existingSystemIndex >= 0) {
+        //     // Append to existing system message
+        //     aiMessages[existingSystemIndex].content += '\n\n' + abilitiesSystemMessage
+        //   }
+        //   else {
+        //     // Add new system message at the beginning
+        //     aiMessages.unshift({
+        //       role: 'system',
+        //       content: abilitiesSystemMessage,
+        //     })
+        //   }
+        // }
       }
 
       // Check if provider is configured

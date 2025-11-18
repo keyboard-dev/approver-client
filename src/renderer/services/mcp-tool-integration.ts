@@ -137,6 +137,7 @@ export function useMCPIntegration(
     serverUrl,
     clientName,
     autoReconnect: true,
+    timeout: 300000, // 5 minutes for long-running tools like run-code
   })
 
   // Initialize discovery and processing services

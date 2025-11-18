@@ -2686,10 +2686,24 @@ class MenuBarNotificationApp {
 
     ipcMain.handle('send-ai-message', async (_event, provider: string, messages: Array<{ role: 'user' | 'assistant' | 'system', content: string }>, config?: { model?: string }): Promise<string> => {
       try {
+        console.log('🚀 Main IPC send-ai-message called:', {
+          provider,
+          messagesCount: messages.length,
+          config,
+          hasAuthTokens: !!this.authTokens,
+          hasAccessToken: !!this.authTokens?.access_token,
+          accessTokenPrefix: this.authTokens?.access_token?.substring(0, 10) + '...'
+        })
+        
         const response = await aiRuntime.sendMessage(provider, messages, config || {}, this.authTokens || undefined)
+        console.log('✅ AI Runtime response received:', { 
+          contentLength: response.content?.length,
+          provider: response.provider
+        })
         return response.content
       }
       catch (error) {
+        console.error('🚨 Main IPC send-ai-message error:', error)
         throw new Error(`Failed to send message to ${provider}: ${error instanceof Error ? error.message : 'Unknown error'}`)
       }
     })
