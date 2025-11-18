@@ -248,6 +248,8 @@ export interface ElectronAPI {
   testAIProviderConnection: (provider: string) => Promise<{ success: boolean, error?: string }>
   sendAIMessage: (provider: string, messages: Array<{ role: 'user' | 'assistant' | 'system', content: string }>, config?: { model?: string }) => Promise<string>
   webSearch: (provider: string, query: string, company: string) => Promise<any>
+  getUserTokens: () => Promise<{ tokensAvailable?: string[], error?: string }>
+  getCodespaceInfo: () => Promise<{ success: boolean, data?: any, status?: number, error?: { message: string } }>
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -454,6 +456,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   testAIProviderConnection: (provider: string): Promise<{ success: boolean, error?: string }> => ipcRenderer.invoke('test-ai-provider-connection', provider),
   sendAIMessage: (provider: string, messages: Array<{ role: 'user' | 'assistant' | 'system', content: string }>, config?: { model?: string }): Promise<string> => ipcRenderer.invoke('send-ai-message', provider, messages, config),
   webSearch: (provider: string, query: string, company: string): Promise<any> => ipcRenderer.invoke('web-search', provider, query, company),
+  getUserTokens: (): Promise<{ tokensAvailable?: string[], error?: string }> => ipcRenderer.invoke('get-user-tokens'),
+  getCodespaceInfo: (): Promise<{ success: boolean, data?: any, status?: number, error?: { message: string } }> => ipcRenderer.invoke('get-codespace-info'),
 } as ElectronAPI)
 
 // Extend the global Window interface

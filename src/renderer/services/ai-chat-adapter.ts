@@ -1,5 +1,6 @@
 import type { ChatModelAdapter } from '@assistant-ui/react'
 import { createAbilityDiscoveryPrompt } from './ability-discovery'
+import { contextService } from './context-service'
 import { useMCPIntegration } from './mcp-tool-integration'
 
 interface AIMessage {
@@ -479,6 +480,42 @@ Keep it clear and actionable.`,
           content: textContent,
         }
       })
+
+      // Inject enhanced context into system prompt for keyboard provider
+      if (this.currentProvider.provider === 'keyboard' && this.currentProvider.mcpEnabled && aiMessages.length > 0) {
+        try {
+          console.log('🔄 Injecting enhanced context for keyboard provider')
+
+          // Get the user's message for context
+          const lastUserMessage = aiMessages[aiMessages.length - 1]
+          if (lastUserMessage?.role === 'user') {
+            // Get enhanced context with planning token, user tokens, and codespace info
+
+            const enhancedSystemPrompt = await contextService.buildEnhancedSystemPrompt(lastUserMessage.content)
+            console.log('🔧 Enhanced system prompt:', enhancedSystemPrompt)
+
+            // Check if there's already a system message
+            const existingSystemIndex = aiMessages.findIndex(m => m.role === 'system')
+            if (existingSystemIndex >= 0) {
+              // Replace existing system message with enhanced one
+              aiMessages[existingSystemIndex].content = enhancedSystemPrompt
+            }
+            else {
+              // Add new system message at the beginning
+              aiMessages.unshift({
+                role: 'system',
+                content: enhancedSystemPrompt,
+              })
+            }
+
+            console.log('✅ Enhanced context injected successfully')
+          }
+        }
+        catch (error) {
+          console.error('❌ Failed to inject enhanced context:', error)
+          // Continue with original messages if context injection fails
+        }
+      }
 
       // Special handling for MCP provider (legacy)
       if (this.currentProvider.provider === 'mcp') {

@@ -6,6 +6,7 @@ interface GitHubCodespace {
   name: string
   display_name?: string
   environment_id?: string
+  githubToken?: string
   owner: {
     login: string
     id: number
@@ -367,6 +368,66 @@ export class GitHubCodespacesService {
     }
     catch {
       return null
+    }
+  }
+
+  generateCodespacePortUrl(codespace: GitHubCodespace, port: number = 3000): string {
+    try {
+      // Extract the codespace name from the web_url
+      // web_url format: https://username-reponame-randomstring.github.dev
+      const webUrl = codespace.web_url
+      if (!webUrl) {
+        throw new Error('Codespace web_url not found')
+      }
+
+      // Extract the subdomain part (everything before .github.dev)
+      const urlParts = webUrl.replace('https://', '').split('.github.dev')
+      if (urlParts.length < 2) {
+        throw new Error('Invalid codespace URL format')
+      }
+
+      const codespaceSubdomain = urlParts[0]
+
+      // Generate the port URL: https://codespace-subdomain-port.app.github.dev
+      return `https://${codespaceSubdomain}-${port}.app.github.dev`
+    }
+    catch (error) {
+      return `Error generating port URL: ${error instanceof Error ? error.message : 'Unknown error'}`
+    }
+  }
+
+  /**
+   * Fetch key name and resources from codespace on port 3000
+   */
+  async fetchKeyNameAndResources(): Promise<any> {
+    try {
+      // Ensure URL uses port 3000 and correct endpoint
+
+      const discoveredCodespaces = await this.discoverAndPrepareCodespace()
+      if (!discoveredCodespaces) {
+        return {
+          success: false,
+          error: { message: 'No discovered codespaces found' },
+        }
+      }
+      const codespace: GitHubCodespace = discoveredCodespaces.codespace.codespace
+      console.log('codespace name', codespace)
+      console.log('codespace object', codespace)
+      const baseUrl = this.generateCodespacePortUrl(codespace)
+      const fullUrl = `${baseUrl}/fetch_key_name_and_resources`
+      console.log('fullUrl', fullUrl)
+
+      const responseData = await this.githubService.fetchResources(fullUrl)
+      console.log('responseData from fetchKeyNameAndResources', responseData)
+      return responseData
+    }
+    catch (error) {
+      return {
+        success: false,
+        error: {
+          message: error instanceof Error ? error.message : 'Unknown error',
+        },
+      }
     }
   }
 
