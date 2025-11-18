@@ -112,7 +112,7 @@ export class ExecutorWebSocketClient {
     }
   }> {
     const basicInfo = this.getConnectionInfo()
-    
+
     if (!basicInfo.connected) {
       return basicInfo
     }
@@ -698,7 +698,7 @@ export class ExecutorWebSocketClient {
     }
   }> {
     const startTime = Date.now()
-    
+
     try {
       if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
         return {

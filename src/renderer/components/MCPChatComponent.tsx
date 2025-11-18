@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useMcpClient } from '../hooks/useMcpClient'
-import { Button } from './ui/button'
 import { Badge } from './ui/badge'
+import { Button } from './ui/button'
 
 interface MCPChatComponentProps {
   serverUrl?: string
@@ -9,7 +9,7 @@ interface MCPChatComponentProps {
 }
 
 export const MCPChatComponent: React.FC<MCPChatComponentProps> = ({
-  serverUrl = 'https://mcp.keyboard.dev',
+  serverUrl = 'https://growing-goose-conversely.ngrok-free.appboard.dev',
   clientName = 'keyboard-approver-mcp',
 }) => {
   const [messages, setMessages] = useState<Array<{ id: string, content: string, sender: 'user' | 'mcp' }>>([])

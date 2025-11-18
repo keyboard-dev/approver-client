@@ -1,5 +1,6 @@
 import type { ChatModelAdapter } from '@assistant-ui/react'
 import { createAbilityDiscoveryPrompt } from './ability-discovery'
+import { contextService } from './context-service'
 import { useMCPIntegration } from './mcp-tool-integration'
 
 interface AIMessage {
@@ -20,6 +21,8 @@ export class AIChatAdapter implements ChatModelAdapter {
   private attempts = 5
   private maxAgenticIterations = 10
   private onTaskProgress?: (progress: { step: number, totalSteps: number, currentAction: string, isComplete: boolean }) => void
+  private pingInterval: NodeJS.Timeout | null = null
+  private isToolsExecuting = false
 
   constructor(provider: string = 'openai', model?: string, mcpEnabled: boolean = false) {
     this.currentProvider = { provider, model, mcpEnabled }
@@ -35,6 +38,11 @@ export class AIChatAdapter implements ChatModelAdapter {
 
   setMCPIntegration(mcpIntegration: ReturnType<typeof useMCPIntegration> | null) {
     this.mcpIntegration = mcpIntegration
+
+    // Update context service with MCP functions for enhanced system prompt
+    if (mcpIntegration?.functions) {
+      contextService.setMCPFunctions(mcpIntegration.functions)
+    }
   }
 
   setToolExecutionTracker(tracker: (isExecuting: boolean, toolName?: string) => void) {
@@ -43,6 +51,57 @@ export class AIChatAdapter implements ChatModelAdapter {
 
   setTaskProgressTracker(tracker: (progress: { step: number, totalSteps: number, currentAction: string, isComplete: boolean }) => void) {
     this.onTaskProgress = tracker
+  }
+
+  private startPeriodicPing() {
+    if (this.pingInterval) {
+      return // Already running
+    }
+    
+    console.log('🏓 Starting periodic ping during tool execution')
+    this.pingInterval = setInterval(async () => {
+      try {
+        const result = await window.electronAPI.sendManualPing()
+        console.log('🏓 Periodic ping result:', {
+          success: result.success,
+          connected: result.connectionHealth.connected,
+          timeSinceLastActivity: result.connectionHealth.timeSinceLastActivity
+        })
+        
+        if (!result.success) {
+          console.warn('⚠️ Periodic ping failed:', result.error)
+        }
+      } catch (error) {
+        console.error('❌ Periodic ping error:', error)
+      }
+    }, 10000) // 10 seconds
+  }
+
+  private stopPeriodicPing() {
+    if (this.pingInterval) {
+      console.log('🏓 Stopping periodic ping')
+      clearInterval(this.pingInterval)
+      this.pingInterval = null
+    }
+  }
+
+  private updateToolExecutionState(isExecuting: boolean, toolName?: string) {
+    const wasExecuting = this.isToolsExecuting
+    this.isToolsExecuting = isExecuting
+    
+    // Call the original tracker if set
+    this.setToolExecutionState?.(isExecuting, toolName)
+    
+    // Start/stop periodic pinging based on execution state
+    if (isExecuting && !wasExecuting) {
+      this.startPeriodicPing()
+    } else if (!isExecuting && wasExecuting) {
+      this.stopPeriodicPing()
+    }
+  }
+
+  private cleanup() {
+    this.stopPeriodicPing()
   }
 
   private extractKeywords(text: string): string[] {
@@ -185,7 +244,7 @@ export class AIChatAdapter implements ChatModelAdapter {
 
       if (abilityExists) {
         try {
-          this.setToolExecutionState?.(true, abilityName)
+          this.updateToolExecutionState(true, abilityName)
 
           // Execute with context-aware processing options
           const processingOptions = {
@@ -213,7 +272,7 @@ export class AIChatAdapter implements ChatModelAdapter {
           abilityResults += `\n\n❌ **Error:** Failed to execute ${abilityName} - ${error instanceof Error ? error.message : 'Unknown error'}`
         }
         finally {
-          this.setToolExecutionState?.(false)
+          this.updateToolExecutionState(false)
         }
       }
       else {
@@ -480,6 +539,42 @@ Keep it clear and actionable.`,
         }
       })
 
+      // Inject enhanced context into system prompt for keyboard provider
+      if (this.currentProvider.provider === 'keyboard' && this.currentProvider.mcpEnabled && aiMessages.length > 0) {
+        try {
+          console.log('🔄 Injecting enhanced context for keyboard provider')
+
+          // Get the user's message for context
+          const lastUserMessage = aiMessages[aiMessages.length - 1]
+          if (lastUserMessage?.role === 'user') {
+            // Get enhanced context with planning token, user tokens, and codespace info
+
+            const enhancedSystemPrompt = await contextService.buildEnhancedSystemPrompt(lastUserMessage.content)
+            console.log('🔧 Enhanced system prompt:', enhancedSystemPrompt)
+
+            // Check if there's already a system message
+            const existingSystemIndex = aiMessages.findIndex(m => m.role === 'system')
+            if (existingSystemIndex >= 0) {
+              // Replace existing system message with enhanced one
+              aiMessages[existingSystemIndex].content = enhancedSystemPrompt
+            }
+            else {
+              // Add new system message at the beginning
+              aiMessages.unshift({
+                role: 'system',
+                content: enhancedSystemPrompt,
+              })
+            }
+
+            console.log('✅ Enhanced context injected successfully')
+          }
+        }
+        catch (error) {
+          console.error('❌ Failed to inject enhanced context:', error)
+          // Continue with original messages if context injection fails
+        }
+      }
+
       // Special handling for MCP provider (legacy)
       if (this.currentProvider.provider === 'mcp') {
         return {
@@ -565,6 +660,10 @@ Keep it clear and actionable.`,
           text: `❌ Error: ${errorMessage}`,
         }],
       }
+    }
+    finally {
+      // Ensure we stop pinging when the run method completes
+      this.cleanup()
     }
   }
 }

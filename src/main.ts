@@ -9,6 +9,7 @@ import { webSearch } from './ai-provider/utils/dedicated-web'
 import { CodespaceEncryptionConfig, encryptWithCodespaceKey } from './codespace-encryption'
 import { decrypt, encrypt, setEncryptionKeyProvider } from './encryption'
 import { GithubService } from './Github'
+import { GitHubCodespacesService } from './github-codespaces'
 import { deleteScriptTemplate } from './keyboard-shortcuts'
 import { OAuthCallbackData, OAuthHttpServer } from './oauth-http-server'
 import { PKCEParams as NewPKCEParams, OAuthProvider, OAuthProviderManager, ProviderTokens, ServerProvider, ServerProviderInfo } from './oauth-providers'
@@ -109,6 +110,7 @@ class MenuBarNotificationApp {
   // New OAuth provider system (initialized later after encryption is ready)
   private oauthProviderManager!: OAuthProviderManager
   private githubService!: GithubService
+  private githubCodespacesService!: GitHubCodespacesService
   private oauthTokenStorage!: OAuthTokenStorage
   private perProviderTokenStorage!: PerProviderTokenStorage
   private currentProviderPKCE: NewPKCEParams | null = null
@@ -370,6 +372,7 @@ class MenuBarNotificationApp {
 
   private async initializeGithubService(): Promise<void> {
     this.githubService = await new GithubService()
+    this.githubCodespacesService = new GitHubCodespacesService(this.githubService)
   }
 
   /**
@@ -2576,6 +2579,24 @@ class MenuBarNotificationApp {
       return this.executorWSClient.getLastKnownCodespaces()
     })
 
+    ipcMain.handle('send-manual-ping', async () => {
+      if (!this.executorWSClient) {
+        return { 
+          success: false, 
+          error: 'WebSocket client not available',
+          connectionHealth: {
+            isAlive: false,
+            lastActivity: 0,
+            lastPong: 0,
+            timeSinceLastActivity: 0,
+            timeSinceLastPong: 0,
+            connected: false
+          }
+        }
+      }
+      return await this.executorWSClient.sendManualPing()
+    })
+
     // Auto-updater IPC handlers (only available on macOS and Windows)
     ipcMain.handle('check-for-updates', async (): Promise<void> => {
       if (process.platform === 'darwin' || process.platform === 'win32') {
@@ -2692,13 +2713,13 @@ class MenuBarNotificationApp {
           config,
           hasAuthTokens: !!this.authTokens,
           hasAccessToken: !!this.authTokens?.access_token,
-          accessTokenPrefix: this.authTokens?.access_token?.substring(0, 10) + '...'
+          accessTokenPrefix: this.authTokens?.access_token?.substring(0, 10) + '...',
         })
-        
+
         const response = await aiRuntime.sendMessage(provider, messages, config || {}, this.authTokens || undefined)
-        console.log('✅ AI Runtime response received:', { 
+        console.log('✅ AI Runtime response received:', {
           contentLength: response.content?.length,
-          provider: response.provider
+          provider: response.provider,
         })
         return response.content
       }
@@ -2716,6 +2737,51 @@ class MenuBarNotificationApp {
       }
       catch (error) {
         throw new Error(`Failed to perform web search with ${provider}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      }
+    })
+
+    // Get user tokens from current WebSocket session
+    ipcMain.handle('get-user-tokens', async (_event): Promise<{ tokensAvailable?: string[], error?: string }> => {
+      try {
+        console.log('🔑 Main IPC get-user-tokens called')
+
+        // Use existing provider status logic from line 1917
+        const providerStatus = await this.perProviderTokenStorage.getProviderStatus()
+
+        // Check ALL stored provider tokens (both direct and server provider tokens)
+        const tokensAvailable = Object.entries(providerStatus)
+          .filter(([, status]) => status?.authenticated)
+          .map(([providerId]) => `KEYBOARD_PROVIDER_USER_TOKEN_FOR_${providerId.toUpperCase()}`)
+
+        console.log('✅ User tokens available:', tokensAvailable.length)
+        return { tokensAvailable }
+      }
+      catch (error) {
+        console.error('❌ Failed to get user tokens:', error)
+        return { error: error instanceof Error ? error.message : 'Unknown error' }
+      }
+    })
+
+    // Get codespace information using GitHub PAT token
+    ipcMain.handle('get-codespace-info', async (_event): Promise<{ success: boolean, data?: any, status?: number, error?: { message: string } }> => {
+      try {
+        console.log('🏗️ Main IPC get-codespace-info called')
+
+        // For localhost connections, return basic info
+
+        // For codespace connections, use the GitHubCodespacesService
+
+        // Use the GitHubCodespacesService to fetch resources
+
+        const result = await this.githubCodespacesService.fetchKeyNameAndResources()
+        return { success: true, data: result }
+      }
+      catch (error) {
+        console.error('❌ Failed to get codespace info:', error)
+        return {
+          success: false,
+          error: { message: error instanceof Error ? error.message : 'Unknown error' },
+        }
       }
     })
   }
