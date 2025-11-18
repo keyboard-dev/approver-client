@@ -57,7 +57,7 @@ export class AIChatAdapter implements ChatModelAdapter {
     if (this.pingInterval) {
       return // Already running
     }
-    
+
     console.log('🏓 Starting periodic ping during tool execution')
     this.pingInterval = setInterval(async () => {
       try {
@@ -65,13 +65,14 @@ export class AIChatAdapter implements ChatModelAdapter {
         console.log('🏓 Periodic ping result:', {
           success: result.success,
           connected: result.connectionHealth.connected,
-          timeSinceLastActivity: result.connectionHealth.timeSinceLastActivity
+          timeSinceLastActivity: result.connectionHealth.timeSinceLastActivity,
         })
-        
+
         if (!result.success) {
           console.warn('⚠️ Periodic ping failed:', result.error)
         }
-      } catch (error) {
+      }
+      catch (error) {
         console.error('❌ Periodic ping error:', error)
       }
     }, 10000) // 10 seconds
@@ -88,14 +89,15 @@ export class AIChatAdapter implements ChatModelAdapter {
   private updateToolExecutionState(isExecuting: boolean, toolName?: string) {
     const wasExecuting = this.isToolsExecuting
     this.isToolsExecuting = isExecuting
-    
+
     // Call the original tracker if set
     this.setToolExecutionState?.(isExecuting, toolName)
-    
+
     // Start/stop periodic pinging based on execution state
     if (isExecuting && !wasExecuting) {
       this.startPeriodicPing()
-    } else if (!isExecuting && wasExecuting) {
+    }
+    else if (!isExecuting && wasExecuting) {
       this.stopPeriodicPing()
     }
   }

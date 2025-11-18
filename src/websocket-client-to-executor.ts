@@ -29,9 +29,12 @@ export class ExecutorWebSocketClient {
   private ws: WebSocket | null = null
   private readonly EXECUTOR_WS_PORT = 4002
   private reconnectAttempts = 0
-  private maxReconnectAttempts = 10
-  private reconnectDelay = 5000 // 5 seconds
+  private maxReconnectAttempts = Infinity // Keep trying forever
+  private baseReconnectDelay = 1000 // Start at 1 second
+  private maxReconnectDelay = 30000 // Max 30 seconds
   private reconnectTimeout: NodeJS.Timeout | null = null
+  private persistentRetryInterval: NodeJS.Timeout | null = null
+  private readonly PERSISTENT_RETRY_INTERVAL = 60000 // Check every minute for long-term retry
   private githubToken: string | null = null
   private codespacesService: GitHubCodespacesService | null = null
   private currentTarget: ConnectionTarget | null = null
@@ -71,6 +74,9 @@ export class ExecutorWebSocketClient {
 
     // If we have a token and we're not connected, try to connect
     if (token && (!this.ws || this.ws.readyState !== WebSocket.OPEN)) {
+      // Start persistent retry system
+      this.startPersistentRetry()
+      
       // Use async connect with auto-discovery
       this.connect().catch((error) => {
         console.error('Failed to connect after setting GitHub token:', error)
@@ -78,6 +84,7 @@ export class ExecutorWebSocketClient {
     }
     // If token is cleared and we're connected, disconnect
     else if (!token && this.ws) {
+      this.stopPersistentRetry()
       this.disconnect()
     }
   }
@@ -325,33 +332,45 @@ export class ExecutorWebSocketClient {
   // Connect to codespace-executor WebSocket server (with automatic codespace discovery)
   async connect(): Promise<boolean> {
     if (!this.githubToken) {
+      console.log('❌ No GitHub token available for codespace connection')
       return false
     }
 
-    // If no target is set, try to auto-discover the best option
-    if (!this.currentTarget) {
-      const connected = await this.autoConnect()
-      return connected
+    // Always try to discover codespaces first, even if we have a current target
+    // This ensures we always try to find the best available codespace
+    const connected = await this.autoConnect()
+    
+    if (connected) {
+      return true
     }
 
-    // Connect to the current target
-    this.connectToTarget(this.currentTarget)
-    return true
+    // If auto-connect failed and we have a previous target, try that
+    if (this.currentTarget) {
+      console.log('🔄 Retrying with previous target:', this.currentTarget.name)
+      this.connectToTarget(this.currentTarget)
+      return true
+    }
+
+    console.log('❌ No codespace connection available - will retry')
+    return false
   }
 
   // Automatically discover and connect to the best available executor
   async autoConnect(): Promise<boolean> {
-    console.log('🔗 Auto-connecting to executor')
+    console.log('🔗 Auto-connecting to executor (codespace priority)')
+    
+    // Always require codespaces service - don't fall back to localhost
     if (!this.codespacesService) {
-      this.connectToLocalhost()
-      return true
+      console.log('❌ No codespaces service available - will retry when GitHub token is set')
+      return false
     }
     console.log('🔗 Codespaces service available')
 
     try {
-      // First, try to find and connect to a user's codespace
+      // Try to find and connect to a user's codespace
       const preparedCodespace = await this.codespacesService.discoverAndPrepareCodespace()
       console.log('🔗 Prepared codespace:', preparedCodespace)
+      
       if (preparedCodespace) {
         this.currentTarget = {
           type: 'codespace',
@@ -366,16 +385,14 @@ export class ExecutorWebSocketClient {
         return true
       }
 
-      // If no suitable codespace found, fall back to localhost
-
-      this.connectToLocalhost()
-      return true
+      // If no suitable codespace found, don't connect - let retry handle it
+      console.log('⏸️ No suitable codespace found - will retry discovery')
+      return false
     }
     catch (error) {
-      console.error('Failed to auto-discover connection target:', error)
-
-      this.connectToLocalhost()
-      return true
+      console.error('Failed to auto-discover codespace:', error)
+      // Don't fall back to localhost - let retry handle codespace discovery
+      return false
     }
   }
 
@@ -400,6 +417,7 @@ export class ExecutorWebSocketClient {
       })
 
       this.ws!.on('open', () => {
+        // Reset reconnect state on successful connection
         this.reconnectAttempts = 0
 
         // Clear any pending reconnect timeout
@@ -407,6 +425,7 @@ export class ExecutorWebSocketClient {
           clearTimeout(this.reconnectTimeout)
           this.reconnectTimeout = null
         }
+        
         console.log('🔗 WebSocket connected to:', target.url)
 
         // Set up keepalive for this connection
@@ -509,24 +528,29 @@ export class ExecutorWebSocketClient {
       this.reconnectTimeout = null
     }
 
-    if (this.reconnectAttempts < this.maxReconnectAttempts) {
-      this.reconnectAttempts++
+    this.reconnectAttempts++
 
-      // Emit reconnecting event
-      this.windowManager?.sendMessage('websocket-reconnecting', {
-        attempt: this.reconnectAttempts,
-        maxAttempts: this.maxReconnectAttempts,
-      })
+    // Calculate exponential backoff delay
+    const exponentialDelay = Math.min(
+      this.baseReconnectDelay * Math.pow(2, this.reconnectAttempts - 1),
+      this.maxReconnectDelay
+    )
+    
+    // Add some jitter to prevent thundering herd
+    const jitterDelay = exponentialDelay + Math.random() * 1000
 
-      this.reconnectTimeout = setTimeout(() => {
-        this.reconnectTimeout = null
-        this.connect()
-      }, this.reconnectDelay)
-    }
-    else {
-      // console.error('❌ Max reconnection attempts reached. Will retry when token is refreshed.')
-      this.reconnectAttempts = 0 // Reset for next time token is available
-    }
+    console.log(`🔄 Reconnect attempt ${this.reconnectAttempts} in ${Math.round(jitterDelay / 1000)}s`)
+
+    // Emit reconnecting event
+    this.windowManager?.sendMessage('websocket-reconnecting', {
+      attempt: this.reconnectAttempts,
+      maxAttempts: this.maxReconnectAttempts,
+    })
+
+    this.reconnectTimeout = setTimeout(() => {
+      this.reconnectTimeout = null
+      this.connect()
+    }, jitterDelay)
   }
 
   // Send a message to the executor
@@ -570,6 +594,9 @@ export class ExecutorWebSocketClient {
       clearTimeout(this.reconnectTimeout)
       this.reconnectTimeout = null
     }
+
+    // Stop persistent retry system
+    this.stopPersistentRetry()
 
     // Clean up keepalive resources
     this.cleanupKeepalive()
@@ -711,18 +738,12 @@ export class ExecutorWebSocketClient {
         }
       }
 
-      // Store the previous connectionAliveStatus to reset it
-      const previousAliveStatus = this.connectionAliveStatus
-
       // Send manual ping
       this.ws.ping()
       this.connectionAliveStatus = false // Will be set to true when pong is received
 
       // Wait a short time for pong response
       await new Promise(resolve => setTimeout(resolve, 1000))
-
-      const endTime = Date.now()
-      const pingTime = endTime - startTime
 
       return {
         success: true,
@@ -741,6 +762,39 @@ export class ExecutorWebSocketClient {
           connected: this.ws?.readyState === WebSocket.OPEN || false,
         },
       }
+    }
+  }
+
+  /**
+   * Starts persistent retry system for long-term connection attempts
+   */
+  private startPersistentRetry(): void {
+    // Don't start multiple intervals
+    if (this.persistentRetryInterval) {
+      return
+    }
+
+    console.log('🔄 Starting persistent codespace retry system')
+
+    this.persistentRetryInterval = setInterval(() => {
+      // Only attempt if we have a token and are not connected
+      if (this.githubToken && (!this.ws || this.ws.readyState !== WebSocket.OPEN)) {
+        console.log('🔄 Persistent retry: discovering and connecting to codespace')
+        this.connect().catch((error) => {
+          console.error('Persistent codespace retry failed:', error)
+        })
+      }
+    }, this.PERSISTENT_RETRY_INTERVAL)
+  }
+
+  /**
+   * Stops persistent retry system
+   */
+  private stopPersistentRetry(): void {
+    if (this.persistentRetryInterval) {
+      console.log('🛑 Stopping persistent retry system')
+      clearInterval(this.persistentRetryInterval)
+      this.persistentRetryInterval = null
     }
   }
 }

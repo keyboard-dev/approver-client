@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react'
 import { Message } from '../../types'
 import { useAuth } from '../hooks/useAuth'
 import { useMCPEnhancedChat } from '../hooks/useMCPEnhancedChat'
+import { useWebSocketConnection } from '../hooks/useWebSocketConnection'
 import { AbilityExecutionPanel } from './AbilityExecutionPanel'
 import { AgenticStatusIndicator } from './AgenticStatusIndicator'
 import { Thread } from './assistant-ui/thread'
@@ -98,6 +99,7 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
   const { authStatus, isSkippingAuth } = useAuth()
 
   // Auto-connect to codespace when assistant chat opens
+  const { connectToBestCodespace, connectionStatus } = useWebSocketConnection(authStatus, isSkippingAuth)
 
   // Initialize MCP enhanced chat
   const mcpChat = useMCPEnhancedChat({
@@ -142,11 +144,55 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
   // Get current provider config
   const currentProvider = PROVIDERS.find(p => p.id === selectedProvider)
 
-  // Set MCP to always enabled
+  // Set MCP to always enabled and auto-connect to codespace
   useEffect(() => {
     mcpChat.setMCPEnabled(true)
     mcpChat.setAgenticMode(true)
   }, [mcpChat])
+
+  useEffect(() => {
+    const tryConnect = async () => {
+      if (connectionStatus === 'disconnected') {
+        try {
+          console.log('🔄 Attempting to auto-connect to codespace...')
+          await connectToBestCodespace()
+        }
+        catch (error) {
+          console.error('Failed to connect to codespace:', error)
+        }
+      }
+    }
+    tryConnect()
+  }, [mcpEnabled])
+
+  // Auto-connect to codespace with retry functionality
+  useEffect(() => {
+    const tryConnect = async () => {
+      if ((authStatus.authenticated || isSkippingAuth) && connectionStatus === 'disconnected') {
+        try {
+          console.log('🔄 Attempting to auto-connect to codespace...')
+          await connectToBestCodespace()
+        }
+        catch (error) {
+          console.error('Failed to connect to codespace:', error)
+        }
+      }
+    }
+
+    // Initial connection attempt
+    tryConnect()
+
+    // Set up retry interval for persistent connection attempts
+    const retryInterval = setInterval(() => {
+      if (connectionStatus === 'disconnected' && (authStatus.authenticated || isSkippingAuth)) {
+        tryConnect()
+      }
+    }, 10000) // Retry every 10 seconds when disconnected
+
+    return () => {
+      clearInterval(retryInterval)
+    }
+  }, [authStatus.authenticated, isSkippingAuth, connectionStatus, connectToBestCodespace])
 
   const runtime = useLocalRuntime(mcpChat.adapter)
 
