@@ -40,7 +40,7 @@ const PROVIDERS: ProviderConfig[] = [
     supportsMCP: true,
     models: [
       { id: 'claude-sonnet-4-5-20250929', name: 'Claude 4.5 Sonnet (Default)' },
-      { id: 'claude-haiku-4-5-20250929', name: 'Claude 4.5 Haiku (Fastest)' },
+      { id: 'claude-haiku-4-5-20251001', name: 'Claude 4.5 Haiku (Fastest)' },
     ],
   },
   {
