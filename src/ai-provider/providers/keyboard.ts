@@ -10,7 +10,7 @@ export class KeyboardProvider implements AIProvider {
       config,
       hasAuthTokens: !!authTokens,
       hasAccessToken: !!authTokens?.access_token,
-      accessTokenPrefix: authTokens?.access_token?.substring(0, 10) + '...'
+      accessTokenPrefix: authTokens?.access_token?.substring(0, 10) + '...',
     })
 
     if (!authTokens?.access_token) {
@@ -40,7 +40,7 @@ export class KeyboardProvider implements AIProvider {
       model: requestBody.model,
       hasSystem: !!requestBody.system,
       messagesCount: requestBody.messages.length,
-      stream: requestBody.stream
+      stream: requestBody.stream,
     })
 
     const response = await fetch(url, {
@@ -65,14 +65,14 @@ export class KeyboardProvider implements AIProvider {
     console.log('🎹 Available top-level keys:', Object.keys(data))
 
     // Try different response format patterns based on actual response structure
-    
+
     // Pattern 1: Direct content array (Anthropic format)
     if (data.content && Array.isArray(data.content) && data.content[0]?.text) {
       console.log('✅ Using direct content[0].text format')
       return data.content[0].text
     }
 
-    // Pattern 2: Nested response.content 
+    // Pattern 2: Nested response.content
     if (data.response?.content && Array.isArray(data.response.content) && data.response.content[0]?.text) {
       console.log('✅ Using response.content[0].text format')
       return data.response.content[0].text
@@ -113,11 +113,11 @@ export class KeyboardProvider implements AIProvider {
       console.log('✅ Using data.response string format')
       return data.response
     }
-    
+
     console.error('🚨 Unknown Keyboard API response format!')
     console.error('🚨 Full response structure:', data)
     console.error('🚨 Available keys:', Object.keys(data))
-    
+
     // Last resort fallbacks
     const fallbackText = data.text || data.content || data.response || data.output || data.result || 'No response received'
     console.log('⚠️ Using fallback response:', fallbackText)
@@ -125,6 +125,8 @@ export class KeyboardProvider implements AIProvider {
   }
 
   async* streamMessage(messages: AIMessage[], config: AIProviderConfig, authTokens?: AuthTokens): AsyncGenerator<string, void, unknown> {
+    console.log('🎹 Keyboard Provider - streamMessage called!')
+    
     if (!authTokens?.access_token) {
       throw new Error('Authentication tokens required for Keyboard AI provider')
     }
@@ -132,7 +134,7 @@ export class KeyboardProvider implements AIProvider {
     const systemMessage = messages.find(m => m.role === 'system')
     const messagesWithoutSystem = messages.filter(m => m.role !== 'system')
 
-    console.log('this is the messages', messages)
+    console.log('🎹 Streaming messages:', messages)
 
     const url = 'https://api.keyboard.dev/api/ai/inference'
     const response = await fetch(url, {
@@ -169,6 +171,7 @@ export class KeyboardProvider implements AIProvider {
     try {
       while (true) {
         const { done, value } = await reader.read()
+        // console.log('🔧 Keyboard API Response:', value)
         if (done) break
 
         buffer += decoder.decode(value, { stream: true })
@@ -186,6 +189,7 @@ export class KeyboardProvider implements AIProvider {
             try {
               const parsed = JSON.parse(data)
               if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
+                console.log('🔧 Keyboard API Response Text:', parsed.delta.text)
                 yield parsed.delta.text
               }
             }

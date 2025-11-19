@@ -105,6 +105,7 @@ export class AIChatAdapter implements ChatModelAdapter {
     this.stopPeriodicPing()
   }
 
+
   private extractKeywords(text: string): string[] {
     return text
       .toLowerCase()
@@ -294,30 +295,6 @@ export class AIChatAdapter implements ChatModelAdapter {
     let currentIteration = 0
     let finalResponse = ''
     let abilitiesRan = ''
-
-    // Add efficient tool discovery instruction
-    const lastUserMessage = conversationHistory[conversationHistory.length - 1]
-    //     if (lastUserMessage?.role === 'user') {
-    //       // Use progressive ability discovery instead of listing all abilities
-    //       const searchResult = this.mcpIntegration.searchAbilities(lastUserMessage.content)
-
-    //       const discoveryPrompt = createAbilityDiscoveryPrompt(lastUserMessage.content, searchResult, this.mcpIntegration.abilityDiscovery['filesystem'])
-
-    //       lastUserMessage.content += `\n\n(Note: You are an agentic AI that should work until the user's request is fully completed. I will help you discover relevant abilities as needed.
-
-    // ${discoveryPrompt}
-
-    // When the task is fully complete, make sure to indicate this clearly in your response.)`
-    //     }
-    //     if (lastUserMessage?.role === 'user') {
-    //       const searchResult = this.mcpIntegration.searchAbilities(lastUserMessage.content)
-    //       const discoveryPrompt = createAbilityDiscoveryPrompt(lastUserMessage.content, searchResult, this.mcpIntegration.abilityDiscovery['filesystem'])
-    //       conversationHistory[conversationHistory.length - 1].content += `\n\n(Note: You are an agentic AI that should work until the user's request is fully completed. I will help you discover relevant abilities as needed.
-
-    // ${discoveryPrompt}
-
-    // When the task is fully complete, make sure to indicate this clearly in your response.)`
-    //     }
 
     // Agentic loop - continue until task is complete or max iterations reached
     while (currentIteration < this.maxAgenticIterations) {
@@ -513,8 +490,10 @@ Keep it clear and actionable.`,
     }
   }
 
-  async run({ messages, abortSignal }: { messages: readonly any[], abortSignal?: AbortSignal }) {
+  async* run({ messages, abortSignal }: { messages: readonly any[], abortSignal?: AbortSignal }) {
     try {
+      console.log('🔧 AI Chat Adapter run() called with messages:', messages.length)
+      
       // Convert assistant-ui messages to our AI provider format
       const aiMessages: AIMessage[] = messages.map((message: any) => {
         // Get the text content from message
@@ -528,40 +507,40 @@ Keep it clear and actionable.`,
       })
 
       // Inject enhanced context into system prompt for keyboard provider
-      if (this.currentProvider.provider === 'keyboard' && this.currentProvider.mcpEnabled && aiMessages.length > 0) {
-        try {
-          console.log('🔄 Injecting enhanced context for keyboard provider')
+      // if (this.currentProvider.provider === 'keyboard' && this.currentProvider.mcpEnabled && aiMessages.length > 0) {
+      //   try {
+      //     console.log('🔄 Injecting enhanced context for keyboard provider')
 
-          // Get the user's message for context
-          const lastUserMessage = aiMessages[aiMessages.length - 1]
-          if (lastUserMessage?.role === 'user') {
-            // Get enhanced context with planning token, user tokens, and codespace info
+      //     // Get the user's message for context
+      //     const lastUserMessage = aiMessages[aiMessages.length - 1]
+      //     if (lastUserMessage?.role === 'user') {
+      //       // Get enhanced context with planning token, user tokens, and codespace info
 
-            const enhancedSystemPrompt = await contextService.buildEnhancedSystemPrompt(lastUserMessage.content)
-            console.log('🔧 Enhanced system prompt:', enhancedSystemPrompt)
+      //       const enhancedSystemPrompt = await contextService.buildEnhancedSystemPrompt(lastUserMessage.content)
+      //       console.log('🔧 Enhanced system prompt:', enhancedSystemPrompt)
 
-            // Check if there's already a system message
-            const existingSystemIndex = aiMessages.findIndex(m => m.role === 'system')
-            if (existingSystemIndex >= 0) {
-              // Replace existing system message with enhanced one
-              aiMessages[existingSystemIndex].content = enhancedSystemPrompt
-            }
-            else {
-              // Add new system message at the beginning
-              aiMessages.unshift({
-                role: 'system',
-                content: enhancedSystemPrompt,
-              })
-            }
+      //       // Check if there's already a system message
+      //       const existingSystemIndex = aiMessages.findIndex(m => m.role === 'system')
+      //       if (existingSystemIndex >= 0) {
+      //         // Replace existing system message with enhanced one
+      //         aiMessages[existingSystemIndex].content = enhancedSystemPrompt
+      //       }
+      //       else {
+      //         // Add new system message at the beginning
+      //         aiMessages.unshift({
+      //           role: 'system',
+      //           content: enhancedSystemPrompt,
+      //         })
+      //       }
 
-            console.log('✅ Enhanced context injected successfully')
-          }
-        }
-        catch (error) {
-          console.error('❌ Failed to inject enhanced context:', error)
-          // Continue with original messages if context injection fails
-        }
-      }
+      //       console.log('✅ Enhanced context injected successfully')
+      //     }
+      //   }
+      //   catch (error) {
+      //     console.error('❌ Failed to inject enhanced context:', error)
+      //     // Continue with original messages if context injection fails
+      //   }
+      // }
 
       // Special handling for MCP provider (legacy)
       if (this.currentProvider.provider === 'mcp') {
@@ -612,25 +591,91 @@ Keep it clear and actionable.`,
       }
 
       // Handle keyboard.dev ability calling if enabled
-      if (this.currentProvider.mcpEnabled && this.mcpIntegration?.isConnected) {
-        return await this.handleWithAbilityCalling(aiMessages, abortSignal)
-      }
+      // if (this.currentProvider.mcpEnabled && this.mcpIntegration?.isConnected) {
+      //   const result = await this.handleWithAbilityCalling(aiMessages, abortSignal)
+      //   yield result
+      //   return
+      // }
 
-      // Send message to AI provider (without tools)
-      const response = await window.electronAPI.sendAIMessage(
-        this.currentProvider.provider,
-        aiMessages,
-        { model: this.currentProvider.model },
-      )
-
-      // Check abort signal again after async operation
+      console.log('🔧 About to call sendAIMessageStream with provider:', this.currentProvider.provider)
+      console.log('🔧 AI Messages count:', aiMessages.length)
+      
+      // Check abort signal again before streaming
       if (abortSignal?.aborted) {
         throw new Error('Request was aborted')
       }
 
-      // Return the response in the correct format
-      return {
-        content: [{ type: 'text' as const, text: response }],
+      // Set up streaming event handlers
+      let accumulatedText = ''
+      let streamComplete = false
+      let streamError: Error | null = null
+
+      const handleChunk = (chunk: string) => {
+        console.log('🔧 Received chunk:', chunk)
+        accumulatedText += chunk
+      }
+
+      const handleEnd = () => {
+        console.log('🔧 Stream ended')
+        streamComplete = true
+      }
+
+      const handleError = (error: string) => {
+        console.log('🔧 Stream error:', error)
+        streamError = new Error(error)
+        streamComplete = true
+      }
+
+      // Set up event listeners
+      window.electronAPI.onAIStreamChunk(handleChunk)
+      window.electronAPI.onAIStreamEnd(handleEnd)
+      window.electronAPI.onAIStreamError(handleError)
+
+      try {
+        // Start the stream
+        await window.electronAPI.sendAIMessageStream(
+          this.currentProvider.provider,
+          aiMessages,
+          { model: this.currentProvider.model }
+        )
+
+        console.log('🔧 Stream started, waiting for chunks...')
+
+        // Process chunks as they arrive
+        let lastTextLength = 0
+        while (!streamComplete) {
+          if (abortSignal?.aborted) {
+            throw new Error('Request was aborted')
+          }
+
+          if (streamError) {
+            throw streamError
+          }
+
+          // If we have new text, yield it
+          if (accumulatedText.length > lastTextLength) {
+            console.log('🔧 Yielding accumulated text:', accumulatedText)
+            yield {
+              content: [{ type: 'text' as const, text: accumulatedText }],
+            }
+            lastTextLength = accumulatedText.length
+          }
+
+          // Wait a bit before checking again
+          await new Promise(resolve => setTimeout(resolve, 50))
+        }
+
+        // Yield final text if any
+        if (accumulatedText.length > lastTextLength) {
+          console.log('🔧 Yielding final text:', accumulatedText)
+          yield {
+            content: [{ type: 'text' as const, text: accumulatedText }],
+          }
+        }
+
+      } finally {
+        // Clean up event listeners
+        window.electronAPI.removeAIStreamListeners()
       }
     }
     catch (error) {

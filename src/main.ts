@@ -2729,9 +2729,50 @@ class MenuBarNotificationApp {
       }
     })
 
+    ipcMain.handle('send-ai-message-stream', async (event, provider: string, messages: Array<{ role: 'user' | 'assistant' | 'system', content: string }>, config?: { model?: string }): Promise<string> => {
+      try {
+        console.log('🚀 Main IPC send-ai-message-stream called:', {
+          provider,
+          messagesCount: messages.length,
+          config,
+          hasAuthTokens: !!this.authTokens,
+          hasAccessToken: !!this.authTokens?.access_token,
+        })
+        
+        // Start streaming in background
+        const streamProcess = async () => {
+          try {
+            const generator = aiRuntime.streamMessage(provider, messages, config || {}, this.authTokens || undefined)
+            
+            for await (const chunk of generator) {
+              console.log('🚀 Sending chunk to renderer:', chunk)
+              event.sender.send('ai-stream-chunk', chunk)
+            }
+            
+            console.log('🚀 Sending stream end to renderer')
+            event.sender.send('ai-stream-end')
+            console.log('✅ AI Runtime streaming completed')
+          } catch (error) {
+            console.error('🚨 Streaming error:', error)
+            event.sender.send('ai-stream-error', error instanceof Error ? error.message : 'Unknown error')
+          }
+        }
+
+        // Start streaming process
+        streamProcess()
+        
+        console.log('✅ AI Runtime streaming initialized')
+        return 'Stream started'
+      }
+      catch (error) {
+        console.error('🚨 Main IPC send-ai-message-stream error:', error)
+        throw new Error(`Failed to stream message to ${provider}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      }
+    })
+
     ipcMain.handle('web-search', async (_event, provider: string, query: string, company: string) => {
       try {
-        const accessToken = await this.authTokens?.access_token || ''
+        const accessToken = this.authTokens?.access_token || ''
         const response = await webSearch({ accessToken, query, company })
         return response
       }
