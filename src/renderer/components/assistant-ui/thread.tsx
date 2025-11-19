@@ -16,7 +16,7 @@ import {
   ComposerPrimitive,
   ErrorPrimitive,
   MessagePrimitive,
-  ThreadPrimitive,
+  ThreadPrimitive
 } from '@assistant-ui/react'
 
 import { LazyMotion, MotionConfig, domAnimation } from 'motion/react'

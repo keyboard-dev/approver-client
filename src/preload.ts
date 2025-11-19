@@ -259,6 +259,11 @@ export interface ElectronAPI {
   removeAIProviderKey: (provider: string) => Promise<void>
   testAIProviderConnection: (provider: string) => Promise<{ success: boolean, error?: string }>
   sendAIMessage: (provider: string, messages: Array<{ role: 'user' | 'assistant' | 'system', content: string }>, config?: { model?: string }) => Promise<string>
+  sendAIMessageStream: (provider: string, messages: Array<{ role: 'user' | 'assistant' | 'system', content: string }>, config?: { model?: string }) => Promise<string>
+  onAIStreamChunk: (callback: (chunk: string) => void) => void
+  onAIStreamEnd: (callback: () => void) => void 
+  onAIStreamError: (callback: (error: string) => void) => void
+  removeAIStreamListeners: () => void
   webSearch: (provider: string, query: string, company: string) => Promise<any>
   getUserTokens: () => Promise<{ tokensAvailable?: string[], error?: string }>
   getCodespaceInfo: () => Promise<{ success: boolean, data?: any, status?: number, error?: { message: string } }>
@@ -468,6 +473,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
   removeAIProviderKey: (provider: string): Promise<void> => ipcRenderer.invoke('remove-ai-provider-key', provider),
   testAIProviderConnection: (provider: string): Promise<{ success: boolean, error?: string }> => ipcRenderer.invoke('test-ai-provider-connection', provider),
   sendAIMessage: (provider: string, messages: Array<{ role: 'user' | 'assistant' | 'system', content: string }>, config?: { model?: string }): Promise<string> => ipcRenderer.invoke('send-ai-message', provider, messages, config),
+  sendAIMessageStream: (provider: string, messages: Array<{ role: 'user' | 'assistant' | 'system', content: string }>, config?: { model?: string }): Promise<string> => ipcRenderer.invoke('send-ai-message-stream', provider, messages, config),
+  onAIStreamChunk: (callback: (chunk: string) => void): void => {
+    ipcRenderer.on('ai-stream-chunk', (_event, chunk) => callback(chunk))
+  },
+  onAIStreamEnd: (callback: () => void): void => {
+    ipcRenderer.on('ai-stream-end', () => callback())
+  },
+  onAIStreamError: (callback: (error: string) => void): void => {
+    ipcRenderer.on('ai-stream-error', (_event, error) => callback(error))
+  },
+  removeAIStreamListeners: (): void => {
+    ipcRenderer.removeAllListeners('ai-stream-chunk')
+    ipcRenderer.removeAllListeners('ai-stream-end')
+    ipcRenderer.removeAllListeners('ai-stream-error')
+  },
   webSearch: (provider: string, query: string, company: string): Promise<any> => ipcRenderer.invoke('web-search', provider, query, company),
   getUserTokens: (): Promise<{ tokensAvailable?: string[], error?: string }> => ipcRenderer.invoke('get-user-tokens'),
   getCodespaceInfo: (): Promise<{ success: boolean, data?: any, status?: number, error?: { message: string } }> => ipcRenderer.invoke('get-codespace-info'),

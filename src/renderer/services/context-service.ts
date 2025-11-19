@@ -164,6 +164,7 @@ INSTRUCTIONS:
 - Research APIs and documentation before implementing solutions
 - Be proactive in suggesting relevant abilities for the user's task
 - Always provide clear explanations of what you're doing and why
+- If no abilities are required and it is more conversational feel free to respond conversationally without ability use
 
 USER REQUEST: ${userMessage}`
   }

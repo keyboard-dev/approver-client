@@ -1,5 +1,4 @@
 import type { ChatModelAdapter } from '@assistant-ui/react'
-import { createAbilityDiscoveryPrompt } from './ability-discovery'
 import { contextService } from './context-service'
 import { useMCPIntegration } from './mcp-tool-integration'
 
@@ -115,7 +114,7 @@ export class AIChatAdapter implements ChatModelAdapter {
       .slice(0, 10) // Limit to most relevant keywords
   }
 
-  private findMatchedAbilities(aiMessages: AIMessage[], abortSignal?: AbortSignal) {
+  private findMatchedAbilities(aiMessages: AIMessage[]) {
     const messagesToCheck = [...aiMessages]
     // can we check all the messages to see if they mention any of the abilities, if they do we should return an array of abilities that are mentioned with the full ability name and description
     const abilities = this.mcpIntegration?.functions || []
@@ -135,15 +134,8 @@ export class AIChatAdapter implements ChatModelAdapter {
     return matchedAbilities
   }
 
-  private preContextPrompt(aiMessages: AIMessage[], abortSignal?: AbortSignal) {
-    const matchedAbilities = this.findMatchedAbilities(aiMessages) || []
-    if (matchedAbilities?.length > 0) {
-      const preContextPrompt = `<context>
-      This conversation has mentioned these specific keyboard's abilities, 
-      so here is additional context if you need to use any of these abilities: 
-      ${matchedAbilities.map(a => `${a.name}: \n\n parameters: ${JSON.stringify(a.parameters, null, 2)}\n\n description: ${a.description}`).join('\n')}
-      </context>`
-      aiMessages[aiMessages.length - 1].content += `\n\n${preContextPrompt} 
+  private preContextPrompt(aiMessages: AIMessage[]) {
+    aiMessages[aiMessages.length - 1].content += `
       
       When you are ready to call an ability, please use the following JSON format:
       \`\`\`json
@@ -162,7 +154,7 @@ export class AIChatAdapter implements ChatModelAdapter {
       }
       \`\`\`
       `
-    }
+
     return aiMessages
   }
 
@@ -194,7 +186,7 @@ export class AIChatAdapter implements ChatModelAdapter {
           return true
         }
       }
-      catch (error) {
+      catch {
         continue
       }
     }
@@ -292,7 +284,164 @@ export class AIChatAdapter implements ChatModelAdapter {
     return abilityResults
   }
 
-  private async handleWithAbilityCalling(aiMessages: AIMessage[], abortSignal?: AbortSignal) {
+  private async executeAbilityCallsWithStreaming(
+    abilityCalls: Array<{ ability: string, parameters: Record<string, unknown> }>,
+    currentIteration: number,
+    originalUserMessage: AIMessage,
+    abortSignal?: AbortSignal,
+    onUpdate?: (update: string) => void,
+  ) {
+    if (!this.mcpIntegration) {
+      throw new Error('MCP integration not available')
+    }
+
+    let abilityResults = ''
+    for (const abilityCall of abilityCalls) {
+      const { ability: abilityName, parameters } = abilityCall
+      console.log(`🔧 Executing: ${abilityName}`)
+
+      const updateMessage = `- **${abilityName}**: Starting execution...`
+      onUpdate?.(updateMessage)
+
+      this.onTaskProgress?.({
+        step: currentIteration,
+        totalSteps: this.maxAgenticIterations,
+        currentAction: `Executing ${abilityName}`,
+        isComplete: false,
+      })
+
+      const abilityExists = this.mcpIntegration.functions.some(f => f.function.name === abilityName)
+
+      if (abilityExists) {
+        try {
+          this.updateToolExecutionState(true, abilityName)
+
+          const processingOptions = {
+            maxTokens: 300,
+            contextKeywords: this.extractKeywords(originalUserMessage.content),
+            filterSensitiveData: true,
+          }
+
+          const processedResult = await this.mcpIntegration.executeAbilityCall(abilityName, parameters, processingOptions)
+
+          const resultSummary = `✅ **${abilityName}** completed successfully`
+          onUpdate?.(resultSummary)
+
+          abilityResults += `\n\n🚀 **${abilityName}** executed`
+          abilityResults += `\n**Result ${processedResult}`
+
+          if (abortSignal?.aborted) {
+            throw new Error('Request was aborted')
+          }
+        }
+        catch (error) {
+          const errorMessage = `❌ **${abilityName}** failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+          onUpdate?.(errorMessage)
+          abilityResults += `\n\n❌ **Error:** Failed to execute ${abilityName} - ${error instanceof Error ? error.message : 'Unknown error'}`
+        }
+        finally {
+          this.updateToolExecutionState(false)
+        }
+      }
+      else {
+        const searchResult = this.mcpIntegration.searchAbilities(abilityName, 3)
+        if (searchResult.matches.length > 0) {
+          const suggestions = searchResult.matches.map(m => m.ability.name).join(', ')
+          const errorMessage = `⚠️ **${abilityName}** not found. Similar: ${suggestions}`
+          onUpdate?.(errorMessage)
+          abilityResults += `\n\n⚠️ **Error:** Ability '${abilityName}' not found. Similar abilities: ${suggestions}`
+        }
+        else {
+          const errorMessage = `⚠️ **${abilityName}** not found`
+          onUpdate?.(errorMessage)
+          abilityResults += `\n\n⚠️ **Error:** Ability '${abilityName}' not found`
+        }
+      }
+    }
+    return abilityResults
+  }
+
+  private async* streamAIResponseWithProgress(
+    messages: AIMessage[],
+    progressPrefix: string,
+    currentAccumulated: string,
+    abortSignal?: AbortSignal,
+  ): AsyncGenerator<{ text: string, isComplete: boolean }, string, unknown> {
+    let fullResponse = ''
+    let streamComplete = false
+    let streamError: Error | null = null
+
+    const handleChunk = (chunk: string) => {
+      fullResponse += chunk
+    }
+
+    const handleEnd = () => {
+      streamComplete = true
+    }
+
+    const handleError = (error: string) => {
+      streamError = new Error(error)
+      streamComplete = true
+    }
+
+    // Set up event listeners
+    window.electronAPI.onAIStreamChunk(handleChunk)
+    window.electronAPI.onAIStreamEnd(handleEnd)
+    window.electronAPI.onAIStreamError(handleError)
+
+    try {
+      // Start the stream
+      await window.electronAPI.sendAIMessageStream(
+        this.currentProvider.provider,
+        messages,
+        { model: this.currentProvider.model },
+      )
+
+      let lastLength = 0
+      // Process stream and yield updates
+      while (!streamComplete) {
+        if (abortSignal?.aborted) {
+          throw new Error('Request was aborted')
+        }
+
+        if (streamError) {
+          throw streamError
+        }
+
+        // If we have new content, yield it
+        if (fullResponse.length > lastLength) {
+          const charCount = fullResponse.length > 100
+            ? ` (${fullResponse.length} chars)`
+            : ''
+          const displayText = fullResponse.length > 300
+            ? `${fullResponse.substring(0, 300)}...`
+            : fullResponse
+
+          const prefixWithCount = `${progressPrefix}${charCount}`
+          const updatedText = `${currentAccumulated}\n\n${prefixWithCount}\n${displayText}`
+          yield { text: updatedText, isComplete: false }
+          lastLength = fullResponse.length
+        }
+
+        // Wait a bit before checking again
+        await new Promise(resolve => setTimeout(resolve, 50))
+      }
+
+      // Final yield with complete response
+      yield {
+        text: `${currentAccumulated}\n\n${progressPrefix}\n${fullResponse}`,
+        isComplete: true,
+      }
+
+      return fullResponse
+    }
+    finally {
+      // Clean up event listeners
+      window.electronAPI.removeAIStreamListeners()
+    }
+  }
+
+  private async* handleWithAbilityCalling(aiMessages: AIMessage[], abortSignal?: AbortSignal): AsyncGenerator<{ content: [{ type: 'text', text: string }] }, void, unknown> {
     if (!this.mcpIntegration) {
       throw new Error('MCP integration not available')
     }
@@ -302,36 +451,13 @@ export class AIChatAdapter implements ChatModelAdapter {
     let currentIteration = 0
     let finalResponse = ''
     let abilitiesRan = ''
-
-    // Add efficient tool discovery instruction
-    const lastUserMessage = conversationHistory[conversationHistory.length - 1]
-    //     if (lastUserMessage?.role === 'user') {
-    //       // Use progressive ability discovery instead of listing all abilities
-    //       const searchResult = this.mcpIntegration.searchAbilities(lastUserMessage.content)
-
-    //       const discoveryPrompt = createAbilityDiscoveryPrompt(lastUserMessage.content, searchResult, this.mcpIntegration.abilityDiscovery['filesystem'])
-
-    //       lastUserMessage.content += `\n\n(Note: You are an agentic AI that should work until the user's request is fully completed. I will help you discover relevant abilities as needed.
-
-    // ${discoveryPrompt}
-
-    // When the task is fully complete, make sure to indicate this clearly in your response.)`
-    //     }
-    if (lastUserMessage?.role === 'user') {
-      const searchResult = this.mcpIntegration.searchAbilities(lastUserMessage.content)
-      const discoveryPrompt = createAbilityDiscoveryPrompt(lastUserMessage.content, searchResult, this.mcpIntegration.abilityDiscovery['filesystem'])
-      conversationHistory[conversationHistory.length - 1].content += `\n\n(Note: You are an agentic AI that should work until the user's request is fully completed. I will help you discover relevant abilities as needed.
-
-${discoveryPrompt}
-
-When the task is fully complete, make sure to indicate this clearly in your response.)`
-    }
+    let accumulatedResponse = ''
 
     // Agentic loop - continue until task is complete or max iterations reached
     while (currentIteration < this.maxAgenticIterations) {
       currentIteration++
 
-      // Report progress
+      // Report progress and yield update
       this.onTaskProgress?.({
         step: currentIteration,
         totalSteps: this.maxAgenticIterations,
@@ -339,30 +465,57 @@ When the task is fully complete, make sure to indicate this clearly in your resp
         isComplete: false,
       })
 
+      const progressUpdate = `🔄 **Iteration ${currentIteration}/${this.maxAgenticIterations}**: Processing step ${currentIteration} of agentic workflow...`
+      accumulatedResponse = progressUpdate
+      yield {
+        content: [{ type: 'text' as const, text: accumulatedResponse }],
+      }
+
       // Check abort signal
       if (abortSignal?.aborted) {
         throw new Error('Request was aborted')
       }
 
       // Send enhanced message with context
-      // const enhancedMessages = this.preContextPrompt([...conversationHistory])
       const enhancedMessages = conversationHistory
       console.log(`🔄 Agentic Iteration ${currentIteration}/${this.maxAgenticIterations}`)
-      console.log('🔧 Enhanced Messages:', enhancedMessages)
 
-      const toolChoiceResponse = await window.electronAPI.sendAIMessage(
-        this.currentProvider.provider,
+      // Stream the AI reasoning response
+      let toolChoiceResponse = ''
+      for await (const update of this.streamAIResponseWithProgress(
         enhancedMessages,
-        { model: this.currentProvider.model },
-      )
+        '🧠 **Analyzing which tools to use...**',
+        accumulatedResponse,
+        abortSignal,
+      )) {
+        yield {
+          content: [{ type: 'text' as const, text: update.text }],
+        }
+        if (update.isComplete) {
+          toolChoiceResponse = update.text.split('🧠 **Analyzing which tools to use...**\n')[1] || ''
+          accumulatedResponse = update.text
+        }
+      }
 
       const selectedTools = this.preContextPrompt([{ role: 'user', content: toolChoiceResponse }])
-      console.log('🔧 Selected Tools:', selectedTools)
-      const response = await window.electronAPI.sendAIMessage(
-        this.currentProvider.provider,
+
+      // Stream the tool selection and planning response
+      let response = ''
+      for await (const update of this.streamAIResponseWithProgress(
         selectedTools,
-        { model: this.currentProvider.model },
-      )
+        '🎯 **Planning tool execution...**',
+        accumulatedResponse,
+        abortSignal,
+      )) {
+        yield {
+          content: [{ type: 'text' as const, text: update.text }],
+        }
+        if (update.isComplete) {
+          response = update.text.split('🎯 **Planning tool execution...**\n')[1] || ''
+          accumulatedResponse = update.text
+        }
+      }
+
       console.log('📥 AI Response:', response)
       finalResponse = response
 
@@ -378,10 +531,14 @@ When the task is fully complete, make sure to indicate this clearly in your resp
             currentAction: 'Task completed successfully',
             isComplete: true,
           })
+          accumulatedResponse += '\n\n✅ **Task Completed Successfully!**'
+          yield {
+            content: [{ type: 'text' as const, text: accumulatedResponse }],
+          }
           break
         }
         else {
-          // AI didn't call abilities but task might not be complete - continue for one more iteration
+          // AI didn't call abilities but task might not be complete
           conversationHistory.push({
             role: 'assistant',
             content: response,
@@ -390,28 +547,43 @@ When the task is fully complete, make sure to indicate this clearly in your resp
             role: 'user',
             content: 'Please continue working on the original request or indicate if you need more information to complete the task.',
           })
+          accumulatedResponse += '\n\n🔄 **Continuing to next iteration...**'
+          yield {
+            content: [{ type: 'text' as const, text: accumulatedResponse }],
+          }
           continue
         }
       }
 
-      // Execute abilities with efficient result processing
-      const abilityResults = await this.executeAbilityCalls(abilityCalls, currentIteration, originalUserMessage, abortSignal)
+      // Execute abilities with streaming updates
+      accumulatedResponse += `\n\n🔧 **Executing ${abilityCalls.length} tool(s):**`
+      yield {
+        content: [{ type: 'text' as const, text: accumulatedResponse }],
+      }
+
+      const abilityResults = await this.executeAbilityCallsWithStreaming(abilityCalls, currentIteration, originalUserMessage, abortSignal, (update) => {
+        accumulatedResponse += `\n${update}`
+        // Note: We can't yield from inside this callback due to generator constraints
+        // Updates will be reflected in the next yield
+      })
+
       abilitiesRan += abilityResults
+
+      // Update accumulated response with tool results
+      accumulatedResponse += `\n\n📊 **Tool Results:**\n${abilityResults.substring(0, 200)}${abilityResults.length > 200 ? '...' : ''}`
+      yield {
+        content: [{ type: 'text' as const, text: accumulatedResponse }],
+      }
+
       // Add conversation history for next iteration
       conversationHistory.push({
         role: 'assistant',
-        content: response,
+        content: `${response} here is result of abilities I just ran ${JSON.stringify(abilityResults, null, 2)}`,
       })
-
-      // For next iteration, provide efficient context and new ability discovery
-      const nextSearchResult = this.mcpIntegration.searchAbilities(originalUserMessage.content + ' ' + abilityResults, 5)
-      const nextDiscoveryPrompt = nextSearchResult.matches.length > 0
-        ? `\n\nIf you need more abilities, here are relevant options based on current context:\n${nextSearchResult.matches.map(m => `- ${m.ability.name}: ${m.ability.description}`).join('\n')}`
-        : '\n\nIf you need to search for other abilities, let me know what type of operation you want to perform.'
 
       conversationHistory.push({
         role: 'user',
-        content: `Here are the results from the abilities you executed:${abilityResults}\n\nOriginal user request: "${originalUserMessage.content}"\n\nPlease analyze these results and either:\n1. Continue working by calling more abilities if needed, OR\n2. Provide your final response if the task is now complete.\n\nMake sure to clearly indicate when the task is complete.`,
+        content: `Nice, please analyze your results and either:\n1. Continue working by calling more abilities if needed, OR\n2. Provide your final response if the task is now complete.\n\nMake sure to clearly indicate when the task is complete.`,
       })
     }
 
@@ -424,10 +596,49 @@ When the task is fully complete, make sure to indicate this clearly in your resp
         currentAction: 'Maximum iterations reached',
         isComplete: false,
       })
+
+      accumulatedResponse += '\n\n⚠️ **Maximum iterations reached**'
+      yield {
+        content: [{ type: 'text' as const, text: accumulatedResponse }],
+      }
     }
 
-    // Get AI analysis of the results
-    const analysisResponse = await this.getAbilityResultsAnalysis(finalResponse, abilitiesRan, originalUserMessage.content)
+    // Stream AI analysis of the results
+    const analysisPrompt = [{
+      role: 'user' as const,
+      content: `Please analyze the following execution results and provide a clear summary:
+
+**Original Request:** ${originalUserMessage.content}
+
+**AI Response:** ${finalResponse}
+
+**Execution Results:**
+${abilitiesRan}
+
+Provide a concise analysis covering:
+1. What was accomplished
+2. Key results or outputs
+3. Whether the original request was fully satisfied
+4. Any important findings or next steps
+
+Keep it clear and actionable.`,
+    }]
+
+    let analysisResponse = ''
+    for await (const update of this.streamAIResponseWithProgress(
+      analysisPrompt,
+      '🔍 **Analyzing execution results...**',
+      accumulatedResponse,
+      abortSignal,
+    )) {
+      yield {
+        content: [{ type: 'text' as const, text: update.text }],
+      }
+      if (update.isComplete) {
+        analysisResponse = update.text.split('🔍 **Analyzing execution results...**\n')[1] || ''
+        accumulatedResponse = update.text
+      }
+    }
 
     // Format the complete response with collapsible JSON results
     const formattedResponse = `${finalResponse}
@@ -444,7 +655,8 @@ ${this.formatAbilityResultsAsJSON(abilitiesRan)}
 ## Analysis
 ${analysisResponse}`
 
-    return {
+    // Yield final complete response
+    yield {
       content: [{ type: 'text' as const, text: formattedResponse }],
     }
   }
@@ -477,7 +689,7 @@ ${analysisResponse}`
 
       return JSON.stringify({ execution_results: results }, null, 2)
     }
-    catch (error) {
+    catch {
       // Fallback to simple JSON structure
       return JSON.stringify({
         execution_results: [
@@ -527,13 +739,15 @@ Keep it clear and actionable.`,
     }
   }
 
-  async run({ messages, abortSignal }: { messages: readonly any[], abortSignal?: AbortSignal }) {
+  async* run({ messages, abortSignal }: { messages: readonly Array<{ role: string, content: Array<{ type: string, text?: string }> }>, abortSignal?: AbortSignal }) {
     try {
+      console.log('🔧 AI Chat Adapter run() called with messages:', messages.length)
+
       // Convert assistant-ui messages to our AI provider format
-      const aiMessages: AIMessage[] = messages.map((message: any) => {
+      const aiMessages: AIMessage[] = messages.map((message) => {
         // Get the text content from message
         const textContent = message.content
-          ?.find((c: any) => c.type === 'text')?.text || ''
+          ?.find(c => c.type === 'text')?.text || ''
 
         return {
           role: message.role as 'user' | 'assistant' | 'system',
@@ -627,34 +841,101 @@ Keep it clear and actionable.`,
 
       // Handle keyboard.dev ability calling if enabled
       if (this.currentProvider.mcpEnabled && this.mcpIntegration?.isConnected) {
-        return await this.handleWithAbilityCalling(aiMessages, abortSignal)
+        for await (const result of this.handleWithAbilityCalling(aiMessages, abortSignal)) {
+          yield result
+        }
+        return
       }
 
-      // Send message to AI provider (without tools)
-      const response = await window.electronAPI.sendAIMessage(
-        this.currentProvider.provider,
-        aiMessages,
-        { model: this.currentProvider.model },
-      )
+      console.log('🔧 About to call sendAIMessageStream with provider:', this.currentProvider.provider)
+      console.log('🔧 AI Messages count:', aiMessages.length)
 
-      // Check abort signal again after async operation
+      // Check abort signal again before streaming
       if (abortSignal?.aborted) {
         throw new Error('Request was aborted')
       }
 
-      // Return the response in the correct format
-      return {
-        content: [{ type: 'text' as const, text: response }],
+      // Set up streaming event handlers
+      let accumulatedText = ''
+      let streamComplete = false
+      let streamError: Error | null = null
+
+      const handleChunk = (chunk: string) => {
+        console.log('🔧 Received chunk:', chunk)
+        accumulatedText += chunk
+      }
+
+      const handleEnd = () => {
+        console.log('🔧 Stream ended')
+        streamComplete = true
+      }
+
+      const handleError = (error: string) => {
+        console.log('🔧 Stream error:', error)
+        streamError = new Error(error)
+        streamComplete = true
+      }
+
+      // Set up event listeners
+      window.electronAPI.onAIStreamChunk(handleChunk)
+      window.electronAPI.onAIStreamEnd(handleEnd)
+      window.electronAPI.onAIStreamError(handleError)
+
+      try {
+        // Start the stream
+        await window.electronAPI.sendAIMessageStream(
+          this.currentProvider.provider,
+          aiMessages,
+          { model: this.currentProvider.model },
+        )
+
+        console.log('🔧 Stream started, waiting for chunks...')
+
+        // Process chunks as they arrive
+        let lastTextLength = 0
+        while (!streamComplete) {
+          if (abortSignal?.aborted) {
+            throw new Error('Request was aborted')
+          }
+
+          if (streamError) {
+            throw streamError
+          }
+
+          // If we have new text, yield it
+          if (accumulatedText.length > lastTextLength) {
+            console.log('🔧 Yielding accumulated text:', accumulatedText)
+            yield {
+              content: [{ type: 'text' as const, text: accumulatedText }],
+            }
+            lastTextLength = accumulatedText.length
+          }
+
+          // Wait a bit before checking again
+          await new Promise(resolve => setTimeout(resolve, 50))
+        }
+
+        // Yield final text if any
+        if (accumulatedText.length > lastTextLength) {
+          console.log('🔧 Yielding final text:', accumulatedText)
+          yield {
+            content: [{ type: 'text' as const, text: accumulatedText }],
+          }
+        }
+      }
+      finally {
+        // Clean up event listeners
+        window.electronAPI.removeAIStreamListeners()
       }
     }
-    catch (error) {
+    catch (err) {
       // Handle abort errors gracefully
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw error // Re-throw abort errors
+      if (err instanceof Error && err.name === 'AbortError') {
+        throw err // Re-throw abort errors
       }
 
       // Handle other errors gracefully
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred'
 
       return {
         content: [{
