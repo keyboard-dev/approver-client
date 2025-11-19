@@ -361,6 +361,86 @@ export class AIChatAdapter implements ChatModelAdapter {
     return abilityResults
   }
 
+  private async* streamAIResponseWithProgress(
+    messages: AIMessage[],
+    progressPrefix: string,
+    currentAccumulated: string,
+    abortSignal?: AbortSignal,
+  ): AsyncGenerator<{ text: string, isComplete: boolean }, string, unknown> {
+    let fullResponse = ''
+    let streamComplete = false
+    let streamError: Error | null = null
+
+    const handleChunk = (chunk: string) => {
+      fullResponse += chunk
+    }
+
+    const handleEnd = () => {
+      streamComplete = true
+    }
+
+    const handleError = (error: string) => {
+      streamError = new Error(error)
+      streamComplete = true
+    }
+
+    // Set up event listeners
+    window.electronAPI.onAIStreamChunk(handleChunk)
+    window.electronAPI.onAIStreamEnd(handleEnd)
+    window.electronAPI.onAIStreamError(handleError)
+
+    try {
+      // Start the stream
+      await window.electronAPI.sendAIMessageStream(
+        this.currentProvider.provider,
+        messages,
+        { model: this.currentProvider.model },
+      )
+
+      let lastLength = 0
+      // Process stream and yield updates
+      while (!streamComplete) {
+        if (abortSignal?.aborted) {
+          throw new Error('Request was aborted')
+        }
+
+        if (streamError) {
+          throw streamError
+        }
+
+        // If we have new content, yield it
+        if (fullResponse.length > lastLength) {
+          const charCount = fullResponse.length > 100
+            ? ` (${fullResponse.length} chars)`
+            : ''
+          const displayText = fullResponse.length > 300
+            ? `${fullResponse.substring(0, 300)}...`
+            : fullResponse
+
+          const prefixWithCount = `${progressPrefix}${charCount}`
+          const updatedText = `${currentAccumulated}\n\n${prefixWithCount}\n${displayText}`
+          yield { text: updatedText, isComplete: false }
+          lastLength = fullResponse.length
+        }
+
+        // Wait a bit before checking again
+        await new Promise(resolve => setTimeout(resolve, 50))
+      }
+
+      // Final yield with complete response
+      yield {
+        text: `${currentAccumulated}\n\n${progressPrefix}\n${fullResponse}`,
+        isComplete: true,
+      }
+
+      return fullResponse
+    }
+    finally {
+      // Clean up event listeners
+      window.electronAPI.removeAIStreamListeners()
+    }
+  }
+
   private async* handleWithAbilityCalling(aiMessages: AIMessage[], abortSignal?: AbortSignal): AsyncGenerator<{ content: [{ type: 'text', text: string }] }, void, unknown> {
     if (!this.mcpIntegration) {
       throw new Error('MCP integration not available')
@@ -385,7 +465,7 @@ export class AIChatAdapter implements ChatModelAdapter {
         isComplete: false,
       })
 
-      const progressUpdate = `🔄 **Iteration ${currentIteration}/${this.maxAgenticIterations}**: Processing...`
+      const progressUpdate = `🔄 **Iteration ${currentIteration}/${this.maxAgenticIterations}**: Processing step ${currentIteration} of agentic workflow...`
       accumulatedResponse = progressUpdate
       yield {
         content: [{ type: 'text' as const, text: accumulatedResponse }],
@@ -401,31 +481,43 @@ export class AIChatAdapter implements ChatModelAdapter {
       console.log(`🔄 Agentic Iteration ${currentIteration}/${this.maxAgenticIterations}`)
 
       // Stream the AI reasoning response
-      accumulatedResponse += '\n\n🧠 **AI Reasoning:**\n'
-      yield {
-        content: [{ type: 'text' as const, text: accumulatedResponse }],
-      }
-
-      const toolChoiceResponse = await window.electronAPI.sendAIMessage(
-        this.currentProvider.provider,
+      let toolChoiceResponse = ''
+      for await (const update of this.streamAIResponseWithProgress(
         enhancedMessages,
-        { model: this.currentProvider.model },
-      )
+        '🧠 **Analyzing which tools to use...**',
+        accumulatedResponse,
+        abortSignal,
+      )) {
+        yield {
+          content: [{ type: 'text' as const, text: update.text }],
+        }
+        if (update.isComplete) {
+          toolChoiceResponse = update.text.split('🧠 **Analyzing which tools to use...**\n')[1] || ''
+          accumulatedResponse = update.text
+        }
+      }
 
       const selectedTools = this.preContextPrompt([{ role: 'user', content: toolChoiceResponse }])
-      const response = await window.electronAPI.sendAIMessage(
-        this.currentProvider.provider,
+
+      // Stream the tool selection and planning response
+      let response = ''
+      for await (const update of this.streamAIResponseWithProgress(
         selectedTools,
-        { model: this.currentProvider.model },
-      )
+        '🎯 **Planning tool execution...**',
+        accumulatedResponse,
+        abortSignal,
+      )) {
+        yield {
+          content: [{ type: 'text' as const, text: update.text }],
+        }
+        if (update.isComplete) {
+          response = update.text.split('🎯 **Planning tool execution...**\n')[1] || ''
+          accumulatedResponse = update.text
+        }
+      }
+
       console.log('📥 AI Response:', response)
       finalResponse = response
-
-      // Add AI reasoning to accumulated response
-      accumulatedResponse += response.substring(0, 300) + (response.length > 300 ? '...' : '')
-      yield {
-        content: [{ type: 'text' as const, text: accumulatedResponse }],
-      }
 
       const abilityCalls = this.foundAbilityCallsInResponse(response)
 
@@ -464,7 +556,7 @@ export class AIChatAdapter implements ChatModelAdapter {
       }
 
       // Execute abilities with streaming updates
-      accumulatedResponse += '\n\n🔧 **Executing Tools:**'
+      accumulatedResponse += `\n\n🔧 **Executing ${abilityCalls.length} tool(s):**`
       yield {
         content: [{ type: 'text' as const, text: accumulatedResponse }],
       }
@@ -511,13 +603,42 @@ export class AIChatAdapter implements ChatModelAdapter {
       }
     }
 
-    // Get AI analysis of the results and yield final response
-    accumulatedResponse += '\n\n🔍 **Analyzing results...**'
-    yield {
-      content: [{ type: 'text' as const, text: accumulatedResponse }],
-    }
+    // Stream AI analysis of the results
+    const analysisPrompt = [{
+      role: 'user' as const,
+      content: `Please analyze the following execution results and provide a clear summary:
 
-    const analysisResponse = await this.getAbilityResultsAnalysis(finalResponse, abilitiesRan, originalUserMessage.content)
+**Original Request:** ${originalUserMessage.content}
+
+**AI Response:** ${finalResponse}
+
+**Execution Results:**
+${abilitiesRan}
+
+Provide a concise analysis covering:
+1. What was accomplished
+2. Key results or outputs
+3. Whether the original request was fully satisfied
+4. Any important findings or next steps
+
+Keep it clear and actionable.`,
+    }]
+
+    let analysisResponse = ''
+    for await (const update of this.streamAIResponseWithProgress(
+      analysisPrompt,
+      '🔍 **Analyzing execution results...**',
+      accumulatedResponse,
+      abortSignal,
+    )) {
+      yield {
+        content: [{ type: 'text' as const, text: update.text }],
+      }
+      if (update.isComplete) {
+        analysisResponse = update.text.split('🔍 **Analyzing execution results...**\n')[1] || ''
+        accumulatedResponse = update.text
+      }
+    }
 
     // Format the complete response with collapsible JSON results
     const formattedResponse = `${finalResponse}
