@@ -114,7 +114,7 @@ export class AIChatAdapter implements ChatModelAdapter {
       .slice(0, 10) // Limit to most relevant keywords
   }
 
-  private findMatchedAbilities(aiMessages: AIMessage[], abortSignal?: AbortSignal) {
+  private findMatchedAbilities(aiMessages: AIMessage[]) {
     const messagesToCheck = [...aiMessages]
     // can we check all the messages to see if they mention any of the abilities, if they do we should return an array of abilities that are mentioned with the full ability name and description
     const abilities = this.mcpIntegration?.functions || []
@@ -134,7 +134,7 @@ export class AIChatAdapter implements ChatModelAdapter {
     return matchedAbilities
   }
 
-  private preContextPrompt(aiMessages: AIMessage[], abortSignal?: AbortSignal) {
+  private preContextPrompt(aiMessages: AIMessage[]) {
     aiMessages[aiMessages.length - 1].content += `
       
       When you are ready to call an ability, please use the following JSON format:
@@ -186,7 +186,7 @@ export class AIChatAdapter implements ChatModelAdapter {
           return true
         }
       }
-      catch (error) {
+      catch {
         continue
       }
     }
@@ -284,7 +284,84 @@ export class AIChatAdapter implements ChatModelAdapter {
     return abilityResults
   }
 
-  private async handleWithAbilityCalling(aiMessages: AIMessage[], abortSignal?: AbortSignal) {
+  private async executeAbilityCallsWithStreaming(
+    abilityCalls: Array<{ ability: string, parameters: Record<string, unknown> }>,
+    currentIteration: number,
+    originalUserMessage: AIMessage,
+    abortSignal?: AbortSignal,
+    onUpdate?: (update: string) => void,
+  ) {
+    if (!this.mcpIntegration) {
+      throw new Error('MCP integration not available')
+    }
+
+    let abilityResults = ''
+    for (const abilityCall of abilityCalls) {
+      const { ability: abilityName, parameters } = abilityCall
+      console.log(`🔧 Executing: ${abilityName}`)
+
+      const updateMessage = `- **${abilityName}**: Starting execution...`
+      onUpdate?.(updateMessage)
+
+      this.onTaskProgress?.({
+        step: currentIteration,
+        totalSteps: this.maxAgenticIterations,
+        currentAction: `Executing ${abilityName}`,
+        isComplete: false,
+      })
+
+      const abilityExists = this.mcpIntegration.functions.some(f => f.function.name === abilityName)
+
+      if (abilityExists) {
+        try {
+          this.updateToolExecutionState(true, abilityName)
+
+          const processingOptions = {
+            maxTokens: 300,
+            contextKeywords: this.extractKeywords(originalUserMessage.content),
+            filterSensitiveData: true,
+          }
+
+          const processedResult = await this.mcpIntegration.executeAbilityCall(abilityName, parameters, processingOptions)
+
+          const resultSummary = `✅ **${abilityName}** completed successfully`
+          onUpdate?.(resultSummary)
+
+          abilityResults += `\n\n🚀 **${abilityName}** executed`
+          abilityResults += `\n**Result ${processedResult}`
+
+          if (abortSignal?.aborted) {
+            throw new Error('Request was aborted')
+          }
+        }
+        catch (error) {
+          const errorMessage = `❌ **${abilityName}** failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+          onUpdate?.(errorMessage)
+          abilityResults += `\n\n❌ **Error:** Failed to execute ${abilityName} - ${error instanceof Error ? error.message : 'Unknown error'}`
+        }
+        finally {
+          this.updateToolExecutionState(false)
+        }
+      }
+      else {
+        const searchResult = this.mcpIntegration.searchAbilities(abilityName, 3)
+        if (searchResult.matches.length > 0) {
+          const suggestions = searchResult.matches.map(m => m.ability.name).join(', ')
+          const errorMessage = `⚠️ **${abilityName}** not found. Similar: ${suggestions}`
+          onUpdate?.(errorMessage)
+          abilityResults += `\n\n⚠️ **Error:** Ability '${abilityName}' not found. Similar abilities: ${suggestions}`
+        }
+        else {
+          const errorMessage = `⚠️ **${abilityName}** not found`
+          onUpdate?.(errorMessage)
+          abilityResults += `\n\n⚠️ **Error:** Ability '${abilityName}' not found`
+        }
+      }
+    }
+    return abilityResults
+  }
+
+  private async* handleWithAbilityCalling(aiMessages: AIMessage[], abortSignal?: AbortSignal): AsyncGenerator<{ content: [{ type: 'text', text: string }] }, void, unknown> {
     if (!this.mcpIntegration) {
       throw new Error('MCP integration not available')
     }
@@ -294,12 +371,13 @@ export class AIChatAdapter implements ChatModelAdapter {
     let currentIteration = 0
     let finalResponse = ''
     let abilitiesRan = ''
+    let accumulatedResponse = ''
 
     // Agentic loop - continue until task is complete or max iterations reached
     while (currentIteration < this.maxAgenticIterations) {
       currentIteration++
 
-      // Report progress
+      // Report progress and yield update
       this.onTaskProgress?.({
         step: currentIteration,
         totalSteps: this.maxAgenticIterations,
@@ -307,16 +385,26 @@ export class AIChatAdapter implements ChatModelAdapter {
         isComplete: false,
       })
 
+      const progressUpdate = `🔄 **Iteration ${currentIteration}/${this.maxAgenticIterations}**: Processing...`
+      accumulatedResponse = progressUpdate
+      yield {
+        content: [{ type: 'text' as const, text: accumulatedResponse }],
+      }
+
       // Check abort signal
       if (abortSignal?.aborted) {
         throw new Error('Request was aborted')
       }
 
       // Send enhanced message with context
-      // const enhancedMessages = this.preContextPrompt([...conversationHistory])
       const enhancedMessages = conversationHistory
       console.log(`🔄 Agentic Iteration ${currentIteration}/${this.maxAgenticIterations}`)
-      console.log('🔧 Enhanced Messages:', enhancedMessages)
+
+      // Stream the AI reasoning response
+      accumulatedResponse += '\n\n🧠 **AI Reasoning:**\n'
+      yield {
+        content: [{ type: 'text' as const, text: accumulatedResponse }],
+      }
 
       const toolChoiceResponse = await window.electronAPI.sendAIMessage(
         this.currentProvider.provider,
@@ -325,7 +413,6 @@ export class AIChatAdapter implements ChatModelAdapter {
       )
 
       const selectedTools = this.preContextPrompt([{ role: 'user', content: toolChoiceResponse }])
-      console.log('🔧 Selected Tools:', selectedTools)
       const response = await window.electronAPI.sendAIMessage(
         this.currentProvider.provider,
         selectedTools,
@@ -333,6 +420,12 @@ export class AIChatAdapter implements ChatModelAdapter {
       )
       console.log('📥 AI Response:', response)
       finalResponse = response
+
+      // Add AI reasoning to accumulated response
+      accumulatedResponse += response.substring(0, 300) + (response.length > 300 ? '...' : '')
+      yield {
+        content: [{ type: 'text' as const, text: accumulatedResponse }],
+      }
 
       const abilityCalls = this.foundAbilityCallsInResponse(response)
 
@@ -346,10 +439,14 @@ export class AIChatAdapter implements ChatModelAdapter {
             currentAction: 'Task completed successfully',
             isComplete: true,
           })
+          accumulatedResponse += '\n\n✅ **Task Completed Successfully!**'
+          yield {
+            content: [{ type: 'text' as const, text: accumulatedResponse }],
+          }
           break
         }
         else {
-          // AI didn't call abilities but task might not be complete - continue for one more iteration
+          // AI didn't call abilities but task might not be complete
           conversationHistory.push({
             role: 'assistant',
             content: response,
@@ -358,13 +455,34 @@ export class AIChatAdapter implements ChatModelAdapter {
             role: 'user',
             content: 'Please continue working on the original request or indicate if you need more information to complete the task.',
           })
+          accumulatedResponse += '\n\n🔄 **Continuing to next iteration...**'
+          yield {
+            content: [{ type: 'text' as const, text: accumulatedResponse }],
+          }
           continue
         }
       }
 
-      // Execute abilities with efficient result processing
-      const abilityResults = await this.executeAbilityCalls(abilityCalls, currentIteration, originalUserMessage, abortSignal)
+      // Execute abilities with streaming updates
+      accumulatedResponse += '\n\n🔧 **Executing Tools:**'
+      yield {
+        content: [{ type: 'text' as const, text: accumulatedResponse }],
+      }
+
+      const abilityResults = await this.executeAbilityCallsWithStreaming(abilityCalls, currentIteration, originalUserMessage, abortSignal, (update) => {
+        accumulatedResponse += `\n${update}`
+        // Note: We can't yield from inside this callback due to generator constraints
+        // Updates will be reflected in the next yield
+      })
+
       abilitiesRan += abilityResults
+
+      // Update accumulated response with tool results
+      accumulatedResponse += `\n\n📊 **Tool Results:**\n${abilityResults.substring(0, 200)}${abilityResults.length > 200 ? '...' : ''}`
+      yield {
+        content: [{ type: 'text' as const, text: accumulatedResponse }],
+      }
+
       // Add conversation history for next iteration
       conversationHistory.push({
         role: 'assistant',
@@ -386,9 +504,19 @@ export class AIChatAdapter implements ChatModelAdapter {
         currentAction: 'Maximum iterations reached',
         isComplete: false,
       })
+
+      accumulatedResponse += '\n\n⚠️ **Maximum iterations reached**'
+      yield {
+        content: [{ type: 'text' as const, text: accumulatedResponse }],
+      }
     }
 
-    // Get AI analysis of the results
+    // Get AI analysis of the results and yield final response
+    accumulatedResponse += '\n\n🔍 **Analyzing results...**'
+    yield {
+      content: [{ type: 'text' as const, text: accumulatedResponse }],
+    }
+
     const analysisResponse = await this.getAbilityResultsAnalysis(finalResponse, abilitiesRan, originalUserMessage.content)
 
     // Format the complete response with collapsible JSON results
@@ -406,7 +534,8 @@ ${this.formatAbilityResultsAsJSON(abilitiesRan)}
 ## Analysis
 ${analysisResponse}`
 
-    return {
+    // Yield final complete response
+    yield {
       content: [{ type: 'text' as const, text: formattedResponse }],
     }
   }
@@ -439,7 +568,7 @@ ${analysisResponse}`
 
       return JSON.stringify({ execution_results: results }, null, 2)
     }
-    catch (error) {
+    catch {
       // Fallback to simple JSON structure
       return JSON.stringify({
         execution_results: [
@@ -489,15 +618,15 @@ Keep it clear and actionable.`,
     }
   }
 
-  async* run({ messages, abortSignal }: { messages: readonly any[], abortSignal?: AbortSignal }) {
+  async* run({ messages, abortSignal }: { messages: readonly Array<{ role: string, content: Array<{ type: string, text?: string }> }>, abortSignal?: AbortSignal }) {
     try {
       console.log('🔧 AI Chat Adapter run() called with messages:', messages.length)
 
       // Convert assistant-ui messages to our AI provider format
-      const aiMessages: AIMessage[] = messages.map((message: any) => {
+      const aiMessages: AIMessage[] = messages.map((message) => {
         // Get the text content from message
         const textContent = message.content
-          ?.find((c: any) => c.type === 'text')?.text || ''
+          ?.find(c => c.type === 'text')?.text || ''
 
         return {
           role: message.role as 'user' | 'assistant' | 'system',
@@ -590,11 +719,12 @@ Keep it clear and actionable.`,
       }
 
       // Handle keyboard.dev ability calling if enabled
-      // if (this.currentProvider.mcpEnabled && this.mcpIntegration?.isConnected) {
-      //   const result = await this.handleWithAbilityCalling(aiMessages, abortSignal)
-      //   yield result
-      //   return
-      // }
+      if (this.currentProvider.mcpEnabled && this.mcpIntegration?.isConnected) {
+        for await (const result of this.handleWithAbilityCalling(aiMessages, abortSignal)) {
+          yield result
+        }
+        return
+      }
 
       console.log('🔧 About to call sendAIMessageStream with provider:', this.currentProvider.provider)
       console.log('🔧 AI Messages count:', aiMessages.length)
@@ -677,14 +807,14 @@ Keep it clear and actionable.`,
         window.electronAPI.removeAIStreamListeners()
       }
     }
-    catch (error) {
+    catch (err) {
       // Handle abort errors gracefully
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw error // Re-throw abort errors
+      if (err instanceof Error && err.name === 'AbortError') {
+        throw err // Re-throw abort errors
       }
 
       // Handle other errors gracefully
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred'
 
       return {
         content: [{
