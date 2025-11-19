@@ -16,8 +16,7 @@ import {
   ComposerPrimitive,
   ErrorPrimitive,
   MessagePrimitive,
-  ThreadPrimitive,
-  useAssistantState,
+  ThreadPrimitive
 } from '@assistant-ui/react'
 
 import { LazyMotion, MotionConfig, domAnimation } from 'motion/react'
@@ -283,13 +282,6 @@ const AssistantMessage: FC = () => {
       </div>
     </MessagePrimitive.Root>
   )
-}
-
-const CustomTextComponent = () => {
-  const text = useAssistantState(({ part }) => part.text)
-  if (text?.includes("ability-results")) {
-    return <MentionComponent text={text} />;
-  }
 }
 
 const AssistantActionBar: FC = () => {
