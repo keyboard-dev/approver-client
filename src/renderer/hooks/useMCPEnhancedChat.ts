@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { AIChatAdapter } from '../services/ai-chat-adapter'
 import { useMCPIntegration } from '../services/mcp-tool-integration'
 
@@ -15,6 +15,16 @@ export interface AgenticProgress {
   totalSteps: number
   currentAction: string
   isComplete: boolean
+  intermediateMessages?: AbilityMessage[]
+}
+
+export interface AbilityMessage {
+  id: string
+  type: 'status' | 'result' | 'error' | 'progress'
+  content: string
+  timestamp: number
+  abilityName?: string
+  data?: any
 }
 
 export interface AbilityExecution {
@@ -38,32 +48,35 @@ export interface AbilityExecution {
 export interface MCPEnhancedChatState {
   // Adapter state
   adapter: AIChatAdapter
-  
+
   // MCP state
   mcpEnabled: boolean
   mcpConnected: boolean
   mcpAbilities: number
   mcpError?: string
-  
+
   // Ability execution state
   isExecutingAbility: boolean
   currentAbility?: string
   executions: AbilityExecution[]
-  
+
   // Agentic state
   isAgenticMode: boolean
   agenticProgress?: AgenticProgress
-  
+
   // Control functions
   setMCPEnabled: (enabled: boolean) => void
   refreshMCPConnection: () => void
   setAbilityExecutionState: (isExecuting: boolean, abilityName?: string) => void
   setAgenticMode: (enabled: boolean) => void
-  
+
   // Execution tracking functions
   addExecution: (abilityName: string, parameters: Record<string, unknown>, provider?: string) => string
   updateExecution: (id: string, updates: Partial<AbilityExecution>) => void
   clearExecutions: () => void
+  abilityMessages: AbilityMessage[]
+  addAbilityMessage: (message: Omit<AbilityMessage, 'id' | 'timestamp'>) => void
+  clearAbilityMessages: () => void
 }
 
 /**
@@ -107,21 +120,21 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
       provider,
       metadata: {
         isLocalExecution: abilityName === 'web-search',
-        intercepted: abilityName === 'web-search'
-      }
+        intercepted: abilityName === 'web-search',
+      },
     }
-    
-    setExecutions(prev => {
+
+    setExecutions((prev) => {
       // Keep only the last 50 executions to prevent memory bloat
       const updated = [execution, ...prev].slice(0, 50)
       return updated
     })
-    
+
     return id
   }, [])
 
   const updateExecution = useCallback((id: string, updates: Partial<AbilityExecution>) => {
-    setExecutions(prev => prev.map(exec => {
+    setExecutions(prev => prev.map((exec) => {
       if (exec.id === id) {
         const updated = { ...exec, ...updates }
         // Calculate duration if ending
@@ -151,7 +164,7 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
   const mcpIntegration = useMCPIntegration(
     config.serverUrl || 'https://mcp.keyboard.dev',
     config.clientName || 'keyboard-approver-mcp',
-    { addExecution, updateExecution }
+    { addExecution, updateExecution },
   )
 
   // Update adapter when provider/model/MCP settings change
@@ -165,7 +178,8 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
       adapter.setMCPIntegration(mcpIntegration)
       adapter.setToolExecutionTracker(setAbilityExecutionState)
       adapter.setTaskProgressTracker(handleTaskProgress)
-    } else {
+    }
+    else {
       adapter.setMCPIntegration(null)
     }
   }, [adapter, mcpEnabled, mcpIntegration, setAbilityExecutionState, handleTaskProgress])
@@ -173,7 +187,7 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
   // Handle MCP enablement toggle
   const setMCPEnabled = useCallback((enabled: boolean) => {
     setMCPEnabledState(enabled)
-    
+
     if (!enabled) {
       // Disconnect MCP integration when disabled
       adapter.setMCPIntegration(null)

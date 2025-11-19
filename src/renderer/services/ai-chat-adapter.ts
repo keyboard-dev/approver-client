@@ -1,5 +1,4 @@
 import type { ChatModelAdapter } from '@assistant-ui/react'
-import { createAbilityDiscoveryPrompt } from './ability-discovery'
 import { contextService } from './context-service'
 import { useMCPIntegration } from './mcp-tool-integration'
 
@@ -136,14 +135,7 @@ export class AIChatAdapter implements ChatModelAdapter {
   }
 
   private preContextPrompt(aiMessages: AIMessage[], abortSignal?: AbortSignal) {
-    const matchedAbilities = this.findMatchedAbilities(aiMessages) || []
-    if (matchedAbilities?.length > 0) {
-      const preContextPrompt = `<context>
-      This conversation has mentioned these specific keyboard's abilities, 
-      so here is additional context if you need to use any of these abilities: 
-      ${matchedAbilities.map(a => `${a.name}: \n\n parameters: ${JSON.stringify(a.parameters, null, 2)}\n\n description: ${a.description}`).join('\n')}
-      </context>`
-      aiMessages[aiMessages.length - 1].content += `\n\n${preContextPrompt} 
+    aiMessages[aiMessages.length - 1].content += `
       
       When you are ready to call an ability, please use the following JSON format:
       \`\`\`json
@@ -162,7 +154,7 @@ export class AIChatAdapter implements ChatModelAdapter {
       }
       \`\`\`
       `
-    }
+
     return aiMessages
   }
 
@@ -317,15 +309,15 @@ export class AIChatAdapter implements ChatModelAdapter {
 
     // When the task is fully complete, make sure to indicate this clearly in your response.)`
     //     }
-    if (lastUserMessage?.role === 'user') {
-      const searchResult = this.mcpIntegration.searchAbilities(lastUserMessage.content)
-      const discoveryPrompt = createAbilityDiscoveryPrompt(lastUserMessage.content, searchResult, this.mcpIntegration.abilityDiscovery['filesystem'])
-      conversationHistory[conversationHistory.length - 1].content += `\n\n(Note: You are an agentic AI that should work until the user's request is fully completed. I will help you discover relevant abilities as needed.
+    //     if (lastUserMessage?.role === 'user') {
+    //       const searchResult = this.mcpIntegration.searchAbilities(lastUserMessage.content)
+    //       const discoveryPrompt = createAbilityDiscoveryPrompt(lastUserMessage.content, searchResult, this.mcpIntegration.abilityDiscovery['filesystem'])
+    //       conversationHistory[conversationHistory.length - 1].content += `\n\n(Note: You are an agentic AI that should work until the user's request is fully completed. I will help you discover relevant abilities as needed.
 
-${discoveryPrompt}
+    // ${discoveryPrompt}
 
-When the task is fully complete, make sure to indicate this clearly in your response.)`
-    }
+    // When the task is fully complete, make sure to indicate this clearly in your response.)`
+    //     }
 
     // Agentic loop - continue until task is complete or max iterations reached
     while (currentIteration < this.maxAgenticIterations) {
@@ -400,18 +392,12 @@ When the task is fully complete, make sure to indicate this clearly in your resp
       // Add conversation history for next iteration
       conversationHistory.push({
         role: 'assistant',
-        content: response,
+        content: `${response} here is result of abilities I just ran ${JSON.stringify(abilityResults, null, 2)}`,
       })
-
-      // For next iteration, provide efficient context and new ability discovery
-      const nextSearchResult = this.mcpIntegration.searchAbilities(originalUserMessage.content + ' ' + abilityResults, 5)
-      const nextDiscoveryPrompt = nextSearchResult.matches.length > 0
-        ? `\n\nIf you need more abilities, here are relevant options based on current context:\n${nextSearchResult.matches.map(m => `- ${m.ability.name}: ${m.ability.description}`).join('\n')}`
-        : '\n\nIf you need to search for other abilities, let me know what type of operation you want to perform.'
 
       conversationHistory.push({
         role: 'user',
-        content: `Here are the results from the abilities you executed:${abilityResults}\n\nOriginal user request: "${originalUserMessage.content}"\n\nPlease analyze these results and either:\n1. Continue working by calling more abilities if needed, OR\n2. Provide your final response if the task is now complete.\n\nMake sure to clearly indicate when the task is complete.`,
+        content: `Nice, please analyze your results and either:\n1. Continue working by calling more abilities if needed, OR\n2. Provide your final response if the task is now complete.\n\nMake sure to clearly indicate when the task is complete.`,
       })
     }
 
