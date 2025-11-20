@@ -1,5 +1,7 @@
 import React, { useState } from 'react'
+import { Script } from '../../main'
 import { ChatInput } from './ChatInput'
+import { ScriptSelector } from './ScriptSelector'
 import { Button } from './ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 
@@ -12,33 +14,51 @@ interface ChatMessage {
   content: string
   timestamp: number
   sender: 'user' | 'assistant'
+  script?: Script
 }
 
 export const Chat: React.FC<ChatProps> = ({ onBack }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputValue, setInputValue] = useState('')
+  const [selectedScript, setSelectedScript] = useState<Script | null>(null)
 
   const handleSendMessage = async () => {
     if (!inputValue.trim()) return
 
     // Ensure we have a connection before sending
 
+    // Create message content with script context if selected
+    let messageContent = inputValue.trim()
+    if (selectedScript) {
+      messageContent = `[Script: ${selectedScript.name}] ${messageContent}\n\nScript Context:\n- Name: ${selectedScript.name}\n- ID: ${selectedScript.id}\n- Description: ${selectedScript.description}`
+      if (selectedScript.tags && selectedScript.tags.length > 0) {
+        messageContent += `\n- Tags: ${selectedScript.tags.join(', ')}`
+      }
+      if (selectedScript.services && selectedScript.services.length > 0) {
+        messageContent += `\n- Services: ${selectedScript.services.join(', ')}`
+      }
+    }
+
     const newMessage: ChatMessage = {
       id: Date.now().toString(),
-      content: inputValue.trim(),
+      content: messageContent,
       timestamp: Date.now(),
       sender: 'user',
+      script: selectedScript || undefined,
     }
 
     setMessages(prev => [...prev, newMessage])
     setInputValue('')
+    setSelectedScript(null) // Clear script selection after sending
 
     // TODO: Add actual chat functionality here
     // For now, just add a simple response
     setTimeout(() => {
       const response: ChatMessage = {
         id: (Date.now() + 1).toString(),
-        content: `Echo: ${newMessage.content}`,
+        content: selectedScript 
+          ? `I'll help you with that using the ${selectedScript.name} script. ${inputValue.trim()}`
+          : `Echo: ${inputValue.trim()}`,
         timestamp: Date.now(),
         sender: 'assistant',
       }
@@ -92,13 +112,18 @@ export const Chat: React.FC<ChatProps> = ({ onBack }) => {
               )}
         </div>
 
-        {/* Chat Input */}
-        <div className="border-t pt-4">
+        {/* Script Selection and Chat Input */}
+        <div className="border-t pt-4 space-y-3">
+          <ScriptSelector
+            selectedScript={selectedScript}
+            onScriptSelect={setSelectedScript}
+          />
           <ChatInput
             value={inputValue}
             onChange={setInputValue}
             onSend={handleSendMessage}
             placeholder="Type your message..."
+            selectedScript={selectedScript}
           />
         </div>
       </CardContent>

@@ -16,14 +16,21 @@ import {
   ComposerPrimitive,
   ErrorPrimitive,
   MessagePrimitive,
-  ThreadPrimitive
+  ThreadPrimitive,
+  useComposer,
 } from '@assistant-ui/react'
 
 import { LazyMotion, MotionConfig, domAnimation } from 'motion/react'
 import * as m from 'motion/react-m'
 import type { FC } from 'react'
+import { useState } from 'react'
 
+import { Script } from '../../../main'
+import { Message } from '../../../types'
+import { cn } from '../../lib/utils'
+import { ScriptSelector } from '../ScriptSelector'
 import { Button } from '../ui/button'
+import { ApprovalMessage } from './ApprovalMessage'
 import {
   ComposerAddAttachment,
   ComposerAttachments,
@@ -33,15 +40,12 @@ import { MarkdownText } from './markdown-text'
 import { ToolFallback } from './tool-fallback'
 import { TooltipIconButton } from './tooltip-icon-button'
 
-import { Message } from '../../../types'
-import { cn } from '../../lib/utils'
-import { ApprovalMessage } from './ApprovalMessage'
-
 interface ThreadCustomProps {
   currentApprovalMessage?: Message
   onApproveMessage?: (message: Message) => void
   onRejectMessage?: (message: Message) => void
   onClearMessage?: () => void
+  onScriptSelect?: (script: Script | null) => void
 }
 
 export const Thread: FC<ThreadCustomProps> = ({
@@ -50,6 +54,8 @@ export const Thread: FC<ThreadCustomProps> = ({
   onRejectMessage,
   onClearMessage,
 }) => {
+  const [selectedScript, setSelectedScript] = useState<Script | null>(null)
+
   return (
     <LazyMotion features={domAnimation}>
       <MotionConfig reducedMotion="user">
@@ -84,7 +90,10 @@ export const Thread: FC<ThreadCustomProps> = ({
             </ThreadPrimitive.If>
           </ThreadPrimitive.Viewport>
 
-          <Composer />
+          <Composer
+            selectedScript={selectedScript}
+            onScriptSelect={setSelectedScript}
+          />
         </ThreadPrimitive.Root>
       </MotionConfig>
     </LazyMotion>
@@ -191,14 +200,64 @@ const ThreadSuggestions: FC = () => {
   )
 }
 
-const Composer: FC = () => {
+interface ComposerProps {
+  selectedScript?: Script | null
+  onScriptSelect?: (script: Script | null) => void
+}
+
+const Composer: FC<ComposerProps> = ({ selectedScript, onScriptSelect }) => {
+  const composer = useComposer()
+
+  const handleSubmit = () => {
+    if (selectedScript && onScriptSelect) {
+      // Get current text
+      const currentText = composer.text
+
+      // Create message content with script context
+      let messageContent = currentText
+      if (selectedScript && currentText.trim()) {
+        messageContent = `[Script: ${selectedScript.name}] ${currentText}\n\nScript Context:\n- Name: ${selectedScript.name}\n- ID: ${selectedScript.id}\n- Description: ${selectedScript.description}`
+        if (selectedScript.tags && selectedScript.tags.length > 0) {
+          messageContent += `\n- Tags: ${selectedScript.tags.join(', ')}`
+        }
+        if (selectedScript.services && selectedScript.services.length > 0) {
+          messageContent += `\n- Services: ${selectedScript.services.join(', ')}`
+        }
+      }
+
+      // Set the enhanced text
+      composer.setText(messageContent)
+
+      // Clear script selection after setting the text
+      setTimeout(() => {
+        onScriptSelect(null)
+      }, 100)
+    }
+  }
+
   return (
     <div className="aui-composer-wrapper sticky bottom-0 mx-auto flex w-full max-w-[var(--thread-max-width)] flex-col gap-4 overflow-visible rounded-t-3xl bg-background px-4 pb-4 md:pb-6">
       <ThreadScrollToBottom />
-      <ComposerPrimitive.Root className="aui-composer-root relative flex w-full flex-col rounded-3xl border border-border bg-muted px-1 pt-2 shadow-[0_9px_9px_0px_rgba(0,0,0,0.01),0_2px_5px_0px_rgba(0,0,0,0.06)] dark:border-muted-foreground/15">
+
+      {/* Script Selector */}
+      {selectedScript || onScriptSelect
+        ? (
+            <div className="aui-script-selector-wrapper">
+              <ScriptSelector
+                selectedScript={selectedScript || null}
+                onScriptSelect={onScriptSelect || (() => {})}
+              />
+            </div>
+          )
+        : null}
+
+      <ComposerPrimitive.Root
+        className="aui-composer-root relative flex w-full flex-col rounded-3xl border border-border bg-muted px-1 pt-2 shadow-[0_9px_9px_0px_rgba(0,0,0,0.01),0_2px_5px_0px_rgba(0,0,0,0.06)] dark:border-muted-foreground/15"
+        onSubmit={handleSubmit}
+      >
         <ComposerAttachments />
         <ComposerPrimitive.Input
-          placeholder="Send a message..."
+          placeholder={selectedScript ? `Send a message (using ${selectedScript.name} script)...` : 'Send a message...'}
           className="aui-composer-input mb-1 max-h-32 min-h-16 w-full resize-none bg-transparent px-3.5 pt-1.5 pb-3 text-base outline-none placeholder:text-muted-foreground focus:outline-primary"
           rows={1}
           autoFocus

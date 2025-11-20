@@ -22,6 +22,7 @@ export class AIChatAdapter implements ChatModelAdapter {
   private onTaskProgress?: (progress: { step: number, totalSteps: number, currentAction: string, isComplete: boolean }) => void
   private pingInterval: NodeJS.Timeout | null = null
   private isToolsExecuting = false
+  
 
   constructor(provider: string = 'openai', model?: string, mcpEnabled: boolean = false) {
     this.currentProvider = { provider, model, mcpEnabled }
@@ -43,6 +44,8 @@ export class AIChatAdapter implements ChatModelAdapter {
       contextService.setMCPFunctions(mcpIntegration.functions)
     }
   }
+
+
 
   setToolExecutionTracker(tracker: (isExecuting: boolean, toolName?: string) => void) {
     this.setToolExecutionState = tracker
@@ -753,6 +756,8 @@ Keep it clear and actionable.`,
     try {
       console.log('🔧 AI Chat Adapter run() called with messages:', messages.length)
 
+      console.log('🔧 Messages:', messages)
+
       // Convert assistant-ui messages to our AI provider format
       const aiMessages: AIMessage[] = messages.map((message) => {
         // Get the text content from message
@@ -764,6 +769,7 @@ Keep it clear and actionable.`,
           content: textContent,
         }
       })
+
 
       // Inject enhanced context into system prompt for keyboard provider
       if (this.currentProvider.provider === 'keyboard' && this.currentProvider.mcpEnabled && aiMessages.length > 0) {
@@ -839,6 +845,7 @@ Keep it clear and actionable.`,
 
       console.log('🔧 About to call sendAIMessageStream with provider:', this.currentProvider.provider)
       console.log('🔧 AI Messages count:', aiMessages.length)
+      console.log('🔧 AI Messages:', aiMessages)
 
       // Check abort signal again before streaming
       if (abortSignal?.aborted) {
