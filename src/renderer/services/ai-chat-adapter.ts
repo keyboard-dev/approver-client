@@ -204,6 +204,7 @@ export class AIChatAdapter implements ChatModelAdapter {
         const parsed = JSON.parse(jsonContent)
 
         if (parsed.ability && typeof parsed.ability === 'string') {
+          console.log('full parsed ability call', parsed)
           abilityCalls.push({
             ability: parsed.ability,
             parameters: parsed.parameters || {},
@@ -602,18 +603,36 @@ export class AIChatAdapter implements ChatModelAdapter {
         content: [{ type: 'text' as const, text: accumulatedResponse }],
       }
     }
-
+    conversationHistory.push({
+      role: 'assistant',
+      content: 'the task is complete',
+    })
     // Stream AI analysis of the results
-    const analysisPrompt = [{
+    //     const analysisPrompt = [...conversationHistory, {
+    //       role: 'user' as const,
+    //       content: `Please analyze the following execution results and provide a clear summary:
+
+    // **Original Request:** ${originalUserMessage.content}
+
+    // **AI Response:** ${finalResponse}
+
+    // **Execution Results:**
+    // ${abilitiesRan}
+
+    // Provide a concise analysis covering:
+    // 1. What was accomplished
+    // 2. Key results or outputs
+    // 3. Whether the original request was fully satisfied
+    // 4. Any important findings or next steps
+
+    // Keep it clear and actionable.`,
+    //     }]
+
+    const analysisPrompt = [...conversationHistory, {
       role: 'user' as const,
       content: `Please analyze the following execution results and provide a clear summary:
 
 **Original Request:** ${originalUserMessage.content}
-
-**AI Response:** ${finalResponse}
-
-**Execution Results:**
-${abilitiesRan}
 
 Provide a concise analysis covering:
 1. What was accomplished
@@ -641,16 +660,7 @@ Keep it clear and actionable.`,
     }
 
     // Format the complete response with collapsible JSON results
-    const formattedResponse = `${finalResponse}
-
-<details>
-<summary>🔧 Execution Results (Click to expand)</summary>
-
-\`\`\`ability-result
-${this.formatAbilityResultsAsJSON(abilitiesRan)}
-\`\`\`
-
-</details>
+    const formattedResponse = `
 
 ## Analysis
 ${analysisResponse}`
@@ -799,26 +809,6 @@ Keep it clear and actionable.`,
             text: `🔌 MCP Provider: This provider uses the Model Context Protocol. Please use the MCP chat component for full functionality.`,
           }],
         }
-      }
-
-      // Add keyboard.dev abilities system message if enabled and available
-      if (this.currentProvider.mcpEnabled && this.mcpIntegration?.isConnected) {
-        // const abilitiesSystemMessage = this.mcpIntegration.getAbilitiesSystemMessage()
-        // if (abilitiesSystemMessage) {
-        //   // Check if there's already a system message
-        //   const existingSystemIndex = aiMessages.findIndex(m => m.role === 'system')
-        //   if (existingSystemIndex >= 0) {
-        //     // Append to existing system message
-        //     aiMessages[existingSystemIndex].content += '\n\n' + abilitiesSystemMessage
-        //   }
-        //   else {
-        //     // Add new system message at the beginning
-        //     aiMessages.unshift({
-        //       role: 'system',
-        //       content: abilitiesSystemMessage,
-        //     })
-        //   }
-        // }
       }
 
       // Check if provider is configured
