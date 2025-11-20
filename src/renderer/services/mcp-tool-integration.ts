@@ -1,8 +1,8 @@
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
 import { useMcpClient } from '../hooks/useMcpClient'
 import { AbilityDiscoveryService, type AbilitySearchResult } from './ability-discovery'
-import { ResultProcessorService, type ProcessedResult, type ProcessingOptions } from './result-processor'
-import { webSearchTool, WebSearchToolParams } from './web-search-tool'
+import { ResultProcessorService, type ProcessingOptions } from './result-processor'
+import { webSearchTool } from './web-search-tool'
 
 /**
  * Universal MCP Ability Integration Service
@@ -91,53 +91,21 @@ export function formatAbilityResult(abilityName: string, result: CallToolResult)
 }
 
 /**
- * Execute web search using local enhanced implementation
- */
-async function executeLocalWebSearch(
-  args: Record<string, unknown>,
-  processingOptions?: ProcessingOptions,
-): Promise<ProcessedResult> {
-  const startTime = performance.now()
-
-  try {
-    const searchResult = await webSearchTool.execute(args)
-
-    return searchResult
-  }
-  catch (error) {
-    const callTime = Math.round(performance.now() - startTime)
-    console.error('❌ Enhanced web search failed:', error)
-
-    // Return error in ProcessedResult format
-    const errorMessage = `Enhanced web search failed: ${error instanceof Error ? error.message : 'Unknown error'}`
-    return {
-      summary: errorMessage,
-      tokenCount: Math.ceil(errorMessage.length / 4),
-      wasFiltered: false,
-      metadata: {
-        error: true,
-        callTime,
-      },
-    }
-  }
-}
-
-/**
  * React hook for managing MCP ability integration state
  */
 export function useMCPIntegration(
-  serverUrl: string = 'https://mcp.keyboard.dev', 
+  serverUrl: string = 'https://mcp.keyboard.dev',
   clientName: string = 'keyboard-approver-mcp',
   executionTracker?: {
     addExecution: (abilityName: string, parameters: Record<string, unknown>, provider?: string) => string
     updateExecution: (id: string, updates: Partial<any>) => void
-  }
+  },
 ) {
   const mcpClient = useMcpClient({
     serverUrl,
     clientName,
     autoReconnect: true,
-    timeout: 300000, // 5 minutes for long-running tools like run-code
+    timeout: 900000, // 15 minutes for long-running tools like run-code
   })
 
   // Initialize discovery and processing services
@@ -259,17 +227,6 @@ export function useMCPIntegration(
       }
 
       return JSON.stringify(result, null, 2)
-
-      // Process result efficiently
-      // const processedResult = resultProcessor.processResult(functionName, result, processingOptions)
-      // console.log('📄 Processed result summary (first 300 chars):', processedResult.summary.slice(0, 300))
-      // console.log('🔧 Processing stats:', {
-      //   wasFiltered: processedResult.wasFiltered,
-      //   tokenCount: processedResult.tokenCount,
-      //   filterReason: processedResult.filterReason,
-      // })
-
-      // return processedResult
     }
     catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
@@ -296,33 +253,10 @@ export function useMCPIntegration(
     }
   }
 
-  /**
-   * Get system message with available keyboard.dev abilities for AI context
-   */
-  const getAbilitiesSystemMessage = (): string => {
-    if (!integrationState.isConnected || integrationState.abilities.length === 0) {
-      return ''
-    }
-
-    // const abilitiesInfo = integrationState.abilities
-    //   .map(ability => `- ${ability.name}: ${ability.description || 'No description available'}`)
-    //   .join('\n')
-
-    const abilitiesInfo = integrationState.abilities
-      .map(ability => `- ${ability.name}`).join('\n')
-
-    return `You have access to the following keyboard.dev abilities. These are special capabilities that can help you accomplish tasks:
-
-${abilitiesInfo}
-
-When you need to use any keyboard.dev ability, first discover it by responding with **{{ability-name}}** (e.g., **list-all-codespaces-for-repo**). You will then receive the exact parameters and description needed to properly call that keyboard.dev ability.`
-  }
-
   return {
     ...integrationState,
     mcpState: mcpClient.state,
     executeAbilityCall,
-    getAbilitiesSystemMessage,
     searchAbilities,
     getMinimalAbilityDefinitions,
     retry: mcpClient.retry,

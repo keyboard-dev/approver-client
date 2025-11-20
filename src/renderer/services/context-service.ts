@@ -164,6 +164,8 @@ INSTRUCTIONS:
 - Research APIs and documentation before implementing solutions
 - Be proactive in suggesting relevant abilities for the user's task
 - Always provide clear explanations of what you're doing and why
+- Try to break down tasks into different instances of the run-code abilities to make it easier to understand and execute for example 
+if you need fetch data from one service and then call another service, you can break it down into two run-code abilities.
 - If no abilities are required and it is more conversational feel free to respond conversationally without ability use
 
 USER REQUEST: ${userMessage}`
