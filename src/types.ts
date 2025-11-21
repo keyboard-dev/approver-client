@@ -104,4 +104,6 @@ export interface Script {
   tags?: string[]
   services?: string[]
   isExpanded?: boolean
+  schema?: Record<string, TemplateVariableSchema>
+  script?: string
 }

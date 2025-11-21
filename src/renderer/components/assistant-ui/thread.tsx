@@ -25,8 +25,7 @@ import * as m from 'motion/react-m'
 import type { FC } from 'react'
 import { useState } from 'react'
 
-import { Script } from '../../../types'
-import { Message } from '../../../types'
+import { Message, Script } from '../../../types'
 import { cn } from '../../lib/utils'
 import { contextService } from '../../services/context-service'
 import { ScriptSelector } from '../ScriptSelector'
@@ -54,7 +53,7 @@ export const Thread: FC<ThreadCustomProps> = ({
   onRejectMessage,
   onClearMessage,
 }) => {
-  const [selectedScript, setSelectedScript] = useState<Script | null>(null)
+  const [selectedScripts, setSelectedScripts] = useState<Script[]>([])
 
   return (
     <LazyMotion features={domAnimation}>
@@ -91,8 +90,8 @@ export const Thread: FC<ThreadCustomProps> = ({
           </ThreadPrimitive.Viewport>
 
           <Composer
-            selectedScript={selectedScript}
-            onScriptSelect={setSelectedScript}
+            selectedScripts={selectedScripts}
+            onScriptSelect={setSelectedScripts}
           />
         </ThreadPrimitive.Root>
       </MotionConfig>
@@ -201,41 +200,55 @@ const ThreadSuggestions: FC = () => {
 }
 
 interface ComposerProps {
-  selectedScript?: Script | null
-  onScriptSelect?: (script: Script | null) => void
+  selectedScripts?: Script[]
+  onScriptSelect?: (scripts: Script[]) => void
 }
 
-const Composer: FC<ComposerProps> = ({ selectedScript, onScriptSelect }) => {
+const Composer: FC<ComposerProps> = ({ selectedScripts = [], onScriptSelect }) => {
   const composer = useComposer()
 
-  const handleScriptSelect = (script: Script | null) => {
+  const handleScriptSelect = (scripts: Script[]) => {
     // Update context service directly
-    if (script) {
-      contextService.setSelectedScripts([script])
-    } else {
-      contextService.setSelectedScripts([])
-    }
-    
+    contextService.setSelectedScripts(scripts)
+
     // Update local state
     if (onScriptSelect) {
-      onScriptSelect(script)
+      onScriptSelect(scripts)
     }
   }
 
-  const handleSubmit = () => {
-    if (selectedScript && onScriptSelect) {
+  const handleSubmit = (e?: React.FormEvent) => {
+    if (e) {
+      e.preventDefault()
+    }
+    if (selectedScripts.length > 0 && onScriptSelect) {
       // Get current text
       const currentText = composer.text
 
       // Create message content with script context
       let messageContent = currentText
-      if (selectedScript && currentText.trim()) {
-        messageContent = `[Script: ${selectedScript.name}] ${currentText}\n\nScript Context:\n- Name: ${selectedScript.name}\n- ID: ${selectedScript.id}\n- Description: ${selectedScript.description}`
-        if (selectedScript.tags && selectedScript.tags.length > 0) {
-          messageContent += `\n- Tags: ${selectedScript.tags.join(', ')}`
+      if (selectedScripts.length > 0 && currentText.trim()) {
+        if (selectedScripts.length === 1) {
+          const script = selectedScripts[0]
+          messageContent = `[Script: ${script.name}] ${currentText}\n\nScript Context:\n- Name: ${script.name}\n- ID: ${script.id}\n- Description: ${script.description}`
+          if (script.tags && script.tags.length > 0) {
+            messageContent += `\n- Tags: ${script.tags.join(', ')}`
+          }
+          if (script.services && script.services.length > 0) {
+            messageContent += `\n- Services: ${script.services.join(', ')}`
+          }
         }
-        if (selectedScript.services && selectedScript.services.length > 0) {
-          messageContent += `\n- Services: ${selectedScript.services.join(', ')}`
+        else {
+          messageContent = `[Scripts: ${selectedScripts.map(s => s.name).join(', ')}] ${currentText}\n\nSelected Scripts Context:\n`
+          selectedScripts.forEach((script, index) => {
+            messageContent += `\n${index + 1}. ${script.name}\n- ID: ${script.id}\n- Description: ${script.description}`
+            if (script.tags && script.tags.length > 0) {
+              messageContent += `\n- Tags: ${script.tags.join(', ')}`
+            }
+            if (script.services && script.services.length > 0) {
+              messageContent += `\n- Services: ${script.services.join(', ')}`
+            }
+          })
         }
       }
 
@@ -244,7 +257,7 @@ const Composer: FC<ComposerProps> = ({ selectedScript, onScriptSelect }) => {
 
       // Clear script selection after setting the text
       setTimeout(() => {
-        handleScriptSelect(null)
+        handleScriptSelect([])
       }, 100)
     }
   }
@@ -254,24 +267,22 @@ const Composer: FC<ComposerProps> = ({ selectedScript, onScriptSelect }) => {
       <ThreadScrollToBottom />
 
       {/* Script Selector */}
-      {selectedScript || onScriptSelect
+      {selectedScripts.length > 0 || onScriptSelect
         ? (
             <div className="aui-script-selector-wrapper">
               <ScriptSelector
-                selectedScript={selectedScript || null}
+                selectedScripts={selectedScripts}
                 onScriptSelect={handleScriptSelect}
               />
             </div>
           )
         : null}
 
-      <ComposerPrimitive.Root
-        className="aui-composer-root relative flex w-full flex-col rounded-3xl border border-border bg-muted px-1 pt-2 shadow-[0_9px_9px_0px_rgba(0,0,0,0.01),0_2px_5px_0px_rgba(0,0,0,0.06)] dark:border-muted-foreground/15"
-        onSubmit={handleSubmit}
-      >
+      <ThreadScrollToBottom />
+      <ComposerPrimitive.Root className="aui-composer-root relative flex w-full flex-col rounded-3xl border border-border bg-muted px-1 pt-2 shadow-[0_9px_9px_0px_rgba(0,0,0,0.01),0_2px_5px_0px_rgba(0,0,0,0.06)] dark:border-muted-foreground/15">
         <ComposerAttachments />
         <ComposerPrimitive.Input
-          placeholder={selectedScript ? `Send a message (using ${selectedScript.name} script)...` : 'Send a message...'}
+          placeholder="Send a message..."
           className="aui-composer-input mb-1 max-h-32 min-h-16 w-full resize-none bg-transparent px-3.5 pt-1.5 pb-3 text-base outline-none placeholder:text-muted-foreground focus:outline-primary"
           rows={1}
           autoFocus

@@ -133,6 +133,8 @@ export class ContextService {
           description: script.description,
           tags: script.tags,
           services: script.services,
+          schema: script.schema,
+          availableVariables: script.schema ? Object.keys(script.schema) : [],
         }))
       : []
 
@@ -142,7 +144,7 @@ export class ContextService {
 SELECTED SCRIPTS CONTEXT:
 ${JSON.stringify(selectedScriptsList, null, 2)}
 
-Note: These scripts are available for reference during run-code execution. You can use their IDs, names, descriptions, and metadata when planning and executing code.`
+Note: These scripts are available for reference during run-code execution. You can use their IDs, names, descriptions, metadata, and variable schemas when planning and executing code. The 'schema' field defines the input variables each script expects, and 'availableVariables' lists the variable names that can be used with run-code execution.`
       : ''
 
     // Get filtered MCP tools (excluding keyboard abilities)
