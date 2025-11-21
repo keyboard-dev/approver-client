@@ -193,36 +193,23 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({ children }) 
   // - useMessagesQuery() for messages/shareMessages
   // - databaseService.getTotalPendingCount() for pending count
 
-  // Listen for WebSocket messages and events from main process
+  // Listen for messages-clear event from main process
+  // Note: websocket-message and collection-share-request are handled in useGlobalWebSocketListeners
   useEffect(() => {
     if (!isInitialized) return
-
-    const handleWebSocketMessage = async (_event: unknown, message: Message) => {
-      await addMessage(message)
-    }
-
-    const handleCollectionShareRequest = async (_event: unknown, shareMessage: ShareMessage) => {
-      await addShareMessage(shareMessage)
-    }
 
     const handleMessagesClear = async () => {
       await clearAllMessages()
       await clearAllShareMessages()
     }
 
-    // Set up listeners (removed message-status-updated and share-message-status-updated
-    // as database updates now happen directly in renderer before IPC calls)
+    // Set up listener for messages-clear event
     const cleanupFunctions: Array<() => void> = []
 
     if (window.electronAPI) {
-      // Store unsubscribe functions if they exist (some APIs may not return cleanup functions)
-      const unsubWebSocket = window.electronAPI.onWebSocketMessage?.(handleWebSocketMessage)
-      const unsubShareRequest = window.electronAPI.onCollectionShareRequest?.(handleCollectionShareRequest)
       const unsubClear = window.electronAPI.onMessagesClear?.(handleMessagesClear)
 
-      // Only add functions that are actually cleanup functions
-      if (typeof unsubWebSocket === 'function') cleanupFunctions.push(unsubWebSocket)
-      if (typeof unsubShareRequest === 'function') cleanupFunctions.push(unsubShareRequest)
+      // Only add function if it's actually a cleanup function
       if (typeof unsubClear === 'function') cleanupFunctions.push(unsubClear)
     }
 
@@ -230,7 +217,7 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({ children }) 
       // Clean up specific listeners using returned unsubscribe functions
       cleanupFunctions.forEach(cleanup => cleanup?.())
     }
-  }, [isInitialized, addMessage, addShareMessage, clearAllMessages, clearAllShareMessages])
+  }, [isInitialized, clearAllMessages, clearAllShareMessages])
 
   const value: DatabaseContextValue = {
     isInitialized,

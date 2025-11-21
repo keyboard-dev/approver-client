@@ -286,9 +286,10 @@ export class GitHubCodespacesService {
         return null
       }
 
-      // Filter to only user-owned codespaces
+      // Filter to only user-owned codespace-executor codespaces
       const ownedCodespaces = allConnectionInfo.filter(info =>
-        info.codespace.owner.login === currentUser.login,
+        info.codespace.owner.login === currentUser.login &&
+        info.codespace.repository.name === 'codespace-executor',
       )
 
       if (ownedCodespaces.length === 0) {
