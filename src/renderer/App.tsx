@@ -179,10 +179,16 @@ export const AppContent: React.FC = () => {
         // CRITICAL: Save to database FIRST to prevent race conditions
         await addMessage(message)
 
-        // For Security Evaluation Request and code response approval, use routing instead of state
+        // For Security Evaluation Request and code response approval, handle based on context
         if (message.title === 'Security Evaluation Request' || message.title === 'code response approval') {
-          // Navigate to the message detail route
-          navigate(`/messages/${message.id}`)
+          if (showAssistantChat) {
+            // If in chat mode, set currentMessage for inline approval
+            setCurrentMessage(message)
+          }
+          else {
+            // If not in chat mode, navigate to the message detail route
+            navigate(`/messages/${message.id}`)
+          }
         }
         else {
           // For other message types, keep existing state-based behavior
@@ -193,11 +199,36 @@ export const AppContent: React.FC = () => {
         console.error('Failed to save message to database:', error)
         // Still proceed with UI update as fallback (DatabaseProvider listener may save it)
         if (message.title === 'Security Evaluation Request' || message.title === 'code response approval') {
-          navigate(`/messages/${message.id}`)
+          if (showAssistantChat) {
+            // If in chat mode, set currentMessage for inline approval
+            setCurrentMessage(message)
+          }
+          else {
+            // If not in chat mode, navigate to the message detail route
+            navigate(`/messages/${message.id}`)
+          }
         }
         else {
           setCurrentMessage(message)
         }
+      }
+    }
+
+
+    // Listen for custom chat approval events from the global WebSocket listener
+    const handleChatApprovalMessage = (event: CustomEvent<Message>) => {
+      const message = event.detail
+      console.log('💬 App.tsx: Received chat-approval-message event', message)
+      console.log('💬 App.tsx: showAssistantChat state:', showAssistantChat)
+      console.log('💬 App.tsx: authenticated:', authStatusRef.current.authenticated)
+      
+      // Check if we're currently on the home route (where chat can be active)
+      if (authStatusRef.current.authenticated) {
+        // Always set currentMessage when on home route - let the chat component decide if it should display
+        console.log('💬 App.tsx: Setting currentMessage for potential inline approval', message)
+        setCurrentMessage(message)
+      } else {
+        console.log('💬 App.tsx: Not authenticated, ignoring approval message')
       }
     }
 
@@ -206,10 +237,12 @@ export const AppContent: React.FC = () => {
     // This ensures they persist across route changes and don't get cleaned up when this component unmounts.
 
     window.electronAPI.onShowMessage(handleShowMessage)
+    window.addEventListener('chat-approval-message', handleChatApprovalMessage as EventListener)
 
     // Cleanup listeners on unmount
     return () => {
       window.electronAPI.removeAllListeners('show-message')
+      window.removeEventListener('chat-approval-message', handleChatApprovalMessage as EventListener)
       // NOTE: websocket-message, collection-share-request, show-share-message cleanup
       // is handled by useGlobalWebSocketListeners in Layout
 
@@ -274,6 +307,68 @@ export const AppContent: React.FC = () => {
     }
     catch (error) {
       console.error('Error rejecting collection share:', error)
+    }
+  }
+
+  // Approve message (for inline chat approvals)
+  const approveMessage = async () => {
+    if (!currentMessage || !authStatusRef.current.authenticated) return
+
+    try {
+      // 1. Update database
+      await updateMessage(currentMessage.id, {
+        status: 'approved',
+      })
+
+      // 2. Fetch the updated message from database to get latest state
+      const databaseService = await import('./services/database-service')
+      const updatedMessage = await databaseService.databaseService.getMessage(currentMessage.id)
+      if (!updatedMessage) {
+        throw new Error('Failed to fetch updated message')
+      }
+
+      // 3. Notify main process to forward response to WebSocket
+      await window.electronAPI.sendMessageResponse(updatedMessage)
+
+      // 4. Clear the current message from chat interface
+      setCurrentMessage(null)
+
+      // 5. Refresh messages to show updated status
+      refreshMessages()
+    }
+    catch (error) {
+      console.error('Error approving message:', error)
+    }
+  }
+
+  // Reject message (for inline chat approvals)
+  const rejectMessage = async () => {
+    if (!currentMessage || !authStatusRef.current.authenticated) return
+
+    try {
+      // 1. Update database
+      await updateMessage(currentMessage.id, {
+        status: 'rejected',
+      })
+
+      // 2. Fetch the updated message from database to get latest state
+      const databaseService = await import('./services/database-service')
+      const updatedMessage = await databaseService.databaseService.getMessage(currentMessage.id)
+      if (!updatedMessage) {
+        throw new Error('Failed to fetch updated message')
+      }
+
+      // 3. Notify main process to forward response to WebSocket
+      await window.electronAPI.sendMessageResponse(updatedMessage)
+
+      // 4. Clear the current message from chat interface
+      setCurrentMessage(null)
+
+      // 5. Refresh messages to show updated status
+      refreshMessages()
+    }
+    catch (error) {
+      console.error('Error rejecting message:', error)
     }
   }
 
@@ -443,6 +538,7 @@ export const AppContent: React.FC = () => {
   const getMessageScreen = () => {
     // Special case: Chat modes
     if (showAssistantChat) {
+      console.log('showAssistantChat', currentMessage)
       return (
         <AssistantUIChat
           onBack={showMessageList}
@@ -550,7 +646,7 @@ export const AppContent: React.FC = () => {
                 <div className="flex items-center space-x-3">
                   <Button
                     variant="outline"
-                    onClick={() => setShowChat(true)}
+                    onClick={() => setShowAssistantChat(true)}
                     className="flex items-center space-x-2"
                   >
                     <span>Chat</span>

@@ -83,6 +83,7 @@ export const Thread: FC<ThreadCustomProps> = ({
               onRejectMessage={onRejectMessage}
               onClearMessage={onClearMessage}
             />
+            {console.log('Thread: currentApprovalMessage', currentApprovalMessage)}
 
             <ThreadPrimitive.If empty={false}>
               <div className="aui-thread-viewport-spacer min-h-8 grow" />

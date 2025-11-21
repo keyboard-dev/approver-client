@@ -11,8 +11,10 @@ import { decrypt, encrypt, setEncryptionKeyProvider } from './encryption'
 import { GithubService } from './Github'
 import { GitHubCodespacesService } from './github-codespaces'
 import { deleteScriptTemplate } from './keyboard-shortcuts'
-import { OAuthProvider, ServerProvider, ServerProviderInfo } from './oauth-providers'
-import { StoredProviderTokens } from './oauth-token-storage'
+import { OAuthProvider, ServerProvider, ServerProviderInfo, PKCEParams as NewPKCEParams } from './oauth-providers'
+import { StoredProviderTokens, OAuthTokenStorage } from './oauth-token-storage'
+import { OAuthHttpServer } from './oauth-http-server'
+import { PerProviderTokenStorage } from './per-provider-token-storage'
 import { OAuthProviderConfig } from './provider-storage'
 import { createRestAPIServer } from './rest-api'
 import { AuthService } from './services/auth-service'
@@ -103,7 +105,6 @@ class MenuBarNotificationApp {
   private oauthTokenStorage!: OAuthTokenStorage
   private perProviderTokenStorage!: PerProviderTokenStorage
   private currentProviderPKCE: NewPKCEParams | null = null
-  private oauthHttpServer: OAuthHttpServer
   // WebSocket security
   private wsConnectionKey: string | null = null
   private readonly STORAGE_DIR = path.join(os.homedir(), '.keyboard-mcp')
@@ -1779,16 +1780,17 @@ class MenuBarNotificationApp {
 
     ipcMain.handle('send-ai-message', async (_event, provider: string, messages: Array<{ role: 'user' | 'assistant' | 'system', content: string }>, config?: { model?: string }): Promise<string> => {
       try {
+        const authTokens = this.authService.getAuthTokens()
         console.log('🚀 Main IPC send-ai-message called:', {
           provider,
           messagesCount: messages.length,
           config,
-          hasAuthTokens: !!this.authTokens,
-          hasAccessToken: !!this.authTokens?.access_token,
-          accessTokenPrefix: this.authTokens?.access_token?.substring(0, 10) + '...',
+          hasAuthTokens: !!authTokens,
+          hasAccessToken: !!authTokens?.access_token,
+          accessTokenPrefix: authTokens?.access_token?.substring(0, 10) + '...',
         })
 
-        const response = await aiRuntime.sendMessage(provider, messages, config || {}, this.authTokens || undefined)
+        const response = await aiRuntime.sendMessage(provider, messages, config || {}, authTokens || undefined)
         console.log('✅ AI Runtime response received:', {
           contentLength: response.content?.length,
           provider: response.provider,
@@ -1803,18 +1805,19 @@ class MenuBarNotificationApp {
 
     ipcMain.handle('send-ai-message-stream', async (event, provider: string, messages: Array<{ role: 'user' | 'assistant' | 'system', content: string }>, config?: { model?: string }): Promise<string> => {
       try {
+        const authTokens = this.authService.getAuthTokens()
         console.log('🚀 Main IPC send-ai-message-stream called:', {
           provider,
           messagesCount: messages.length,
           config,
-          hasAuthTokens: !!this.authTokens,
-          hasAccessToken: !!this.authTokens?.access_token,
+          hasAuthTokens: !!authTokens,
+          hasAccessToken: !!authTokens?.access_token,
         })
         
         // Start streaming in background
         const streamProcess = async () => {
           try {
-            const generator = aiRuntime.streamMessage(provider, messages, config || {}, this.authTokens || undefined)
+            const generator = aiRuntime.streamMessage(provider, messages, config || {}, authTokens || undefined)
             
             for await (const chunk of generator) {
               console.log('🚀 Sending chunk to renderer:', chunk)
@@ -1844,7 +1847,8 @@ class MenuBarNotificationApp {
 
     ipcMain.handle('web-search', async (_event, provider: string, query: string, company: string) => {
       try {
-        const accessToken = this.authTokens?.access_token || ''
+        const authTokens = this.authService.getAuthTokens()
+        const accessToken = authTokens?.access_token || ''
         const response = await webSearch({ accessToken, query, company })
         return response
       }
