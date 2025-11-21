@@ -1,6 +1,6 @@
 import { AssistantRuntimeProvider, useLocalRuntime } from '@assistant-ui/react'
 import React, { useEffect, useState } from 'react'
-import { Message } from '../../types'
+import { Message, Script } from '../../types'
 import { useAuth } from '../hooks/useAuth'
 import { useMCPEnhancedChat } from '../hooks/useMCPEnhancedChat'
 import { useWebSocketConnection } from '../hooks/useWebSocketConnection'
@@ -164,6 +164,7 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
     }
     tryConnect()
   }, [mcpEnabled])
+
 
   // Auto-connect to codespace with retry functionality
   useEffect(() => {
@@ -346,7 +347,6 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
 
                       <div className="flex-1 flex flex-col gap-3 min-h-0">
                         <Thread
-                          onScriptSelect={onScriptSelect}
                           currentApprovalMessage={currentApprovalMessage}
                           onApproveMessage={onApproveMessage}
                           onRejectMessage={onRejectMessage}

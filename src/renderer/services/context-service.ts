@@ -1,3 +1,4 @@
+import { Script } from '../../types'
 import { generatePlanningToken, toolsToAbilities } from './ability-tools'
 import type { MCPAbilityFunction } from './mcp-tool-integration'
 
@@ -24,6 +25,7 @@ export interface EnhancedContext {
   planningToken: string
   userTokens: string[]
   codespaceInfo: CodespaceInfo | null
+  selectedScripts: Script[]
   timestamp: number
 }
 
@@ -31,12 +33,22 @@ export class ContextService {
   private cachedContext: EnhancedContext | null = null
   private contextExpiry: number = 5 * 60 * 1000 // 5 minutes
   private mcpFunctions: MCPAbilityFunction[] = []
+  private selectedScripts: Script[] = []
 
   /**
    * Set MCP functions for the context service
    */
   setMCPFunctions(functions: MCPAbilityFunction[]): void {
     this.mcpFunctions = functions
+  }
+
+  /**
+   * Set selected scripts for the context service
+   */
+  setSelectedScripts(scripts: Script[]): void {
+    this.selectedScripts = scripts
+    // Clear cached context when scripts change
+    this.cachedContext = null
   }
 
   /**
@@ -83,6 +95,7 @@ export class ContextService {
       planningToken,
       userTokens: userTokens.status === 'fulfilled' ? userTokens.value : [],
       codespaceInfo: codespaceInfo.status === 'fulfilled' ? codespaceInfo.value : null,
+      selectedScripts: this.selectedScripts,
       timestamp: Date.now(),
     }
 
@@ -111,6 +124,26 @@ export class ContextService {
       : 'No codespace information available'
 
     const abilitiesList = JSON.stringify(toolsToAbilities, null, 2)
+
+    // Get selected scripts list
+    const selectedScriptsList = context.selectedScripts.length > 0
+      ? context.selectedScripts.map(script => ({
+          id: script.id,
+          name: script.name,
+          description: script.description,
+          tags: script.tags,
+          services: script.services,
+        }))
+      : []
+
+    const selectedScriptsSection = selectedScriptsList.length > 0
+      ? `
+
+SELECTED SCRIPTS CONTEXT:
+${JSON.stringify(selectedScriptsList, null, 2)}
+
+Note: These scripts are available for reference during run-code execution. You can use their IDs, names, descriptions, and metadata when planning and executing code.`
+      : ''
 
     // Get filtered MCP tools (excluding keyboard abilities)
     const filteredMCPTools = this.getFilteredMCPTools()
@@ -144,7 +177,7 @@ ${userTokensList}
 Here is information about the actual code execution environment.  This is where you will execute your code.  Additionally there will be a list of other environment variables that you can leverage in your code. 
 
 CODESPACE INFORMATION:
-${codespaceDetails}
+${codespaceDetails}${selectedScriptsSection}
 
 API RESEARCH GUIDANCE:
 - Use the web-search ability to find official documentation and examples

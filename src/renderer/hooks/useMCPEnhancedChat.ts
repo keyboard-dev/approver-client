@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Script } from '../../types'
 import { AIChatAdapter } from '../services/ai-chat-adapter'
 import { useMCPIntegration } from '../services/mcp-tool-integration'
 
@@ -69,6 +70,7 @@ export interface MCPEnhancedChatState {
   refreshMCPConnection: () => void
   setAbilityExecutionState: (isExecuting: boolean, abilityName?: string) => void
   setAgenticMode: (enabled: boolean) => void
+  setSelectedScripts: (scripts: Script[]) => void
 
   // Execution tracking functions
   addExecution: (abilityName: string, parameters: Record<string, unknown>, provider?: string) => string
@@ -91,6 +93,7 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
   const [isAgenticMode, setAgenticModeState] = useState(true) // Default to agentic mode
   const [agenticProgress, setAgenticProgress] = useState<AgenticProgress | undefined>()
   const [executions, setExecutions] = useState<AbilityExecution[]>([])
+  const [scripts, setScripts] = useState<Script[]>([])
 
   // Simple ability execution state management
   // The adapter will call these functions directly during ability execution
@@ -107,6 +110,8 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
       setTimeout(() => setAgenticProgress(undefined), 3000)
     }
   }, [])
+
+
 
   // Execution tracking functions
   const addExecution = useCallback((abilityName: string, parameters: Record<string, unknown>, provider?: string): string => {
@@ -201,6 +206,12 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
     }
   }, [mcpIntegration])
 
+  // Set selected scripts
+  const setSelectedScripts = useCallback((scripts: Script[]) => {
+    setScripts(scripts)
+    adapter.setSelectedScripts(scripts)
+  }, [adapter])
+
   return {
     adapter,
     mcpEnabled,
@@ -216,6 +227,7 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
     refreshMCPConnection,
     setAbilityExecutionState, // Expose for adapter to call
     setAgenticMode,
+    setSelectedScripts,
     addExecution,
     updateExecution,
     clearExecutions,

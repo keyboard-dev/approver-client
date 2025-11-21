@@ -25,9 +25,10 @@ import * as m from 'motion/react-m'
 import type { FC } from 'react'
 import { useState } from 'react'
 
-import { Script } from '../../../main'
+import { Script } from '../../../types'
 import { Message } from '../../../types'
 import { cn } from '../../lib/utils'
+import { contextService } from '../../services/context-service'
 import { ScriptSelector } from '../ScriptSelector'
 import { Button } from '../ui/button'
 import { ApprovalMessage } from './ApprovalMessage'
@@ -45,7 +46,6 @@ interface ThreadCustomProps {
   onApproveMessage?: (message: Message) => void
   onRejectMessage?: (message: Message) => void
   onClearMessage?: () => void
-  onScriptSelect?: (script: Script | null) => void
 }
 
 export const Thread: FC<ThreadCustomProps> = ({
@@ -208,6 +208,20 @@ interface ComposerProps {
 const Composer: FC<ComposerProps> = ({ selectedScript, onScriptSelect }) => {
   const composer = useComposer()
 
+  const handleScriptSelect = (script: Script | null) => {
+    // Update context service directly
+    if (script) {
+      contextService.setSelectedScripts([script])
+    } else {
+      contextService.setSelectedScripts([])
+    }
+    
+    // Update local state
+    if (onScriptSelect) {
+      onScriptSelect(script)
+    }
+  }
+
   const handleSubmit = () => {
     if (selectedScript && onScriptSelect) {
       // Get current text
@@ -230,7 +244,7 @@ const Composer: FC<ComposerProps> = ({ selectedScript, onScriptSelect }) => {
 
       // Clear script selection after setting the text
       setTimeout(() => {
-        onScriptSelect(null)
+        handleScriptSelect(null)
       }, 100)
     }
   }
@@ -245,7 +259,7 @@ const Composer: FC<ComposerProps> = ({ selectedScript, onScriptSelect }) => {
             <div className="aui-script-selector-wrapper">
               <ScriptSelector
                 selectedScript={selectedScript || null}
-                onScriptSelect={onScriptSelect || (() => {})}
+                onScriptSelect={handleScriptSelect}
               />
             </div>
           )

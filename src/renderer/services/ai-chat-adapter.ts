@@ -1,4 +1,5 @@
 import type { ChatModelAdapter } from '@assistant-ui/react'
+import { Script } from '../../types'
 import { contextService } from './context-service'
 import { useMCPIntegration } from './mcp-tool-integration'
 
@@ -22,6 +23,7 @@ export class AIChatAdapter implements ChatModelAdapter {
   private onTaskProgress?: (progress: { step: number, totalSteps: number, currentAction: string, isComplete: boolean }) => void
   private pingInterval: NodeJS.Timeout | null = null
   private isToolsExecuting = false
+  private selectedScripts: Script[] = []
   
 
   constructor(provider: string = 'openai', model?: string, mcpEnabled: boolean = false) {
@@ -53,6 +55,11 @@ export class AIChatAdapter implements ChatModelAdapter {
 
   setTaskProgressTracker(tracker: (progress: { step: number, totalSteps: number, currentAction: string, isComplete: boolean }) => void) {
     this.onTaskProgress = tracker
+  }
+
+  setSelectedScripts(scripts: Script[]) {
+    this.selectedScripts = scripts
+    contextService.setSelectedScripts(scripts)
   }
 
   private startPeriodicPing() {
