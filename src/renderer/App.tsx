@@ -5,7 +5,10 @@ import { MemoryRouter, useNavigate } from 'react-router-dom'
 import { CollectionRequest, Message, ShareMessage } from '../types'
 import './App.css'
 import { AppRoutes } from './AppRoutes'
+import { AssistantUIChat } from './components/AssistantUIChat'
 import AuthComponent from './components/AuthComponent'
+import { Chat } from './components/Chat'
+import { CopilotKitChat } from './components/CopilotKitChat'
 import GitHubOAuthButton from './components/GitHubOAuthButton'
 import { Prompter } from './components/Prompter'
 import OnboardingView from './components/screens/onboarding/OnboardingView'
@@ -65,7 +68,6 @@ export const AppContent: React.FC = () => {
 
   // Fetch messages directly from database (no in-memory cache)
   const { messages, shareMessages, refetch: refetchMessages } = useMessagesQuery()
-
   // Message and app state (moved back from auth hook)
   const [currentMessage, setCurrentMessage] = useState<Message | null>(null)
   const [currentShareMessage, setCurrentShareMessage] = useState<ShareMessage | null>(null)
@@ -74,6 +76,9 @@ export const AppContent: React.FC = () => {
   const [isGitHubConnected, setIsGitHubConnected] = useState(false)
   const [isCheckingGitHub, setIsCheckingGitHub] = useState(true)
   const [showPrompterOnly, setShowPrompterOnly] = useState(false)
+  const [showChat, setShowChat] = useState(false)
+  const [showCopilotChat, setShowCopilotChat] = useState(false)
+  const [showAssistantChat, setShowAssistantChat] = useState(false)
 
   // Use refs to track state without causing re-renders
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -277,6 +282,9 @@ export const AppContent: React.FC = () => {
     setCurrentMessage(null)
     setCurrentShareMessage(null)
     setShowPrompterOnly(false)
+    setShowChat(false)
+    setShowCopilotChat(false)
+    setShowAssistantChat(false)
     navigate('/') // Use React Router to navigate home
     refreshMessages() // Refresh to show updated status
   }
@@ -433,6 +441,43 @@ export const AppContent: React.FC = () => {
   }
 
   const getMessageScreen = () => {
+    // Special case: Chat modes
+    if (showAssistantChat) {
+      return (
+        <AssistantUIChat
+          onBack={showMessageList}
+          currentApprovalMessage={
+            (currentMessage?.title === 'Security Evaluation Request'
+              || currentMessage?.title === 'code response approval')
+              ? currentMessage
+              : undefined
+          }
+          onApproveMessage={async (message) => {
+            // Set the currentMessage to match what App.tsx expects, then call approveMessage
+            setCurrentMessage(message)
+            await approveMessage()
+          }}
+          onRejectMessage={async (message) => {
+            // Set the currentMessage to match what App.tsx expects, then call rejectMessage
+            setCurrentMessage(message)
+            await rejectMessage()
+          }}
+          onClearApprovalMessage={() => {
+            // Clear the current approval message after action is complete
+            setCurrentMessage(null)
+          }}
+        />
+      )
+    }
+
+    if (showCopilotChat) {
+      return <CopilotKitChat onBack={showMessageList} />
+    }
+
+    if (showChat) {
+      return <Chat onBack={showMessageList} />
+    }
+
     // Special case: Prompter-only mode (opened from button, not a message)
     if (showPrompterOnly) {
       return (
@@ -503,6 +548,13 @@ export const AppContent: React.FC = () => {
                   Message Approvals
                 </h1>
                 <div className="flex items-center space-x-3">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowChat(true)}
+                    className="flex items-center space-x-2"
+                  >
+                    <span>Chat</span>
+                  </Button>
                   <Button
                     variant="outline"
                     onClick={openPrompterOnly}

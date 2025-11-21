@@ -1,4 +1,4 @@
-import { Download, Copy } from 'lucide-react'
+import { Copy, Download } from 'lucide-react'
 import React, { useState } from 'react'
 import { Footer } from '../../Footer'
 import { ButtonDesigned } from '../../ui/ButtonDesigned'
@@ -10,7 +10,7 @@ interface McpSetupProps {
 }
 
 export const McpSetup: React.FC<McpSetupProps> = ({ onNext }) => {
-  const [remoteUrl, setRemoteUrl] = useState('https://mcp.keyboard.dev')
+  const [remoteUrl, setRemoteUrl] = useState('https://growing-goose-conversely.ngrok-free.appboard.dev')
   const [copySuccess, setCopySuccess] = useState(false)
 
   const advancedSettingsImg = 'https://res.cloudinary.com/dt29hglkk/image/upload/v1757699431/advanced-settings_prlpa6.png'

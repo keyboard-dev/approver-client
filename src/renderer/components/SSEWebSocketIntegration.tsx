@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef } from 'react'
-import { CodespaceData } from '../../services/SSEBackgroundService'
-import { ExecutorWebSocketClient } from '../../websocket-client-to-executor'
 import { useSSE } from '../hooks/useSSE'
+import { ExecutorWebSocketClient } from '../../websocket-client-to-executor'
+import { CodespaceData } from '../../services/SSEBackgroundService'
 
 interface SSEWebSocketIntegrationProps {
   serverUrl: string
@@ -28,15 +28,14 @@ export const SSEWebSocketIntegration: React.FC<SSEWebSocketIntegrationProps> = (
       executorClientRef.current.connectFromSSEEvent(codespace)
         .then((success) => {
           if (success) {
-            console.log('✅ Successfully connected to codespace WebSocket:', codespace.name)
+            console.log('✅ SSE: Successfully connected to codespace WebSocket:', codespace.name)
           }
           else {
-            console.error('❌ Failed to connect to codespace WebSocket:', codespace.name)
+            console.log('⏸️ SSE: Connection attempt declined (staying with current connection):', codespace.name)
           }
         })
         .catch((error) => {
-          console.error('❌ Error connecting to codespace WebSocket:', error)
-          // Could emit error event here for UI to handle
+          console.error('❌ SSE: Error connecting to codespace WebSocket:', error)
         })
     }
     else {
@@ -67,7 +66,7 @@ export const SSEWebSocketIntegration: React.FC<SSEWebSocketIntegrationProps> = (
   }, [])
 
   // Initialize SSE connection with event handlers
-  const { sseState } = useSSE(
+  const { sseState, sseService } = useSSE(
     serverUrl,
     handleCodespaceOnline,
     handleCodespaceOffline,

@@ -29,9 +29,12 @@ export class ExecutorWebSocketClient {
   private ws: WebSocket | null = null
   private readonly EXECUTOR_WS_PORT = 4002
   private reconnectAttempts = 0
-  private maxReconnectAttempts = 10
-  private reconnectDelay = 5000 // 5 seconds
+  private maxReconnectAttempts = Infinity // Keep trying forever
+  private baseReconnectDelay = 1000 // Start at 1 second
+  private maxReconnectDelay = 30000 // Max 30 seconds
   private reconnectTimeout: NodeJS.Timeout | null = null
+  private persistentRetryInterval: NodeJS.Timeout | null = null
+  private readonly PERSISTENT_RETRY_INTERVAL = 60000 // Check every minute for long-term retry
   private githubToken: string | null = null
   private codespacesService: GitHubCodespacesService | null = null
   private currentTarget: ConnectionTarget | null = null
@@ -40,6 +43,13 @@ export class ExecutorWebSocketClient {
   // Callback to handle messages from executor
   private onMessageReceived?: (message: ExecutorMessage) => void
   private windowManager?: IWindowManager
+
+  // Keepalive and connection health
+  private readonly CLIENT_PING_INTERVAL = 35000 // 35 seconds (offset from server's 30s)
+  private connectionAliveStatus: boolean = false
+  private lastPongReceived: number = 0
+  private clientPingInterval: NodeJS.Timeout | null = null
+  private lastActivityTime: number = Date.now()
 
   constructor(
     onMessageReceived?: (message: ExecutorMessage) => void,
@@ -64,6 +74,9 @@ export class ExecutorWebSocketClient {
 
     // If we have a token and we're not connected, try to connect
     if (token && (!this.ws || this.ws.readyState !== WebSocket.OPEN)) {
+      // Start persistent retry system
+      this.startPersistentRetry()
+      
       // Use async connect with auto-discovery
       this.connect().catch((error) => {
         console.error('Failed to connect after setting GitHub token:', error)
@@ -71,6 +84,7 @@ export class ExecutorWebSocketClient {
     }
     // If token is cleared and we're connected, disconnect
     else if (!token && this.ws) {
+      this.stopPersistentRetry()
       this.disconnect()
     }
   }
@@ -85,6 +99,63 @@ export class ExecutorWebSocketClient {
     return {
       connected: this.isConnected(),
       target: this.currentTarget || undefined,
+    }
+  }
+
+  // Get enhanced connection info with ping test and health data
+  async getEnhancedConnectionInfo(): Promise<{
+    connected: boolean
+    target?: ConnectionTarget
+    pingTest?: {
+      success: boolean
+      error?: string
+    }
+    connectionHealth?: {
+      isAlive: boolean
+      lastActivity: number
+      lastPong: number
+      timeSinceLastActivity: number
+      timeSinceLastPong: number
+    }
+  }> {
+    const basicInfo = this.getConnectionInfo()
+
+    if (!basicInfo.connected) {
+      return basicInfo
+    }
+
+    try {
+      console.log('🏓 Performing manual ping test...')
+      const pingResult = await this.sendManualPing()
+      console.log('🏓 Ping test result:', {
+        success: pingResult.success,
+        error: pingResult.error,
+        connectionHealth: pingResult.connectionHealth,
+      })
+      return {
+        ...basicInfo,
+        pingTest: {
+          success: pingResult.success,
+          error: pingResult.error,
+        },
+        connectionHealth: {
+          isAlive: pingResult.connectionHealth.isAlive,
+          lastActivity: pingResult.connectionHealth.lastActivity,
+          lastPong: pingResult.connectionHealth.lastPong,
+          timeSinceLastActivity: pingResult.connectionHealth.timeSinceLastActivity,
+          timeSinceLastPong: pingResult.connectionHealth.timeSinceLastPong,
+        },
+      }
+    }
+    catch (error) {
+      return {
+        ...basicInfo,
+        pingTest: {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        },
+        connectionHealth: this.getConnectionHealth(),
+      }
     }
   }
 
@@ -129,12 +200,6 @@ export class ExecutorWebSocketClient {
 
       if (!targetCodespace.available || !targetCodespace.websocketUrl) {
         console.error(`❌ Codespace ${codespaceName} does not have WebSocket available`)
-        return false
-      }
-
-      // Validate that the codespace is from the codespace-executor repository
-      if (targetCodespace.codespace.repository.name !== 'codespace-executor') {
-        console.error(`❌ Codespace ${codespaceName} is not from codespace-executor repository (found: ${targetCodespace.codespace.repository.name})`)
         return false
       }
 
@@ -206,10 +271,7 @@ export class ExecutorWebSocketClient {
 
     // Determine if we should switch based on current connection
     if (this.isConnected() && this.currentTarget) {
-      const shouldSwitch = this.shouldSwitchToNewCodespace(
-        this.currentTarget,
-        // codespace,
-      )
+      const shouldSwitch = this.shouldSwitchToNewCodespace(this.currentTarget, codespace)
 
       if (!shouldSwitch) {
         console.log(`⏸️ Staying connected to ${this.currentTarget.name} (manual override or recent connection)`)
@@ -240,7 +302,7 @@ export class ExecutorWebSocketClient {
   // Determine if we should switch from current connection to new codespace
   private shouldSwitchToNewCodespace(
     currentTarget: ConnectionTarget,
-    // _newCodespace: { codespace_id: string, name: string, url: string, state: string },
+    newCodespace: { codespace_id: string, name: string, url: string, state: string },
   ): boolean {
     // Never switch away from manual connections (user explicitly chose)
     if (currentTarget.source === 'manual') {
@@ -270,46 +332,45 @@ export class ExecutorWebSocketClient {
   // Connect to codespace-executor WebSocket server (with automatic codespace discovery)
   async connect(): Promise<boolean> {
     if (!this.githubToken) {
+      console.log('❌ No GitHub token available for codespace connection')
       return false
     }
 
-    // If no target is set, try to auto-discover the best option
-    if (!this.currentTarget) {
-      const connected = await this.autoConnect()
-      return connected
+    // Always try to discover codespaces first, even if we have a current target
+    // This ensures we always try to find the best available codespace
+    const connected = await this.autoConnect()
+    
+    if (connected) {
+      return true
     }
 
-    // Connect to the current target
-    this.connectToTarget(this.currentTarget)
-    return true
+    // If auto-connect failed and we have a previous target, try that
+    if (this.currentTarget) {
+      console.log('🔄 Retrying with previous target:', this.currentTarget.name)
+      this.connectToTarget(this.currentTarget)
+      return true
+    }
+
+    console.log('❌ No codespace connection available - will retry')
+    return false
   }
 
   // Automatically discover and connect to the best available executor
   async autoConnect(): Promise<boolean> {
-    console.log('🔗 Auto-connecting to executor')
+    console.log('🔗 Auto-connecting to executor (codespace priority)')
     
-    // Check if currently connected to a valid codespace-executor codespace
-    if (this.isConnected() && this.currentTarget?.type === 'codespace') {
-      const isValidConnection = await this.validateCurrentConnection()
-      if (isValidConnection) {
-        console.log('✅ Current connection is valid, maintaining connection')
-        return true
-      } else {
-        console.log('❌ Current connection is stale or invalid, reconnecting')
-        this.disconnect()
-      }
-    }
-
+    // Always require codespaces service - don't fall back to localhost
     if (!this.codespacesService) {
-      this.connectToLocalhost()
-      return true
+      console.log('❌ No codespaces service available - will retry when GitHub token is set')
+      return false
     }
     console.log('🔗 Codespaces service available')
 
     try {
-      // First, try to find and connect to a user's codespace
+      // Try to find and connect to a user's codespace
       const preparedCodespace = await this.codespacesService.discoverAndPrepareCodespace()
       console.log('🔗 Prepared codespace:', preparedCodespace)
+      
       if (preparedCodespace) {
         this.currentTarget = {
           type: 'codespace',
@@ -324,54 +385,13 @@ export class ExecutorWebSocketClient {
         return true
       }
 
-      // If no suitable codespace found, fall back to localhost
-
-      this.connectToLocalhost()
-      return true
-    }
-    catch (error) {
-      console.error('Failed to auto-discover connection target:', error)
-
-      this.connectToLocalhost()
-      return true
-    }
-  }
-
-  // Validate the current connection to ensure it's a codespace-executor repository with owner affiliation
-  private async validateCurrentConnection(): Promise<boolean> {
-    if (!this.currentTarget?.codespaceName || !this.codespacesService) {
+      // If no suitable codespace found, don't connect - let retry handle it
+      console.log('⏸️ No suitable codespace found - will retry discovery')
       return false
     }
-
-    try {
-      // Check if the current codespace still exists and is from codespace-executor repo
-      const currentUser = await (this.codespacesService as any).githubService.getCurrentUser()
-      if (!currentUser) {
-        return false
-      }
-
-      const codespaces = await this.codespacesService.getCodespaceConnectionInfo()
-      const currentCodespace = codespaces.find(cs => 
-        cs.codespace.name === this.currentTarget?.codespaceName &&
-        cs.codespace.repository.name === 'codespace-executor' &&
-        cs.codespace.owner.login === currentUser.login
-      )
-
-      if (!currentCodespace) {
-        console.log('❌ Current codespace not found or not from codespace-executor repo')
-        return false
-      }
-
-      if (!currentCodespace.available) {
-        console.log('❌ Current codespace is no longer available')
-        return false
-      }
-
-      console.log('✅ Current connection validated: codespace-executor repository with owner affiliation')
-      return true
-    }
     catch (error) {
-      console.error('❌ Failed to validate current connection:', error)
+      console.error('Failed to auto-discover codespace:', error)
+      // Don't fall back to localhost - let retry handle codespace discovery
       return false
     }
   }
@@ -397,6 +417,7 @@ export class ExecutorWebSocketClient {
       })
 
       this.ws!.on('open', () => {
+        // Reset reconnect state on successful connection
         this.reconnectAttempts = 0
 
         // Clear any pending reconnect timeout
@@ -404,7 +425,11 @@ export class ExecutorWebSocketClient {
           clearTimeout(this.reconnectTimeout)
           this.reconnectTimeout = null
         }
+        
         console.log('🔗 WebSocket connected to:', target.url)
+
+        // Set up keepalive for this connection
+        this.setupConnectionKeepalive()
 
         // Emit connected event
         this.windowManager?.sendMessage('websocket-connected', {
@@ -416,6 +441,9 @@ export class ExecutorWebSocketClient {
 
       this.ws!.on('message', (data: WebSocket.Data) => {
         try {
+          // Update activity time for any message received
+          this.lastActivityTime = Date.now()
+
           const message = JSON.parse(data.toString()) as ExecutorMessage
 
           // Forward to message handler
@@ -426,8 +454,27 @@ export class ExecutorWebSocketClient {
         }
       })
 
+      // Set up ping/pong handlers for keepalive
+      this.ws!.on('ping', (data: Buffer) => {
+        // Respond to server ping with pong
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+          this.ws.pong(data)
+          this.lastActivityTime = Date.now()
+        }
+      })
+
+      this.ws!.on('pong', () => {
+        // Server responded to our ping
+        this.connectionAliveStatus = true
+        this.lastPongReceived = Date.now()
+        this.lastActivityTime = Date.now()
+      })
+
       this.ws!.on('close', () => {
         this.ws = null
+
+        // Clean up keepalive resources
+        this.cleanupKeepalive()
 
         // Emit disconnected event
         this.windowManager?.sendMessage('websocket-disconnected', {
@@ -481,30 +528,37 @@ export class ExecutorWebSocketClient {
       this.reconnectTimeout = null
     }
 
-    if (this.reconnectAttempts < this.maxReconnectAttempts) {
-      this.reconnectAttempts++
+    this.reconnectAttempts++
 
-      // Emit reconnecting event
-      this.windowManager?.sendMessage('websocket-reconnecting', {
-        attempt: this.reconnectAttempts,
-        maxAttempts: this.maxReconnectAttempts,
-      })
+    // Calculate exponential backoff delay
+    const exponentialDelay = Math.min(
+      this.baseReconnectDelay * Math.pow(2, this.reconnectAttempts - 1),
+      this.maxReconnectDelay
+    )
+    
+    // Add some jitter to prevent thundering herd
+    const jitterDelay = exponentialDelay + Math.random() * 1000
 
-      this.reconnectTimeout = setTimeout(() => {
-        this.reconnectTimeout = null
-        this.connect()
-      }, this.reconnectDelay)
-    }
-    else {
-      // console.error('❌ Max reconnection attempts reached. Will retry when token is refreshed.')
-      this.reconnectAttempts = 0 // Reset for next time token is available
-    }
+    console.log(`🔄 Reconnect attempt ${this.reconnectAttempts} in ${Math.round(jitterDelay / 1000)}s`)
+
+    // Emit reconnecting event
+    this.windowManager?.sendMessage('websocket-reconnecting', {
+      attempt: this.reconnectAttempts,
+      maxAttempts: this.maxReconnectAttempts,
+    })
+
+    this.reconnectTimeout = setTimeout(() => {
+      this.reconnectTimeout = null
+      this.connect()
+    }, jitterDelay)
   }
 
   // Send a message to the executor
   send(message: unknown): void {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(message))
+      // Update activity time when sending messages
+      this.lastActivityTime = Date.now()
     }
     else {
       console.error('❌ Cannot send message: WebSocket not connected')
@@ -541,6 +595,12 @@ export class ExecutorWebSocketClient {
       this.reconnectTimeout = null
     }
 
+    // Stop persistent retry system
+    this.stopPersistentRetry()
+
+    // Clean up keepalive resources
+    this.cleanupKeepalive()
+
     if (this.ws) {
       this.ws.close()
       this.ws = null
@@ -549,5 +609,192 @@ export class ExecutorWebSocketClient {
     // Reset reconnect attempts
     this.reconnectAttempts = 0
     this.currentTarget = null
+  }
+
+  /**
+   * Sets up client-side keepalive system to prevent idle disconnections
+   * Sends periodic pings to server and monitors connection health
+   */
+  private setupConnectionKeepalive(): void {
+    // Initialize connection state
+    this.connectionAliveStatus = true
+    this.lastPongReceived = Date.now()
+    this.lastActivityTime = Date.now()
+
+    // Clean up any existing interval
+    this.cleanupKeepalive()
+
+    // Set up periodic ping to server (complementary to server's ping)
+    this.clientPingInterval = setInterval(() => {
+      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+        return
+      }
+
+      const timeSinceLastActivity = Date.now() - this.lastActivityTime
+      const timeSinceLastPong = Date.now() - this.lastPongReceived
+
+      // If connection seems dead (no pong responses), don't send more pings
+      if (timeSinceLastPong > 90000 && !this.connectionAliveStatus) { // 90 seconds
+        console.warn('⚠️ Connection appears dead, stopping client pings')
+        return
+      }
+
+      // Send ping to server
+      try {
+        this.ws.ping()
+        this.connectionAliveStatus = false // Will be set to true when pong is received
+
+        // Also send a keepalive message if we've been idle
+        if (timeSinceLastActivity > 25000) { // 25 seconds of no messages
+          this.sendKeepaliveMessage()
+        }
+      }
+      catch (error) {
+        console.error('❌ Error sending keepalive ping:', error)
+      }
+    }, this.CLIENT_PING_INTERVAL)
+
+    console.log('🔄 Client-side keepalive system started')
+  }
+
+  /**
+   * Sends a keepalive message to prevent server-side timeout
+   */
+  private sendKeepaliveMessage(): void {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      try {
+        this.ws.send(JSON.stringify({
+          type: 'keepalive',
+          timestamp: Date.now(),
+          clientId: 'keyboard-approver-client',
+        }))
+      }
+      catch (error) {
+        console.error('❌ Error sending keepalive message:', error)
+      }
+    }
+  }
+
+  /**
+   * Cleans up keepalive resources
+   */
+  private cleanupKeepalive(): void {
+    if (this.clientPingInterval) {
+      clearInterval(this.clientPingInterval)
+      this.clientPingInterval = null
+    }
+
+    // Reset connection state
+    this.connectionAliveStatus = false
+    this.lastPongReceived = 0
+  }
+
+  /**
+   * Gets connection health information for monitoring
+   */
+  getConnectionHealth(): {
+    isAlive: boolean
+    lastActivity: number
+    lastPong: number
+    timeSinceLastActivity: number
+    timeSinceLastPong: number
+  } {
+    const now = Date.now()
+    return {
+      isAlive: this.connectionAliveStatus,
+      lastActivity: this.lastActivityTime,
+      lastPong: this.lastPongReceived,
+      timeSinceLastActivity: now - this.lastActivityTime,
+      timeSinceLastPong: now - this.lastPongReceived,
+    }
+  }
+
+  /**
+   * Send a manual ping for testing and debugging
+   */
+  async sendManualPing(): Promise<{
+    success: boolean
+    error?: string
+    connectionHealth: {
+      isAlive: boolean
+      lastActivity: number
+      lastPong: number
+      timeSinceLastActivity: number
+      timeSinceLastPong: number
+      connected: boolean
+    }
+  }> {
+    const startTime = Date.now()
+
+    try {
+      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+        return {
+          success: false,
+          error: 'WebSocket not connected',
+          connectionHealth: {
+            ...this.getConnectionHealth(),
+            connected: false,
+          },
+        }
+      }
+
+      // Send manual ping
+      this.ws.ping()
+      this.connectionAliveStatus = false // Will be set to true when pong is received
+
+      // Wait a short time for pong response
+      await new Promise(resolve => setTimeout(resolve, 1000))
+
+      return {
+        success: true,
+        connectionHealth: {
+          ...this.getConnectionHealth(),
+          connected: this.ws?.readyState === WebSocket.OPEN,
+        },
+      }
+    }
+    catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        connectionHealth: {
+          ...this.getConnectionHealth(),
+          connected: this.ws?.readyState === WebSocket.OPEN || false,
+        },
+      }
+    }
+  }
+
+  /**
+   * Starts persistent retry system for long-term connection attempts
+   */
+  private startPersistentRetry(): void {
+    // Don't start multiple intervals
+    if (this.persistentRetryInterval) {
+      return
+    }
+
+    console.log('🔄 Starting persistent codespace retry system')
+
+    this.persistentRetryInterval = setInterval(() => {
+      // Only attempt if we have a token and are not connected
+      if (this.githubToken && (!this.ws || this.ws.readyState !== WebSocket.OPEN)) {
+        console.log('🔄 Persistent retry: discovering and connecting to codespace')
+        this.connect().catch((error) => {
+          console.error('Persistent codespace retry failed:', error)
+        })
+      }
+    }, this.PERSISTENT_RETRY_INTERVAL)
+  }
+
+  /**
+   * Stops persistent retry system
+   */
+  private stopPersistentRetry(): void {
+    if (this.persistentRetryInterval) {
+      console.log('🛑 Stopping persistent retry system')
+      clearInterval(this.persistentRetryInterval)
+      this.persistentRetryInterval = null
+    }
   }
 }
