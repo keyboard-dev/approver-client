@@ -19,7 +19,9 @@ export class WindowManager {
   }
 
   public createMainWindow(): void {
-    const iconPath = path.join(__dirname, '../assets/keyboard-dock.icns')
+    // Use platform-specific icon
+    const iconExtension = process.platform === 'darwin' ? 'icns' : (process.platform === 'win32' ? 'ico' : 'png')
+    const iconPath = path.join(__dirname, '../assets', `keyboard-dock.${iconExtension}`)
 
     // Get or create a persistent session explicitly
     const persistentSession = session.fromPartition('persist:main', { cache: true })

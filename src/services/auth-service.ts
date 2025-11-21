@@ -110,30 +110,60 @@ export class AuthService {
    * Handle OAuth callback from browser (public for protocol handler)
    */
   public async handleOAuthCallback(url: string): Promise<void> {
+    console.log('=== AUTH SERVICE: handleOAuthCallback START ===')
+    console.log('Callback URL:', url)
+
     try {
+      console.log('Parsing callback URL...')
       const urlObj = new URL(url)
       const code = urlObj.searchParams.get('code')
       const state = urlObj.searchParams.get('state')
       const error = urlObj.searchParams.get('error')
+
+      console.log('URL parameters:')
+      console.log('  - code:', code ? `${code.substring(0, 10)}...` : 'null')
+      console.log('  - state:', state ? `${state.substring(0, 10)}...` : 'null')
+      console.log('  - error:', error)
 
       if (error) {
         throw new Error(`OAuth error: ${error} - ${urlObj.searchParams.get('error_description')}`)
       }
 
       if (!code || !state) {
+        console.error('❌ Missing required parameters')
         throw new Error('Missing authorization code or state')
       }
 
+      console.log('Validating state against PKCE...')
+      console.log('  - currentPKCE exists:', !!this.currentPKCE)
+      console.log('  - currentPKCE.state:', this.currentPKCE ? `${this.currentPKCE.state.substring(0, 10)}...` : 'null')
+
       if (!this.currentPKCE || state !== this.currentPKCE.state) {
+        console.error('❌ State mismatch!')
+        console.error('  - Expected:', this.currentPKCE?.state)
+        console.error('  - Received:', state)
         throw new Error('State mismatch - potential CSRF attack')
       }
 
+      console.log('✓ State validation passed')
+      console.log('Starting token exchange...')
+
       // Exchange code for tokens
       await this.exchangeCodeForTokens(code)
+
+      console.log('✓ OAuth callback completed successfully')
     }
     catch (error) {
       console.error('❌ OAuth callback error:', error)
+      console.error('Error type:', error instanceof Error ? error.constructor.name : typeof error)
+      console.error('Error message:', error instanceof Error ? error.message : String(error))
+      if (error instanceof Error && error.stack) {
+        console.error('Stack trace:', error.stack)
+      }
       this.notifyAuthError(`Authentication failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+    finally {
+      console.log('=== AUTH SERVICE: handleOAuthCallback END ===')
     }
   }
 
@@ -141,12 +171,29 @@ export class AuthService {
    * Exchange authorization code for access and refresh tokens
    */
   private async exchangeCodeForTokens(code: string): Promise<void> {
+    console.log('=== TOKEN EXCHANGE START ===')
+    console.log('Authorization code:', code ? `${code.substring(0, 10)}...` : 'null')
+
     try {
       if (!this.currentPKCE) {
+        console.error('❌ No PKCE parameters available')
         throw new Error('No PKCE parameters available')
       }
 
-      const response = await fetch(`${this.OAUTH_SERVER_URL}/oauth/token`, {
+      console.log('PKCE parameters available')
+      console.log('  - code_verifier:', this.currentPKCE.codeVerifier ? `${this.currentPKCE.codeVerifier.substring(0, 10)}...` : 'null')
+
+      const tokenUrl = `${this.OAUTH_SERVER_URL}/oauth/token`
+      console.log('Token exchange endpoint:', tokenUrl)
+      console.log('Request details:')
+      console.log('  - method: POST')
+      console.log('  - redirect_uri:', `${this.CUSTOM_PROTOCOL}://callback`)
+      console.log('  - grant_type: authorization_code')
+
+      console.log('Sending token exchange request...')
+      const startTime = Date.now()
+
+      const response = await fetch(tokenUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -159,36 +206,62 @@ export class AuthService {
         }),
       })
 
+      const requestDuration = Date.now() - startTime
+      console.log(`✓ Received response in ${requestDuration}ms`)
+      console.log('Response status:', response.status, response.statusText)
+      console.log('Response headers:')
+      response.headers.forEach((value, key) => {
+        console.log(`  - ${key}: ${value}`)
+      })
+
       if (!response.ok) {
+        console.error('❌ Token exchange failed with status:', response.status)
         const errorData = await response.json().catch(() => ({})) as ErrorResponse
+        console.error('Error response:', errorData)
         throw new Error(`Token exchange failed: ${errorData.error_description || response.statusText}`)
       }
 
+      console.log('Parsing token response...')
       const tokens = await response.json() as TokenResponse
+      console.log('✓ Tokens received')
+      console.log('  - access_token:', tokens.access_token ? `${tokens.access_token.substring(0, 10)}...` : 'null')
+      console.log('  - refresh_token:', tokens.refresh_token ? 'present' : 'null')
+      console.log('  - expires_in:', tokens.expires_in, 'seconds')
+      console.log('  - user:', tokens.user ? `${tokens.user.email || tokens.user.firstName}` : 'null')
 
       // Calculate expiration time and create AuthTokens object
+      console.log('Creating auth tokens object...')
       const authTokens: AuthTokens = {
         ...tokens,
         expires_at: Date.now() + (tokens.expires_in * 1000),
       }
 
+      console.log('Setting auth tokens...')
       this.authTokens = authTokens
+
+      console.log('Refreshing tokens...')
       await this.refreshTokens()
 
       // Store tokens securely to encrypted storage
+      console.log('Saving auth tokens to encrypted storage...')
       await this.saveAuthTokens(this.authTokens)
 
+      console.log('Clearing PKCE data...')
       this.currentPKCE = null // Clear PKCE data
 
       // Notify the renderer process
+      console.log('Notifying renderer process...')
       this.windowManager.sendMessage('auth-success', {
         user: tokens.user,
         authenticated: true,
       })
 
       // Show the window after successful authentication
+      console.log('Showing window...')
       this.windowManager.showWindow()
+
       // Show success notification
+      console.log('Showing success notification...')
       this.showNotification({
         id: 'auth-success',
         title: 'Authentication Successful',
@@ -197,16 +270,28 @@ export class AuthService {
         priority: 'normal',
       })
 
+      console.log('Initializing SSE background service...')
       const sseBackgroundService = new SSEBackgroundService({
         serverUrl: 'https://mcp.keyboard.dev',
       })
       sseBackgroundService.setAuthToken(this.authTokens?.access_token)
       sseBackgroundService.connect()
       this.setSseBackgroundService(sseBackgroundService)
+
+      console.log('✓ Token exchange completed successfully')
     }
     catch (error) {
       console.error('❌ Token exchange error:', error)
+      console.error('Error type:', error instanceof Error ? error.constructor.name : typeof error)
+      console.error('Error message:', error instanceof Error ? error.message : String(error))
+      if (error instanceof Error && error.stack) {
+        console.error('Stack trace:', error.stack)
+      }
       this.notifyAuthError(`Token exchange failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      throw error // Re-throw to let caller handle
+    }
+    finally {
+      console.log('=== TOKEN EXCHANGE END ===')
     }
   }
 
