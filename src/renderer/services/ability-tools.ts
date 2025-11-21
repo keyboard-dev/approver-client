@@ -18,6 +18,14 @@ export const toolsToAbilities = {
         command: 'web-search',
         description: 'use this ability to search the web for developer documentation, API references, and technical information. Automatically fetches full content from docs sites, processes markdown files, and extracts relevant code examples. Perfect for finding API documentation, tutorials, and technical resources. Example: {"ability": "web-search", "parameters": {"query": "stripe payment intents api"}}',
       },
+      {
+        command: 'save-keyboard-shortcut-script-template',
+        description: 'use this ability to save a keyboard shortcut script, try to save one task per script',
+      },
+      {
+        command: 'update-keyboard-shortcut-script-template',
+        description: 'use this ability to update a keyboard shortcut script template',
+      },
     ],
   },
 }

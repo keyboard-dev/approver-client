@@ -135,6 +135,7 @@ export class KeyboardProvider implements AIProvider {
     const messagesWithoutSystem = messages.filter(m => m.role !== 'system')
 
     console.log('🎹 Streaming messages:', messages)
+    console.log('🎹 System message:', systemMessage?.content)
 
     const url = 'https://api.keyboard.dev/api/ai/inference'
     const response = await fetch(url, {
