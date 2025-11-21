@@ -337,6 +337,7 @@ export class AIChatAdapter implements ChatModelAdapter {
 
           const resultSummary = `✅ **${abilityName}** completed successfully`
           onUpdate?.(resultSummary)
+          console.log('this is the processed result', processedResult)
 
           abilityResults += `\n\n🚀 **${abilityName}** executed`
           abilityResults += `\n**Result ${processedResult}`
@@ -574,6 +575,7 @@ export class AIChatAdapter implements ChatModelAdapter {
 
       const abilityResults = await this.executeAbilityCallsWithStreaming(abilityCalls, currentIteration, originalUserMessage, abortSignal, (update) => {
         accumulatedResponse += `\n${update}`
+        console.log('🔧 Ability update:', update)
         // Note: We can't yield from inside this callback due to generator constraints
         // Updates will be reflected in the next yield
       })

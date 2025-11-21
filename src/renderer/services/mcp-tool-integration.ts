@@ -212,6 +212,7 @@ export function useMCPIntegration(
 
       console.log('✅ keyboard.dev-ability call completed in', callTime, 'ms')
       console.log('📊 Raw MCP result:', result)
+      console.log('🔍 FULL ABILITY RESULT OBJECT:', JSON.stringify(result, null, 2))
 
       // Update execution with success
       if (executionId) {

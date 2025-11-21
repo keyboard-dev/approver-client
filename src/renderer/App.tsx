@@ -64,7 +64,7 @@ export const AppContent: React.FC = () => {
   } = useAuth()
 
   // Database hook for initialization and mutations
-  const { isInitialized: isDbInitialized, deleteMessages, updateShareMessage, addMessage } = useDatabase()
+  const { isInitialized: isDbInitialized, deleteMessages, updateShareMessage, updateMessage, addMessage } = useDatabase()
 
   // Fetch messages directly from database (no in-memory cache)
   const { messages, shareMessages, refetch: refetchMessages } = useMessagesQuery()
