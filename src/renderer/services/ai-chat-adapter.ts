@@ -24,7 +24,6 @@ export class AIChatAdapter implements ChatModelAdapter {
   private pingInterval: NodeJS.Timeout | null = null
   private isToolsExecuting = false
   private selectedScripts: Script[] = []
-  
 
   constructor(provider: string = 'openai', model?: string, mcpEnabled: boolean = false) {
     this.currentProvider = { provider, model, mcpEnabled }
@@ -47,8 +46,6 @@ export class AIChatAdapter implements ChatModelAdapter {
     }
   }
 
-
-
   setToolExecutionTracker(tracker: (isExecuting: boolean, toolName?: string) => void) {
     this.setToolExecutionState = tracker
   }
@@ -67,15 +64,9 @@ export class AIChatAdapter implements ChatModelAdapter {
       return // Already running
     }
 
-    console.log('🏓 Starting periodic ping during tool execution')
     this.pingInterval = setInterval(async () => {
       try {
         const result = await window.electronAPI.sendManualPing()
-        console.log('🏓 Periodic ping result:', {
-          success: result.success,
-          connected: result.connectionHealth.connected,
-          timeSinceLastActivity: result.connectionHealth.timeSinceLastActivity,
-        })
 
         if (!result.success) {
           console.warn('⚠️ Periodic ping failed:', result.error)
@@ -89,7 +80,6 @@ export class AIChatAdapter implements ChatModelAdapter {
 
   private stopPeriodicPing() {
     if (this.pingInterval) {
-      console.log('🏓 Stopping periodic ping')
       clearInterval(this.pingInterval)
       this.pingInterval = null
     }
@@ -214,7 +204,6 @@ export class AIChatAdapter implements ChatModelAdapter {
         const parsed = JSON.parse(jsonContent)
 
         if (parsed.ability && typeof parsed.ability === 'string') {
-          console.log('full parsed ability call', parsed)
           abilityCalls.push({
             ability: parsed.ability,
             parameters: parsed.parameters || {},
@@ -222,7 +211,7 @@ export class AIChatAdapter implements ChatModelAdapter {
         }
       }
       catch (error) {
-        console.log('⚠️ Failed to parse JSON block:', error)
+
       }
     }
     return abilityCalls
@@ -236,7 +225,6 @@ export class AIChatAdapter implements ChatModelAdapter {
     let abilityResults = ''
     for (const abilityCall of abilityCalls) {
       const { ability: abilityName, parameters } = abilityCall
-      console.log(`🔧 Executing: ${abilityName}`)
 
       this.onTaskProgress?.({
         step: currentIteration,
@@ -257,8 +245,6 @@ export class AIChatAdapter implements ChatModelAdapter {
             contextKeywords: this.extractKeywords(originalUserMessage.content),
             filterSensitiveData: true,
           }
-
-          console.log('🔧 Processing options:', processingOptions)
 
           const processedResult = await this.mcpIntegration.executeAbilityCall(abilityName, parameters, processingOptions)
 
@@ -309,7 +295,6 @@ export class AIChatAdapter implements ChatModelAdapter {
     let abilityResults = ''
     for (const abilityCall of abilityCalls) {
       const { ability: abilityName, parameters } = abilityCall
-      console.log(`🔧 Executing: ${abilityName}`)
 
       const updateMessage = `- **${abilityName}**: Starting execution...`
       onUpdate?.(updateMessage)
@@ -337,7 +322,6 @@ export class AIChatAdapter implements ChatModelAdapter {
 
           const resultSummary = `✅ **${abilityName}** completed successfully`
           onUpdate?.(resultSummary)
-          console.log('this is the processed result', processedResult)
 
           abilityResults += `\n\n🚀 **${abilityName}** executed`
           abilityResults += `\n**Result ${processedResult}`
@@ -490,7 +474,6 @@ export class AIChatAdapter implements ChatModelAdapter {
 
       // Send enhanced message with context
       const enhancedMessages = conversationHistory
-      console.log(`🔄 Agentic Iteration ${currentIteration}/${this.maxAgenticIterations}`)
 
       // Stream the AI reasoning response
       let toolChoiceResponse = ''
@@ -528,7 +511,6 @@ export class AIChatAdapter implements ChatModelAdapter {
         }
       }
 
-      console.log('📥 AI Response:', response)
       finalResponse = response
 
       const abilityCalls = this.foundAbilityCallsInResponse(response)
@@ -536,7 +518,6 @@ export class AIChatAdapter implements ChatModelAdapter {
       // If no abilities to execute, check if task is complete
       if (abilityCalls.length === 0) {
         if (this.isTaskComplete(response)) {
-          console.log('✅ Task completed - no more abilities needed')
           this.onTaskProgress?.({
             step: currentIteration,
             totalSteps: this.maxAgenticIterations,
@@ -575,7 +556,7 @@ export class AIChatAdapter implements ChatModelAdapter {
 
       const abilityResults = await this.executeAbilityCallsWithStreaming(abilityCalls, currentIteration, originalUserMessage, abortSignal, (update) => {
         accumulatedResponse += `\n${update}`
-        console.log('🔧 Ability update:', update)
+
         // Note: We can't yield from inside this callback due to generator constraints
         // Updates will be reflected in the next yield
       })
@@ -763,10 +744,6 @@ Keep it clear and actionable.`,
 
   async* run({ messages, abortSignal }: { messages: readonly Array<{ role: string, content: Array<{ type: string, text?: string }> }>, abortSignal?: AbortSignal }) {
     try {
-      console.log('🔧 AI Chat Adapter run() called with messages:', messages.length)
-
-      console.log('🔧 Messages:', messages)
-
       // Convert assistant-ui messages to our AI provider format
       const aiMessages: AIMessage[] = messages.map((message) => {
         // Get the text content from message
@@ -779,12 +756,9 @@ Keep it clear and actionable.`,
         }
       })
 
-
       // Inject enhanced context into system prompt for keyboard provider
       if (this.currentProvider.provider === 'keyboard' && this.currentProvider.mcpEnabled && aiMessages.length > 0) {
         try {
-          console.log('🔄 Injecting enhanced context for keyboard provider')
-
           // Get the user's message for context
           const lastUserMessage = aiMessages[aiMessages.length - 1]
           if (lastUserMessage?.role === 'user') {
@@ -923,7 +897,6 @@ Keep it clear and actionable.`,
 
         // Yield final text if any
         if (accumulatedText.length > lastTextLength) {
-          console.log('🔧 Yielding final text:', accumulatedText)
           yield {
             content: [{ type: 'text' as const, text: accumulatedText }],
           }

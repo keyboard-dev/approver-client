@@ -49,7 +49,8 @@ export const AbilityExecutionCard: React.FC<AbilityExecutionCardProps> = ({ exec
   const formatJson = (data: any) => {
     try {
       return JSON.stringify(data, null, 2)
-    } catch {
+    }
+    catch {
       return String(data)
     }
   }
@@ -84,13 +85,15 @@ export const AbilityExecutionCard: React.FC<AbilityExecutionCardProps> = ({ exec
             onClick={() => toggleSection('parameters')}
           >
             <span className="text-xs font-medium">Parameters</span>
-            {expandedSection === 'parameters' ? (
-              <ChevronDown className="w-3 h-3" />
-            ) : (
-              <ChevronRight className="w-3 h-3" />
-            )}
+            {expandedSection === 'parameters'
+              ? (
+                  <ChevronDown className="w-3 h-3" />
+                )
+              : (
+                  <ChevronRight className="w-3 h-3" />
+                )}
           </Button>
-          
+
           {expandedSection === 'parameters' && (
             <div className="mt-2 bg-gray-50 rounded p-2 border">
               <pre className="text-xs text-gray-700 whitespace-pre-wrap overflow-auto max-h-32">
@@ -112,13 +115,15 @@ export const AbilityExecutionCard: React.FC<AbilityExecutionCardProps> = ({ exec
               <span className="text-xs font-medium">
                 {execution.status === 'error' ? 'Error' : 'Results'}
               </span>
-              {expandedSection === 'results' ? (
-                <ChevronDown className="w-3 h-3" />
-              ) : (
-                <ChevronRight className="w-3 h-3" />
-              )}
+              {expandedSection === 'results'
+                ? (
+                    <ChevronDown className="w-3 h-3" />
+                  )
+                : (
+                    <ChevronRight className="w-3 h-3" />
+                  )}
             </Button>
-            
+
             {expandedSection === 'results' && (
               <div className="mt-2">
                 {execution.error && (
@@ -129,7 +134,7 @@ export const AbilityExecutionCard: React.FC<AbilityExecutionCardProps> = ({ exec
                     </pre>
                   </div>
                 )}
-                
+
                 {execution.response && (
                   <div className="bg-gray-50 rounded p-2 border">
                     <div className="flex items-center justify-between mb-2">
@@ -153,7 +158,7 @@ export const AbilityExecutionCard: React.FC<AbilityExecutionCardProps> = ({ exec
           </div>
         )}
       </CardContent>
-      
+
       {/* Results Dialog */}
       <ResultsDialog
         execution={execution}

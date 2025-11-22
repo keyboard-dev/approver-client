@@ -149,18 +149,12 @@ export function useMCPIntegration(
     args: Record<string, unknown>,
     processingOptions?: ProcessingOptions,
   ) => {
-    console.log('🚀 keyboard.dev-ability Execution: Starting execution for', functionName)
-    console.log('📊 MCP Client state:', mcpClient.state)
-    console.log('🌐 Server URL:', serverUrl)
-
     // Start execution tracking
     const executionId = executionTracker?.addExecution(functionName, args, typeof args.provider === 'string' ? args.provider : undefined)
 
     try {
       // Intercept web-search calls and route to local implementation
       if (functionName === 'web-search') {
-        console.log('🔍 Intercepting web-search call for enhanced local processing')
-
         // Validate required parameters for web search
         if (!args.query || typeof args.query !== 'string') {
           throw new Error('Query parameter is required for web search and must be a string')
@@ -201,18 +195,11 @@ export function useMCPIntegration(
         throw new Error(error)
       }
 
-      console.log('✅ MCP client is ready, proceeding with keyboard.dev-ability call')
       const { name, args: abilityArgs } = prepareMCPAbilityCall(functionName, args)
-      console.log('📋 Prepared ability call - Name:', name, 'Args:', abilityArgs)
 
-      console.log('🚀 Calling mcpClient.callTool...')
       const startTime = performance.now()
       const result = await mcpClient.callTool(name, abilityArgs)
       const callTime = Math.round(performance.now() - startTime)
-
-      console.log('✅ keyboard.dev-ability call completed in', callTime, 'ms')
-      console.log('📊 Raw MCP result:', result)
-      console.log('🔍 FULL ABILITY RESULT OBJECT:', JSON.stringify(result, null, 2))
 
       // Update execution with success
       if (executionId) {

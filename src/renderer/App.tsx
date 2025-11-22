@@ -214,20 +214,20 @@ export const AppContent: React.FC = () => {
       }
     }
 
-
     // Listen for custom chat approval events from the global WebSocket listener
     const handleChatApprovalMessage = (event: CustomEvent<Message>) => {
       const message = event.detail
       console.log('💬 App.tsx: Received chat-approval-message event', message)
       console.log('💬 App.tsx: showAssistantChat state:', showAssistantChat)
       console.log('💬 App.tsx: authenticated:', authStatusRef.current.authenticated)
-      
+
       // Check if we're currently on the home route (where chat can be active)
       if (authStatusRef.current.authenticated) {
         // Always set currentMessage when on home route - let the chat component decide if it should display
         console.log('💬 App.tsx: Setting currentMessage for potential inline approval', message)
         setCurrentMessage(message)
-      } else {
+      }
+      else {
         console.log('💬 App.tsx: Not authenticated, ignoring approval message')
       }
     }

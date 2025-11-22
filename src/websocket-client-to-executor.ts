@@ -76,7 +76,7 @@ export class ExecutorWebSocketClient {
     if (token && (!this.ws || this.ws.readyState !== WebSocket.OPEN)) {
       // Start persistent retry system
       this.startPersistentRetry()
-      
+
       // Use async connect with auto-discovery
       this.connect().catch((error) => {
         console.error('Failed to connect after setting GitHub token:', error)
@@ -125,13 +125,7 @@ export class ExecutorWebSocketClient {
     }
 
     try {
-      console.log('🏓 Performing manual ping test...')
       const pingResult = await this.sendManualPing()
-      console.log('🏓 Ping test result:', {
-        success: pingResult.success,
-        error: pingResult.error,
-        connectionHealth: pingResult.connectionHealth,
-      })
       return {
         ...basicInfo,
         pingTest: {
@@ -261,11 +255,8 @@ export class ExecutorWebSocketClient {
 
   // Connect to a codespace from SSE event
   async connectFromSSEEvent(codespace: { codespace_id: string, name: string, url: string, state: string }): Promise<boolean> {
-    console.log('🔔 SSE triggered codespace connection:', codespace.name)
-
     // If already connected to this exact codespace, do nothing
     if (this.isConnected() && this.currentTarget?.codespaceName === codespace.name) {
-      console.log('✅ Already connected to codespace:', codespace.name)
       return true
     }
 
@@ -274,11 +265,9 @@ export class ExecutorWebSocketClient {
       const shouldSwitch = this.shouldSwitchToNewCodespace(this.currentTarget, codespace)
 
       if (!shouldSwitch) {
-        console.log(`⏸️ Staying connected to ${this.currentTarget.name} (manual override or recent connection)`)
         return false
       }
 
-      console.log(`🔄 Switching from ${this.currentTarget.name} to ${codespace.name}`)
       // Emit switching event
       this.windowManager?.sendMessage('websocket-switching', {
         from: this.currentTarget.name!,
@@ -332,45 +321,37 @@ export class ExecutorWebSocketClient {
   // Connect to codespace-executor WebSocket server (with automatic codespace discovery)
   async connect(): Promise<boolean> {
     if (!this.githubToken) {
-      console.log('❌ No GitHub token available for codespace connection')
       return false
     }
 
     // Always try to discover codespaces first, even if we have a current target
     // This ensures we always try to find the best available codespace
     const connected = await this.autoConnect()
-    
+
     if (connected) {
       return true
     }
 
     // If auto-connect failed and we have a previous target, try that
     if (this.currentTarget) {
-      console.log('🔄 Retrying with previous target:', this.currentTarget.name)
       this.connectToTarget(this.currentTarget)
       return true
     }
 
-    console.log('❌ No codespace connection available - will retry')
     return false
   }
 
   // Automatically discover and connect to the best available executor
   async autoConnect(): Promise<boolean> {
-    console.log('🔗 Auto-connecting to executor (codespace priority)')
-    
     // Always require codespaces service - don't fall back to localhost
     if (!this.codespacesService) {
-      console.log('❌ No codespaces service available - will retry when GitHub token is set')
       return false
     }
-    console.log('🔗 Codespaces service available')
 
     try {
       // Try to find and connect to a user's codespace
       const preparedCodespace = await this.codespacesService.discoverAndPrepareCodespace()
-      console.log('🔗 Prepared codespace:', preparedCodespace)
-      
+
       if (preparedCodespace) {
         this.currentTarget = {
           type: 'codespace',
@@ -386,7 +367,7 @@ export class ExecutorWebSocketClient {
       }
 
       // If no suitable codespace found, don't connect - let retry handle it
-      console.log('⏸️ No suitable codespace found - will retry discovery')
+
       return false
     }
     catch (error) {
@@ -425,8 +406,6 @@ export class ExecutorWebSocketClient {
           clearTimeout(this.reconnectTimeout)
           this.reconnectTimeout = null
         }
-        
-        console.log('🔗 WebSocket connected to:', target.url)
 
         // Set up keepalive for this connection
         this.setupConnectionKeepalive()
@@ -533,13 +512,11 @@ export class ExecutorWebSocketClient {
     // Calculate exponential backoff delay
     const exponentialDelay = Math.min(
       this.baseReconnectDelay * Math.pow(2, this.reconnectAttempts - 1),
-      this.maxReconnectDelay
+      this.maxReconnectDelay,
     )
-    
+
     // Add some jitter to prevent thundering herd
     const jitterDelay = exponentialDelay + Math.random() * 1000
-
-    console.log(`🔄 Reconnect attempt ${this.reconnectAttempts} in ${Math.round(jitterDelay / 1000)}s`)
 
     // Emit reconnecting event
     this.windowManager?.sendMessage('websocket-reconnecting', {
@@ -653,8 +630,6 @@ export class ExecutorWebSocketClient {
         console.error('❌ Error sending keepalive ping:', error)
       }
     }, this.CLIENT_PING_INTERVAL)
-
-    console.log('🔄 Client-side keepalive system started')
   }
 
   /**
@@ -774,12 +749,9 @@ export class ExecutorWebSocketClient {
       return
     }
 
-    console.log('🔄 Starting persistent codespace retry system')
-
     this.persistentRetryInterval = setInterval(() => {
       // Only attempt if we have a token and are not connected
       if (this.githubToken && (!this.ws || this.ws.readyState !== WebSocket.OPEN)) {
-        console.log('🔄 Persistent retry: discovering and connecting to codespace')
         this.connect().catch((error) => {
           console.error('Persistent codespace retry failed:', error)
         })
@@ -792,7 +764,6 @@ export class ExecutorWebSocketClient {
    */
   private stopPersistentRetry(): void {
     if (this.persistentRetryInterval) {
-      console.log('🛑 Stopping persistent retry system')
       clearInterval(this.persistentRetryInterval)
       this.persistentRetryInterval = null
     }

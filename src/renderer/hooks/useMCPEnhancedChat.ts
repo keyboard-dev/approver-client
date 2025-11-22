@@ -111,8 +111,6 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
     }
   }, [])
 
-
-
   // Execution tracking functions
   const addExecution = useCallback((abilityName: string, parameters: Record<string, unknown>, provider?: string): string => {
     const id = `exec_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`

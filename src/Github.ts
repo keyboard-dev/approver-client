@@ -184,7 +184,7 @@ export class GithubService {
       body: JSON.stringify({}),
       signal: AbortSignal.timeout(10000), // 10 second timeout
     })
-    console.log('response from fetchResources', response)
+
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`)
     }

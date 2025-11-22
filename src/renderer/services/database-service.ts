@@ -35,16 +35,11 @@ export class DatabaseService {
 
       request.onsuccess = () => {
         this.db = request.result
-        console.log('📦 IndexedDB initialized successfully')
-        console.log('   Database name:', this.db.name)
-        console.log('   Database version:', this.db.version)
-        console.log('   Object stores:', Array.from(this.db.objectStoreNames))
+
         resolve()
       }
 
       request.onupgradeneeded = (event) => {
-        console.log('Upgrading database...')
-
         const db = (event.target as IDBOpenDBRequest).result
 
         // Create messages object store
@@ -52,7 +47,6 @@ export class DatabaseService {
           const messagesStore = db.createObjectStore(MESSAGES_STORE, { keyPath: 'id' })
           messagesStore.createIndex('status', 'status', { unique: false })
           messagesStore.createIndex('timestamp', 'timestamp', { unique: false })
-          console.log('Created messages object store')
         }
 
         // Create shareMessages object store
@@ -60,7 +54,6 @@ export class DatabaseService {
           const shareMessagesStore = db.createObjectStore(SHARE_MESSAGES_STORE, { keyPath: 'id' })
           shareMessagesStore.createIndex('status', 'status', { unique: false })
           shareMessagesStore.createIndex('timestamp', 'timestamp', { unique: false })
-          console.log('Created shareMessages object store')
         }
       }
     })
@@ -83,8 +76,6 @@ export class DatabaseService {
       ...message,
       status: message.status || 'pending',
     }
-
-    console.log('Adding message:', messageWithStatus)
 
     return new Promise((resolve, reject) => {
       const transaction = this.db!.transaction([MESSAGES_STORE], 'readwrite')
@@ -419,7 +410,6 @@ export class DatabaseService {
       this.db.close()
       this.db = null
       this.initPromise = null
-      console.log('📦 IndexedDB closed')
     }
   }
 }

@@ -16,7 +16,8 @@ export const ResultsDialog: React.FC<ResultsDialogProps> = ({ execution, isOpen,
   const formatJson = (data: any) => {
     try {
       return JSON.stringify(data, null, 2)
-    } catch {
+    }
+    catch {
       return String(data)
     }
   }
@@ -27,7 +28,8 @@ export const ResultsDialog: React.FC<ResultsDialogProps> = ({ execution, isOpen,
       await navigator.clipboard.writeText(content)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
-    } catch (error) {
+    }
+    catch (error) {
       console.error('Failed to copy:', error)
     }
   }
@@ -46,10 +48,15 @@ export const ResultsDialog: React.FC<ResultsDialogProps> = ({ execution, isOpen,
         <DialogHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
           <div>
             <DialogTitle className="text-lg font-semibold">
-              {execution.abilityName} - Full Results
+              {execution.abilityName}
+              {' '}
+              - Full Results
             </DialogTitle>
             <p className="text-sm text-gray-500 mt-1">
-              {execution.status === 'error' ? 'Error Details' : 'Response Data'} • {getResponseSize()}
+              {execution.status === 'error' ? 'Error Details' : 'Response Data'}
+              {' '}
+              •
+              {getResponseSize()}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -69,25 +76,29 @@ export const ResultsDialog: React.FC<ResultsDialogProps> = ({ execution, isOpen,
         </DialogHeader>
 
         <div className="flex-1 min-h-0 overflow-hidden">
-          {execution.error ? (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 h-full overflow-auto">
-              <h4 className="text-red-800 font-medium mb-2">Error Details:</h4>
-              <pre className="text-red-700 text-sm whitespace-pre-wrap font-mono">
-                {execution.error}
-              </pre>
-            </div>
-          ) : execution.response ? (
-            <div className="bg-gray-50 border rounded-lg p-4 h-full overflow-auto">
-              <h4 className="text-gray-800 font-medium mb-2">Response Data:</h4>
-              <pre className="text-gray-800 text-sm whitespace-pre-wrap font-mono leading-relaxed">
-                {formatJson(execution.response)}
-              </pre>
-            </div>
-          ) : (
-            <div className="flex items-center justify-center h-full text-gray-500">
-              <p>No response data available</p>
-            </div>
-          )}
+          {execution.error
+            ? (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4 h-full overflow-auto">
+                  <h4 className="text-red-800 font-medium mb-2">Error Details:</h4>
+                  <pre className="text-red-700 text-sm whitespace-pre-wrap font-mono">
+                    {execution.error}
+                  </pre>
+                </div>
+              )
+            : execution.response
+              ? (
+                  <div className="bg-gray-50 border rounded-lg p-4 h-full overflow-auto">
+                    <h4 className="text-gray-800 font-medium mb-2">Response Data:</h4>
+                    <pre className="text-gray-800 text-sm whitespace-pre-wrap font-mono leading-relaxed">
+                      {formatJson(execution.response)}
+                    </pre>
+                  </div>
+                )
+              : (
+                  <div className="flex items-center justify-center h-full text-gray-500">
+                    <p>No response data available</p>
+                  </div>
+                )}
         </div>
 
         {/* Additional metadata */}
@@ -96,16 +107,21 @@ export const ResultsDialog: React.FC<ResultsDialogProps> = ({ execution, isOpen,
             <div>
               <span className="text-gray-500">Status:</span>
               <span className={`ml-2 font-medium ${
-                execution.status === 'success' ? 'text-green-600' : 
-                execution.status === 'error' ? 'text-red-600' : 'text-blue-600'
-              }`}>
+                execution.status === 'success'
+                  ? 'text-green-600'
+                  : execution.status === 'error' ? 'text-red-600' : 'text-blue-600'
+              }`}
+              >
                 {execution.status}
               </span>
             </div>
             {execution.duration && (
               <div>
                 <span className="text-gray-500">Duration:</span>
-                <span className="ml-2 font-mono">{execution.duration}ms</span>
+                <span className="ml-2 font-mono">
+                  {execution.duration}
+                  ms
+                </span>
               </div>
             )}
             {execution.provider && (

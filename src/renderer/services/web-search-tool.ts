@@ -61,7 +61,6 @@ export class WebSearchTool {
 
       // Extract web search results from the nested API response structure
       // API returns: {success: true, data: {content: [...]} }
-      console.log('YO WHAT IS THE RESPONSE', response)
 
       return {
         results: JSON.stringify(response, null, 2),

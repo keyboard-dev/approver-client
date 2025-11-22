@@ -1,11 +1,11 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import type {
-  Tool,
-  Resource,
   CallToolResult,
-  ReadResourceResult,
   JSONRPCMessage,
+  ReadResourceResult,
+  Resource,
+  Tool,
 } from '@modelcontextprotocol/sdk/types.js'
 
 // Simple HTTP transport implementation
@@ -131,7 +131,6 @@ export class MCPClientService {
       await this.discoverCapabilities()
 
       this.reconnectAttempts = 0
-      console.log('✅ Connected to MCP server:', config.serverUrl)
     }
     catch (error) {
       this.connectionStatus = {
@@ -157,7 +156,6 @@ export class MCPClientService {
       }
 
       this.connectionStatus = { connected: false }
-      console.log('✅ Disconnected from MCP server')
     }
     catch (error) {
       console.error('❌ Error during MCP disconnect:', error)
@@ -171,7 +169,6 @@ export class MCPClientService {
     }
 
     this.reconnectAttempts++
-    console.log(`🔄 Reconnecting to MCP server (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`)
 
     try {
       await this.connect(config)
@@ -203,8 +200,6 @@ export class MCPClientService {
         tools,
         resources,
       }
-
-      console.log(`✅ Discovered ${tools.length} tools and ${resources.length} resources`)
     }
     catch (error) {
       console.error('❌ Failed to discover MCP capabilities:', error)

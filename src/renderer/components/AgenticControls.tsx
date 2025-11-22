@@ -28,11 +28,13 @@ export const AgenticControls: React.FC<AgenticControlsProps> = ({
         {/* Agentic Mode Toggle */}
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            {isAgenticMode ? (
-              <Bot className="h-4 w-4 text-blue-500" />
-            ) : (
-              <BotOff className="h-4 w-4 text-gray-400" />
-            )}
+            {isAgenticMode
+              ? (
+                  <Bot className="h-4 w-4 text-blue-500" />
+                )
+              : (
+                  <BotOff className="h-4 w-4 text-gray-400" />
+                )}
             <div>
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
                 Agentic Mode
@@ -61,8 +63,7 @@ export const AgenticControls: React.FC<AgenticControlsProps> = ({
                 <p className="text-xs text-gray-500 dark:text-gray-400">
                   {mcpConnected
                     ? `Connected • ${mcpAbilities} abilities available`
-                    : 'Disconnected • No abilities available'
-                  }
+                    : 'Disconnected • No abilities available'}
                 </p>
               </div>
             </div>

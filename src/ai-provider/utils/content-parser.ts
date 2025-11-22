@@ -95,9 +95,10 @@ export class ContentParser {
         codeBlocks,
         headings,
         links,
-        metadata
+        metadata,
       }
-    } catch (error) {
+    }
+    catch (error) {
       console.error('Content parsing error:', error)
       // Return minimal structure on parse failure
       return {
@@ -109,8 +110,8 @@ export class ContentParser {
           wordCount: content.split(/\s+/).length,
           hasApiExamples: false,
           isDocs: false,
-          isMarkdown: format === 'markdown' || format === 'llms-txt'
-        }
+          isMarkdown: format === 'markdown' || format === 'llms-txt',
+        },
       }
     }
   }
@@ -125,14 +126,14 @@ export class ContentParser {
     const relevantHeadings: Heading[] = []
 
     // Filter code blocks by relevance
-    parsedContent.codeBlocks.forEach(block => {
+    parsedContent.codeBlocks.forEach((block) => {
       if (this.isRelevantCodeBlock(block, queryWords)) {
         relevantCodeBlocks.push(block)
       }
     })
 
     // Filter headings and get their sections
-    parsedContent.headings.forEach(heading => {
+    parsedContent.headings.forEach((heading) => {
       if (this.isRelevantHeading(heading, queryWords)) {
         relevantHeadings.push(heading)
         // Extract section content around this heading
@@ -144,7 +145,7 @@ export class ContentParser {
     // If no specific sections found, return top sections
     if (relevantSections.length === 0 && parsedContent.headings.length > 0) {
       const topSections = parsedContent.headings.slice(0, 3)
-      topSections.forEach(heading => {
+      topSections.forEach((heading) => {
         const section = this.extractSectionContent(parsedContent.markdown, heading)
         if (section.trim()) relevantSections.push(section)
       })
@@ -160,8 +161,8 @@ export class ContentParser {
       headings: relevantHeadings,
       metadata: {
         ...parsedContent.metadata,
-        wordCount: (filteredMarkdown || '').split(' ').length
-      }
+        wordCount: (filteredMarkdown || '').split(' ').length,
+      },
     }
   }
 
@@ -172,11 +173,11 @@ export class ContentParser {
       const language = node.lang || undefined
       const code = node.value || ''
       const isExample = this.isExampleCode(code, language)
-      
+
       codeBlocks.push({
         language,
         code,
-        isExample
+        isExample,
       })
     })
 
@@ -189,11 +190,11 @@ export class ContentParser {
     visit(ast, 'heading', (node: any) => {
       const text = this.extractTextFromNode(node)
       const level = node.depth || 1
-      
+
       headings.push({
         level,
         text,
-        id: this.generateHeadingId(text)
+        id: this.generateHeadingId(text),
       })
     })
 
@@ -207,11 +208,11 @@ export class ContentParser {
       const url = node.url || ''
       const text = this.extractTextFromNode(node)
       const isInternal = this.isInternalLink(url)
-      
+
       links.push({
         url,
         text,
-        isInternal
+        isInternal,
       })
     })
 
@@ -223,7 +224,7 @@ export class ContentParser {
     const hasApiExamples = this.hasApiExamples(content)
     const isDocs = this.isDocsContent(content)
     const isMarkdown = format === 'markdown' || format === 'llms-txt'
-    
+
     // Extract title from first heading or content
     let title: string | undefined
     visit(ast, 'heading', (node: any) => {
@@ -239,24 +240,24 @@ export class ContentParser {
       wordCount,
       hasApiExamples,
       isDocs,
-      isMarkdown
+      isMarkdown,
     }
   }
 
   private isRelevantCodeBlock(block: CodeBlock, queryWords: string[]): boolean {
     const codeContent = block.code.toLowerCase()
-    
+
     // Check if code contains query terms
     const hasQueryTerms = queryWords.some(word => codeContent.includes(word))
-    
+
     // Boost relevance for API examples
     const isApiExample = (block.isExample || false) && (
-      codeContent.includes('api') ||
-      codeContent.includes('fetch') ||
-      codeContent.includes('request') ||
-      codeContent.includes('curl')
+      codeContent.includes('api')
+      || codeContent.includes('fetch')
+      || codeContent.includes('request')
+      || codeContent.includes('curl')
     )
-    
+
     return hasQueryTerms || isApiExample
   }
 
@@ -268,10 +269,10 @@ export class ContentParser {
   private extractSectionContent(markdown: string, heading: Heading): string {
     const lines = markdown.split('\n')
     const headingPattern = new RegExp(`^#{1,${heading.level}}\\s+.*${this.escapeRegex(heading.text)}`, 'i')
-    
+
     let startIndex = -1
     let endIndex = lines.length
-    
+
     // Find heading start
     for (let i = 0; i < lines.length; i++) {
       if (headingPattern.test(lines[i])) {
@@ -279,9 +280,9 @@ export class ContentParser {
         break
       }
     }
-    
+
     if (startIndex === -1) return ''
-    
+
     // Find next heading of same or higher level
     for (let i = startIndex + 1; i < lines.length; i++) {
       const nextHeadingMatch = lines[i].match(/^(#{1,6})\s+/)
@@ -290,20 +291,20 @@ export class ContentParser {
         break
       }
     }
-    
+
     return lines.slice(startIndex, endIndex).join('\n')
   }
 
   private buildFilteredMarkdown(sections: string[], codeBlocks: CodeBlock[]): string {
     const parts: string[] = []
-    
+
     // Add relevant sections
     if (sections.length > 0) {
       parts.push(...sections)
     }
-    
+
     // Add standalone code blocks that weren't in sections
-    codeBlocks.forEach(block => {
+    codeBlocks.forEach((block) => {
       if (block.isExample) {
         const codeMarkdown = `\`\`\`${block.language || ''}\n${block.code}\n\`\`\``
         if (!sections.some(section => section.includes(block.code))) {
@@ -311,7 +312,7 @@ export class ContentParser {
         }
       }
     })
-    
+
     return parts.join('\n\n')
   }
 
@@ -326,9 +327,9 @@ export class ContentParser {
       /headers\s*:/i,
       /authorization/i,
       /stripe\./i,
-      /import.*stripe/i
+      /import.*stripe/i,
     ]
-    
+
     return apiPatterns.some(pattern => pattern.test(code))
   }
 
@@ -350,11 +351,11 @@ export class ContentParser {
     if (node.type === 'text') {
       return node.value || ''
     }
-    
+
     if (node.children && Array.isArray(node.children)) {
       return node.children.map((child: any) => this.extractTextFromNode(child)).join('')
     }
-    
+
     return ''
   }
 

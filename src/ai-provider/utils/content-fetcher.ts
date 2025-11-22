@@ -32,21 +32,21 @@ export interface ContentFetchOptions {
 export class ContentFetcher {
   private readonly defaultTimeout = 10000 // 10 seconds
   private readonly maxContentLength = 100000 // 100KB default
-  
+
   /**
    * Fetch content using smart format detection
    */
   async fetchOptimizedContent(
-    url: string, 
-    query?: string, 
-    options: ContentFetchOptions = {}
+    url: string,
+    query?: string,
+    options: ContentFetchOptions = {},
   ): Promise<FetchedContent> {
     const startTime = Date.now()
-    
+
     try {
       // Detect available content formats
       const formats = await this.detectContentFormats(url, options)
-      
+
       // Try formats in priority order
       for (const format of formats) {
         try {
@@ -56,17 +56,18 @@ export class ContentFetcher {
             finalUrl: format.url,
             format: format.type,
             content,
-            fetchTime: Date.now() - startTime
+            fetchTime: Date.now() - startTime,
           }
-        } catch (error) {
+        }
+        catch (error) {
           console.warn(`Failed to fetch ${format.type} from ${format.url}:`, error)
           continue
         }
       }
-      
+
       throw new Error('All content format attempts failed')
-      
-    } catch (error) {
+    }
+    catch (error) {
       console.error('Content fetching failed:', error)
       throw error
     }
@@ -78,30 +79,30 @@ export class ContentFetcher {
   private async detectContentFormats(url: string, options: ContentFetchOptions): Promise<ContentFormat[]> {
     const formats: ContentFormat[] = []
     const baseUrl = this.getBaseUrl(url)
-    
+
     // 1. Try LLMs.txt (highest priority)
     formats.push({
       type: 'llms-txt',
       url: `${baseUrl}/llms.txt`,
-      priority: 10
+      priority: 10,
     })
-    
+
     // 2. Try docs.json or API index
     formats.push({
       type: 'json',
       url: `${baseUrl}/docs.json`,
-      priority: 9
+      priority: 9,
     })
-    
+
     // 3. Direct markdown detection
     if (url.includes('.md') || url.includes('README')) {
       formats.push({
         type: 'markdown',
         url,
-        priority: 8
+        priority: 8,
       })
     }
-    
+
     // 4. GitHub raw markdown URLs
     if (url.includes('github.com') && !url.includes('raw.githubusercontent.com')) {
       const rawUrl = this.convertToGitHubRaw(url)
@@ -109,27 +110,27 @@ export class ContentFetcher {
         formats.push({
           type: 'markdown',
           url: rawUrl,
-          priority: 7
+          priority: 7,
         })
       }
     }
-    
+
     // 5. Documentation-specific formats
     if (this.isDocsUrl(url)) {
       formats.push({
         type: 'html',
         url,
-        priority: 6
+        priority: 6,
       })
     }
-    
+
     // 6. Fallback to original URL as HTML
     formats.push({
       type: 'html',
       url,
-      priority: 1
+      priority: 1,
     })
-    
+
     // Sort by priority (highest first)
     return formats.sort((a, b) => b.priority - a.priority)
   }
@@ -138,55 +139,55 @@ export class ContentFetcher {
    * Fetch content in specific format
    */
   private async fetchContentInFormat(
-    format: ContentFormat, 
-    query?: string, 
-    options: ContentFetchOptions = {}
+    format: ContentFormat,
+    query?: string,
+    options: ContentFetchOptions = {},
   ): Promise<ParsedContent> {
     const timeout = options.timeout || this.defaultTimeout
     const maxLength = options.maxContentLength || this.maxContentLength
-    
+
     // Fetch raw content
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), timeout)
-    
+
     try {
       const response = await fetch(format.url, {
         signal: controller.signal,
         headers: {
           'User-Agent': 'Mozilla/5.0 (compatible; LLM-ContentFetcher/1.0)',
-          'Accept': this.getAcceptHeader(format.type)
-        }
+          'Accept': this.getAcceptHeader(format.type),
+        },
       })
-      
+
       clearTimeout(timeoutId)
-      
+
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
-      
+
       let rawContent = await response.text()
-      
+
       // Truncate if too long
       if (rawContent.length > maxLength) {
         rawContent = rawContent.substring(0, maxLength) + '\n\n[Content truncated...]'
       }
-      
+
       // Process JSON format
       if (format.type === 'json') {
         rawContent = this.processJsonDocs(rawContent, query)
       }
-      
+
       // Parse content
       const parsedContent = await contentParser.parseContent(rawContent, format.type === 'json' ? 'markdown' : format.type)
-      
+
       // Extract relevant sections if query provided
       if (query && query.trim()) {
         return contentParser.extractRelevantSections(parsedContent, query)
       }
-      
+
       return parsedContent
-      
-    } finally {
+    }
+    finally {
       clearTimeout(timeoutId)
     }
   }
@@ -197,12 +198,12 @@ export class ContentFetcher {
   private processJsonDocs(jsonContent: string, query?: string): string {
     try {
       const docs = JSON.parse(jsonContent)
-      
+
       // Handle different JSON doc formats
       if (docs.content) {
         return docs.content
       }
-      
+
       if (docs.sections && Array.isArray(docs.sections)) {
         return docs.sections.map((section: any) => {
           const title = section.title ? `# ${section.title}\n\n` : ''
@@ -210,7 +211,7 @@ export class ContentFetcher {
           return `${title}${content}`
         }).join('\n\n')
       }
-      
+
       if (docs.pages && Array.isArray(docs.pages)) {
         return docs.pages.map((page: any) => {
           const title = page.title ? `# ${page.title}\n\n` : ''
@@ -218,11 +219,11 @@ export class ContentFetcher {
           return `${title}${content}`
         }).join('\n\n')
       }
-      
+
       // Fallback: return pretty-printed JSON
       return `# API Documentation\n\n\`\`\`json\n${JSON.stringify(docs, null, 2)}\n\`\`\``
-      
-    } catch (error) {
+    }
+    catch (error) {
       console.warn('Failed to parse JSON docs:', error)
       return jsonContent
     }
@@ -235,7 +236,8 @@ export class ContentFetcher {
     try {
       const urlObj = new URL(url)
       return `${urlObj.protocol}//${urlObj.host}`
-    } catch {
+    }
+    catch {
       return url.split('/').slice(0, 3).join('/')
     }
   }
@@ -252,7 +254,8 @@ export class ContentFetcher {
           .replace('/blob/', '/')
       }
       return null
-    } catch {
+    }
+    catch {
       return null
     }
   }
@@ -270,9 +273,9 @@ export class ContentFetcher {
       /\/guide\//i,
       /\/reference\//i,
       /stripe\.com\/docs/i,
-      /docs\..*\.com/i
+      /docs\..*\.com/i,
     ]
-    
+
     return docsPatterns.some(pattern => pattern.test(url))
   }
 

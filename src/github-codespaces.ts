@@ -288,8 +288,8 @@ export class GitHubCodespacesService {
 
       // Filter to only user-owned codespace-executor codespaces
       const ownedCodespaces = allConnectionInfo.filter(info =>
-        info.codespace.owner.login === currentUser.login &&
-        info.codespace.repository.name === 'codespace-executor',
+        info.codespace.owner.login === currentUser.login
+        && info.codespace.repository.name === 'codespace-executor',
       )
 
       if (ownedCodespaces.length === 0) {
@@ -412,14 +412,12 @@ export class GitHubCodespacesService {
         }
       }
       const codespace: GitHubCodespace = discoveredCodespaces.codespace.codespace
-      console.log('codespace name', codespace)
-      console.log('codespace object', codespace)
+
       const baseUrl = this.generateCodespacePortUrl(codespace)
       const fullUrl = `${baseUrl}/fetch_key_name_and_resources`
-      console.log('fullUrl', fullUrl)
 
       const responseData = await this.githubService.fetchResources(fullUrl)
-      console.log('responseData from fetchKeyNameAndResources', responseData)
+
       return responseData
     }
     catch (error) {

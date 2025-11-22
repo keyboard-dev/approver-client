@@ -34,7 +34,7 @@ export const AgenticStatusIndicator: React.FC<AgenticStatusIndicatorProps> = ({
 
   const getStatusText = () => {
     if (agenticProgress?.isComplete) {
-      return "Task completed successfully"
+      return 'Task completed successfully'
     }
     if (isExecutingAbility && currentAbility) {
       return `Executing: ${currentAbility}`
@@ -43,19 +43,19 @@ export const AgenticStatusIndicator: React.FC<AgenticStatusIndicatorProps> = ({
       return agenticProgress.currentAction
     }
     if (isAgenticMode) {
-      return "Agentic mode enabled"
+      return 'Agentic mode enabled'
     }
-    return "Processing..."
+    return 'Processing...'
   }
 
   const getProgressBar = () => {
     if (!agenticProgress) return null
-    
+
     const progressPercent = (agenticProgress.step / agenticProgress.totalSteps) * 100
 
     return (
       <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2">
-        <div 
+        <div
           className="bg-blue-600 h-1.5 rounded-full transition-all duration-300 ease-out"
           style={{ width: `${Math.min(progressPercent, 100)}%` }}
         />
@@ -72,7 +72,13 @@ export const AgenticStatusIndicator: React.FC<AgenticStatusIndicatorProps> = ({
         </span>
         {agenticProgress && !agenticProgress.isComplete && (
           <span className="text-xs text-gray-500 ml-auto">
-            Step {agenticProgress.step} of {agenticProgress.totalSteps}
+            Step
+            {' '}
+            {agenticProgress.step}
+            {' '}
+            of
+            {' '}
+            {agenticProgress.totalSteps}
           </span>
         )}
       </div>

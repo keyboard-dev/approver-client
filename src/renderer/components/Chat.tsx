@@ -56,7 +56,7 @@ export const Chat: React.FC<ChatProps> = ({ onBack }) => {
     setTimeout(() => {
       const response: ChatMessage = {
         id: (Date.now() + 1).toString(),
-        content: selectedScript 
+        content: selectedScript
           ? `I'll help you with that using the ${selectedScript.name} script. ${inputValue.trim()}`
           : `Echo: ${inputValue.trim()}`,
         timestamp: Date.now(),

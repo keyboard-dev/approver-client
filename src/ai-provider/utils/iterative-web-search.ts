@@ -54,8 +54,6 @@ export class IterativeWebSearch {
     let currentQuery = this.buildInitialQuery(query)
 
     for (let i = 0; i < this.maxIterations && !foundExecutableCode; i++) {
-      console.log(`🔍 Iterative search iteration ${i + 1}/${this.maxIterations}`)
-
       const iteration = await this.performSearchIteration(currentQuery, query, i + 1)
       iterations.push(iteration)
 
@@ -71,7 +69,6 @@ export class IterativeWebSearch {
       // Refine query for next iteration if not found
       if (i < this.maxIterations - 1) {
         currentQuery = await this.refineSearchQuery(currentQuery, iterations, query)
-        console.log(`🔄 Refining search query: "${currentQuery}"`)
       }
     }
 
@@ -233,7 +230,6 @@ Format as JSON array:
           })
 
           if (response.ok) {
-            console.log(`📄 Found llms.txt at ${llmsTxtUrl}`)
             enhancedUrls.unshift(llmsTxtUrl) // Add to front for priority
           }
         }

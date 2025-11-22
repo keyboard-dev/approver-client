@@ -52,10 +52,6 @@ export class AuthService {
       })
 
       // Set up SSE service with restored token
-      const sseService = this.getSseBackgroundService()
-      if (sseService) {
-        sseService.setAuthToken(persistedTokens.access_token)
-      }
     }
   }
 
@@ -201,6 +197,13 @@ export class AuthService {
         serverUrl: 'https://mcp.keyboard.dev',
       })
       sseBackgroundService.setAuthToken(this.authTokens?.access_token)
+
+      // Listen for codespace-online events to refresh user context
+      sseBackgroundService.on('codespace-online', (codespaceData) => {
+        console.log('🚀 Codespace came online:', codespaceData.name)
+        // Clear context cache so user tokens get refreshed on next request
+      })
+
       sseBackgroundService.connect()
       this.setSseBackgroundService(sseBackgroundService)
     }
@@ -273,7 +276,7 @@ export class AuthService {
       // Only logout if this is a main auth request (not provider token refresh)
       if (source === 'main') {
         // All token recovery attempts failed, show notification and logout
-        console.log('🔐 Authentication failed, logging out user')
+
         this.showNotification({
           id: 'session-expired',
           title: 'Session Expired',
@@ -288,7 +291,7 @@ export class AuthService {
       }
       else {
         // Provider token refresh context - just log without logout
-        console.log('🔐 Auth token unavailable for provider operation (no logout triggered)')
+
       }
       return null
     }
@@ -313,27 +316,26 @@ export class AuthService {
     }
 
     // Token is expired/expiring, try to refresh
-    console.log('🔐 Auth tokens expiring soon, refreshing...')
+
     const refreshed = await this.refreshTokens()
 
     if (refreshed) {
-      console.log('✅ Auth tokens refreshed successfully')
       return true
     }
 
     // Refresh failed, try storage fallback
-    console.log('🔐 Token refresh failed, trying storage fallback...')
+
     const storageTokens = await this.loadAuthTokens()
 
     if (storageTokens && storageTokens.access_token !== this.authTokens.access_token) {
       // Found different tokens in storage, use them
       this.authTokens = storageTokens
-      console.log('🔐 Successfully recovered from storage fallback')
+
       return true
     }
 
     // All recovery attempts failed
-    console.log('❌ All token refresh attempts failed')
+
     return false
   }
 

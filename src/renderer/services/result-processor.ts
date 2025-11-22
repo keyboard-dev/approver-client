@@ -30,7 +30,7 @@ export class ResultProcessorService {
   processResult(
     abilityName: string,
     result: CallToolResult,
-    options: ProcessingOptions = {}
+    options: ProcessingOptions = {},
   ): ProcessedResult {
     const {
       maxTokens = this.DEFAULT_MAX_TOKENS,
@@ -59,9 +59,11 @@ export class ResultProcessorService {
 
     if (this.isStructuredData(rawText)) {
       processed = this.processStructuredData(abilityName, rawText, options)
-    } else if (this.isLargeText(rawText)) {
+    }
+    else if (this.isLargeText(rawText)) {
       processed = this.processLargeText(abilityName, rawText, options)
-    } else {
+    }
+    else {
       processed = this.processGenericText(abilityName, rawText, options)
     }
 
@@ -83,7 +85,7 @@ export class ResultProcessorService {
           .filter(item => item.type === 'text')
           .map(item => item.text)
           .join('\n')
-        
+
         if (textContent) {
           return textContent
         }
@@ -91,7 +93,8 @@ export class ResultProcessorService {
 
       // Fallback to JSON representation
       return JSON.stringify(result, null, 2)
-    } catch (error) {
+    }
+    catch (error) {
       return `Error processing result: ${error instanceof Error ? error.message : 'Unknown error'}`
     }
   }
@@ -107,7 +110,7 @@ export class ResultProcessorService {
           .filter(item => item.type === 'text')
           .map(item => item.text)
           .join('\n')
-        
+
         if (textContent) {
           return textContent
         }
@@ -115,7 +118,8 @@ export class ResultProcessorService {
 
       // Fallback to JSON representation
       return JSON.stringify(result, null, 2)
-    } catch (error) {
+    }
+    catch (error) {
       return `Error formatting result from ${abilityName}: ${error instanceof Error ? error.message : 'Unknown error'}`
     }
   }
@@ -132,8 +136,8 @@ export class ResultProcessorService {
    */
   private isStructuredData(text: string): boolean {
     // Check for JSON
-    if ((text.startsWith('{') && text.endsWith('}')) || 
-        (text.startsWith('[') && text.endsWith(']'))) {
+    if ((text.startsWith('{') && text.endsWith('}'))
+      || (text.startsWith('[') && text.endsWith(']'))) {
       return true
     }
 
@@ -164,18 +168,20 @@ export class ResultProcessorService {
   private processStructuredData(
     abilityName: string,
     text: string,
-    options: ProcessingOptions
+    options: ProcessingOptions,
   ): ProcessedResult {
     try {
       // Try to parse as JSON
       const data = JSON.parse(text)
-      
+
       if (Array.isArray(data)) {
         return this.summarizeArrayData(abilityName, data, options)
-      } else if (typeof data === 'object') {
+      }
+      else if (typeof data === 'object') {
         return this.summarizeObjectData(abilityName, data, options)
       }
-    } catch {
+    }
+    catch {
       // Not valid JSON, try CSV
       if (text.includes(',') || text.includes('\t')) {
         return this.summarizeCSVData(abilityName, text, options)
@@ -191,18 +197,18 @@ export class ResultProcessorService {
   private summarizeArrayData(
     abilityName: string,
     data: any[],
-    options: ProcessingOptions
+    options: ProcessingOptions,
   ): ProcessedResult {
     const length = data.length
     const firstFew = data.slice(0, 3)
     const sampleKeys = this.extractObjectKeys(firstFew)
 
     let summary = `${abilityName} returned ${length} items.`
-    
+
     if (length > 0) {
       summary += ` Sample items (first 3):\n`
       summary += firstFew.map((item, i) => `${i + 1}. ${this.summarizeItem(item)}`).join('\n')
-      
+
       if (sampleKeys.length > 0) {
         summary += `\n\nCommon fields: ${sampleKeys.join(', ')}`
       }
@@ -230,7 +236,7 @@ export class ResultProcessorService {
   private summarizeObjectData(
     abilityName: string,
     data: object,
-    options: ProcessingOptions
+    options: ProcessingOptions,
   ): ProcessedResult {
     const keys = Object.keys(data)
     const summary = `${abilityName} returned an object with ${keys.length} fields: ${keys.slice(0, 10).join(', ')}${keys.length > 10 ? '...' : ''}`
@@ -250,7 +256,7 @@ export class ResultProcessorService {
   private summarizeCSVData(
     abilityName: string,
     text: string,
-    options: ProcessingOptions
+    options: ProcessingOptions,
   ): ProcessedResult {
     const lines = text.split('\n').filter(line => line.trim())
     const headers = lines[0]?.split(',') || []
@@ -280,7 +286,7 @@ export class ResultProcessorService {
   private processLargeText(
     abilityName: string,
     text: string,
-    options: ProcessingOptions
+    options: ProcessingOptions,
   ): ProcessedResult {
     const maxTokens = options.maxTokens || this.DEFAULT_MAX_TOKENS
     const approximateMaxChars = maxTokens * 4
@@ -296,7 +302,7 @@ export class ResultProcessorService {
     // Create summary for large text
     const beginning = text.substring(0, approximateMaxChars / 2)
     const ending = text.substring(text.length - approximateMaxChars / 4)
-    
+
     const summary = `${abilityName} returned large text content (${text.length} chars). 
 
 Beginning:
@@ -322,7 +328,7 @@ ${ending}`
   private processGenericText(
     abilityName: string,
     text: string,
-    options: ProcessingOptions
+    options: ProcessingOptions,
   ): ProcessedResult {
     const maxTokens = options.maxTokens || this.DEFAULT_MAX_TOKENS
     const approximateMaxChars = maxTokens * 4
@@ -376,7 +382,7 @@ ${ending}`
     return {
       ...result,
       summary: filteredSummary,
-      filterReason: wasModified 
+      filterReason: wasModified
         ? `${result.filterReason || 'Processed'} + sensitive data redacted`
         : result.filterReason,
     }
@@ -387,7 +393,7 @@ ${ending}`
    */
   private extractObjectKeys(items: any[]): string[] {
     const keyFreq: Record<string, number> = {}
-    
+
     for (const item of items) {
       if (typeof item === 'object' && item !== null) {
         for (const key of Object.keys(item)) {
@@ -426,8 +432,8 @@ ${ending}`
    */
   private filterByKeywords(data: any[], keywords: string[]): any[] {
     const lowerKeywords = keywords.map(k => k.toLowerCase())
-    
-    return data.filter(item => {
+
+    return data.filter((item) => {
       const itemStr = JSON.stringify(item).toLowerCase()
       return lowerKeywords.some(keyword => itemStr.includes(keyword))
     })

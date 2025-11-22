@@ -27,13 +27,13 @@ export const Switch: React.FC<SwitchProps> = ({
           ? 'bg-blue-600'
           : 'bg-gray-200',
         disabled && 'opacity-50 cursor-not-allowed',
-        className
+        className,
       )}
     >
       <span
         className={cn(
           'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
-          checked ? 'translate-x-6' : 'translate-x-1'
+          checked ? 'translate-x-6' : 'translate-x-1',
         )}
       />
     </button>

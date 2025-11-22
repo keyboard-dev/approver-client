@@ -56,7 +56,7 @@ export class ContextService {
    */
   private getFilteredMCPTools(): MCPAbilityFunction[] {
     const keyboardAbilityNames = new Set<string>()
-    console.log('mcpFunctions', this.mcpFunctions)
+
     // Extract all ability names from toolsToAbilities
     Object.values(toolsToAbilities.categories).forEach((abilities) => {
       abilities.forEach((ability) => {
@@ -76,11 +76,8 @@ export class ContextService {
   async getEnhancedContext(): Promise<EnhancedContext> {
     // Check if we have valid cached context
     if (this.cachedContext && (Date.now() - this.cachedContext.timestamp) < this.contextExpiry) {
-      console.log('🔄 Using cached context')
       return this.cachedContext
     }
-
-    console.log('🔍 Fetching fresh context...')
 
     // Generate new planning token
     const planningToken = generatePlanningToken()
@@ -101,11 +98,6 @@ export class ContextService {
 
     // Cache the context
     this.cachedContext = context
-    console.log('✅ Context cached:', {
-      planningToken: context.planningToken,
-      userTokensCount: context.userTokens.length,
-      hasCodespaceInfo: !!context.codespaceInfo?.success,
-    })
 
     return context
   }
@@ -211,17 +203,13 @@ USER REQUEST: ${userMessage}`
    */
   private async fetchUserTokens(): Promise<string[]> {
     try {
-      console.log('🔑 Fetching user tokens...')
-
       // Try to get tokens from the current WebSocket session via electron API
       const tokensResponse = await window.electronAPI?.getUserTokens?.() as UserTokensResponse | undefined
 
       if (tokensResponse?.tokensAvailable) {
-        console.log('✅ User tokens fetched:', tokensResponse.tokensAvailable.length)
         return tokensResponse.tokensAvailable
       }
 
-      console.log('⚠️ No user tokens available')
       return []
     }
     catch (error) {
@@ -235,18 +223,13 @@ USER REQUEST: ${userMessage}`
    */
   private async fetchCodespaceInfo(): Promise<CodespaceInfo | null> {
     try {
-      console.log('🏗️ Fetching codespace info...')
-
       // Get codespace info via electron API
       const codespaceInfo = await window.electronAPI?.getCodespaceInfo?.() as CodespaceInfo | undefined
-      console.log('codespaceInfo from fetchCodespaceInfo', codespaceInfo)
 
       if (codespaceInfo) {
-        console.log('✅ Codespace info fetched successfully')
         return codespaceInfo
       }
 
-      console.log('⚠️ No codespace information available')
       return null
     }
     catch (error) {
@@ -260,7 +243,6 @@ USER REQUEST: ${userMessage}`
    */
   clearCache(): void {
     this.cachedContext = null
-    console.log('🗑️ Context cache cleared')
   }
 
   /**

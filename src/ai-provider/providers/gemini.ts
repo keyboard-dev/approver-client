@@ -1,4 +1,4 @@
-import { AIProvider, AIProviderConfig, AIMessage, WebSearchQuery, WebSearchResponse } from '../index'
+import { AIMessage, AIProvider, AIProviderConfig, WebSearchQuery, WebSearchResponse } from '../index'
 import { contentFetcher } from '../utils/content-fetcher'
 
 export class GeminiProvider implements AIProvider {
@@ -8,7 +8,7 @@ export class GeminiProvider implements AIProvider {
     const url = `${config.baseUrl || 'https://generativelanguage.googleapis.com'}/v1beta/models/${config.model || 'gemini-2.5-flash'}:generateContent`
 
     const contents = this.convertMessagesToGeminiFormat(messages)
-    console.log('this is the contents', contents)
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -26,18 +26,18 @@ export class GeminiProvider implements AIProvider {
         status: response.status,
         statusText: response.statusText,
         url: response.url,
-        errorBody: errorText
+        errorBody: errorText,
       })
-      
+
       if (response.status === 503) {
         throw new Error(`Gemini service unavailable (503). This may be due to invalid request format or temporary service issues. Error: ${errorText}`)
       }
-      
+
       throw new Error(`Gemini API error: ${response.status} ${response.statusText}. ${errorText}`)
     }
 
     const data = await response.json() as any
-    console.log('this is the data', data)
+
     return data.candidates[0]?.content?.parts[0]?.text || ''
   }
 
@@ -45,7 +45,7 @@ export class GeminiProvider implements AIProvider {
     const url = `${config.baseUrl || 'https://generativelanguage.googleapis.com'}/v1beta/models/${config.model || 'gemini-2.5-flash'}:streamGenerateContent`
 
     const contents = this.convertMessagesToGeminiFormat(messages)
-    console.log('this is the contents', contents)
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -63,13 +63,13 @@ export class GeminiProvider implements AIProvider {
         status: response.status,
         statusText: response.statusText,
         url: response.url,
-        errorBody: errorText
+        errorBody: errorText,
       })
-      
+
       if (response.status === 503) {
         throw new Error(`Gemini service unavailable (503). This may be due to invalid request format or temporary service issues. Error: ${errorText}`)
       }
-      
+
       throw new Error(`Gemini API error: ${response.status} ${response.statusText}. ${errorText}`)
     }
 
@@ -117,17 +117,17 @@ export class GeminiProvider implements AIProvider {
     try {
       // Step 1: Use Gemini grounding to find relevant URLs
       const searchResults = await this.performGeminiSearch(query, config)
-      
+
       // Step 2: Fetch and process content from top results
       const enhancedResults = await this.enhanceSearchResults(searchResults, query)
-      
+
       return {
         results: enhancedResults,
         searchQuery: query.query,
-        provider: 'gemini'
+        provider: 'gemini',
       }
-      
-    } catch (error) {
+    }
+    catch (error) {
       console.error('Gemini web search error:', error)
       throw new Error(`Gemini web search failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
@@ -138,11 +138,11 @@ export class GeminiProvider implements AIProvider {
 
     // Prepare search-optimized prompt
     let searchPrompt = `Find web resources for: ${query.query}`
-    
+
     if (query.prioritizeDocs) {
       searchPrompt += ` Focus on official documentation, developer guides, API references, and technical resources.`
     }
-    
+
     if (query.prioritizeMarkdown) {
       searchPrompt += ` Prioritize README files, markdown documentation, and code examples.`
     }
@@ -162,16 +162,16 @@ export class GeminiProvider implements AIProvider {
       body: JSON.stringify({
         contents: [{
           role: 'user',
-          parts: [{ text: searchPrompt }]
+          parts: [{ text: searchPrompt }],
         }],
         tools: [{
           google_search_retrieval: {
             dynamic_retrieval_config: {
               mode: 'MODE_DYNAMIC',
-              dynamic_threshold: 0.7
-            }
-          }
-        }]
+              dynamic_threshold: 0.7,
+            },
+          },
+        }],
       }),
     })
 
@@ -181,7 +181,7 @@ export class GeminiProvider implements AIProvider {
 
     const data = await response.json() as any
     const responseText = data.candidates[0]?.content?.parts[0]?.text || ''
-    
+
     // Parse the response to extract search results
     return this.parseGeminiSearchResults(responseText, query)
   }
@@ -189,11 +189,11 @@ export class GeminiProvider implements AIProvider {
   private async enhanceSearchResults(basicResults: any[], query: WebSearchQuery) {
     const enhancedResults = []
     const maxResults = query.maxResults || 5
-    
+
     // Process top results with content fetching
     for (let i = 0; i < Math.min(basicResults.length, maxResults); i++) {
       const result = basicResults[i]
-      
+
       try {
         // Fetch optimized content for this URL
         const fetchedContent = await contentFetcher.fetchOptimizedContent(
@@ -203,10 +203,10 @@ export class GeminiProvider implements AIProvider {
             maxContentLength: 8000, // Limit content size
             timeout: 8000, // 8 second timeout
             prioritizeMarkdown: query.prioritizeMarkdown,
-            prioritizeDocs: query.prioritizeDocs
-          }
+            prioritizeDocs: query.prioritizeDocs,
+          },
         )
-        
+
         // Create enhanced result with content
         enhancedResults.push({
           title: result.title,
@@ -216,10 +216,10 @@ export class GeminiProvider implements AIProvider {
           isMarkdown: fetchedContent.content.metadata.isMarkdown,
           isDocs: fetchedContent.content.metadata.isDocs,
           contentFormat: fetchedContent.format,
-          codeExamples: fetchedContent.content.codeBlocks.filter(block => block.isExample).length
+          codeExamples: fetchedContent.content.codeBlocks.filter(block => block.isExample).length,
         })
-        
-      } catch (error) {
+      }
+      catch (error) {
         console.warn(`Failed to enhance result ${result.url}:`, error)
         // Fall back to basic result
         enhancedResults.push({
@@ -228,39 +228,39 @@ export class GeminiProvider implements AIProvider {
           snippet: result.snippet || 'No snippet available',
           relevanceScore: 0.5,
           isMarkdown: result.url.includes('.md'),
-          isDocs: this.isDocsContent(result.url, result.title, result.snippet)
+          isDocs: this.isDocsContent(result.url, result.title, result.snippet),
         })
       }
     }
-    
+
     // Sort by relevance score
     return enhancedResults.sort((a, b) => (b.relevanceScore || 0) - (a.relevanceScore || 0))
   }
 
   private createEnhancedSnippet(fetchedContent: any, query: WebSearchQuery): string {
     const content = fetchedContent.content
-    
+
     // Create snippet from metadata and key content
     let snippet = ''
-    
+
     if (content.metadata.title) {
       snippet += `${content.metadata.title}\n\n`
     }
-    
+
     // Add relevant code examples if available
     const relevantCode = content.codeBlocks.filter((block: any) => block.isExample).slice(0, 1)
     if (relevantCode.length > 0) {
       snippet += `Code example available in ${relevantCode[0].language || 'code'}\n`
     }
-    
+
     // Add portion of markdown content
     const markdownSnippet = content.markdown.slice(0, 400).replace(/```[\s\S]*?```/g, '[code]')
     snippet += markdownSnippet
-    
+
     if (content.markdown.length > 400) {
       snippet += '...'
     }
-    
+
     return snippet
   }
 
@@ -272,10 +272,12 @@ export class GeminiProvider implements AIProvider {
         const parsed = JSON.parse(jsonMatch[0])
         if (Array.isArray(parsed)) {
           return parsed.map(result => this.normalizeSearchResult(result))
-        } else if (parsed.results && Array.isArray(parsed.results)) {
+        }
+        else if (parsed.results && Array.isArray(parsed.results)) {
           return parsed.results.map((result: any) => this.normalizeSearchResult(result))
         }
-      } catch (e) {
+      }
+      catch (e) {
         console.warn('Failed to parse JSON from Gemini search response:', e)
       }
     }
@@ -288,7 +290,7 @@ export class GeminiProvider implements AIProvider {
     return {
       title: result.title || result.name || 'Untitled',
       url: result.url || result.link || '',
-      snippet: result.snippet || result.description || result.summary || ''
+      snippet: result.snippet || result.description || result.summary || '',
     }
   }
 
@@ -296,7 +298,7 @@ export class GeminiProvider implements AIProvider {
     // Basic extraction from text format
     const results = []
     const lines = text.split('\n')
-    
+
     let currentResult: any = {}
     for (const line of lines) {
       if (line.includes('http')) {
@@ -305,28 +307,30 @@ export class GeminiProvider implements AIProvider {
           currentResult = {}
         }
         currentResult.url = line.match(/https?:\/\/[^\s]+/)?.[0] || ''
-      } else if (line.trim() && !currentResult.title && !line.includes('http')) {
+      }
+      else if (line.trim() && !currentResult.title && !line.includes('http')) {
         currentResult.title = line.trim()
-      } else if (line.trim() && currentResult.title && !currentResult.snippet) {
+      }
+      else if (line.trim() && currentResult.title && !currentResult.snippet) {
         currentResult.snippet = line.trim()
       }
     }
-    
+
     if (currentResult.url) {
       results.push(this.normalizeSearchResult(currentResult))
     }
-    
+
     return results.slice(0, query.maxResults || 10)
   }
 
   private isDocsContent(url: string, title: string, snippet: string): boolean {
     const docsKeywords = ['docs', 'documentation', 'guide', 'api', 'reference', 'tutorial']
     const docsDomains = ['docs.', 'developer.', 'dev.', 'api.']
-    
-    return docsKeywords.some(keyword => 
-      url.toLowerCase().includes(keyword) || 
-      title.toLowerCase().includes(keyword) || 
-      snippet.toLowerCase().includes(keyword)
+
+    return docsKeywords.some(keyword =>
+      url.toLowerCase().includes(keyword)
+      || title.toLowerCase().includes(keyword)
+      || snippet.toLowerCase().includes(keyword),
     ) || docsDomains.some(domain => url.toLowerCase().includes(domain))
   }
 
@@ -335,22 +339,22 @@ export class GeminiProvider implements AIProvider {
     const queryLower = query.query.toLowerCase()
     const titleLower = title.toLowerCase()
     const contentLower = content.toLowerCase()
-    
+
     // Basic keyword matching
     const queryWords = queryLower.split(' ')
-    queryWords.forEach(word => {
+    queryWords.forEach((word) => {
       if (titleLower.includes(word)) score += 3
       if (contentLower.includes(word)) score += 1
       if (url.toLowerCase().includes(word)) score += 2
     })
-    
+
     // Boost for developer content
     if (query.prioritizeDocs && this.isDocsContent(url, title, content)) score += 10
     if (query.prioritizeMarkdown && (url.includes('.md') || content.includes('```'))) score += 5
-    
+
     // Boost for API examples
     if (content.includes('curl') || content.includes('fetch') || content.includes('api')) score += 5
-    
+
     return Math.min(score / 20, 1) // Normalize to 0-1
   }
 
@@ -360,53 +364,55 @@ export class GeminiProvider implements AIProvider {
 
   private convertMessagesToGeminiFormat(messages: AIMessage[]) {
     const contents: Array<{ role: 'user' | 'model', parts: Array<{ text: string }> }> = []
-    
+
     // Extract system message first
     const systemMessage = messages.find(m => m.role === 'system')
     const nonSystemMessages = messages.filter(m => m.role !== 'system')
-    
+
     if (nonSystemMessages.length === 0) {
       return contents
     }
-    
+
     let currentRole: 'user' | 'model' | null = null
     let currentContent: string[] = []
-    
+
     for (const message of nonSystemMessages) {
       const geminiRole = message.role === 'assistant' ? 'model' : 'user'
-      
+
       // Skip empty content
       if (!message.content || message.content.trim() === '') {
         continue
       }
-      
+
       if (currentRole === null) {
         // First message
         currentRole = geminiRole
         currentContent = [message.content]
-      } else if (currentRole === geminiRole) {
+      }
+      else if (currentRole === geminiRole) {
         // Same role as previous - merge content
         currentContent.push(message.content)
-      } else {
+      }
+      else {
         // Role changed - push current content and start new
         contents.push({
           role: currentRole,
-          parts: [{ text: currentContent.join('\n\n') }]
+          parts: [{ text: currentContent.join('\n\n') }],
         })
-        
+
         currentRole = geminiRole
         currentContent = [message.content]
       }
     }
-    
+
     // Push final content if exists
     if (currentRole && currentContent.length > 0) {
       contents.push({
         role: currentRole,
-        parts: [{ text: currentContent.join('\n\n') }]
+        parts: [{ text: currentContent.join('\n\n') }],
       })
     }
-    
+
     // Add system message to first user message if exists
     if (systemMessage && contents.length > 0) {
       // Find first user message to prepend system content
@@ -414,30 +420,25 @@ export class GeminiProvider implements AIProvider {
       if (firstUserIndex !== -1) {
         const originalText = contents[firstUserIndex].parts[0].text
         contents[firstUserIndex].parts[0].text = `${systemMessage.content}\n\n${originalText}`
-      } else {
+      }
+      else {
         // No user messages, create one with system content
         contents.unshift({
           role: 'user',
-          parts: [{ text: systemMessage.content }]
+          parts: [{ text: systemMessage.content }],
         })
       }
     }
-    
+
     // Ensure conversation starts with user message
     if (contents.length > 0 && contents[0].role === 'model') {
       // If first message is from model, add a generic user starter
       contents.unshift({
         role: 'user',
-        parts: [{ text: 'Please assist me with the following.' }]
+        parts: [{ text: 'Please assist me with the following.' }],
       })
     }
-    
-    console.log('🔄 Converted messages for Gemini:', {
-      originalCount: messages.length,
-      convertedCount: contents.length,
-      roles: contents.map(c => c.role)
-    })
-    
+
     return contents
   }
 }

@@ -159,7 +159,10 @@ export const AIProvidersPanel: React.FC = () => {
                   <div className="font-semibold flex items-center gap-2">
                     {provider.name}
                     {(isConfigured || provider.isBuiltIn) && (
-                      <span className="text-green-600 text-sm">✓ {provider.isBuiltIn ? 'Built-in' : 'Configured'}</span>
+                      <span className="text-green-600 text-sm">
+                        ✓
+                        {provider.isBuiltIn ? 'Built-in' : 'Configured'}
+                      </span>
                     )}
                   </div>
                   <div className="text-[#737373] text-sm">{provider.description}</div>

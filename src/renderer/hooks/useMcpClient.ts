@@ -55,7 +55,7 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
     const getToken = async () => {
       try {
         const token = await window.electronAPI?.getAccessToken?.()
-        console.log('this is the access token', token)
+
         setAccessToken(token || null)
       }
       catch (err) {
@@ -104,8 +104,6 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
         name: p.name,
         description: p.description,
       })))
-
-      console.log(`✅ Discovered ${toolsResponse.tools?.length || 0} tools, ${resourcesResponse.resources?.length || 0} resources, ${promptsResponse.prompts?.length || 0} prompts`)
     }
     catch (err) {
       console.error('❌ Failed to discover MCP capabilities:', err)
@@ -160,7 +158,6 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
 
       // Fix onclose handler to use current state via ref
       transport.onclose = () => {
-        console.log('Transport closed')
         if (stateRef.current === 'ready' && options.autoReconnect) {
           setTimeout(() => {
             if (accessToken && options.serverUrl) {
@@ -178,17 +175,14 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
       // Set up notification handlers AFTER connection is established
       try {
         client.setNotificationHandler('notifications/tools/list_changed', () => {
-          console.log('Tools list changed, refreshing...')
           setTimeout(() => discoverCapabilities(), 0)
         })
 
         client.setNotificationHandler('notifications/resources/list_changed', () => {
-          console.log('Resources list changed, refreshing...')
           setTimeout(() => discoverCapabilities(), 0)
         })
 
         client.setNotificationHandler('notifications/prompts/list_changed', () => {
-          console.log('Prompts list changed, refreshing...')
           setTimeout(() => discoverCapabilities(), 0)
         })
       }
@@ -201,7 +195,6 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
 
       reconnectAttemptsRef.current = 0
       setState('ready')
-      console.log('✅ Connected to MCP server:', serverUrl)
     }
     catch (err) {
       console.error('❌ Failed to connect to MCP server:', err)
@@ -223,7 +216,6 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
     }
 
     hasConnectedRef.current = true
-    console.log('Initiating connection with token:', !!accessToken)
 
     connect(accessToken, options.serverUrl).catch((err) => {
       console.error('Connection failed:', err)
@@ -315,7 +307,6 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
 
     if (accessToken && options.serverUrl) {
       reconnectAttemptsRef.current++
-      console.log(`🔄 Reconnecting to MCP server (attempt ${reconnectAttemptsRef.current}/${maxReconnectAttempts})`)
 
       setState('connecting')
       setError(undefined)

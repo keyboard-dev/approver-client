@@ -6,14 +6,12 @@ import * as path from 'path'
 import * as WebSocket from 'ws'
 import { aiRuntime, initializeAIProviders } from './ai-provider/setup'
 import { webSearch } from './ai-provider/utils/dedicated-web'
-import { CodespaceEncryptionConfig, encryptWithCodespaceKey } from './codespace-encryption'
-import { decrypt, encrypt, setEncryptionKeyProvider } from './encryption'
+import { setEncryptionKeyProvider } from './encryption'
 import { GithubService } from './Github'
 import { GitHubCodespacesService } from './github-codespaces'
 import { deleteScriptTemplate } from './keyboard-shortcuts'
-import { OAuthProvider, ServerProvider, ServerProviderInfo, PKCEParams as NewPKCEParams } from './oauth-providers'
-import { StoredProviderTokens, OAuthTokenStorage } from './oauth-token-storage'
-import { OAuthHttpServer } from './oauth-http-server'
+import { PKCEParams as NewPKCEParams, OAuthProvider, ServerProvider, ServerProviderInfo } from './oauth-providers'
+import { OAuthTokenStorage, StoredProviderTokens } from './oauth-token-storage'
 import { PerProviderTokenStorage } from './per-provider-token-storage'
 import { OAuthProviderConfig } from './provider-storage'
 import { createRestAPIServer } from './rest-api'
@@ -275,7 +273,7 @@ class MenuBarNotificationApp {
         })
 
         autoUpdater.on('update-available', () => {
-          console.log('Update available')
+
         })
 
         autoUpdater.on('update-not-available', () => {
@@ -374,7 +372,6 @@ class MenuBarNotificationApp {
   private initializeAIProviders(): void {
     try {
       initializeAIProviders()
-      console.log('✅ AI providers initialized successfully')
     }
     catch (error) {
       console.error('❌ Failed to initialize AI providers:', error)
@@ -1148,7 +1145,7 @@ class MenuBarNotificationApp {
     }
 
     // Send to renderer for storage in IndexedDB and display
-    console.log('this.windowManager.sendMessage', message)
+
     this.windowManager.sendMessage('websocket-message', message)
 
     // Auto-show window for high priority messages
@@ -1654,8 +1651,8 @@ class MenuBarNotificationApp {
 
     ipcMain.handle('send-manual-ping', async () => {
       if (!this.executorWSClient) {
-        return { 
-          success: false, 
+        return {
+          success: false,
           error: 'WebSocket client not available',
           connectionHealth: {
             isAlive: false,
@@ -1663,8 +1660,8 @@ class MenuBarNotificationApp {
             lastPong: 0,
             timeSinceLastActivity: 0,
             timeSinceLastPong: 0,
-            connected: false
-          }
+            connected: false,
+          },
         }
       }
       return await this.executorWSClient.sendManualPing()
@@ -1781,20 +1778,9 @@ class MenuBarNotificationApp {
     ipcMain.handle('send-ai-message', async (_event, provider: string, messages: Array<{ role: 'user' | 'assistant' | 'system', content: string }>, config?: { model?: string }): Promise<string> => {
       try {
         const authTokens = this.authService.getAuthTokens()
-        console.log('🚀 Main IPC send-ai-message called:', {
-          provider,
-          messagesCount: messages.length,
-          config,
-          hasAuthTokens: !!authTokens,
-          hasAccessToken: !!authTokens?.access_token,
-          accessTokenPrefix: authTokens?.access_token?.substring(0, 10) + '...',
-        })
 
         const response = await aiRuntime.sendMessage(provider, messages, config || {}, authTokens || undefined)
-        console.log('✅ AI Runtime response received:', {
-          contentLength: response.content?.length,
-          provider: response.provider,
-        })
+
         return response.content
       }
       catch (error) {
@@ -1806,28 +1792,19 @@ class MenuBarNotificationApp {
     ipcMain.handle('send-ai-message-stream', async (event, provider: string, messages: Array<{ role: 'user' | 'assistant' | 'system', content: string }>, config?: { model?: string }): Promise<string> => {
       try {
         const authTokens = this.authService.getAuthTokens()
-        console.log('🚀 Main IPC send-ai-message-stream called:', {
-          provider,
-          messagesCount: messages.length,
-          config,
-          hasAuthTokens: !!authTokens,
-          hasAccessToken: !!authTokens?.access_token,
-        })
-        
+
         // Start streaming in background
         const streamProcess = async () => {
           try {
             const generator = aiRuntime.streamMessage(provider, messages, config || {}, authTokens || undefined)
-            
+
             for await (const chunk of generator) {
-              console.log('🚀 Sending chunk to renderer:', chunk)
               event.sender.send('ai-stream-chunk', chunk)
             }
-            
-            console.log('🚀 Sending stream end to renderer')
+
             event.sender.send('ai-stream-end')
-            console.log('✅ AI Runtime streaming completed')
-          } catch (error) {
+          }
+          catch (error) {
             console.error('🚨 Streaming error:', error)
             event.sender.send('ai-stream-error', error instanceof Error ? error.message : 'Unknown error')
           }
@@ -1835,8 +1812,7 @@ class MenuBarNotificationApp {
 
         // Start streaming process
         streamProcess()
-        
-        console.log('✅ AI Runtime streaming initialized')
+
         return 'Stream started'
       }
       catch (error) {
@@ -1860,17 +1836,14 @@ class MenuBarNotificationApp {
     // Get user tokens from current WebSocket session
     ipcMain.handle('get-user-tokens', async (_event): Promise<{ tokensAvailable?: string[], error?: string }> => {
       try {
-        console.log('🔑 Main IPC get-user-tokens called')
-
         // Use existing provider status logic from line 1917
-        const providerStatus = await this.perProviderTokenStorage.getProviderStatus()
-
+        const providerStatus = await this.oauthService.getProviderAuthStatus()
+        console.log('providerStatus', providerStatus)
         // Check ALL stored provider tokens (both direct and server provider tokens)
         const tokensAvailable = Object.entries(providerStatus)
           .filter(([, status]) => status?.authenticated)
           .map(([providerId]) => `KEYBOARD_PROVIDER_USER_TOKEN_FOR_${providerId.toUpperCase()}`)
 
-        console.log('✅ User tokens available:', tokensAvailable.length)
         return { tokensAvailable }
       }
       catch (error) {
@@ -1882,8 +1855,6 @@ class MenuBarNotificationApp {
     // Get codespace information using GitHub PAT token
     ipcMain.handle('get-codespace-info', async (_event): Promise<{ success: boolean, data?: any, status?: number, error?: { message: string } }> => {
       try {
-        console.log('🏗️ Main IPC get-codespace-info called')
-
         // For localhost connections, return basic info
 
         // For codespace connections, use the GitHubCodespacesService

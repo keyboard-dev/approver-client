@@ -263,7 +263,7 @@ export interface ElectronAPI {
   sendAIMessage: (provider: string, messages: Array<{ role: 'user' | 'assistant' | 'system', content: string }>, config?: { model?: string }) => Promise<string>
   sendAIMessageStream: (provider: string, messages: Array<{ role: 'user' | 'assistant' | 'system', content: string }>, config?: { model?: string }) => Promise<string>
   onAIStreamChunk: (callback: (chunk: string) => void) => void
-  onAIStreamEnd: (callback: () => void) => void 
+  onAIStreamEnd: (callback: () => void) => void
   onAIStreamError: (callback: (error: string) => void) => void
   removeAIStreamListeners: () => void
   webSearch: (provider: string, query: string, company: string) => Promise<any>

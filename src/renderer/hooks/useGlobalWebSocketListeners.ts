@@ -31,8 +31,6 @@ export const useGlobalWebSocketListeners = () => {
   useEffect(() => {
     // Listen for websocket messages
     const handleWebSocketMessage = async (_event: unknown, message: Message) => {
-      console.log('handleWebSocketMessage', message)
-
       // Only handle messages if authenticated
       if (!authStatus.authenticated) {
         return
@@ -49,9 +47,10 @@ export const useGlobalWebSocketListeners = () => {
           // If we're on other routes, auto-navigate to dedicated approval page
           if (location.pathname !== '/') {
             navigate(`/messages/${message.id}`)
-          } else {
+          }
+          else {
             // On home route - emit custom event that App.tsx can listen for
-            console.log('🌐 Global: Approval message on home route, emitting chat-approval-message event')
+
             window.dispatchEvent(new CustomEvent('chat-approval-message', { detail: message }))
           }
         }
@@ -72,8 +71,6 @@ export const useGlobalWebSocketListeners = () => {
 
     // Listen for collection share requests
     const handleCollectionShareRequest = async (_event: unknown, shareMessage: ShareMessage) => {
-      console.log('handleCollectionShareRequest', shareMessage)
-
       // Only handle messages if authenticated
       if (!authStatus.authenticated) {
         return
@@ -91,8 +88,6 @@ export const useGlobalWebSocketListeners = () => {
 
     // Listen for show share message events
     const handleShowShareMessage = async (_event: unknown, shareMessage: ShareMessage) => {
-      console.log('handleShowShareMessage', shareMessage)
-
       if (!authStatus.authenticated) {
         return
       }

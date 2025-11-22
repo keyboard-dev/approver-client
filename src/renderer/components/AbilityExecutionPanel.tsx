@@ -21,7 +21,7 @@ export const AbilityExecutionPanel: React.FC<AbilityExecutionPanelProps> = ({
   onClose,
   currentStep,
   totalSteps,
-  currentAction
+  currentAction,
 }) => {
   const [isMinimized, setIsMinimized] = useState(false)
 
@@ -43,7 +43,9 @@ export const AbilityExecutionPanel: React.FC<AbilityExecutionPanelProps> = ({
               <CardTitle className="text-lg">Ability Executions</CardTitle>
               {totalExecutions > 0 && (
                 <Badge variant="outline" className="text-xs">
-                  {totalExecutions} total
+                  {totalExecutions}
+                  {' '}
+                  total
                 </Badge>
               )}
             </div>
@@ -54,11 +56,13 @@ export const AbilityExecutionPanel: React.FC<AbilityExecutionPanelProps> = ({
                 onClick={() => setIsMinimized(!isMinimized)}
                 className="p-1 h-8 w-8"
               >
-                {isMinimized ? (
-                  <ChevronUp className="w-4 h-4" />
-                ) : (
-                  <ChevronDown className="w-4 h-4" />
-                )}
+                {isMinimized
+                  ? (
+                      <ChevronUp className="w-4 h-4" />
+                    )
+                  : (
+                      <ChevronDown className="w-4 h-4" />
+                    )}
               </Button>
               <Button
                 variant="ghost"
@@ -75,11 +79,20 @@ export const AbilityExecutionPanel: React.FC<AbilityExecutionPanelProps> = ({
           {!isMinimized && (currentStep !== undefined && totalSteps !== undefined) && (
             <div className="mt-2 space-y-2">
               <div className="flex justify-between text-sm text-gray-600">
-                <span>Step {currentStep} of {totalSteps}</span>
-                <span>{Math.round((currentStep / totalSteps) * 100)}%</span>
+                <span>
+                  Step
+                  {currentStep}
+                  {' '}
+                  of
+                  {totalSteps}
+                </span>
+                <span>
+                  {Math.round((currentStep / totalSteps) * 100)}
+                  %
+                </span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
-                <div 
+                <div
                   className="bg-blue-600 h-2 rounded-full transition-all duration-300"
                   style={{ width: `${(currentStep / totalSteps) * 100}%` }}
                 />
@@ -95,17 +108,23 @@ export const AbilityExecutionPanel: React.FC<AbilityExecutionPanelProps> = ({
             <div className="flex gap-2 mt-2">
               {activeExecutions.length > 0 && (
                 <Badge className="bg-blue-100 text-blue-800 text-xs">
-                  {activeExecutions.length} executing
+                  {activeExecutions.length}
+                  {' '}
+                  executing
                 </Badge>
               )}
               {successfulExecutions > 0 && (
                 <Badge className="bg-green-100 text-green-800 text-xs">
-                  {successfulExecutions} success
+                  {successfulExecutions}
+                  {' '}
+                  success
                 </Badge>
               )}
               {failedExecutions > 0 && (
                 <Badge className="bg-red-100 text-red-800 text-xs">
-                  {failedExecutions} failed
+                  {failedExecutions}
+                  {' '}
+                  failed
                 </Badge>
               )}
             </div>
@@ -123,17 +142,17 @@ export const AbilityExecutionPanel: React.FC<AbilityExecutionPanelProps> = ({
             ) : (
               <div className="space-y-2 max-h-96 overflow-y-auto">
                 {/* Active Executions First */}
-                {activeExecutions.map((execution) => (
-                  <AbilityExecutionCard 
-                    key={execution.id} 
+                {activeExecutions.map(execution => (
+                  <AbilityExecutionCard
+                    key={execution.id}
                     execution={execution}
                   />
                 ))}
 
                 {/* Completed Executions */}
-                {completedExecutions.map((execution) => (
-                  <AbilityExecutionCard 
-                    key={execution.id} 
+                {completedExecutions.map(execution => (
+                  <AbilityExecutionCard
+                    key={execution.id}
                     execution={execution}
                   />
                 ))}

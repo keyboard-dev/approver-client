@@ -165,7 +165,6 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
     tryConnect()
   }, [mcpEnabled])
 
-
   // Auto-connect to codespace with retry functionality
   useEffect(() => {
     const tryConnect = async () => {

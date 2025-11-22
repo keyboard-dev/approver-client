@@ -26,7 +26,6 @@ export function useMessagesQuery(): UseMessagesQueryResult {
   const fetchMessages = useCallback(async () => {
     // Don't fetch if database is not initialized
     if (!isDbInitialized) {
-      console.log('⏳ Database not initialized yet, skipping fetch')
       return
     }
 
@@ -34,13 +33,11 @@ export function useMessagesQuery(): UseMessagesQueryResult {
       setIsLoading(true)
       setError(null)
 
-      console.log('📥 Fetching messages from IndexedDB...')
       const [msgs, shareMsgs] = await Promise.all([
         databaseService.getAllMessages(),
         databaseService.getAllShareMessages(),
       ])
 
-      console.log(`📥 Loaded ${msgs.length} messages and ${shareMsgs.length} share messages from IndexedDB`)
       setMessages(msgs)
       setShareMessages(shareMsgs)
     }
@@ -64,7 +61,7 @@ export function useMessagesQuery(): UseMessagesQueryResult {
 
     const handleDatabaseChange = (event: Event) => {
       const customEvent = event as CustomEvent<{ type: 'messages' | 'shareMessages' | 'both' }>
-      console.log('📡 Database change detected:', customEvent.detail.type)
+
       // Refetch when any database changes occur
       fetchMessages()
     }
