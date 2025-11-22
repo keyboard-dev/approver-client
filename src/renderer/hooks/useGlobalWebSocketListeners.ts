@@ -45,7 +45,7 @@ export const useGlobalWebSocketListeners = () => {
         if (MESSAGE_TYPES_WITH_NAVIGATION.includes(message.title)) {
           // If we're on the home route, emit a custom event for AppContent to potentially handle
           // If we're on other routes, auto-navigate to dedicated approval page
-          if (location.pathname !== '/') {
+          if (location.pathname !== '/chat') {
             navigate(`/messages/${message.id}`)
           }
           else {

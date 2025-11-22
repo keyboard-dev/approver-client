@@ -5,10 +5,7 @@ import { MemoryRouter, useNavigate } from 'react-router-dom'
 import { CollectionRequest, Message, ShareMessage } from '../types'
 import './App.css'
 import { AppRoutes } from './AppRoutes'
-import { AssistantUIChat } from './components/AssistantUIChat'
 import AuthComponent from './components/AuthComponent'
-import { Chat } from './components/Chat'
-import { CopilotKitChat } from './components/CopilotKitChat'
 import GitHubOAuthButton from './components/GitHubOAuthButton'
 import { Prompter } from './components/Prompter'
 import OnboardingView from './components/screens/onboarding/OnboardingView'
@@ -76,9 +73,7 @@ export const AppContent: React.FC = () => {
   const [isGitHubConnected, setIsGitHubConnected] = useState(false)
   const [isCheckingGitHub, setIsCheckingGitHub] = useState(true)
   const [showPrompterOnly, setShowPrompterOnly] = useState(false)
-  const [showChat, setShowChat] = useState(false)
-  const [showCopilotChat, setShowCopilotChat] = useState(false)
-  const [showAssistantChat, setShowAssistantChat] = useState(false)
+  // NOTE: Chat functionality moved to /chat route - no longer need chat state flags
 
   // Use refs to track state without causing re-renders
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -179,16 +174,9 @@ export const AppContent: React.FC = () => {
         // CRITICAL: Save to database FIRST to prevent race conditions
         await addMessage(message)
 
-        // For Security Evaluation Request and code response approval, handle based on context
+        // For Security Evaluation Request and code response approval, navigate to message detail route
         if (message.title === 'Security Evaluation Request' || message.title === 'code response approval') {
-          if (showAssistantChat) {
-            // If in chat mode, set currentMessage for inline approval
-            setCurrentMessage(message)
-          }
-          else {
-            // If not in chat mode, navigate to the message detail route
-            navigate(`/messages/${message.id}`)
-          }
+          navigate(`/messages/${message.id}`)
         }
         else {
           // For other message types, keep existing state-based behavior
@@ -199,14 +187,7 @@ export const AppContent: React.FC = () => {
         console.error('Failed to save message to database:', error)
         // Still proceed with UI update as fallback (DatabaseProvider listener may save it)
         if (message.title === 'Security Evaluation Request' || message.title === 'code response approval') {
-          if (showAssistantChat) {
-            // If in chat mode, set currentMessage for inline approval
-            setCurrentMessage(message)
-          }
-          else {
-            // If not in chat mode, navigate to the message detail route
-            navigate(`/messages/${message.id}`)
-          }
+          navigate(`/messages/${message.id}`)
         }
         else {
           setCurrentMessage(message)
@@ -214,35 +195,20 @@ export const AppContent: React.FC = () => {
       }
     }
 
-    // Listen for custom chat approval events from the global WebSocket listener
-    const handleChatApprovalMessage = (event: CustomEvent<Message>) => {
-      const message = event.detail
-      console.log('💬 App.tsx: Received chat-approval-message event', message)
-      console.log('💬 App.tsx: showAssistantChat state:', showAssistantChat)
-      console.log('💬 App.tsx: authenticated:', authStatusRef.current.authenticated)
-
-      // Check if we're currently on the home route (where chat can be active)
-      if (authStatusRef.current.authenticated) {
-        // Always set currentMessage when on home route - let the chat component decide if it should display
-        console.log('💬 App.tsx: Setting currentMessage for potential inline approval', message)
-        setCurrentMessage(message)
-      }
-      else {
-        console.log('💬 App.tsx: Not authenticated, ignoring approval message')
-      }
-    }
+    // NOTE: chat-approval-message events are now handled by ChatPage component
+    // when user is on /chat route for inline approval display
 
     // NOTE: WebSocket message listeners (websocket-message, collection-share-request, show-share-message)
     // are now handled globally in Layout via useGlobalWebSocketListeners hook.
     // This ensures they persist across route changes and don't get cleaned up when this component unmounts.
 
     window.electronAPI.onShowMessage(handleShowMessage)
-    window.addEventListener('chat-approval-message', handleChatApprovalMessage as EventListener)
+    // NOTE: chat-approval-message listener moved to ChatPage component
 
     // Cleanup listeners on unmount
     return () => {
       window.electronAPI.removeAllListeners('show-message')
-      window.removeEventListener('chat-approval-message', handleChatApprovalMessage as EventListener)
+      // NOTE: chat-approval-message cleanup handled by ChatPage component
       // NOTE: websocket-message, collection-share-request, show-share-message cleanup
       // is handled by useGlobalWebSocketListeners in Layout
 
@@ -377,9 +343,6 @@ export const AppContent: React.FC = () => {
     setCurrentMessage(null)
     setCurrentShareMessage(null)
     setShowPrompterOnly(false)
-    setShowChat(false)
-    setShowCopilotChat(false)
-    setShowAssistantChat(false)
     navigate('/') // Use React Router to navigate home
     refreshMessages() // Refresh to show updated status
   }
@@ -536,43 +499,7 @@ export const AppContent: React.FC = () => {
   }
 
   const getMessageScreen = () => {
-    // Special case: Chat modes
-    if (showAssistantChat) {
-      console.log('showAssistantChat', currentMessage)
-      return (
-        <AssistantUIChat
-          onBack={showMessageList}
-          currentApprovalMessage={
-            (currentMessage?.title === 'Security Evaluation Request'
-              || currentMessage?.title === 'code response approval')
-              ? currentMessage
-              : undefined
-          }
-          onApproveMessage={async (message) => {
-            // Set the currentMessage to match what App.tsx expects, then call approveMessage
-            setCurrentMessage(message)
-            await approveMessage()
-          }}
-          onRejectMessage={async (message) => {
-            // Set the currentMessage to match what App.tsx expects, then call rejectMessage
-            setCurrentMessage(message)
-            await rejectMessage()
-          }}
-          onClearApprovalMessage={() => {
-            // Clear the current approval message after action is complete
-            setCurrentMessage(null)
-          }}
-        />
-      )
-    }
-
-    if (showCopilotChat) {
-      return <CopilotKitChat onBack={showMessageList} />
-    }
-
-    if (showChat) {
-      return <Chat onBack={showMessageList} />
-    }
+    // NOTE: Chat modes moved to /chat route
 
     // Special case: Prompter-only mode (opened from button, not a message)
     if (showPrompterOnly) {
@@ -646,7 +573,7 @@ export const AppContent: React.FC = () => {
                 <div className="flex items-center space-x-3">
                   <Button
                     variant="outline"
-                    onClick={() => setShowAssistantChat(true)}
+                    onClick={() => navigate('/chat')}
                     className="flex items-center space-x-2"
                   >
                     <span>Chat</span>
