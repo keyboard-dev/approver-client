@@ -13,7 +13,7 @@ import { OAuthProviderConfig } from './provider-storage'
 import { createRestAPIServer } from './rest-api'
 import { AuthService } from './services/auth-service'
 import { OAuthService } from './services/oauth-service'
-import { SSEBackgroundService } from './services/SSEBackgroundService'
+import { CodespaceData, SSEBackgroundService } from './services/SSEBackgroundService'
 import { TrayManager } from './tray-manager'
 import { CollectionRequest, Message, ShareMessage } from './types'
 import { CODE_APPROVAL_ORDER, CodeApprovalLevel, RESPONSE_APPROVAL_ORDER, ResponseApprovalLevel } from './types/settings-types'
@@ -327,7 +327,11 @@ class MenuBarNotificationApp {
         this.windowManager,
         this.showNotification.bind(this),
         () => this.sseBackgroundService,
-        (service: SSEBackgroundService) => { this.sseBackgroundService = service },
+        (service: SSEBackgroundService) => {
+          this.sseBackgroundService = service
+          // Set up event handlers when SSE service is created
+          this.setupSSEEventHandlers()
+        },
         this.OAUTH_SERVER_URL,
         this.CUSTOM_PROTOCOL,
         this.KEYBOARD_AUTH_TOKENS,
@@ -352,6 +356,10 @@ class MenuBarNotificationApp {
 
       // Initialize the OAuth provider system (this will trigger provider token refresh)
       await this.oauthService.initializeOAuthProviderSystem()
+
+      // Set up SSE event handlers if service exists
+      // (service may be created during token loading/refresh)
+      this.setupSSEEventHandlers()
     }
     catch (error) {
       console.error('❌ Failed to initialize OAuth services:', error)
@@ -378,6 +386,30 @@ class MenuBarNotificationApp {
     catch (error) {
       console.error('❌ Error connecting to executor:', error)
     }
+  }
+
+  /**
+   * Setup SSE Background Service event handlers
+   * Called after SSE service is initialized by AuthService
+   */
+  private setupSSEEventHandlers(): void {
+    const sseService = this.sseBackgroundService
+    if (!sseService) {
+      return
+    }
+
+    // Handle SSE connection confirmation
+    sseService.on('connected', () => {
+      console.log('Connected to SSE')
+    })
+
+    // Handle codespace coming online - auto-connect to it
+    sseService.on('codespace-online', async (data: CodespaceData) => {
+      console.log('Codespace online:', data)
+      await this.authService.getValidAccessToken()
+      await this.connectToExecutorWithToken()
+      await this.executorWSClient?.autoConnect()
+    })
   }
 
   /**
