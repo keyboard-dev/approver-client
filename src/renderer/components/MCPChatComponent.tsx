@@ -9,7 +9,7 @@ interface MCPChatComponentProps {
 }
 
 export const MCPChatComponent: React.FC<MCPChatComponentProps> = ({
-  serverUrl = 'https://growing-goose-conversely.ngrok-free.appboard.dev',
+  serverUrl = 'https://mcp.keyboard.dev',
   clientName = 'keyboard-approver-mcp',
 }) => {
   const [messages, setMessages] = useState<Array<{ id: string, content: string, sender: 'user' | 'mcp' }>>([])

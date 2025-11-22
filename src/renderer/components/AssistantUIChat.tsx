@@ -1,6 +1,6 @@
 import { AssistantRuntimeProvider, useLocalRuntime } from '@assistant-ui/react'
 import React, { useEffect, useState } from 'react'
-import { Message, Script } from '../../types'
+import { Message } from '../../types'
 import { useAuth } from '../hooks/useAuth'
 import { useMCPEnhancedChat } from '../hooks/useMCPEnhancedChat'
 import { useWebSocketConnection } from '../hooks/useWebSocketConnection'
@@ -12,10 +12,10 @@ import { Badge } from './ui/badge'
 import { Button } from './ui/button'
 import { Card, CardContent, CardHeader } from './ui/card'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
 } from './ui/dropdown-menu'
 import { TooltipProvider } from './ui/tooltip'
 
@@ -326,7 +326,7 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
               {selectedProvider === 'mcp'
                 ? (
                     <MCPChatComponent
-                      serverUrl="https://growing-goose-conversely.ngrok-free.appboard.dev"
+                      serverUrl="https://mcp.keyboard.dev"
                       clientName="keyboard-approver-mcp"
                     />
                   )
