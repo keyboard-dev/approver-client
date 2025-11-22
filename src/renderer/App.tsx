@@ -61,11 +61,10 @@ export const AppContent: React.FC = () => {
   } = useAuth()
 
   // Database hook for initialization and mutations
-  const { isInitialized: isDbInitialized, deleteMessages, updateShareMessage, addMessage } = useDatabase()
+  const { isInitialized: isDbInitialized, deleteMessages, updateShareMessage, updateMessage, addMessage } = useDatabase()
 
   // Fetch messages directly from database (no in-memory cache)
   const { messages, shareMessages, refetch: refetchMessages } = useMessagesQuery()
-
   // Message and app state (moved back from auth hook)
   const [currentMessage, setCurrentMessage] = useState<Message | null>(null)
   const [currentShareMessage, setCurrentShareMessage] = useState<ShareMessage | null>(null)
@@ -74,6 +73,7 @@ export const AppContent: React.FC = () => {
   const [isGitHubConnected, setIsGitHubConnected] = useState(false)
   const [isCheckingGitHub, setIsCheckingGitHub] = useState(true)
   const [showPrompterOnly, setShowPrompterOnly] = useState(false)
+  // NOTE: Chat functionality moved to /chat route - no longer need chat state flags
 
   // Use refs to track state without causing re-renders
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -174,9 +174,8 @@ export const AppContent: React.FC = () => {
         // CRITICAL: Save to database FIRST to prevent race conditions
         await addMessage(message)
 
-        // For Security Evaluation Request and code response approval, use routing instead of state
+        // For Security Evaluation Request and code response approval, navigate to message detail route
         if (message.title === 'Security Evaluation Request' || message.title === 'code response approval') {
-          // Navigate to the message detail route
           navigate(`/messages/${message.id}`)
         }
         else {
@@ -196,15 +195,20 @@ export const AppContent: React.FC = () => {
       }
     }
 
+    // NOTE: chat-approval-message events are now handled by ChatPage component
+    // when user is on /chat route for inline approval display
+
     // NOTE: WebSocket message listeners (websocket-message, collection-share-request, show-share-message)
     // are now handled globally in Layout via useGlobalWebSocketListeners hook.
     // This ensures they persist across route changes and don't get cleaned up when this component unmounts.
 
     window.electronAPI.onShowMessage(handleShowMessage)
+    // NOTE: chat-approval-message listener moved to ChatPage component
 
     // Cleanup listeners on unmount
     return () => {
       window.electronAPI.removeAllListeners('show-message')
+      // NOTE: chat-approval-message cleanup handled by ChatPage component
       // NOTE: websocket-message, collection-share-request, show-share-message cleanup
       // is handled by useGlobalWebSocketListeners in Layout
 
@@ -269,6 +273,68 @@ export const AppContent: React.FC = () => {
     }
     catch (error) {
       console.error('Error rejecting collection share:', error)
+    }
+  }
+
+  // Approve message (for inline chat approvals)
+  const approveMessage = async () => {
+    if (!currentMessage || !authStatusRef.current.authenticated) return
+
+    try {
+      // 1. Update database
+      await updateMessage(currentMessage.id, {
+        status: 'approved',
+      })
+
+      // 2. Fetch the updated message from database to get latest state
+      const databaseService = await import('./services/database-service')
+      const updatedMessage = await databaseService.databaseService.getMessage(currentMessage.id)
+      if (!updatedMessage) {
+        throw new Error('Failed to fetch updated message')
+      }
+
+      // 3. Notify main process to forward response to WebSocket
+      await window.electronAPI.sendMessageResponse(updatedMessage)
+
+      // 4. Clear the current message from chat interface
+      setCurrentMessage(null)
+
+      // 5. Refresh messages to show updated status
+      refreshMessages()
+    }
+    catch (error) {
+      console.error('Error approving message:', error)
+    }
+  }
+
+  // Reject message (for inline chat approvals)
+  const rejectMessage = async () => {
+    if (!currentMessage || !authStatusRef.current.authenticated) return
+
+    try {
+      // 1. Update database
+      await updateMessage(currentMessage.id, {
+        status: 'rejected',
+      })
+
+      // 2. Fetch the updated message from database to get latest state
+      const databaseService = await import('./services/database-service')
+      const updatedMessage = await databaseService.databaseService.getMessage(currentMessage.id)
+      if (!updatedMessage) {
+        throw new Error('Failed to fetch updated message')
+      }
+
+      // 3. Notify main process to forward response to WebSocket
+      await window.electronAPI.sendMessageResponse(updatedMessage)
+
+      // 4. Clear the current message from chat interface
+      setCurrentMessage(null)
+
+      // 5. Refresh messages to show updated status
+      refreshMessages()
+    }
+    catch (error) {
+      console.error('Error rejecting message:', error)
     }
   }
 
@@ -433,6 +499,8 @@ export const AppContent: React.FC = () => {
   }
 
   const getMessageScreen = () => {
+    // NOTE: Chat modes moved to /chat route
+
     // Special case: Prompter-only mode (opened from button, not a message)
     if (showPrompterOnly) {
       return (
@@ -503,6 +571,13 @@ export const AppContent: React.FC = () => {
                   Message Approvals
                 </h1>
                 <div className="flex items-center space-x-3">
+                  <Button
+                    variant="outline"
+                    onClick={() => navigate('/chat')}
+                    className="flex items-center space-x-2"
+                  >
+                    <span>Chat</span>
+                  </Button>
                   <Button
                     variant="outline"
                     onClick={openPrompterOnly}

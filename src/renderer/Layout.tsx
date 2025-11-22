@@ -23,7 +23,7 @@ import { useWebSocketDialog } from './hooks/useWebSocketDialog'
  */
 export const Layout: React.FC = () => {
   const navigate = useNavigate()
-  const { showDialog: showWebSocketDialog, closeDialog: closeWebSocketDialog } = useWebSocketDialog()
+  const { showDialog: showWebSocketDialog, openDialog: openWebSocketDialog, closeDialog: closeWebSocketDialog } = useWebSocketDialog()
 
   // Register global WebSocket message listeners (persists across route changes)
   useGlobalWebSocketListeners()
@@ -36,7 +36,7 @@ export const Layout: React.FC = () => {
         <div
           className="flex-1"
         />
-        <StatusDisplay />
+        <StatusDisplay onClick={openWebSocketDialog} />
         <div
           className="flex-1 flex gap-[0.31rem] justify-end"
         >

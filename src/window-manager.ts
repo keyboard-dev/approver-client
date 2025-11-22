@@ -52,7 +52,7 @@ export class WindowManager {
       console.error('⚠️  Session is NOT persistent!')
     }
     else {
-      console.log('✓ Session is persistent')
+
     }
 
     this.mainWindow.loadFile(path.join(__dirname, '../public/index.html'))

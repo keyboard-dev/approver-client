@@ -88,11 +88,8 @@ export class OAuthService {
         .map(([providerId]) => providerId)
 
       if (expiredProviders.length === 0) {
-        console.log('✅ No expired OAuth providers to refresh on startup')
         return
       }
-
-      console.log(`🔄 Refreshing ${expiredProviders.length} expired OAuth provider(s) on startup:`, expiredProviders)
 
       let successCount = 0
       let failedCount = 0
@@ -102,9 +99,8 @@ export class OAuthService {
       for (const providerId of expiredProviders) {
         try {
           const tokens = await this.perProviderTokenStorage.getTokens(providerId)
-          console.log('🔄 Refreshing tokens for', providerId, tokens)
+
           if (!tokens?.refresh_token) {
-            console.log(`⚠️ Skipping ${providerId}: no refresh token available`)
             failedCount++
             continue
           }
@@ -113,17 +109,14 @@ export class OAuthService {
           const refreshedTokens = await this.refreshProviderTokens(providerId, tokens.refresh_token)
           await this.perProviderTokenStorage.storeTokens(refreshedTokens)
 
-          console.log(`✅ Successfully refreshed ${providerId} on startup`)
           successCount++
         }
         catch (error) {
           // Silently fail - user can manually refresh from the UI if needed
-          console.log(`⚠️ Failed to refresh ${providerId} on startup (will require manual refresh):`, error instanceof Error ? error.message : 'Unknown error')
+
           failedCount++
         }
       }
-
-      console.log(`🔄 Startup OAuth refresh complete: ${successCount} succeeded, ${failedCount} failed`)
     }
     catch (error) {
       // Don't throw - we don't want startup refresh failures to break app initialization
@@ -632,7 +625,13 @@ export class OAuthService {
   /**
    * Get provider auth status
    */
-  async getProviderAuthStatus(): Promise<Record<string, unknown>> {
+  async getProviderAuthStatus(): Promise<Record<string, {
+    authenticated: boolean
+    expired: boolean
+    user?: unknown
+    storedAt?: number
+    updatedAt?: number
+  }>> {
     return await this.perProviderTokenStorage.getProviderStatus()
   }
 
@@ -836,9 +835,8 @@ export class OAuthService {
    * This is a developer utility for testing
    */
   async expireAllTokensForTesting(): Promise<number> {
-    console.log('🧪 Expiring all OAuth tokens for testing...')
     const count = await this.perProviderTokenStorage.expireAllTokensForTesting()
-    console.log(`🧪 Expired ${count} OAuth provider token(s)`)
+
     return count
   }
 }

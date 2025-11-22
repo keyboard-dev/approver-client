@@ -1,4 +1,4 @@
-import { Download, Copy } from 'lucide-react'
+import { Copy, Download } from 'lucide-react'
 import React, { useState } from 'react'
 import { Footer } from '../../Footer'
 import { ButtonDesigned } from '../../ui/ButtonDesigned'

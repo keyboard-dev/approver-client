@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { Message, ShareMessage } from '../../types'
 import { useDatabase } from '../providers/DatabaseProvider'
 import { useAuth } from './useAuth'
@@ -12,15 +12,16 @@ import { useAuth } from './useAuth'
  *
  * Responsibilities:
  * - Register listeners for websocket-message and collection-share-request events
- * - Handle navigation for Security Evaluation Request messages
+ * - Handle context-aware navigation for Security Evaluation Request messages
  * - Coordinate with DatabaseProvider for message persistence
  * - Clean up listeners on unmount (without affecting other components' listeners)
  *
- * NOTE: This hook does NOT manage UI state (currentMessage, currentShareMessage).
- * Route-specific components should handle their own UI state based on route params or database queries.
+ * NOTE: This hook is route-aware and won't auto-navigate approval messages when on the home route (/)
+ * to allow for inline chat approvals. Route-specific components handle their own UI state.
  */
 export const useGlobalWebSocketListeners = () => {
   const navigate = useNavigate()
+  const location = useLocation()
   const { authStatus } = useAuth()
   const { addMessage, addShareMessage } = useDatabase()
 
@@ -30,8 +31,6 @@ export const useGlobalWebSocketListeners = () => {
   useEffect(() => {
     // Listen for websocket messages
     const handleWebSocketMessage = async (_event: unknown, message: Message) => {
-      console.log('handleWebSocketMessage', message)
-
       // Only handle messages if authenticated
       if (!authStatus.authenticated) {
         return
@@ -42,8 +41,18 @@ export const useGlobalWebSocketListeners = () => {
         await addMessage(message)
 
         // For Security Evaluation Request and code response approval, navigate to detail view
+        // BUT only if we're not on the home route (/) where chat mode might be active
         if (MESSAGE_TYPES_WITH_NAVIGATION.includes(message.title)) {
-          navigate(`/messages/${message.id}`)
+          // If we're on the home route, emit a custom event for AppContent to potentially handle
+          // If we're on other routes, auto-navigate to dedicated approval page
+          if (location.pathname !== '/chat') {
+            navigate(`/messages/${message.id}`)
+          }
+          else {
+            // On home route - emit custom event that App.tsx can listen for
+
+            window.dispatchEvent(new CustomEvent('chat-approval-message', { detail: message }))
+          }
         }
         // For other message types, don't navigate - let the current route handle the message
         // The message is already saved to DB, and route-specific components can query it
@@ -51,16 +60,17 @@ export const useGlobalWebSocketListeners = () => {
       catch (error) {
         console.error('Failed to save message to database:', error)
         // Still attempt navigation for Security Evaluation Request and code response approval as fallback
+        // BUT only if we're not on the home route where chat mode might be active
         if (MESSAGE_TYPES_WITH_NAVIGATION.includes(message.title)) {
-          navigate(`/messages/${message.id}`)
+          if (location.pathname !== '/') {
+            navigate(`/messages/${message.id}`)
+          }
         }
       }
     }
 
     // Listen for collection share requests
     const handleCollectionShareRequest = async (_event: unknown, shareMessage: ShareMessage) => {
-      console.log('handleCollectionShareRequest', shareMessage)
-
       // Only handle messages if authenticated
       if (!authStatus.authenticated) {
         return
@@ -78,8 +88,6 @@ export const useGlobalWebSocketListeners = () => {
 
     // Listen for show share message events
     const handleShowShareMessage = async (_event: unknown, shareMessage: ShareMessage) => {
-      console.log('handleShowShareMessage', shareMessage)
-
       if (!authStatus.authenticated) {
         return
       }
@@ -107,5 +115,5 @@ export const useGlobalWebSocketListeners = () => {
       window.electronAPI.removeAllListeners('collection-share-request')
       window.electronAPI.removeAllListeners('show-share-message')
     }
-  }, [authStatus.authenticated, navigate, addMessage, addShareMessage])
+  }, [authStatus.authenticated, navigate, location.pathname, addMessage, addShareMessage])
 }

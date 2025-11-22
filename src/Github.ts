@@ -172,6 +172,25 @@ export class GithubService {
   }
 
   // Repository Operations
+  async fetchResources(url: string) {
+    this.ensureAuthenticated()
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.token}`,
+        'x-github-token': this.token || '',
+      },
+      body: JSON.stringify({}),
+      signal: AbortSignal.timeout(10000), // 10 second timeout
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
 
   async createFork(owner: string, repo: string): Promise<GitHubRepository> {
     try {

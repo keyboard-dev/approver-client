@@ -83,7 +83,6 @@ export class SSEBackgroundService extends EventEmitter {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
 
-      console.log('🔗 SSE connection opened')
       this.isConnected = true
       this.reconnectAttempts = 0
       this.startHeartbeat()
@@ -94,7 +93,6 @@ export class SSEBackgroundService extends EventEmitter {
     }
     catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
-        console.log('🔌 SSE connection aborted')
         return
       }
 
@@ -150,7 +148,7 @@ export class SSEBackgroundService extends EventEmitter {
   private handleMessage(data: SSEMessage): void {
     switch (data.type) {
       case 'connected':
-        console.log('✅ SSE connection confirmed')
+
         this.emit('sse-connected', data)
         break
 
@@ -173,13 +171,11 @@ export class SSEBackgroundService extends EventEmitter {
         break
 
       default:
-        console.log('❓ Unknown SSE message type:', data.type)
     }
   }
 
   private attemptReconnect(): void {
     if (!this.authToken) {
-      console.log('⏸️ Skipping SSE reconnect: No auth token')
       return
     }
 
@@ -194,8 +190,6 @@ export class SSEBackgroundService extends EventEmitter {
         this.options.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1),
         30000,
       )
-
-      console.log(`🔄 SSE reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.options.maxReconnectAttempts})`)
 
       this.reconnectTimeout = setTimeout(() => {
         this.reconnectTimeout = null
@@ -240,7 +234,6 @@ export class SSEBackgroundService extends EventEmitter {
     this.isConnected = false
     this.reconnectAttempts = 0
     this.emit('disconnected')
-    console.log('🔌 SSE disconnected')
   }
 
   getConnectionStatus(): { connected: boolean, reconnectAttempts: number } {
