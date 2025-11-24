@@ -23,6 +23,8 @@
     "check-build": "tail -f build.log",
     "build-win": "npm run build && electron-builder --win",
     "build-win-forge": "npm run build && npm run copy-assets && electron-forge make --platform=win32",
+    "build-win-universal": "npm run build && electron-forge make --platform=win32 --arch=x64,ia32,arm64",
+    "build-dev-win": "SKIP_SIGNING=true npm run build && electron-forge package --platform=win32 --arch=x64,ia32,arm64",
     "build-linux": "npm run build && electron-builder --linux",
     "check-certificates": "node scripts/check-certificates.js",
     "test-client": "node test-client.js",

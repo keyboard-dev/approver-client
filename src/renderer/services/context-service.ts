@@ -1,20 +1,6 @@
-import { Script } from '../../types'
+import { CodespaceInfo, Script } from '../../types'
 import { generatePlanningToken, toolsToAbilities } from './ability-tools'
 import type { MCPAbilityFunction } from './mcp-tool-integration'
-
-export interface CodespaceInfo {
-  success: boolean
-  data?: {
-    keyName?: string
-    resources?: unknown[]
-    services?: string[]
-    environment?: Record<string, string>
-  }
-  status?: number
-  error?: {
-    message: string
-  }
-}
 
 export interface UserTokensResponse {
   tokensAvailable?: string[]
@@ -168,7 +154,7 @@ Here are actual user token environment variables that you can leverage in your c
 AVAILABLE USER TOKENS:
 ${userTokensList}
 
-Here is information about the actual code execution environment.  This is where you will execute your code.  Additionally there will be a list of other environment variables that you can leverage in your code. 
+Here is information about the actual code execution environment.  This is where you will execute your code.  Additionally there will be a list of other environment variables that you can leverage in your code.
 
 CODESPACE INFORMATION:
 ${codespaceDetails}${selectedScriptsSection}
@@ -191,7 +177,7 @@ INSTRUCTIONS:
 - Research APIs and documentation before implementing solutions
 - Be proactive in suggesting relevant abilities for the user's task
 - Always provide clear explanations of what you're doing and why
-- Try to break down tasks into different instances of the run-code abilities to make it easier to understand and execute for example 
+- Try to break down tasks into different instances of the run-code abilities to make it easier to understand and execute for example
 if you need fetch data from one service and then call another service, you can break it down into two run-code abilities.
 - If no abilities are required and it is more conversational feel free to respond conversationally without ability use
 

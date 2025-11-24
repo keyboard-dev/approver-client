@@ -4,11 +4,6 @@
 const CUSTOM_PROTOCOL = 'mcpauth'
 let earlyProtocolUrl: string | null = null
 
-// Log original argv for debugging
-console.log('=== EARLY PROTOCOL URL FILTER ===')
-console.log('Original process.argv:', process.argv)
-console.log('Platform:', process.platform)
-
 // Find and extract protocol URL from argv
 const protocolUrlIndex = process.argv.findIndex(arg =>
   arg.startsWith(`${CUSTOM_PROTOCOL}://`)
@@ -17,17 +12,14 @@ const protocolUrlIndex = process.argv.findIndex(arg =>
 
 if (protocolUrlIndex !== -1) {
   const foundArg = process.argv[protocolUrlIndex]
-  console.log(`Found protocol URL at index ${protocolUrlIndex}:`, foundArg)
 
   // Extract the URL (it might be just the URL or have other text)
   const urlMatch = foundArg.match(new RegExp(`${CUSTOM_PROTOCOL}://[^\\s]*`))
   if (urlMatch) {
     earlyProtocolUrl = urlMatch[0]
-    console.log('Extracted protocol URL:', earlyProtocolUrl)
 
     // Remove the protocol URL from argv to prevent Electron from processing it
     process.argv.splice(protocolUrlIndex, 1)
-    console.log('Modified process.argv:', process.argv)
   }
 }
 else {
@@ -36,15 +28,12 @@ else {
   // 2. Just query params: ["?code=X&state=Y"]
   // 3. URL-encoded variations
 
-  console.log('Protocol URL not found directly, checking for fragments...')
-
   // Join all arguments and look for the protocol URL
   const joinedArgs = process.argv.join(' ')
   const protocolMatch = joinedArgs.match(new RegExp(`${CUSTOM_PROTOCOL}://[^\\s]*`))
 
   if (protocolMatch) {
     earlyProtocolUrl = protocolMatch[0]
-    console.log('Found protocol URL in joined args:', earlyProtocolUrl)
 
     // Remove arguments that contain parts of the protocol URL
     process.argv = process.argv.filter(arg =>
@@ -54,7 +43,6 @@ else {
       && !arg.includes('code=')
       && !arg.includes('state='),
     )
-    console.log('Filtered process.argv:', process.argv)
   }
   else {
     // Check for bare query parameters (Windows may pass just "?code=...&state=...")
@@ -64,15 +52,12 @@ else {
 
     if (queryParamIndex !== -1) {
       const queryArg = process.argv[queryParamIndex]
-      console.log(`Found bare query parameters at index ${queryParamIndex}:`, queryArg)
 
       // Reconstruct the full protocol URL
       earlyProtocolUrl = `${CUSTOM_PROTOCOL}://callback${queryArg}`
-      console.log('Reconstructed protocol URL:', earlyProtocolUrl)
 
       // Remove the query parameter argument
       process.argv.splice(queryParamIndex, 1)
-      console.log('Modified process.argv:', process.argv)
     }
     else {
       // Check if query params are split across multiple arguments
@@ -80,8 +65,6 @@ else {
       const stateArg = process.argv.find(arg => arg.includes('state='))
 
       if (codeArg || stateArg) {
-        console.log('Found query param fragments:', { codeArg, stateArg })
-
         // Reconstruct query string from fragments
         const fragments = process.argv.filter(arg =>
           arg.includes('code=') || arg.includes('state=') || arg.startsWith('?') || arg.startsWith('&'),
@@ -95,7 +78,6 @@ else {
         }
 
         earlyProtocolUrl = `${CUSTOM_PROTOCOL}://callback${queryString}`
-        console.log('Reconstructed protocol URL from fragments:', earlyProtocolUrl)
 
         // Remove all query-related arguments
         process.argv = process.argv.filter(arg =>
@@ -104,20 +86,10 @@ else {
           && !arg.startsWith('?')
           && !arg.startsWith('&'),
         )
-        console.log('Filtered process.argv:', process.argv)
       }
     }
   }
 }
-
-if (earlyProtocolUrl) {
-  console.log('✓ Successfully captured protocol URL:', earlyProtocolUrl)
-}
-else {
-  console.log('No protocol URL found in arguments')
-}
-
-console.log('=== END EARLY FILTER ===')
 
 import * as crypto from 'crypto'
 import { app, autoUpdater, BrowserWindow, ipcMain, Menu, Notification, shell } from 'electron'
@@ -141,7 +113,7 @@ import { AuthService } from './services/auth-service'
 import { OAuthService } from './services/oauth-service'
 import { CodespaceData, SSEBackgroundService } from './services/SSEBackgroundService'
 import { TrayManager } from './tray-manager'
-import { CollectionRequest, Message, ShareMessage } from './types'
+import { CodespaceInfo, CollectionRequest, Message, ShareMessage } from './types'
 import { CODE_APPROVAL_ORDER, CodeApprovalLevel, RESPONSE_APPROVAL_ORDER, ResponseApprovalLevel } from './types/settings-types'
 import { ExecutorWebSocketClient } from './websocket-client-to-executor'
 import { WindowManager } from './window-manager'
@@ -315,16 +287,10 @@ class MenuBarNotificationApp {
     // Store startup protocol URL for processing after OAuth services are ready
     // Prefer early-captured URL (filtered before Electron processed argv)
     this.startupProtocolUrl = earlyProtocolUrl || initResult.startupProtocolUrl
-    if (this.startupProtocolUrl) {
-      console.log('Startup protocol URL captured:', this.startupProtocolUrl)
-    }
 
     // App ready event
     app.whenReady().then(async () => {
-      console.log('=== APP READY - STARTING INITIALIZATION ===')
-
       // Set application icon for notifications (especially important for macOS)
-      console.log('1. Setting up assets...')
       const assetsPath = getAssetsPath()
       const iconPath = path.join(assetsPath, 'keyboard-dock.png')
 
@@ -339,107 +305,61 @@ class MenuBarNotificationApp {
       }
 
       // Initialize WebSocket security key first
-      console.log('2. Initializing storage dir...')
       await this.initializeStorageDir()
-      console.log('3. Initializing WebSocket key...')
       await this.initializeWebSocketKey()
 
       // Initialize encryption key
-      console.log('4. Initializing encryption key...')
       await this.initializeEncryptionKey()
 
       // Initialize app settings
-      console.log('5. Initializing settings...')
       await this.initializeSettings()
 
       // Initialize version timestamp tracking
-      console.log('6. Getting version timestamp...')
       await this.getVersionInstallTimestamp()
 
       // Initialize GitHub service
-      console.log('7. Initializing GitHub service...')
       await this.initializeGithubService()
 
       // Initialize OAuth services (after encryption is ready)
       // This creates both authService and oauthService instances
-      console.log('8. Initializing OAuth services...')
       await this.initializeOAuthServices()
-      console.log('✓ OAuth services initialized, authService ready')
 
       // Process startup protocol URL if one was passed (Windows OAuth callback handling)
       if (this.startupProtocolUrl) {
-        console.log('=== PROCESSING STARTUP PROTOCOL URL ===')
-        console.log('URL:', this.startupProtocolUrl)
-        console.log('URL length:', this.startupProtocolUrl.length)
-        console.log('Platform:', process.platform)
-        console.log('Packaged:', app.isPackaged)
-        console.log('Contains code param:', this.startupProtocolUrl.includes('code='))
-        console.log('Contains state param:', this.startupProtocolUrl.includes('state='))
-
         try {
-          console.log('Calling authService.handleOAuthCallback...')
           await this.authService.handleOAuthCallback(this.startupProtocolUrl)
-          console.log('✓ Successfully processed startup protocol URL')
-          console.log('✓ OAuth callback completed - user should be authenticated')
         }
         catch (error) {
-          console.error('❌ Error processing startup protocol URL:', error)
-          console.error('Error type:', error instanceof Error ? error.constructor.name : typeof error)
-          console.error('Error message:', error instanceof Error ? error.message : String(error))
-          if (error instanceof Error && error.stack) {
-            console.error('Stack trace:', error.stack)
-          }
+          console.error('Error processing startup protocol URL:', error)
         }
         finally {
           this.startupProtocolUrl = null // Clear after processing
         }
-        console.log('=== END PROCESSING ===')
-      }
-      else {
-        console.log('No startup protocol URL to process (normal app startup)')
       }
 
       // Process any queued protocol URLs that arrived before auth service was ready
       // This is critical on Windows where second-instance events can fire during initialization
-      console.log('9. Checking for queued protocol URLs...')
       const queuedUrls = getQueuedProtocolUrls()
-      console.log(`Found ${queuedUrls.length} queued URL(s)`)
 
       if (queuedUrls.length > 0) {
-        console.log('=== PROCESSING QUEUED PROTOCOL URLS ===')
-
         for (const queuedUrl of queuedUrls) {
-          console.log('Processing queued URL:', queuedUrl)
           try {
             await this.authService.handleOAuthCallback(queuedUrl)
-            console.log('✓ Successfully processed queued URL')
           }
           catch (error) {
-            console.error('❌ Error processing queued URL:', error)
-            console.error('Error type:', error instanceof Error ? error.constructor.name : typeof error)
-            console.error('Error message:', error instanceof Error ? error.message : String(error))
-            if (error instanceof Error && error.stack) {
-              console.error('Stack trace:', error.stack)
-            }
+            console.error('Error processing queued URL:', error)
           }
         }
-        console.log('=== END PROCESSING QUEUED URLS ===')
-      }
-      else {
-        console.log('No queued URLs to process')
       }
 
       // Setup IPC handlers early so renderer can communicate with main process
-      console.log('10. Setting up IPC handlers...')
       this.setupIPC()
 
       // Try to connect to executor with onboarding token
-      console.log('11. Connecting to executor...')
       await this.connectToExecutorWithToken()
 
       // Configure auto-updater (only on macOS and Windows)
       // Skip in development mode to avoid Squirrel errors on Windows
-      console.log('12. Configuring auto-updater...')
       const isDev = process.argv.includes('--dev') || !app.isPackaged
       if ((process.platform === 'darwin' || process.platform === 'win32') && !isDev) {
         const feedURL = `https://api.keyboard.dev/update/${process.platform}/${app.getVersion()}`
@@ -479,39 +399,23 @@ class MenuBarNotificationApp {
         // Check for updates
         autoUpdater.checkForUpdates()
       }
-      else {
-        console.log('Skipping auto-updater (dev mode or unsupported platform)')
-      }
 
-      console.log('13. Creating tray...')
       this.trayManager.createTray()
-      console.log('14. Setting up application menu...')
       this.setupApplicationMenu()
-      console.log('15. Setting up WebSocket server...')
       this.setupWebSocketServer()
-      console.log('16. Setting up REST API...')
       this.setupRestAPI()
       this.initializeAIProviders()
       this.setupIPC()
 
       // Request notification permissions on all platforms
-      console.log('17. Requesting notification permissions...')
       await this.requestNotificationPermissions()
 
       app.on('activate', () => {
         // On macOS, show window when app is activated
         this.windowManager.showWindow()
       })
-
-      console.log('=== INITIALIZATION COMPLETE ===')
     }).catch((error) => {
-      console.error('=== FATAL ERROR DURING INITIALIZATION ===')
-      console.error('Error:', error)
-      console.error('Error type:', error instanceof Error ? error.constructor.name : typeof error)
-      console.error('Error message:', error instanceof Error ? error.message : String(error))
-      if (error instanceof Error && error.stack) {
-        console.error('Stack trace:', error.stack)
-      }
+      console.error('Fatal error during initialization:', error)
       // Still try to show the window so user isn't left with nothing
       try {
         this.windowManager.showWindow()
@@ -2071,7 +1975,7 @@ class MenuBarNotificationApp {
     })
 
     // Get user tokens from current WebSocket session
-    ipcMain.handle('get-user-tokens', async (_event): Promise<{ tokensAvailable?: string[], error?: string }> => {
+    ipcMain.handle('get-user-tokens', async (): Promise<{ tokensAvailable?: string[], error?: string }> => {
       try {
         // Use existing provider status logic from line 1917
         const providerStatus = await this.oauthService.getProviderAuthStatus()
@@ -2090,7 +1994,7 @@ class MenuBarNotificationApp {
     })
 
     // Get codespace information using GitHub PAT token
-    ipcMain.handle('get-codespace-info', async (_event): Promise<{ success: boolean, data?: any, status?: number, error?: { message: string } }> => {
+    ipcMain.handle('get-codespace-info', async (): Promise<CodespaceInfo> => {
       try {
         // For localhost connections, return basic info
 
