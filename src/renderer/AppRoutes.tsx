@@ -1,5 +1,6 @@
 import { Route, Routes } from 'react-router-dom'
 import { AppContent } from './App'
+import { ChatPage } from './components/screens/ChatPage'
 import { MessageDetailScreen } from './components/screens/MessageDetailScreen'
 import { SettingsScreen } from './components/screens/settings/SettingsScreen'
 import { Layout } from './Layout'
@@ -17,6 +18,8 @@ import { Layout } from './Layout'
  * Current routes:
  * - / : Main view (message list or current message)
  * - /messages/:messageId : Message detail view (Security Evaluation Request)
+ * - /chat : Chat interface
+ * - /chat/:messageId : Chat interface with approval message context
  * - /settings : Settings with default tab
  * - /settings/:tab : Settings with specific tab (WebSocket, Security, Notifications, Connectors, Advanced)
  *
@@ -28,6 +31,8 @@ export const AppRoutes = () => {
       <Route element={<Layout />}>
         <Route path="/" element={<AppContent />} />
         <Route path="/messages/:messageId" element={<MessageDetailScreen />} />
+        <Route path="/chat" element={<ChatPage />} />
+        <Route path="/chat/:messageId" element={<ChatPage />} />
         <Route path="/settings" element={<SettingsScreen />} />
         <Route path="/settings/:tab" element={<SettingsScreen />} />
       </Route>

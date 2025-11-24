@@ -1,67 +1,152 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { GroupedProviderStatus, useOAuthProviders } from '../hooks/useOAuthProviders'
+import { Wifi, WifiOff, RefreshCw } from 'lucide-react'
+import { useAuth } from '../hooks/useAuth'
+import { ConnectionStatus, useWebSocketConnection } from '../hooks/useWebSocketConnection'
 
-/*
- * REACT ROUTER MIGRATION NOTE:
- *
- * This component uses React Router's useNavigate() to navigate to the Settings > Connectors page
- * when users click on expired connector warnings.
- */
+interface ConnectionTarget {
+  type: 'localhost' | 'codespace'
+  url: string
+  name?: string
+  codespaceName?: string
+}
 
-const StatusDisplay = () => {
-  const navigate = useNavigate()
-  const { getGroupedProviders } = useOAuthProviders()
+interface StatusDisplayProps {
+  onClick?: () => void
+}
 
-  const [groupedProviders, setGroupedProviders] = useState<GroupedProviderStatus>(getGroupedProviders())
+const StatusDisplay = ({ onClick }: StatusDisplayProps) => {
+  const { authStatus, isSkippingAuth } = useAuth()
+  const { connectionStatus } = useWebSocketConnection(authStatus, isSkippingAuth)
+  const [connectionTarget, setConnectionTarget] = useState<ConnectionTarget | null>(null)
 
+  // Fetch current connection details
   useEffect(() => {
-    setGroupedProviders(getGroupedProviders())
-  }, [getGroupedProviders])
+    const fetchConnectionInfo = async () => {
+      try {
+        const status = await window.electronAPI.getExecutorConnectionStatus()
+        setConnectionTarget(status.target || null)
+      }
+      catch (error) {
+        console.error('Failed to fetch connection info:', error)
+      }
+    }
 
-  const { expired } = groupedProviders
+    if (authStatus.authenticated || isSkippingAuth) {
+      fetchConnectionInfo()
+    }
+  }, [authStatus.authenticated, isSkippingAuth, connectionStatus])
 
-  let statusColor = '#0B8A1C'
-  let text = 'All systems are'
-  let coloredText = 'normal'
+  // Update connection info on WebSocket events
+  useEffect(() => {
+    const handleWebSocketConnected = () => {
+      fetchConnectionInfo()
+    }
 
-  if (expired.length) {
-    statusColor = '#D23535'
-    text = 'You have expired connectors —'
-    coloredText = 'click to review'
-  }
+    const handleWebSocketDisconnected = () => {
+      setConnectionTarget(null)
+    }
 
-  const handleClick = () => {
-    if (expired.length > 0) {
-      navigate('/settings/Connectors')
+    const fetchConnectionInfo = async () => {
+      try {
+        const status = await window.electronAPI.getExecutorConnectionStatus()
+        setConnectionTarget(status.target || null)
+      }
+      catch (error) {
+        console.error('Failed to fetch connection info:', error)
+      }
+    }
+
+    // Set up event listeners for real-time updates
+    window.electronAPI.onWebSocketConnected(handleWebSocketConnected)
+    window.electronAPI.onWebSocketDisconnected(handleWebSocketDisconnected)
+
+    return () => {
+      window.electronAPI.removeAllListeners('websocket-connected')
+      window.electronAPI.removeAllListeners('websocket-disconnected')
+    }
+  }, [])
+
+  const getStatusColor = (status: ConnectionStatus): string => {
+    switch (status) {
+      case 'connected':
+        return '#0B8A1C' // Green
+      case 'connecting':
+        return '#F59E0B' // Orange
+      case 'disconnected':
+      default:
+        return '#D23535' // Red
     }
   }
 
-  const isClickable = expired.length > 0
+  const getStatusIcon = (status: ConnectionStatus) => {
+    switch (status) {
+      case 'connected':
+        return <Wifi className="h-4 w-4" />
+      case 'connecting':
+        return <RefreshCw className="h-4 w-4 animate-spin" />
+      case 'disconnected':
+      default:
+        return <WifiOff className="h-4 w-4" />
+    }
+  }
+
+  const getStatusText = (status: ConnectionStatus): { text: string, coloredText: string } => {
+    switch (status) {
+      case 'connected':
+        return {
+          text: 'Connected to',
+          coloredText: connectionTarget ? getTargetDisplayName(connectionTarget) : 'executor'
+        }
+      case 'connecting':
+        return {
+          text: 'Connecting to',
+          coloredText: 'executor...'
+        }
+      case 'disconnected':
+      default:
+        return {
+          text: 'WebSocket is',
+          coloredText: 'disconnected'
+        }
+    }
+  }
+
+  const getTargetDisplayName = (target: ConnectionTarget): string => {
+    if (target.type === 'localhost') {
+      return 'localhost'
+    }
+    return target.codespaceName || target.name || 'codespace'
+  }
+
+  const statusColor = getStatusColor(connectionStatus)
+  const { text, coloredText } = getStatusText(connectionStatus)
 
   return (
     <div
-      className={`px-[0.75rem] py-[0.25rem] rounded-full bg-[#EBEBEB] flex items-center gap-[0.63rem] ${
-        isClickable ? 'cursor-pointer hover:bg-[#E0E0E0] transition-colors not-draggable' : ''
-      }`}
-      onClick={handleClick}
+      className="px-[0.75rem] py-[0.25rem] rounded-full bg-[#EBEBEB] flex items-center gap-[0.63rem] cursor-pointer hover:bg-[#E0E0E0] transition-colors not-draggable"
+      onClick={onClick}
+      title="Click to view WebSocket connection details"
     >
       <div
-        className={`w-[10px] h-[10px] rounded-full bg-[${statusColor}]`}
+        className="w-[10px] h-[10px] rounded-full flex-shrink-0"
         style={{ backgroundColor: statusColor }}
       />
-      <div
-        className="text-[#737373]"
-      >
-        {text}
-        {' '}
-
-        <span
-          className={`text-[${statusColor}] font-semibold`}
-          style={{ color: statusColor }}
-        >
-          {coloredText}
-        </span>
+      
+      <div className="flex items-center gap-[0.25rem] min-w-0">
+        <div style={{ color: statusColor }} className="flex-shrink-0">
+          {getStatusIcon(connectionStatus)}
+        </div>
+        
+        <div className="text-[#737373]">
+          {text}
+          {' '}
+          <span
+            className="font-semibold"
+            style={{ color: statusColor }}
+          >
+            {coloredText}
+          </span>
+        </div>
       </div>
     </div>
   )

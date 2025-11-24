@@ -1,5 +1,6 @@
 import { Code, Globe, Paperclip, Send, Settings } from 'lucide-react'
 import React, { useRef } from 'react'
+import { Script } from '../../main'
 import { Button } from './ui/button'
 
 interface ChatInputProps {
@@ -9,6 +10,7 @@ interface ChatInputProps {
   placeholder?: string
   onAttachFile?: (file: File) => void
   onAttachImage?: (file: File) => void
+  selectedScript?: Script | null
   className?: string
 }
 
@@ -19,6 +21,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   placeholder = 'Type your message here...',
   onAttachFile,
   onAttachImage,
+  selectedScript,
   className = '',
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -47,6 +50,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     onSend?.()
   }
 
+  const getPlaceholderText = () => {
+    if (selectedScript) {
+      return `Type your message (using ${selectedScript.name} script)...`
+    }
+    return placeholder
+  }
+
   return (
     <div className={`relative ${className}`}>
       {/* Main input container with gradient background */}
@@ -58,7 +68,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             value={value}
             onChange={e => onChange(e.target.value)}
             onKeyPress={handleKeyPress}
-            placeholder={placeholder}
+            placeholder={getPlaceholderText()}
             className="w-full bg-transparent text-gray-900 placeholder-gray-500 resize-none outline-none min-h-[60px] max-h-[200px]"
             rows={1}
             style={{

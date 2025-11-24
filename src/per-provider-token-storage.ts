@@ -443,11 +443,8 @@ export class PerProviderTokenStorage {
         // Save the updated tokens
         await this.saveProviderTokens(tokens)
         expiredCount++
-
-        console.log(`🧪 Expired tokens for ${providerId} for testing`)
       }
 
-      console.log(`🧪 Expired ${expiredCount} provider token(s) for testing`)
       return expiredCount
     }
     catch (error) {

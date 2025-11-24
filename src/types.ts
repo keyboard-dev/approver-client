@@ -97,3 +97,14 @@ export interface ShareMessage {
   requiresResponse?: boolean
   collectionRequest: CollectionRequest
 }
+
+export interface Script {
+  id: string
+  name: string
+  description: string
+  tags?: string[]
+  services?: string[]
+  isExpanded?: boolean
+  schema?: Record<string, TemplateVariableSchema>
+  script?: string
+}

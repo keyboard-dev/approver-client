@@ -126,16 +126,20 @@ import * as os from 'os'
 import * as path from 'path'
 import * as WebSocket from 'ws'
 import { getQueuedProtocolUrls, initializeApp as initializeElectronApp, type AppInitializerResult } from './app-initializer'
+import { aiRuntime, initializeAIProviders } from './ai-provider/setup'
+import { webSearch } from './ai-provider/utils/dedicated-web'
 import { setEncryptionKeyProvider } from './encryption'
 import { GithubService } from './Github'
+import { GitHubCodespacesService } from './github-codespaces'
 import { deleteScriptTemplate } from './keyboard-shortcuts'
-import { OAuthProvider, ServerProvider, ServerProviderInfo } from './oauth-providers'
-import { StoredProviderTokens } from './oauth-token-storage'
+import { PKCEParams as NewPKCEParams, OAuthProvider, ServerProvider, ServerProviderInfo } from './oauth-providers'
+import { OAuthTokenStorage, StoredProviderTokens } from './oauth-token-storage'
+import { PerProviderTokenStorage } from './per-provider-token-storage'
 import { OAuthProviderConfig } from './provider-storage'
 import { createRestAPIServer } from './rest-api'
 import { AuthService } from './services/auth-service'
 import { OAuthService } from './services/oauth-service'
-import { SSEBackgroundService } from './services/SSEBackgroundService'
+import { CodespaceData, SSEBackgroundService } from './services/SSEBackgroundService'
 import { TrayManager } from './tray-manager'
 import { CollectionRequest, Message, ShareMessage } from './types'
 import { CODE_APPROVAL_ORDER, CodeApprovalLevel, RESPONSE_APPROVAL_ORDER, ResponseApprovalLevel } from './types/settings-types'
@@ -217,6 +221,10 @@ class MenuBarNotificationApp {
   private readonly CUSTOM_PROTOCOL = 'mcpauth'
   private sseBackgroundService: SSEBackgroundService | null = null
   private githubService!: GithubService
+  private githubCodespacesService!: GitHubCodespacesService
+  private oauthTokenStorage!: OAuthTokenStorage
+  private perProviderTokenStorage!: PerProviderTokenStorage
+  private currentProviderPKCE: NewPKCEParams | null = null
   // WebSocket security
   private wsConnectionKey: string | null = null
   private readonly STORAGE_DIR = path.join(os.homedir(), '.keyboard-mcp')
@@ -445,7 +453,7 @@ class MenuBarNotificationApp {
         })
 
         autoUpdater.on('update-available', () => {
-          console.log('Update available')
+
         })
 
         autoUpdater.on('update-not-available', () => {
@@ -483,6 +491,8 @@ class MenuBarNotificationApp {
       this.setupWebSocketServer()
       console.log('16. Setting up REST API...')
       this.setupRestAPI()
+      this.initializeAIProviders()
+      this.setupIPC()
 
       // Request notification permissions on all platforms
       console.log('17. Requesting notification permissions...')
@@ -532,7 +542,11 @@ class MenuBarNotificationApp {
         this.windowManager,
         this.showNotification.bind(this),
         () => this.sseBackgroundService,
-        (service: SSEBackgroundService) => { this.sseBackgroundService = service },
+        (service: SSEBackgroundService) => {
+          this.sseBackgroundService = service
+          // Set up event handlers when SSE service is created
+          this.setupSSEEventHandlers()
+        },
         this.OAUTH_SERVER_URL,
         this.CUSTOM_PROTOCOL,
         this.KEYBOARD_AUTH_TOKENS,
@@ -557,6 +571,10 @@ class MenuBarNotificationApp {
 
       // Initialize the OAuth provider system (this will trigger provider token refresh)
       await this.oauthService.initializeOAuthProviderSystem()
+
+      // Set up SSE event handlers if service exists
+      // (service may be created during token loading/refresh)
+      this.setupSSEEventHandlers()
     }
     catch (error) {
       console.error('❌ Failed to initialize OAuth services:', error)
@@ -564,8 +582,18 @@ class MenuBarNotificationApp {
     }
   }
 
+  private initializeAIProviders(): void {
+    try {
+      initializeAIProviders()
+    }
+    catch (error) {
+      console.error('❌ Failed to initialize AI providers:', error)
+    }
+  }
+
   private async initializeGithubService(): Promise<void> {
     this.githubService = await new GithubService()
+    this.githubCodespacesService = new GitHubCodespacesService(this.githubService)
   }
 
   /**
@@ -583,6 +611,30 @@ class MenuBarNotificationApp {
     catch (error) {
       console.error('❌ Error connecting to executor:', error)
     }
+  }
+
+  /**
+   * Setup SSE Background Service event handlers
+   * Called after SSE service is initialized by AuthService
+   */
+  private setupSSEEventHandlers(): void {
+    const sseService = this.sseBackgroundService
+    if (!sseService) {
+      return
+    }
+
+    // Handle SSE connection confirmation
+    sseService.on('connected', () => {
+      console.log('Connected to SSE')
+    })
+
+    // Handle codespace coming online - auto-connect to it
+    sseService.on('codespace-online', async (data: CodespaceData) => {
+      console.log('Codespace online:', data)
+      await this.authService.getValidAccessToken()
+      await this.connectToExecutorWithToken()
+      await this.executorWSClient?.autoConnect()
+    })
   }
 
   /**
@@ -1330,7 +1382,7 @@ class MenuBarNotificationApp {
     }
 
     // Send to renderer for storage in IndexedDB and display
-    console.log('this.windowManager.sendMessage', message)
+
     this.windowManager.sendMessage('websocket-message', message)
 
     // Auto-show window for high priority messages
@@ -1774,11 +1826,11 @@ class MenuBarNotificationApp {
     })
 
     // Executor WebSocket client IPC handlers
-    ipcMain.handle('get-executor-connection-status', () => {
+    ipcMain.handle('get-executor-connection-status', async () => {
       if (!this.executorWSClient) {
         return { connected: false }
       }
-      return this.executorWSClient.getConnectionInfo()
+      return await this.executorWSClient.getEnhancedConnectionInfo()
     })
 
     ipcMain.handle('reconnect-to-executor', async (): Promise<boolean> => {
@@ -1832,6 +1884,24 @@ class MenuBarNotificationApp {
         return []
       }
       return this.executorWSClient.getLastKnownCodespaces()
+    })
+
+    ipcMain.handle('send-manual-ping', async () => {
+      if (!this.executorWSClient) {
+        return {
+          success: false,
+          error: 'WebSocket client not available',
+          connectionHealth: {
+            isAlive: false,
+            lastActivity: 0,
+            lastPong: 0,
+            timeSinceLastActivity: 0,
+            timeSinceLastPong: 0,
+            connected: false,
+          },
+        }
+      }
+      return await this.executorWSClient.sendManualPing()
     })
 
     // Auto-updater IPC handlers (only available on macOS and Windows)
@@ -1893,6 +1963,151 @@ class MenuBarNotificationApp {
         releaseName: 'Test Update',
         releaseNotes: 'This is a test update notification',
       })
+    })
+
+    // AI Provider management IPC handlers
+    ipcMain.handle('set-ai-provider-key', async (_event, provider: string, apiKey: string): Promise<void> => {
+      try {
+        aiRuntime.setApiKey(provider, apiKey)
+      }
+      catch (error) {
+        throw new Error(`Failed to save API key for ${provider}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      }
+    })
+
+    ipcMain.handle('get-ai-provider-keys', async (): Promise<Array<{ provider: string, hasKey: boolean, configured: boolean }>> => {
+      const providers = ['openai', 'anthropic', 'gemini']
+      return providers.map(provider => ({
+        provider,
+        hasKey: aiRuntime.hasApiKey(provider),
+        configured: aiRuntime.hasApiKey(provider) && aiRuntime.hasProvider(provider),
+      }))
+    })
+
+    ipcMain.handle('remove-ai-provider-key', async (_event, provider: string): Promise<void> => {
+      try {
+        aiRuntime.removeApiKey(provider)
+      }
+      catch (error) {
+        throw new Error(`Failed to remove API key for ${provider}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      }
+    })
+
+    ipcMain.handle('test-ai-provider-connection', async (_event, provider: string): Promise<{ success: boolean, error?: string }> => {
+      try {
+        if (!aiRuntime.hasApiKey(provider)) {
+          return { success: false, error: 'No API key configured' }
+        }
+
+        // Test with a simple message
+        const testMessages = [{ role: 'user' as const, content: 'Hello' }]
+        await aiRuntime.sendMessage(provider, testMessages, {})
+        return { success: true }
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Connection test failed',
+        }
+      }
+    })
+
+    ipcMain.handle('send-ai-message', async (_event, provider: string, messages: Array<{ role: 'user' | 'assistant' | 'system', content: string }>, config?: { model?: string }): Promise<string> => {
+      try {
+        const authTokens = this.authService.getAuthTokens()
+
+        const response = await aiRuntime.sendMessage(provider, messages, config || {}, authTokens || undefined)
+
+        return response.content
+      }
+      catch (error) {
+        console.error('🚨 Main IPC send-ai-message error:', error)
+        throw new Error(`Failed to send message to ${provider}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      }
+    })
+
+    ipcMain.handle('send-ai-message-stream', async (event, provider: string, messages: Array<{ role: 'user' | 'assistant' | 'system', content: string }>, config?: { model?: string }): Promise<string> => {
+      try {
+        const authTokens = this.authService.getAuthTokens()
+
+        // Start streaming in background
+        const streamProcess = async () => {
+          try {
+            const generator = aiRuntime.streamMessage(provider, messages, config || {}, authTokens || undefined)
+
+            for await (const chunk of generator) {
+              event.sender.send('ai-stream-chunk', chunk)
+            }
+
+            event.sender.send('ai-stream-end')
+          }
+          catch (error) {
+            console.error('🚨 Streaming error:', error)
+            event.sender.send('ai-stream-error', error instanceof Error ? error.message : 'Unknown error')
+          }
+        }
+
+        // Start streaming process
+        streamProcess()
+
+        return 'Stream started'
+      }
+      catch (error) {
+        console.error('🚨 Main IPC send-ai-message-stream error:', error)
+        throw new Error(`Failed to stream message to ${provider}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      }
+    })
+
+    ipcMain.handle('web-search', async (_event, provider: string, query: string, company: string) => {
+      try {
+        const authTokens = this.authService.getAuthTokens()
+        const accessToken = authTokens?.access_token || ''
+        const response = await webSearch({ accessToken, query, company })
+        return response
+      }
+      catch (error) {
+        throw new Error(`Failed to perform web search with ${provider}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      }
+    })
+
+    // Get user tokens from current WebSocket session
+    ipcMain.handle('get-user-tokens', async (_event): Promise<{ tokensAvailable?: string[], error?: string }> => {
+      try {
+        // Use existing provider status logic from line 1917
+        const providerStatus = await this.oauthService.getProviderAuthStatus()
+        console.log('providerStatus', providerStatus)
+        // Check ALL stored provider tokens (both direct and server provider tokens)
+        const tokensAvailable = Object.entries(providerStatus)
+          .filter(([, status]) => status?.authenticated)
+          .map(([providerId]) => `KEYBOARD_PROVIDER_USER_TOKEN_FOR_${providerId.toUpperCase()}`)
+
+        return { tokensAvailable }
+      }
+      catch (error) {
+        console.error('❌ Failed to get user tokens:', error)
+        return { error: error instanceof Error ? error.message : 'Unknown error' }
+      }
+    })
+
+    // Get codespace information using GitHub PAT token
+    ipcMain.handle('get-codespace-info', async (_event): Promise<{ success: boolean, data?: any, status?: number, error?: { message: string } }> => {
+      try {
+        // For localhost connections, return basic info
+
+        // For codespace connections, use the GitHubCodespacesService
+
+        // Use the GitHubCodespacesService to fetch resources
+
+        const result = await this.githubCodespacesService.fetchKeyNameAndResources()
+        return { success: true, data: result }
+      }
+      catch (error) {
+        console.error('❌ Failed to get codespace info:', error)
+        return {
+          success: false,
+          error: { message: error instanceof Error ? error.message : 'Unknown error' },
+        }
+      }
     })
   }
 
