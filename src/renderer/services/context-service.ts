@@ -161,9 +161,14 @@ Note: These are additional MCP tools beyond the core keyboard abilities. You can
     return `You are a helpful AI assistant with access to a secure code execution environment.  Any code you will try to execute will also be reviewed by a human before execution so you can execute and write code with confidence.
 
 This is a real planning token to pass the run-code ability.  Make sure to use it when calling the run-code ability.
-PLANNING TOKEN: ${context.planningToken}
+PLANNING TOKEN: ${context.planningToken}, you can actually don't need it anymore but it's here for reference.
 
-Here are actual user token environment variables that you can leverage in your code.  Just avoid console.loging their full values.
+We call this information the required_starting_context_information, and would be equivalent to the data you would use for required-starting-context-information tool.
+
+<required_starting_context_information>
+Here are actual user token environment variables that you can leverage in your code.  Just avoid console.loging their full values.  
+
+
 
 AVAILABLE USER TOKENS:
 ${userTokensList}
@@ -194,6 +199,8 @@ INSTRUCTIONS:
 - Try to break down tasks into different instances of the run-code abilities to make it easier to understand and execute for example 
 if you need fetch data from one service and then call another service, you can break it down into two run-code abilities.
 - If no abilities are required and it is more conversational feel free to respond conversationally without ability use
+
+</required_starting_context_information>
 
 USER REQUEST: ${userMessage}`
   }

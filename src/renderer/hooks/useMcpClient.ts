@@ -231,9 +231,11 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
   // Tool calling function
   const callTool = useCallback(async (name: string, args: Record<string, unknown> = {}): Promise<CallToolResult> => {
     const client = clientRef.current
-    if (state !== 'ready' || !client) {
-      throw new Error('MCP client is not ready')
+    if (!client) {
+      throw new Error('MCP client is not available')
     }
+
+    // Note: Removed state check for resilient execution - let the transport handle the HTTP call
 
     try {
       // Add timeout wrapper for long-running tools like run-code
@@ -283,7 +285,7 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
     try {
       const result: GetPromptResult = await client.getPrompt({
         name,
-        arguments: args,
+        arguments: args as Record<string, string>,
       })
       return {
         messages: result.messages || [],
