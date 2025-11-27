@@ -1,4 +1,3 @@
-// import { Notification } from 'electron'
 import * as WebSocketModule from 'ws'
 import { GithubService } from './Github'
 
