@@ -116,6 +116,7 @@ export interface CodespaceInfo {
     resources?: unknown[]
     services?: string[]
     environment?: Record<string, string>
+    environmentVariableKeys?: string[]
   }
   status?: number
   error?: {

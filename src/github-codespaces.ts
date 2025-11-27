@@ -1,3 +1,4 @@
+// import { Notification } from 'electron'
 import * as WebSocketModule from 'ws'
 import { GithubService } from './Github'
 
@@ -62,6 +63,17 @@ interface GitHubCodespacePort {
   visibility: 'private' | 'org' | 'public'
 }
 
+export interface FetchKeyNameAndResourcesResult {
+  success: boolean
+  data?: {
+    environmentVariableKeys?: string[]
+  }
+  error?: {
+    message: string
+  }
+  status?: number
+}
+
 export interface CodespaceConnectionInfo {
   codespace: GitHubCodespace
   websocketUrl?: string
@@ -74,6 +86,20 @@ export class GitHubCodespacesService {
 
   constructor(githubService: GithubService) {
     this.githubService = githubService
+  }
+
+  // Debug notification helper for production debugging
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  private showDebugNotification(title: string, body: string): void {
+    return
+    // try {
+    //   if (Notification.isSupported()) {
+    //     new Notification({ title: `[DEBUG] ${title}`, body }).show()
+    //   }
+    // }
+    // catch {
+    //   // Silently fail if notification fails
+    // }
   }
 
   /**
@@ -274,15 +300,26 @@ export class GitHubCodespacesService {
    * 3. Codespaces with WebSocket port available
    */
   async findBestCodespace(): Promise<CodespaceConnectionInfo | null> {
+    this.showDebugNotification('findBestCodespace: Entry', 'Starting codespace discovery...')
+
     try {
       const currentUser = await (this.githubService as unknown as { getCurrentUser: () => Promise<{ login: string } | null> }).getCurrentUser()
       if (!currentUser) {
+        this.showDebugNotification('findBestCodespace: No User', 'getCurrentUser returned null. Not authenticated?')
         return null
       }
 
+      this.showDebugNotification('findBestCodespace: User', `Logged in as: ${currentUser.login}`)
+
       const allConnectionInfo = await this.getCodespaceConnectionInfo()
 
+      this.showDebugNotification(
+        'findBestCodespace: Active CS',
+        `Found ${allConnectionInfo.length} active codespace(s)`,
+      )
+
       if (allConnectionInfo.length === 0) {
+        this.showDebugNotification('findBestCodespace: None Active', 'No active codespaces found. Are any running?')
         return null
       }
 
@@ -292,7 +329,25 @@ export class GitHubCodespacesService {
         && info.codespace.repository.name === 'codespace-executor',
       )
 
+      // Log details about all codespaces for debugging
+      const csDetails = allConnectionInfo.map(info =>
+        `${info.codespace.name}: owner=${info.codespace.owner.login}, repo=${info.codespace.repository.name}, state=${info.codespace.state}`,
+      ).join('\n')
+      this.showDebugNotification(
+        'findBestCodespace: All CS',
+        `Details:\n${csDetails.substring(0, 200)}`,
+      )
+
+      this.showDebugNotification(
+        'findBestCodespace: Filtered',
+        `Found ${ownedCodespaces.length} owned codespace-executor codespace(s) (filtered from ${allConnectionInfo.length})`,
+      )
+
       if (ownedCodespaces.length === 0) {
+        this.showDebugNotification(
+          'findBestCodespace: None Owned',
+          `No codespace-executor repos owned by ${currentUser.login}. Check repo name filter.`,
+        )
         return null
       }
 
@@ -312,9 +367,16 @@ export class GitHubCodespacesService {
 
       const bestCodespace = sortedCodespaces[0]
 
+      this.showDebugNotification(
+        'findBestCodespace: Best',
+        `Selected: ${bestCodespace.codespace.name}\nAvailable: ${bestCodespace.available}\nWS URL: ${bestCodespace.websocketUrl?.substring(0, 50) || 'none'}`,
+      )
+
       return bestCodespace
     }
-    catch {
+    catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error)
+      this.showDebugNotification('findBestCodespace: ERROR', `Exception: ${errorMsg}`)
       return null
     }
   }
@@ -324,14 +386,26 @@ export class GitHubCodespacesService {
    * This will attempt to set up port forwarding if needed
    */
   async discoverAndPrepareCodespace(): Promise<{ codespace: CodespaceConnectionInfo, websocketUrl: string } | null> {
+    this.showDebugNotification('discoverAndPrepare: Entry', 'Starting codespace preparation...')
+
     try {
       const bestCodespace = await this.findBestCodespace()
       if (!bestCodespace) {
+        this.showDebugNotification('discoverAndPrepare: No CS', 'findBestCodespace returned null')
         return null
       }
 
+      this.showDebugNotification(
+        'discoverAndPrepare: Found',
+        `Codespace: ${bestCodespace.codespace.name}\nAvailable: ${bestCodespace.available}\nHas WS URL: ${!!bestCodespace.websocketUrl}`,
+      )
+
       // If WebSocket is already available, use it
       if (bestCodespace.available && bestCodespace.websocketUrl) {
+        this.showDebugNotification(
+          'discoverAndPrepare: Ready',
+          `WS already available: ${bestCodespace.websocketUrl.substring(0, 60)}...`,
+        )
         return {
           codespace: bestCodespace,
           websocketUrl: bestCodespace.websocketUrl,
@@ -339,10 +413,23 @@ export class GitHubCodespacesService {
       }
 
       // Try to ensure WebSocket port is set up
+      this.showDebugNotification(
+        'discoverAndPrepare: Port Setup',
+        `Attempting to ensure WS port for: ${bestCodespace.codespace.name}`,
+      )
 
       const portSetup = await this.ensureWebSocketPort(bestCodespace.codespace.name)
 
+      this.showDebugNotification(
+        'discoverAndPrepare: Port Result',
+        `Success: ${portSetup.success}\nURL: ${portSetup.url?.substring(0, 50) || 'none'}\nError: ${portSetup.error || 'none'}`,
+      )
+
       if (portSetup.success && portSetup.url) {
+        this.showDebugNotification(
+          'discoverAndPrepare: Success',
+          `Port setup succeeded: ${portSetup.url.substring(0, 60)}...`,
+        )
         return {
           codespace: {
             ...bestCodespace,
@@ -355,6 +442,10 @@ export class GitHubCodespacesService {
 
       // Fall back to generated URL if we have one
       if (portSetup.url) {
+        this.showDebugNotification(
+          'discoverAndPrepare: Fallback',
+          `Using fallback URL: ${portSetup.url.substring(0, 60)}...`,
+        )
         return {
           codespace: {
             ...bestCodespace,
@@ -365,9 +456,12 @@ export class GitHubCodespacesService {
         }
       }
 
+      this.showDebugNotification('discoverAndPrepare: Failed', 'No URL available after port setup attempt')
       return null
     }
-    catch {
+    catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error)
+      this.showDebugNotification('discoverAndPrepare: ERROR', `Exception: ${errorMsg}`)
       return null
     }
   }
@@ -400,7 +494,7 @@ export class GitHubCodespacesService {
   /**
    * Fetch key name and resources from codespace on port 3000
    */
-  async fetchKeyNameAndResources(): Promise<any> {
+  async fetchKeyNameAndResources(): Promise<FetchKeyNameAndResourcesResult> {
     try {
       // Ensure URL uses port 3000 and correct endpoint
 
@@ -416,7 +510,7 @@ export class GitHubCodespacesService {
       const baseUrl = this.generateCodespacePortUrl(codespace)
       const fullUrl = `${baseUrl}/fetch_key_name_and_resources`
 
-      const responseData = await this.githubService.fetchResources(fullUrl)
+      const responseData = await this.githubService.fetchResources(fullUrl) as FetchKeyNameAndResourcesResult
 
       return responseData
     }

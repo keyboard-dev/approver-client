@@ -2003,7 +2003,21 @@ class MenuBarNotificationApp {
         // Use the GitHubCodespacesService to fetch resources
 
         const result = await this.githubCodespacesService.fetchKeyNameAndResources()
-        return { success: true, data: result }
+
+        // Return the result directly since it already has the right shape
+        if (!result.success) {
+          return {
+            success: false,
+            error: result.error,
+            status: result.status,
+          }
+        }
+
+        return {
+          success: true,
+          data: result.data,
+          status: result.status,
+        }
       }
       catch (error) {
         console.error('❌ Failed to get codespace info:', error)
