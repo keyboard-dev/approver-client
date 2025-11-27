@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import { AdvancedPanel } from './panels/AdvancedPanel'
+import { AICreditsPanel } from './panels/AICreditsPanel'
 import { AIProvidersPanel } from './panels/AIProvidersPanel'
 import { ConnectorPanel } from './panels/ConnectorPanel'
 import { KeyPanel } from './panels/KeyPanel'
@@ -25,6 +26,7 @@ const TABS = [
   'WebSocket',
   'Security',
   'AI Providers',
+  'AI Credits',
   'Notifications',
   'Connectors',
   'Advanced',
@@ -100,6 +102,8 @@ export const SettingsScreen: React.FC = () => {
       }
       case 'AI Providers':
         return <AIProvidersPanel />
+      case 'AI Credits':
+        return <AICreditsPanel />
       case 'Notifications':
         return <NotificationPanel />
       case 'Connectors':

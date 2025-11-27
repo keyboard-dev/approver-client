@@ -110,6 +110,27 @@ export interface UpdateInfo {
   releaseNotes?: string
 }
 
+export interface CreditsBalance {
+  success: true
+  balance_cents: number
+  balance_usd: string
+  total_earned_cents: number
+  total_earned_usd: string
+  total_purchased_cents: number
+  total_purchased_usd: string
+  total_spent_cents: number
+  total_spent_usd: string
+  created_at: string
+  updated_at: string
+}
+
+export interface CreditsError {
+  success: false
+  error: string
+}
+
+export type CreditsResponse = CreditsBalance | CreditsError
+
 export interface ProgressInfo {
   bytesPerSecond: number
   percent: number
@@ -269,6 +290,8 @@ export interface ElectronAPI {
   webSearch: (provider: string, query: string, company: string) => Promise<any>
   getUserTokens: () => Promise<{ tokensAvailable?: string[], error?: string }>
   getCodespaceInfo: () => Promise<{ success: boolean, data?: any, status?: number, error?: { message: string } }>
+  // Credits balance
+  getCreditsBalance: () => Promise<CreditsResponse>
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -501,6 +524,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   webSearch: (provider: string, query: string, company: string): Promise<any> => ipcRenderer.invoke('web-search', provider, query, company),
   getUserTokens: (): Promise<{ tokensAvailable?: string[], error?: string }> => ipcRenderer.invoke('get-user-tokens'),
   getCodespaceInfo: (): Promise<{ success: boolean, data?: any, status?: number, error?: { message: string } }> => ipcRenderer.invoke('get-codespace-info'),
+  // Credits balance
+  getCreditsBalance: (): Promise<CreditsResponse> => ipcRenderer.invoke('get-credits-balance'),
 } as ElectronAPI)
 
 // Extend the global Window interface

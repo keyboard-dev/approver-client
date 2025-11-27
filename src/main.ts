@@ -16,6 +16,7 @@ import { PerProviderTokenStorage } from './per-provider-token-storage'
 import { OAuthProviderConfig } from './provider-storage'
 import { createRestAPIServer } from './rest-api'
 import { AuthService } from './services/auth-service'
+import { CreditsResponse, creditsService } from './services/credits-service'
 import { OAuthService } from './services/oauth-service'
 import { CodespaceData, SSEBackgroundService } from './services/SSEBackgroundService'
 import { TrayManager } from './tray-manager'
@@ -1903,6 +1904,18 @@ class MenuBarNotificationApp {
           error: { message: error instanceof Error ? error.message : 'Unknown error' },
         }
       }
+    })
+
+    // Credits balance IPC handler
+    ipcMain.handle('get-credits-balance', async (): Promise<CreditsResponse> => {
+      const accessToken = await this.authService.getValidAccessToken()
+      if (!accessToken) {
+        return {
+          success: false,
+          error: 'Not authenticated',
+        }
+      }
+      return await creditsService.getBalance(accessToken)
     })
   }
 
