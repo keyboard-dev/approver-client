@@ -131,6 +131,19 @@ export interface CreditsError {
 
 export type CreditsResponse = CreditsBalance | CreditsError
 
+export interface CheckoutSuccess {
+  success: true
+  checkout_url: string
+  session_id: string
+}
+
+export interface CheckoutError {
+  success: false
+  error: string
+}
+
+export type CheckoutResponse = CheckoutSuccess | CheckoutError
+
 export interface ProgressInfo {
   bytesPerSecond: number
   percent: number
@@ -292,6 +305,7 @@ export interface ElectronAPI {
   getCodespaceInfo: () => Promise<{ success: boolean, data?: any, status?: number, error?: { message: string } }>
   // Credits balance
   getCreditsBalance: () => Promise<CreditsResponse>
+  createCreditsCheckout: (amountCents: number) => Promise<CheckoutResponse>
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -526,6 +540,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getCodespaceInfo: (): Promise<{ success: boolean, data?: any, status?: number, error?: { message: string } }> => ipcRenderer.invoke('get-codespace-info'),
   // Credits balance
   getCreditsBalance: (): Promise<CreditsResponse> => ipcRenderer.invoke('get-credits-balance'),
+  createCreditsCheckout: (amountCents: number): Promise<CheckoutResponse> => ipcRenderer.invoke('create-credits-checkout', amountCents),
 } as ElectronAPI)
 
 // Extend the global Window interface
