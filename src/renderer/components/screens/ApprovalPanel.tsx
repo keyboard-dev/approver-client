@@ -301,7 +301,7 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
         </button>
       </div>
 
-      {providerNames.length && (
+      {Boolean(providerNames.length) && (
         <div
           className="rounded-[0.38rem] border border-[#E5E5E5] w-full px-[0.63rem] py-[0.44rem] flex gap-[0.63rem] items-center"
         >
