@@ -113,8 +113,7 @@ export class MCPClientService {
         version: '1.0.0',
       }, {
         capabilities: {
-          tools: true,
-          resources: true,
+          sampling: {},
         },
       })
 
