@@ -1,3 +1,4 @@
+// import { Notification } from 'electron'
 import WebSocket from 'ws'
 import { GithubService } from './Github'
 import { CodespaceConnectionInfo, GitHubCodespacesService } from './github-codespaces'
@@ -57,6 +58,20 @@ export class ExecutorWebSocketClient {
   ) {
     this.onMessageReceived = onMessageReceived
     this.windowManager = windowManager
+  }
+
+  // Debug notification helper for production debugging
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  private showDebugNotification(title: string, body: string): void {
+    return
+    // try {
+    //   if (Notification.isSupported()) {
+    //     new Notification({ title: `[DEBUG] ${title}`, body }).show()
+    //   }
+    // }
+    // catch {
+    //   // Silently fail if notification fails
+    // }
   }
 
   // Set the GitHub token to use for authentication
@@ -262,7 +277,7 @@ export class ExecutorWebSocketClient {
 
     // Determine if we should switch based on current connection
     if (this.isConnected() && this.currentTarget) {
-      const shouldSwitch = this.shouldSwitchToNewCodespace(this.currentTarget, codespace)
+      const shouldSwitch = this.shouldSwitchToNewCodespace(this.currentTarget)
 
       if (!shouldSwitch) {
         return false
@@ -291,7 +306,6 @@ export class ExecutorWebSocketClient {
   // Determine if we should switch from current connection to new codespace
   private shouldSwitchToNewCodespace(
     currentTarget: ConnectionTarget,
-    newCodespace: { codespace_id: string, name: string, url: string, state: string },
   ): boolean {
     // Never switch away from manual connections (user explicitly chose)
     if (currentTarget.source === 'manual') {
@@ -343,16 +357,44 @@ export class ExecutorWebSocketClient {
 
   // Automatically discover and connect to the best available executor
   async autoConnect(): Promise<boolean> {
+    const timestamp = new Date().toISOString()
+    const isConnected = this.isConnected()
+    const hasToken = !!this.githubToken
+    const hasCodespacesService = !!this.codespacesService
+
+    this.showDebugNotification(
+      'autoConnect: Entry',
+      `Time: ${timestamp}\nHas Token: ${hasToken}\nHas CS Service: ${hasCodespacesService}\nIs Connected: ${isConnected}\nCurrent Target: ${this.currentTarget?.name || 'none'}`,
+    )
+
     // Always require codespaces service - don't fall back to localhost
     if (!this.codespacesService) {
+      this.showDebugNotification(
+        'autoConnect: No Service',
+        'Returning false - codespacesService is null. Token may not be set.',
+      )
       return false
     }
 
     try {
+      this.showDebugNotification(
+        'autoConnect: Discovering',
+        'Calling discoverAndPrepareCodespace...',
+      )
+
       // Try to find and connect to a user's codespace
       const preparedCodespace = await this.codespacesService.discoverAndPrepareCodespace()
 
       if (preparedCodespace) {
+        const csName = preparedCodespace.codespace.codespace.display_name || preparedCodespace.codespace.codespace.name
+        const wsUrl = preparedCodespace.websocketUrl
+        const isAvailable = preparedCodespace.codespace.available
+
+        this.showDebugNotification(
+          'autoConnect: Found Codespace',
+          `Name: ${csName}\nURL: ${wsUrl.substring(0, 60)}...\nAvailable: ${isAvailable}\nState: ${preparedCodespace.codespace.codespace.state}`,
+        )
+
         this.currentTarget = {
           type: 'codespace',
           url: preparedCodespace.websocketUrl,
@@ -362,15 +404,32 @@ export class ExecutorWebSocketClient {
           source: 'auto',
         }
 
+        this.showDebugNotification(
+          'autoConnect: Connecting',
+          `Calling connectToTarget for: ${this.currentTarget.name}`,
+        )
+
         this.connectToTarget(this.currentTarget)
         return true
       }
 
       // If no suitable codespace found, don't connect - let retry handle it
+      this.showDebugNotification(
+        'autoConnect: No Codespace',
+        'discoverAndPrepareCodespace returned null. No suitable codespace found.',
+      )
 
       return false
     }
     catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error)
+      const errorStack = error instanceof Error ? error.stack?.substring(0, 200) : 'N/A'
+
+      this.showDebugNotification(
+        'autoConnect: ERROR',
+        `Message: ${errorMsg}\nStack: ${errorStack}`,
+      )
+
       console.error('Failed to auto-discover codespace:', error)
       // Don't fall back to localhost - let retry handle codespace discovery
       return false
@@ -699,8 +758,6 @@ export class ExecutorWebSocketClient {
       connected: boolean
     }
   }> {
-    const startTime = Date.now()
-
     try {
       if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
         return {

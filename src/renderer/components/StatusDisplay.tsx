@@ -95,18 +95,18 @@ const StatusDisplay = ({ onClick }: StatusDisplayProps) => {
       case 'connected':
         return {
           text: 'Connected to',
-          coloredText: connectionTarget ? getTargetDisplayName(connectionTarget) : 'executor'
+          coloredText: connectionTarget ? getTargetDisplayName(connectionTarget) : 'executor',
         }
       case 'connecting':
         return {
           text: 'Connecting to',
-          coloredText: 'executor...'
+          coloredText: 'executor...',
         }
       case 'disconnected':
       default:
         return {
           text: 'WebSocket is',
-          coloredText: 'disconnected'
+          coloredText: 'disconnected',
         }
     }
   }
@@ -131,12 +131,12 @@ const StatusDisplay = ({ onClick }: StatusDisplayProps) => {
         className="w-[10px] h-[10px] rounded-full flex-shrink-0"
         style={{ backgroundColor: statusColor }}
       />
-      
+
       <div className="flex items-center gap-[0.25rem] min-w-0">
         <div style={{ color: statusColor }} className="flex-shrink-0">
           {getStatusIcon(connectionStatus)}
         </div>
-        
+
         <div className="text-[#737373]">
           {text}
           {' '}

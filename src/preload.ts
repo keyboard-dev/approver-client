@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron'
 import { Script } from './main'
 import { ServerProviderInfo } from './oauth-providers'
 import { OAuthProviderConfig } from './provider-storage'
-import { CollectionRequest, Message, ShareMessage } from './types'
+import { CodespaceInfo, CollectionRequest, Message, ShareMessage } from './types'
 import { CodeApprovalLevel, ResponseApprovalLevel } from './types/settings-types'
 
 export interface AuthStatus {
@@ -302,10 +302,14 @@ export interface ElectronAPI {
   removeAIStreamListeners: () => void
   webSearch: (provider: string, query: string, company: string) => Promise<any>
   getUserTokens: () => Promise<{ tokensAvailable?: string[], error?: string }>
+<<<<<<< HEAD
   getCodespaceInfo: () => Promise<{ success: boolean, data?: any, status?: number, error?: { message: string } }>
   // Credits balance
   getCreditsBalance: () => Promise<CreditsResponse>
   createCreditsCheckout: (amountCents: number) => Promise<CheckoutResponse>
+=======
+  getCodespaceInfo: () => Promise<CodespaceInfo>
+>>>>>>> 83cffc0fb67c850c8e925d8bbb8c6119d81946fa
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -537,10 +541,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   webSearch: (provider: string, query: string, company: string): Promise<any> => ipcRenderer.invoke('web-search', provider, query, company),
   getUserTokens: (): Promise<{ tokensAvailable?: string[], error?: string }> => ipcRenderer.invoke('get-user-tokens'),
+<<<<<<< HEAD
   getCodespaceInfo: (): Promise<{ success: boolean, data?: any, status?: number, error?: { message: string } }> => ipcRenderer.invoke('get-codespace-info'),
   // Credits balance
   getCreditsBalance: (): Promise<CreditsResponse> => ipcRenderer.invoke('get-credits-balance'),
   createCreditsCheckout: (amountCents: number): Promise<CheckoutResponse> => ipcRenderer.invoke('create-credits-checkout', amountCents),
+=======
+  getCodespaceInfo: (): Promise<CodespaceInfo> => ipcRenderer.invoke('get-codespace-info'),
+>>>>>>> 83cffc0fb67c850c8e925d8bbb8c6119d81946fa
 } as ElectronAPI)
 
 // Extend the global Window interface

@@ -1,4 +1,4 @@
-import { BrowserWindow, screen, session } from 'electron'
+import { BrowserWindow, nativeTheme, screen, session } from 'electron'
 import * as path from 'path'
 import { Message } from './types'
 
@@ -19,7 +19,16 @@ export class WindowManager {
   }
 
   public createMainWindow(): void {
-    const iconPath = path.join(__dirname, '../assets/keyboard-dock.icns')
+    // Set theme to follow system (enables dark Mica on Windows when system is dark)
+    nativeTheme.themeSource = 'system'
+
+    // Platform detection
+    const isMac = process.platform === 'darwin'
+    const isWindows = process.platform === 'win32'
+
+    // Use platform-specific icon
+    const iconExtension = isMac ? 'icns' : (isWindows ? 'ico' : 'png')
+    const iconPath = path.join(__dirname, '../assets', `keyboard-dock.${iconExtension}`)
 
     // Get or create a persistent session explicitly
     const persistentSession = session.fromPartition('persist:main', { cache: true })
@@ -28,7 +37,7 @@ export class WindowManager {
       frame: false,
       height: DEFAULT_WINDOW_HEIGHT,
       icon: iconPath,
-      transparent: true,
+      transparent: isMac, // Only macOS needs transparent for vibrancy
       width: DEFAULT_WINDOW_WIDTH,
       webPreferences: {
         preload: path.join(__dirname, 'preload.js'),
@@ -37,12 +46,16 @@ export class WindowManager {
         contextIsolation: true, // Required for partition to work properly
         webSecurity: true,
       },
-      ...(process.platform === 'darwin' && {
+      ...(isMac && {
         alwaysOnTop: false,
         titleBarStyle: 'hidden',
         type: 'panel',
         vibrancy: 'under-window',
         visualEffectState: 'active',
+      }),
+      ...(isWindows && {
+        backgroundMaterial: 'mica', // Win11 22H2+: native mica effect
+        backgroundColor: nativeTheme.shouldUseDarkColors ? '#1f1f1f' : '#f5f5f5', // Win10 fallback: follows system theme
       }),
     })
 
@@ -50,9 +63,6 @@ export class WindowManager {
     const windowSession = this.mainWindow.webContents.session
     if (!windowSession.isPersistent()) {
       console.error('⚠️  Session is NOT persistent!')
-    }
-    else {
-
     }
 
     this.mainWindow.loadFile(path.join(__dirname, '../public/index.html'))
