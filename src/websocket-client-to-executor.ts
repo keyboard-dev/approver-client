@@ -2,6 +2,7 @@ import WebSocket from 'ws'
 import { GithubService } from './Github'
 import { CodespaceConnectionInfo, GitHubCodespacesService } from './github-codespaces'
 import { Message } from './types'
+import { KeyboardEnvironmentManager, KeyboardEnvironmentConfig } from './keyboard-environment'
 
 export interface IWindowManager {
   sendMessage(channel: string, ...args: unknown[]): void
@@ -17,7 +18,7 @@ export interface ExecutorMessage {
 }
 
 export interface ConnectionTarget {
-  type: 'localhost' | 'codespace'
+  type: 'localhost' | 'codespace' | 'keyboard-env'
   url: string
   name?: string
   codespaceName?: string
@@ -37,6 +38,7 @@ export class ExecutorWebSocketClient {
   private readonly PERSISTENT_RETRY_INTERVAL = 60000 // Check every minute for long-term retry
   private githubToken: string | null = null
   private codespacesService: GitHubCodespacesService | null = null
+  private keyboardEnvironmentManager: KeyboardEnvironmentManager | null = null
   private currentTarget: ConnectionTarget | null = null
   private lastKnownCodespaces: CodespaceConnectionInfo[] = []
 
@@ -72,6 +74,42 @@ export class ExecutorWebSocketClient {
       this.codespacesService = null
     }
 
+    // Handle connection logic
+    this.updateGitHubTokenConnectionLogic(token)
+  }
+
+  // Set JWT token for keyboard environment access
+  setKeyboardJwtToken(jwtToken: string | null): void {
+    if (jwtToken) {
+      this.keyboardEnvironmentManager = new KeyboardEnvironmentManager({
+        jwtToken,
+        defaultTimeout: 60,
+        maxRetries: 3,
+        retryDelay: 2000,
+      })
+    } else {
+      this.keyboardEnvironmentManager = null
+    }
+
+    // If we have a JWT token and we're not connected, try to connect
+    if (jwtToken && (!this.ws || this.ws.readyState !== WebSocket.OPEN)) {
+      // Start persistent retry system
+      this.startPersistentRetry()
+
+      // Use async connect with auto-discovery
+      this.connect().catch((error) => {
+        console.error('Failed to connect after setting JWT token:', error)
+      })
+    }
+    // If token is cleared and we're connected, disconnect
+    else if (!jwtToken && this.ws) {
+      this.stopPersistentRetry()
+      this.disconnect()
+    }
+  }
+
+  // Update the original setGitHubToken to include connection logic
+  private updateGitHubTokenConnectionLogic(token: string | null): void {
     // If we have a token and we're not connected, try to connect
     if (token && (!this.ws || this.ws.readyState !== WebSocket.OPEN)) {
       // Start persistent retry system
@@ -242,9 +280,151 @@ export class ExecutorWebSocketClient {
     this.connectToTarget(this.currentTarget)
   }
 
+  // Connect to keyboard environment target using Sandbox Orchestrator API
+  async connectToKeyboardEnvTarget(): Promise<boolean> {
+    if (!this.keyboardEnvironmentManager) {
+      // Fallback to environment variables for legacy support
+      return this.connectToLegacyKeyboardEnvTarget()
+    }
+
+    try {
+      // Try to find or create a sandbox environment
+      const sandboxInfo = await this.keyboardEnvironmentManager.findOrCreateEnvironment()
+      
+      // Create connection target from sandbox info
+      this.currentTarget = this.keyboardEnvironmentManager.createConnectionTarget(sandboxInfo)
+
+      // Emit connecting event
+      this.windowManager?.sendMessage('websocket-connecting', {
+        target: this.currentTarget.name!,
+        type: this.currentTarget.type,
+      })
+
+      this.connectToTarget(this.currentTarget)
+      return true
+    } catch (error) {
+      console.error('Failed to connect to keyboard environment:', error)
+      
+      // Fallback to legacy environment variables
+      return this.connectToLegacyKeyboardEnvTarget()
+    }
+  }
+
+  // Legacy method for environment variable-based connections
+  private connectToLegacyKeyboardEnvTarget(): boolean {
+    // Check for environment variables that define alternative WebSocket targets
+    const keyboardWsUrl = process.env.KEYBOARD_WEBSOCKET_URL
+    const keyboardExecutorHost = process.env.KEYBOARD_EXECUTOR_HOST
+    const keyboardExecutorPort = process.env.KEYBOARD_EXECUTOR_PORT
+
+    let targetUrl: string | null = null
+    let targetName = 'keyboard-env'
+
+    if (keyboardWsUrl) {
+      targetUrl = keyboardWsUrl
+      targetName = 'custom-websocket'
+    } else if (keyboardExecutorHost) {
+      const port = keyboardExecutorPort || this.EXECUTOR_WS_PORT
+      targetUrl = `ws://${keyboardExecutorHost}:${port}`
+      targetName = `${keyboardExecutorHost}:${port}`
+    }
+
+    if (!targetUrl) {
+      console.log('No keyboard environment target configured')
+      return false
+    }
+
+    this.currentTarget = {
+      type: 'keyboard-env',
+      url: targetUrl,
+      name: targetName,
+      connectedAt: Date.now(),
+      source: 'auto',
+    }
+
+    // Emit connecting event
+    this.windowManager?.sendMessage('websocket-connecting', {
+      target: this.currentTarget.name!,
+      type: this.currentTarget.type,
+    })
+
+    this.connectToTarget(this.currentTarget)
+    return true
+  }
+
   // Get list of last known codespaces
   getLastKnownCodespaces(): CodespaceConnectionInfo[] {
     return this.lastKnownCodespaces
+  }
+
+  // Get keyboard environment manager for external access
+  getKeyboardEnvironmentManager(): KeyboardEnvironmentManager | null {
+    return this.keyboardEnvironmentManager
+  }
+
+  // Get available keyboard environments
+  async getAvailableKeyboardEnvironments() {
+    if (!this.keyboardEnvironmentManager) {
+      return []
+    }
+
+    try {
+      const { sandboxes } = await this.keyboardEnvironmentManager.listUserSandboxes()
+      return sandboxes
+    } catch (error) {
+      console.error('Failed to list keyboard environments:', error)
+      return []
+    }
+  }
+
+  // Connect to a specific keyboard environment
+  async connectToSpecificKeyboardEnvironment(sessionId: string): Promise<boolean> {
+    if (!this.keyboardEnvironmentManager) {
+      console.error('❌ Cannot connect to keyboard environment: JWT token required')
+      return false
+    }
+
+    try {
+      // Validate the environment exists and is running
+      const isValid = await this.keyboardEnvironmentManager.validateEnvironment(sessionId)
+      if (!isValid) {
+        console.error(`❌ Keyboard environment ${sessionId} is not available`)
+        return false
+      }
+
+      // Get sandbox info
+      const sandboxInfo = await this.keyboardEnvironmentManager.getSandboxStatus(sessionId)
+
+      // Create connection target
+      this.currentTarget = this.keyboardEnvironmentManager.createConnectionTarget(sandboxInfo)
+      this.currentTarget.source = 'manual'
+
+      // Emit connecting event
+      this.windowManager?.sendMessage('websocket-connecting', {
+        target: this.currentTarget.name!,
+        type: this.currentTarget.type,
+      })
+
+      // Connect to the environment
+      this.connectToTarget(this.currentTarget)
+      return true
+    } catch (error) {
+      console.error(`Failed to connect to keyboard environment ${sessionId}:`, error)
+      return false
+    }
+  }
+
+  // Clean up expired keyboard environments
+  async cleanupKeyboardEnvironments(): Promise<void> {
+    if (!this.keyboardEnvironmentManager) {
+      return
+    }
+
+    try {
+      await this.keyboardEnvironmentManager.cleanupExpiredEnvironments()
+    } catch (error) {
+      console.error('Failed to cleanup keyboard environments:', error)
+    }
   }
 
   // Force reconnection with auto-discovery
@@ -320,7 +500,8 @@ export class ExecutorWebSocketClient {
 
   // Connect to codespace-executor WebSocket server (with automatic codespace discovery)
   async connect(): Promise<boolean> {
-    if (!this.githubToken) {
+    // If we have neither GitHub token nor keyboard environment manager, can't connect
+    if (!this.githubToken && !this.keyboardEnvironmentManager) {
       return false
     }
 
@@ -343,43 +524,53 @@ export class ExecutorWebSocketClient {
 
   // Automatically discover and connect to the best available executor
   async autoConnect(): Promise<boolean> {
-    // Always require codespaces service - don't fall back to localhost
-    if (!this.codespacesService) {
-      return false
-    }
+    // If we have a GitHub token and codespaces service, try GitHub codespaces first
+    if (this.codespacesService && this.githubToken) {
+      try {
+        // Try to find and connect to a user's codespace
+        const preparedCodespace = await this.codespacesService.discoverAndPrepareCodespace()
 
-    try {
-      // Try to find and connect to a user's codespace
-      const preparedCodespace = await this.codespacesService.discoverAndPrepareCodespace()
+        if (preparedCodespace) {
+          this.currentTarget = {
+            type: 'codespace',
+            url: preparedCodespace.websocketUrl,
+            name: preparedCodespace.codespace.codespace.display_name || preparedCodespace.codespace.codespace.name,
+            codespaceName: preparedCodespace.codespace.codespace.name,
+            connectedAt: Date.now(),
+            source: 'auto',
+          }
 
-      if (preparedCodespace) {
-        this.currentTarget = {
-          type: 'codespace',
-          url: preparedCodespace.websocketUrl,
-          name: preparedCodespace.codespace.codespace.display_name || preparedCodespace.codespace.codespace.name,
-          codespaceName: preparedCodespace.codespace.codespace.name,
-          connectedAt: Date.now(),
-          source: 'auto',
+          this.connectToTarget(this.currentTarget)
+          return true
         }
 
-        this.connectToTarget(this.currentTarget)
-        return true
+        // If no suitable codespace found, continue to fallback options below
       }
-
-      // If no suitable codespace found, don't connect - let retry handle it
-
-      return false
+      catch (error) {
+        console.error('Failed to auto-discover codespace:', error)
+        // Continue to fallback options below
+      }
     }
-    catch (error) {
-      console.error('Failed to auto-discover codespace:', error)
-      // Don't fall back to localhost - let retry handle codespace discovery
-      return false
+
+    // If no GitHub token available, try keyboard environment target
+    if (!this.githubToken) {
+      console.log('No GitHub token available, trying keyboard environment target')
+      try {
+        return await this.connectToKeyboardEnvTarget()
+      } catch (error) {
+        console.error('Failed to connect to keyboard environment:', error)
+        return false
+      }
     }
+
+    // If we have a token but no codespace was found, let retry handle it
+    return false
   }
 
   // Internal method to connect to a specific target
   private connectToTarget(target: ConnectionTarget): void {
-    if (!this.githubToken) {
+    // For keyboard-env targets, we don't require a GitHub token
+    if (target.type !== 'keyboard-env' && !this.githubToken) {
       return
     }
 
@@ -389,13 +580,18 @@ export class ExecutorWebSocketClient {
     }
 
     try {
-      this.ws = new WebSocket(target.url, {
-        headers: {
-          'Authorization': `Bearer ${this.githubToken}`,
-          'X-GitHub-Token': this.githubToken,
-          'User-Agent': 'KeyboardApproverClient/1.0',
-        },
-      })
+      // Prepare headers based on target type
+      const headers: Record<string, string> = {
+        'User-Agent': 'KeyboardApproverClient/1.0',
+      }
+
+      // Only add GitHub authentication headers for codespace targets
+      if (target.type === 'codespace' && this.githubToken) {
+        headers['Authorization'] = `Bearer ${this.githubToken}`
+        headers['X-GitHub-Token'] = this.githubToken
+      }
+
+      this.ws = new WebSocket(target.url, { headers })
 
       this.ws!.on('open', () => {
         // Reset reconnect state on successful connection
@@ -496,8 +692,8 @@ export class ExecutorWebSocketClient {
   }
 
   private attemptReconnect(): void {
-    // Don't reconnect if we don't have a token
-    if (!this.githubToken) {
+    // Don't reconnect if we don't have any authentication tokens
+    if (!this.githubToken && !this.keyboardEnvironmentManager) {
       return
     }
 
@@ -750,10 +946,10 @@ export class ExecutorWebSocketClient {
     }
 
     this.persistentRetryInterval = setInterval(() => {
-      // Only attempt if we have a token and are not connected
-      if (this.githubToken && (!this.ws || this.ws.readyState !== WebSocket.OPEN)) {
+      // Only attempt if we have tokens and are not connected
+      if ((this.githubToken || this.keyboardEnvironmentManager) && (!this.ws || this.ws.readyState !== WebSocket.OPEN)) {
         this.connect().catch((error) => {
-          console.error('Persistent codespace retry failed:', error)
+          console.error('Persistent retry failed:', error)
         })
       }
     }, this.PERSISTENT_RETRY_INTERVAL)

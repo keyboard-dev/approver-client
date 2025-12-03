@@ -111,11 +111,6 @@ export class MCPClientService {
       this.client = new Client({
         name: 'keyboard-approver',
         version: '1.0.0',
-      }, {
-        capabilities: {
-          tools: true,
-          resources: true,
-        },
       })
 
       // Connect to the server
