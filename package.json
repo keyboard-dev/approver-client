@@ -1,5 +1,5 @@
 {
-  "name": "keyboard-approver App",
+  "name": "keyboard-approver-app",
   "version": "0.1.9",
   "description": "Desktop notification app for MCP approval workflow",
   "main": "dist/main.js",
@@ -23,7 +23,7 @@
     "check-build": "tail -f build.log",
     "build-win": "npm run build && electron-builder --win",
     "build-win-forge": "npm run build && npm run copy-assets && electron-forge make --platform=win32",
-    "build-win-universal": "npm run build && electron-forge make --platform=win32 --arch=x64,ia32,arm64",
+    "build-win-universal": "set SKIP_SIGNING=true && npm run build && npm run copy-assets && electron-builder --win --x64 --ia32 --arm64",
     "build-dev-win": "set SKIP_SIGNING=true && npm run build && electron-forge make --platform=win32 --arch=x64,ia32,arm64",
     "build-linux": "npm run build && electron-builder --linux",
     "check-certificates": "node scripts/check-certificates.js",
@@ -59,6 +59,7 @@
     "clsx": "^2.1.1",
     "cors": "^2.8.5",
     "electron-squirrel-startup": "^1.0.1",
+    "electron-updater": "^6.6.2",
     "express": "^4.21.2",
     "jose": "^6.1.0",
     "lodash": "^4.17.21",
@@ -117,7 +118,6 @@
     "autoprefixer": "^10.4.21",
     "cpy-cli": "^5.0.0",
     "dotenv": "^17.2.0",
-    "png-to-ico": "^2.1.8",
     "electron": "^38.3.0",
     "electron-builder": "^26.0.12",
     "eslint": "^9.32.0",
@@ -125,6 +125,7 @@
     "eslint-plugin-react": "^7.37.5",
     "globals": "^16.3.0",
     "jiti": "^2.5.1",
+    "png-to-ico": "^2.1.8",
     "postcss": "^8.5.5",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.3.2",
@@ -137,6 +138,7 @@
   "build": {
     "appId": "dev.keyboard.desktop",
     "productName": "Keyboard Approver",
+    "executableName": "keyboard-approver",
     "directories": {
       "output": "dist-build"
     },
@@ -151,7 +153,23 @@
       "icon": "assets/keyboard-dock.icns"
     },
     "win": {
-      "icon": "assets/keyboard-dock.ico"
+      "icon": "assets/keyboard-dock.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64", "ia32", "arm64"]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "artifactName": "${productName}-Setup-${version}.${ext}",
+      "installerIcon": "assets/keyboard-dock.ico",
+      "uninstallerIcon": "assets/keyboard-dock.ico"
     },
     "linux": {
       "icon": "assets/keyboard-dock.png"

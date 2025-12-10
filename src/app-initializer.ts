@@ -65,16 +65,40 @@ export function initializeApp(options: AppInitializerOptions): AppInitializerRes
 }
 
 /**
- * Handle Squirrel installer events on Windows
- * Returns true if app should continue, false if app should quit
+ * Handle Windows installer events at startup
+ *
+ * This function handles startup events from different Windows installer formats:
+ *
+ * 1. Squirrel (electron-forge): Requires special handling during install/update/uninstall.
+ *    The electron-squirrel-startup package handles these events automatically.
+ *    Squirrel events cause the app to quit immediately after handling.
+ *
+ * 2. NSIS (electron-builder): No special startup handling required.
+ *    NSIS is a traditional installer that doesn't hook into the app lifecycle.
+ *    The app launches normally after NSIS installation.
+ *
+ * This function maintains backward compatibility with existing Squirrel installations
+ * while allowing new NSIS installations to work seamlessly.
+ *
+ * @returns true if app should continue, false if app should quit (Squirrel event)
  */
 function handleSquirrelEvents(): boolean {
   if (process.platform === 'win32') {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const squirrelStartup = require('electron-squirrel-startup')
-    if (squirrelStartup) {
-      console.log('Squirrel event detected, quitting app')
-      return false
+    // Handle Squirrel installer events (backward compatibility)
+    // This is a no-op for NSIS-installed apps as electron-squirrel-startup
+    // returns false when not launched by Squirrel
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const squirrelStartup = require('electron-squirrel-startup')
+      if (squirrelStartup) {
+        console.log('[AppInitializer] Squirrel event detected, quitting app')
+        return false
+      }
+    }
+    catch (error) {
+      // electron-squirrel-startup may not be available in NSIS builds
+      // This is expected behavior - continue normally
+      console.log('[AppInitializer] Squirrel startup check skipped (not a Squirrel install)')
     }
   }
   return true

@@ -1,4 +1,4 @@
-// CRITICAL: Filter protocol URLs from process.argv BEFORE Electron processes them
+git b// CRITICAL: Filter protocol URLs from process.argv BEFORE Electron processes them
 // This prevents Electron from treating OAuth callback URLs as file paths
 // Must run BEFORE any imports or other code
 const CUSTOM_PROTOCOL = 'mcpauth'
@@ -92,7 +92,7 @@ else {
 }
 
 import * as crypto from 'crypto'
-import { app, autoUpdater, BrowserWindow, ipcMain, Menu, Notification, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, Menu, Notification, shell } from 'electron'
 import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
@@ -110,6 +110,7 @@ import { PerProviderTokenStorage } from './per-provider-token-storage'
 import { OAuthProviderConfig } from './provider-storage'
 import { createRestAPIServer } from './rest-api'
 import { AuthService } from './services/auth-service'
+import { autoUpdaterService } from './services/auto-updater-service'
 import { OAuthService } from './services/oauth-service'
 import { CodespaceData, SSEBackgroundService } from './services/SSEBackgroundService'
 import { TrayManager } from './tray-manager'
@@ -252,7 +253,7 @@ class MenuBarNotificationApp {
         app.quit()
       },
       onCheckForUpdates: () => {
-        this.checkForUpdates()
+        autoUpdaterService.checkForUpdates()
       },
       getMessages: () => [], // Messages now stored in renderer DB
       getPendingCount: () => this.pendingCount,
@@ -358,47 +359,8 @@ class MenuBarNotificationApp {
       // Try to connect to executor with onboarding token
       await this.connectToExecutorWithToken()
 
-      // Configure auto-updater (only on macOS and Windows)
-      // Skip in development mode to avoid Squirrel errors on Windows
-      const isDev = process.argv.includes('--dev') || !app.isPackaged
-      if ((process.platform === 'darwin' || process.platform === 'win32') && !isDev) {
-        const feedURL = `https://api.keyboard.dev/update/${process.platform}/${app.getVersion()}`
-        autoUpdater.setFeedURL({
-          url: feedURL,
-        })
-
-        // Auto-updater event handlers
-        autoUpdater.on('checking-for-update', () => {
-
-        })
-
-        autoUpdater.on('update-available', () => {
-
-        })
-
-        autoUpdater.on('update-not-available', () => {
-
-        })
-
-        autoUpdater.on('update-downloaded', () => {
-          // Notify user and ask if they want to restart
-          const notification = new Notification({
-            title: 'Update Ready',
-            body: 'A new version has been downloaded. Restart now to apply the update?',
-          })
-          notification.show()
-          notification.on('click', () => {
-            autoUpdater.quitAndInstall()
-          })
-        })
-
-        autoUpdater.on('error', (error) => {
-          console.error('Update error:', error)
-        })
-
-        // Check for updates
-        autoUpdater.checkForUpdates()
-      }
+      // Initialize auto-updater service
+      autoUpdaterService.initialize((channel, data) => this.windowManager.sendMessage(channel, data))
 
       this.trayManager.createTray()
       this.setupApplicationMenu()
@@ -877,29 +839,6 @@ class MenuBarNotificationApp {
     }
   }
 
-  private checkForUpdates(): void {
-    if (process.platform === 'darwin' || process.platform === 'win32') {
-      autoUpdater.checkForUpdates()
-      // Show a notification that we're checking
-      const notification = new Notification({
-        title: 'Checking for Updates',
-        body: `Looking for new versions... current version: ${app.getVersion()}`,
-      })
-      notification.show()
-    }
-    else {
-      const notification = new Notification({
-        title: 'Updates Not Supported',
-        body: 'Automatic updates are only available on macOS and Windows.',
-      })
-      notification.show()
-    }
-  }
-
-  private installUpdate(): void {
-    autoUpdater.quitAndInstall()
-  }
-
   private setupApplicationMenu(): void {
     const template: Electron.MenuItemConstructorOptions[] = []
 
@@ -912,11 +851,11 @@ class MenuBarNotificationApp {
           { type: 'separator' },
           {
             label: 'Check for Updates...',
-            click: () => this.checkForUpdates(),
+            click: () => autoUpdaterService.checkForUpdates(),
           },
           {
             label: 'Install Update',
-            click: () => this.installUpdate(),
+            click: () => autoUpdaterService.quitAndInstall(),
           },
           { type: 'separator' },
           { role: 'services', submenu: [] },
@@ -994,7 +933,7 @@ class MenuBarNotificationApp {
               { type: 'separator' as const },
               {
                 label: 'Check for Updates...',
-                click: () => this.checkForUpdates(),
+                click: () => autoUpdaterService.checkForUpdates(),
               },
             ]
           : []),
@@ -1808,66 +1747,8 @@ class MenuBarNotificationApp {
       return await this.executorWSClient.sendManualPing()
     })
 
-    // Auto-updater IPC handlers (only available on macOS and Windows)
-    ipcMain.handle('check-for-updates', async (): Promise<void> => {
-      if (process.platform === 'darwin' || process.platform === 'win32') {
-        autoUpdater.checkForUpdates()
-      }
-      else {
-        throw new Error('Auto-updater not supported on this platform')
-      }
-    })
-
-    ipcMain.handle('download-update', async (): Promise<void> => {
-      if (process.platform === 'darwin' || process.platform === 'win32') {
-        // On macOS and Windows, updates are downloaded automatically
-        throw new Error('Manual update download not supported')
-      }
-      else {
-        throw new Error('Auto-updater not supported on this platform')
-      }
-    })
-
-    ipcMain.handle('quit-and-install', async (): Promise<void> => {
-      if (process.platform === 'darwin' || process.platform === 'win32') {
-        autoUpdater.quitAndInstall()
-      }
-      else {
-        throw new Error('Auto-updater not supported on this platform')
-      }
-    })
-
-    // Test methods for development
-    ipcMain.handle('test-update-available', async (): Promise<void> => {
-      this.windowManager.sendMessage('update-available', {
-        version: '1.0.1',
-        releaseDate: new Date().toISOString(),
-        releaseName: 'Test Update',
-        releaseNotes: 'This is a test update notification',
-      })
-    })
-
-    ipcMain.handle('test-download-update', async (): Promise<void> => {
-      // Simulate download progress
-      for (let i = 0; i <= 100; i += 10) {
-        this.windowManager.sendMessage('download-progress', {
-          percent: i,
-          transferred: i * 1024 * 1024,
-          total: 100 * 1024 * 1024,
-          bytesPerSecond: 1024 * 1024,
-        })
-        await new Promise(resolve => setTimeout(resolve, 200))
-      }
-    })
-
-    ipcMain.handle('test-update-downloaded', async (): Promise<void> => {
-      this.windowManager.sendMessage('update-downloaded', {
-        version: '1.0.1',
-        releaseDate: new Date().toISOString(),
-        releaseName: 'Test Update',
-        releaseNotes: 'This is a test update notification',
-      })
-    })
+    // Auto-updater IPC handlers (delegated to AutoUpdaterService)
+    autoUpdaterService.setupIpcHandlers()
 
     // AI Provider management IPC handlers
     ipcMain.handle('set-ai-provider-key', async (_event, provider: string, apiKey: string): Promise<void> => {
