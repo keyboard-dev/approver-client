@@ -1,0 +1,220 @@
+/**
+ * usePipedream Hook
+ *
+ * React hook for managing Pipedream connected apps state.
+ * Handles fetching accounts, apps, connecting, and disconnecting.
+ */
+
+import { useCallback, useEffect, useState } from 'react'
+
+import {
+  deleteAccount,
+  listAccounts,
+  listApps,
+  openConnectLink,
+  PipedreamAccount,
+  PipedreamApp,
+} from '../services/pipedream-service'
+
+// =============================================================================
+// Types
+// =============================================================================
+
+interface UsePipedreamState {
+  // Connected accounts
+  accounts: PipedreamAccount[]
+  accountsLoading: boolean
+  accountsError: string | null
+
+  // Available apps
+  apps: PipedreamApp[]
+  appsLoading: boolean
+  appsError: string | null
+
+  // Search state
+  searchQuery: string
+
+  // Connection state
+  connectingApp: string | null
+  disconnectingAccountId: string | null
+}
+
+interface UsePipedreamActions {
+  // Fetch data
+  refreshAccounts: () => Promise<void>
+  searchApps: (query: string) => Promise<void>
+
+  // Connect/Disconnect
+  connectApp: (appSlug: string) => Promise<void>
+  disconnectAccount: (accountId: string) => Promise<void>
+
+  // Search
+  setSearchQuery: (query: string) => void
+  clearSearch: () => void
+}
+
+export type UsePipedreamReturn = UsePipedreamState & UsePipedreamActions
+
+// =============================================================================
+// Hook Implementation
+// =============================================================================
+
+export function usePipedream(): UsePipedreamReturn {
+  // Connected accounts state
+  const [accounts, setAccounts] = useState<PipedreamAccount[]>([])
+  const [accountsLoading, setAccountsLoading] = useState(false)
+  const [accountsError, setAccountsError] = useState<string | null>(null)
+
+  // Available apps state
+  const [apps, setApps] = useState<PipedreamApp[]>([])
+  const [appsLoading, setAppsLoading] = useState(false)
+  const [appsError, setAppsError] = useState<string | null>(null)
+
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('')
+
+  // Connection state
+  const [connectingApp, setConnectingApp] = useState<string | null>(null)
+  const [disconnectingAccountId, setDisconnectingAccountId] = useState<string | null>(null)
+
+  // ==========================================================================
+  // Fetch Functions
+  // ==========================================================================
+
+  const refreshAccounts = useCallback(async () => {
+    setAccountsLoading(true)
+    setAccountsError(null)
+
+    try {
+      const response = await listAccounts()
+      setAccounts(response.accounts || [])
+    }
+    catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load accounts'
+      setAccountsError(message)
+      console.error('[usePipedream] Failed to fetch accounts:', error)
+    }
+    finally {
+      setAccountsLoading(false)
+    }
+  }, [])
+
+  const searchApps = useCallback(async (query: string) => {
+    setAppsLoading(true)
+    setAppsError(null)
+
+    try {
+      const response = await listApps(query, 100)
+      setApps(response.apps || [])
+    }
+    catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to search apps'
+      setAppsError(message)
+      console.error('[usePipedream] Failed to search apps:', error)
+    }
+    finally {
+      setAppsLoading(false)
+    }
+  }, [])
+
+  // ==========================================================================
+  // Connect/Disconnect Functions
+  // ==========================================================================
+
+  const connectApp = useCallback(async (appSlug: string) => {
+    setConnectingApp(appSlug)
+
+    try {
+      await openConnectLink(appSlug)
+      // Note: The OAuth flow happens in an external browser.
+      // User should refresh accounts after completing the flow.
+    }
+    catch (error) {
+      console.error('[usePipedream] Failed to connect app:', error)
+      throw error
+    }
+    finally {
+      setConnectingApp(null)
+    }
+  }, [])
+
+  const disconnectAccount = useCallback(async (accountId: string) => {
+    setDisconnectingAccountId(accountId)
+
+    try {
+      await deleteAccount(accountId)
+      // Remove from local state
+      setAccounts(prev => prev.filter(acc => acc.id !== accountId))
+    }
+    catch (error) {
+      console.error('[usePipedream] Failed to disconnect account:', error)
+      throw error
+    }
+    finally {
+      setDisconnectingAccountId(null)
+    }
+  }, [])
+
+  // ==========================================================================
+  // Search Functions
+  // ==========================================================================
+
+  const handleSetSearchQuery = useCallback((query: string) => {
+    setSearchQuery(query)
+  }, [])
+
+  const clearSearch = useCallback(() => {
+    setSearchQuery('')
+    setApps([])
+  }, [])
+
+  // ==========================================================================
+  // Effects
+  // ==========================================================================
+
+  // Load accounts on mount
+  useEffect(() => {
+    refreshAccounts()
+  }, [refreshAccounts])
+
+  // Debounced search
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setApps([])
+      return
+    }
+
+    const timeoutId = setTimeout(() => {
+      searchApps(searchQuery)
+    }, 300)
+
+    return () => clearTimeout(timeoutId)
+  }, [searchQuery, searchApps])
+
+  // ==========================================================================
+  // Return
+  // ==========================================================================
+
+  return {
+    // State
+    accounts,
+    accountsLoading,
+    accountsError,
+    apps,
+    appsLoading,
+    appsError,
+    searchQuery,
+    connectingApp,
+    disconnectingAccountId,
+
+    // Actions
+    refreshAccounts,
+    searchApps,
+    connectApp,
+    disconnectAccount,
+    setSearchQuery: handleSetSearchQuery,
+    clearSearch,
+  }
+}
+
+export default usePipedream
