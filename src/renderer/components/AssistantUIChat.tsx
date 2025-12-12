@@ -326,7 +326,7 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
               {selectedProvider === 'mcp'
                 ? (
                     <MCPChatComponent
-                      serverUrl="https://mcp.keyboard.dev"
+                      serverUrl="https://growing-goose-conversely.ngrok-free.app"
                       clientName="keyboard-approver-mcp"
                     />
                   )

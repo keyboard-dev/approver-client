@@ -27,7 +27,7 @@ export class ExecutionPreferenceManager {
   private jwtToken: string
 
   constructor(config: ExecutionPreferenceConfig) {
-    this.baseUrl = config.baseUrl || 'https://mcp.keyboard.dev'
+    this.baseUrl = config.baseUrl || 'https://api.keyboard.dev'
     this.jwtToken = config.jwtToken
   }
 
@@ -66,7 +66,6 @@ export class ExecutionPreferenceManager {
 
   async getPreference(): Promise<ExecutionPreference> {
     const response = await this.request('GET', '/api/user/preference') as PreferenceResponse
-    
     if (!response.success) {
       throw new Error(response.error || 'Failed to retrieve user preference')
     }
@@ -77,7 +76,6 @@ export class ExecutionPreferenceManager {
   async updatePreference(preference: ExecutionPreference): Promise<void> {
     const requestBody: UpdatePreferenceRequest = { preference }
     const response = await this.request('PUT', '/api/user/preference', requestBody) as UpdatePreferenceResponse
-    
     if (!response.success) {
       throw new Error(response.error || 'Failed to update user preference')
     }

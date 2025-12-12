@@ -3,6 +3,7 @@ import { GithubService } from './Github'
 import { CodespaceConnectionInfo, GitHubCodespacesService } from './github-codespaces'
 import { Message } from './types'
 import { KeyboardEnvironmentManager, KeyboardEnvironmentConfig } from './keyboard-environment'
+import { ExecutionPreference } from './execution-preference'
 
 export interface IWindowManager {
   sendMessage(channel: string, ...args: unknown[]): void
@@ -41,6 +42,7 @@ export class ExecutorWebSocketClient {
   private keyboardEnvironmentManager: KeyboardEnvironmentManager | null = null
   private currentTarget: ConnectionTarget | null = null
   private lastKnownCodespaces: CodespaceConnectionInfo[] = []
+  private executionPreference: ExecutionPreference = 'github-codespace'
 
   // Callback to handle messages from executor
   private onMessageReceived?: (message: ExecutorMessage) => void
@@ -76,6 +78,10 @@ export class ExecutorWebSocketClient {
 
     // Handle connection logic
     this.updateGitHubTokenConnectionLogic(token)
+  }
+
+  setExecutionPreference(preference: ExecutionPreference): void {
+    this.executionPreference = preference
   }
 
   // Set JWT token for keyboard environment access
@@ -524,8 +530,9 @@ export class ExecutorWebSocketClient {
 
   // Automatically discover and connect to the best available executor
   async autoConnect(): Promise<boolean> {
+   
     // If we have a GitHub token and codespaces service, try GitHub codespaces first
-    if (this.codespacesService && this.githubToken) {
+    if (this.codespacesService && this.githubToken && this.executionPreference != 'keyboard-environment') {
       try {
         // Try to find and connect to a user's codespace
         const preparedCodespace = await this.codespacesService.discoverAndPrepareCodespace()
@@ -553,7 +560,7 @@ export class ExecutorWebSocketClient {
     }
 
     // If no GitHub token available, try keyboard environment target
-    if (!this.githubToken) {
+    if (!this.githubToken || this.executionPreference === 'keyboard-environment') {
       console.log('No GitHub token available, trying keyboard environment target')
       try {
         return await this.connectToKeyboardEnvTarget()
@@ -589,6 +596,11 @@ export class ExecutorWebSocketClient {
       if (target.type === 'codespace' && this.githubToken) {
         headers['Authorization'] = `Bearer ${this.githubToken}`
         headers['X-GitHub-Token'] = this.githubToken
+      }
+
+      // Only add keyboard environment authentication headers for keyboard environment targets
+      if (target.type === 'keyboard-env' && this.keyboardEnvironmentManager) {
+        headers['Authorization'] = `Bearer ${this.keyboardEnvironmentManager.getJwtToken()}`
       }
 
       this.ws = new WebSocket(target.url, { headers })

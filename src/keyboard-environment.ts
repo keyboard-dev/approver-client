@@ -57,6 +57,10 @@ export class KeyboardEnvironmentManager {
     this.jwtToken = token
   }
 
+  getJwtToken(): string {
+    return this.jwtToken
+  }
+
   private async request(method: string, path: string, body?: unknown): Promise<any> {
     const options: RequestInit = {
       method,
