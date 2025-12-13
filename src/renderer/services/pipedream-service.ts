@@ -19,6 +19,7 @@ export interface PipedreamApp {
   logoUrl?: string
   categories?: string[]
   authType?: 'oauth' | 'keys' | 'none'
+  featuredWeight?: number
 }
 
 export interface PipedreamAccount {
@@ -56,6 +57,11 @@ export interface AppsResponse {
 export interface DeleteAccountResponse {
   success: boolean
   message: string
+}
+
+export interface CategoriesResponse {
+  success: boolean
+  categories: string[]
 }
 
 // =============================================================================
@@ -128,15 +134,27 @@ export async function listAccounts(): Promise<AccountsResponse> {
 }
 
 /**
- * List available apps with optional search query.
+ * List available apps with optional search query and category filter.
+ * By default, returns the most popular apps sorted by featured_weight descending.
  */
-export async function listApps(query?: string, limit = 50): Promise<AppsResponse> {
+export async function listApps(
+  query?: string,
+  limit = 50,
+  category?: string,
+  sortKey: 'name' | 'name_slug' | 'featured_weight' = 'featured_weight',
+  sortDirection: 'asc' | 'desc' = 'desc',
+): Promise<AppsResponse> {
   const headers = await getAuthHeaders()
   const params = new URLSearchParams()
   if (query) {
     params.set('q', query)
   }
+  if (category) {
+    params.set('category', category)
+  }
   params.set('limit', limit.toString())
+  params.set('sort_key', sortKey)
+  params.set('sort_direction', sortDirection)
 
   const url = `${API_BASE}/apps${params.toString() ? `?${params.toString()}` : ''}`
 
@@ -146,6 +164,20 @@ export async function listApps(query?: string, limit = 50): Promise<AppsResponse
   })
 
   return handleResponse<AppsResponse>(response)
+}
+
+/**
+ * List available app categories.
+ */
+export async function listCategories(): Promise<CategoriesResponse> {
+  const headers = await getAuthHeaders()
+
+  const response = await fetch(`${API_BASE}/apps/categories`, {
+    method: 'GET',
+    headers,
+  })
+
+  return handleResponse<CategoriesResponse>(response)
 }
 
 /**
@@ -179,6 +211,7 @@ export const pipedreamService = {
   getConnectToken,
   listAccounts,
   listApps,
+  listCategories,
   deleteAccount,
   openConnectLink,
 }

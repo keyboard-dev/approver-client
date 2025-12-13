@@ -1,8 +1,9 @@
 /**
- * ConnectedAppsPanel
+ * ConnectedAppsPanel (Pipedream Integrations)
  *
  * Settings panel for managing Pipedream connected apps.
  * Users can search 3,000+ apps, connect new accounts, and disconnect existing ones.
+ * Shows productivity apps by default when no search query is entered.
  */
 
 import { RefreshCw, Search, Trash2, X } from 'lucide-react'
@@ -141,6 +142,8 @@ export const ConnectedAppsPanel: React.FC = () => {
     apps,
     appsLoading,
     appsError,
+    defaultApps,
+    defaultAppsLoading,
     searchQuery,
     connectingApp,
     disconnectingAccountId,
@@ -199,13 +202,13 @@ export const ConnectedAppsPanel: React.FC = () => {
           description="You must be signed in to connect apps."
           onConfirm={window.electronAPI.startOAuth}
           relative
-          title="Connected Apps"
+          title="Pipedream Integrations"
         />
       )}
 
       {/* Header */}
       <div className="px-4">
-        <div className="text-lg font-medium">Connected Apps</div>
+        <div className="text-lg font-medium">Pipedream Integrations</div>
         <div className="text-[#737373] text-sm">
           Connect your accounts to let Keyboard access external services on your behalf.
           {' '}
@@ -277,8 +280,34 @@ export const ConnectedAppsPanel: React.FC = () => {
         </div>
       )}
 
+      {/* Default Productivity Apps (when no search query) */}
+      {!searchQuery && (
+        <div className="px-4">
+          <div className="text-sm font-medium mb-2 text-[#737373]">
+            {defaultAppsLoading
+              ? 'Loading productivity apps...'
+              : 'Productivity Apps'}
+          </div>
+          <div className="flex flex-col gap-2 max-h-[300px] overflow-y-auto">
+            {defaultApps.map(app => (
+              <AppCard
+                key={app.id}
+                app={app}
+                isConnecting={connectingApp === app.nameSlug}
+                onConnect={() => handleConnect(app.nameSlug)}
+              />
+            ))}
+            {!defaultAppsLoading && defaultApps.length === 0 && (
+              <div className="text-center py-6 text-[#737373]">
+                No productivity apps available
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Divider */}
-      {searchQuery && accounts.length > 0 && (
+      {accounts.length > 0 && (
         <div className="px-4">
           <div className="h-px bg-[#E5E5E5]" />
         </div>

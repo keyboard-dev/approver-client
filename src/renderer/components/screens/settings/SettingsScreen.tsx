@@ -28,7 +28,7 @@ const TABS = [
   'AI Providers',
   'Notifications',
   'Connectors',
-  'Connected Apps',
+  'Pipedream Integrations',
   'Advanced',
 ] as const
 
@@ -106,7 +106,7 @@ export const SettingsScreen: React.FC = () => {
         return <NotificationPanel />
       case 'Connectors':
         return <ConnectorPanel />
-      case 'Connected Apps':
+      case 'Pipedream Integrations':
         return <ConnectedAppsPanel />
       case 'Advanced':
         return <AdvancedPanel />

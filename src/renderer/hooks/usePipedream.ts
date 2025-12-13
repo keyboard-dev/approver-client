@@ -26,10 +26,14 @@ interface UsePipedreamState {
   accountsLoading: boolean
   accountsError: string | null
 
-  // Available apps
+  // Available apps (search results)
   apps: PipedreamApp[]
   appsLoading: boolean
   appsError: string | null
+
+  // Default apps (top 5 most popular apps)
+  defaultApps: PipedreamApp[]
+  defaultAppsLoading: boolean
 
   // Search state
   searchQuery: string
@@ -65,10 +69,14 @@ export function usePipedream(): UsePipedreamReturn {
   const [accountsLoading, setAccountsLoading] = useState(false)
   const [accountsError, setAccountsError] = useState<string | null>(null)
 
-  // Available apps state
+  // Available apps state (search results)
   const [apps, setApps] = useState<PipedreamApp[]>([])
   const [appsLoading, setAppsLoading] = useState(false)
   const [appsError, setAppsError] = useState<string | null>(null)
+
+  // Default apps state (top 5 most popular apps)
+  const [defaultApps, setDefaultApps] = useState<PipedreamApp[]>([])
+  const [defaultAppsLoading, setDefaultAppsLoading] = useState(false)
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('')
@@ -114,6 +122,21 @@ export function usePipedream(): UsePipedreamReturn {
     }
     finally {
       setAppsLoading(false)
+    }
+  }, [])
+
+  const fetchDefaultApps = useCallback(async () => {
+    setDefaultAppsLoading(true)
+
+    try {
+      const response = await listApps(undefined, 5)
+      setDefaultApps(response.apps || [])
+    }
+    catch (error) {
+      console.error('[usePipedream] Failed to fetch default apps:', error)
+    }
+    finally {
+      setDefaultAppsLoading(false)
     }
   }, [])
 
@@ -172,10 +195,11 @@ export function usePipedream(): UsePipedreamReturn {
   // Effects
   // ==========================================================================
 
-  // Load accounts on mount
+  // Load accounts and default apps on mount
   useEffect(() => {
     refreshAccounts()
-  }, [refreshAccounts])
+    fetchDefaultApps()
+  }, [refreshAccounts, fetchDefaultApps])
 
   // Debounced search
   useEffect(() => {
@@ -203,6 +227,8 @@ export function usePipedream(): UsePipedreamReturn {
     apps,
     appsLoading,
     appsError,
+    defaultApps,
+    defaultAppsLoading,
     searchQuery,
     connectingApp,
     disconnectingAccountId,
