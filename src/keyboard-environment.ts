@@ -46,7 +46,7 @@ export class KeyboardEnvironmentManager {
   private readonly retryDelay: number
 
   constructor(config: KeyboardEnvironmentConfig) {
-    this.baseUrl = config.baseUrl || 'https://platform.keyboard.dev'
+    this.baseUrl = config.baseUrl || 'https://sandbox.keyboard.dev'
     this.jwtToken = config.jwtToken
     this.defaultTimeout = config.defaultTimeout || 60
     this.maxRetries = config.maxRetries || 3
@@ -79,9 +79,10 @@ export class KeyboardEnvironmentManager {
     if (!response.ok) {
       let errorMessage = `Request failed: ${response.status}`
       try {
-        const error = await response.json() as { error?: string; message?: string }
+        const error = await response.json() as { error?: string, message?: string }
         errorMessage = error.error || error.message || errorMessage
-      } catch (e) {
+      }
+      catch (e) {
         // Ignore JSON parse errors, use default message
       }
       throw new Error(errorMessage)
@@ -111,7 +112,7 @@ export class KeyboardEnvironmentManager {
     return this.request('DELETE', `/api/sandbox/${sessionId}`)
   }
 
-  async restartSandbox(sessionId: string): Promise<{ message: string; sessionId: string; status: string }> {
+  async restartSandbox(sessionId: string): Promise<{ message: string, sessionId: string, status: string }> {
     return this.request('POST', `/api/sandbox/${sessionId}/restart`)
   }
 
@@ -119,34 +120,35 @@ export class KeyboardEnvironmentManager {
     for (let i = 0; i < maxAttempts; i++) {
       try {
         const status = await this.getSandboxStatus(sessionId)
-        
+
         if (status.status === 'running') {
           return status
         }
-        
+
         if (status.status === 'failed') {
           throw new Error('Sandbox failed to start')
         }
-        
+
         if (status.status === 'terminated') {
           throw new Error('Sandbox was terminated')
         }
-        
+
         // Wait before next attempt
         await new Promise(resolve => setTimeout(resolve, this.retryDelay))
-      } catch (error) {
+      }
+      catch (error) {
         if (i === maxAttempts - 1) {
           throw error
         }
         await new Promise(resolve => setTimeout(resolve, this.retryDelay))
       }
     }
-    
+
     throw new Error('Timeout waiting for sandbox to be ready')
   }
 
   getWebSocketUrl(sessionId: string): string {
-    return `wss://${sessionId}.platform.keyboard.dev/ws`
+    return `wss://${sessionId}.sandbox.keyboard.dev/ws`
   }
 
   createConnectionTarget(sandboxInfo: SandboxInfo): ConnectionTarget {
@@ -163,14 +165,15 @@ export class KeyboardEnvironmentManager {
   async findRunningEnvironment(): Promise<SandboxInfo | null> {
     try {
       const { sandboxes } = await this.listUserSandboxes()
-      
+
       // Find the most recently created running sandbox
       const runningSandboxes = sandboxes
         .filter(sandbox => sandbox.status === 'running')
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      
+
       return runningSandboxes[0] || null
-    } catch (error) {
+    }
+    catch (error) {
       console.error('Failed to find running environment:', error)
       return null
     }
@@ -187,7 +190,7 @@ export class KeyboardEnvironmentManager {
     // Create a new environment if none exists
     console.log('Creating new sandbox environment...')
     const createResponse = await this.createSandbox(config)
-    
+
     // Wait for the new environment to be ready
     return this.waitForRunning(createResponse.sessionId)
   }
@@ -196,7 +199,8 @@ export class KeyboardEnvironmentManager {
     try {
       const status = await this.getSandboxStatus(sessionId)
       return status.status === 'running'
-    } catch (error) {
+    }
+    catch (error) {
       return false
     }
   }
@@ -205,8 +209,8 @@ export class KeyboardEnvironmentManager {
     try {
       const { sandboxes } = await this.listUserSandboxes()
       const now = new Date()
-      
-      const expiredSandboxes = sandboxes.filter(sandbox => {
+
+      const expiredSandboxes = sandboxes.filter((sandbox) => {
         const expiresAt = new Date(sandbox.expiresAt)
         return expiresAt < now && (sandbox.status === 'terminated' || sandbox.status === 'failed')
       })
@@ -215,21 +219,24 @@ export class KeyboardEnvironmentManager {
         try {
           await this.deleteSandbox(sandbox.sessionId)
           console.log(`Cleaned up expired sandbox: ${sandbox.sessionId}`)
-        } catch (error) {
+        }
+        catch (error) {
           console.error(`Failed to cleanup sandbox ${sandbox.sessionId}:`, error)
         }
       }
-    } catch (error) {
+    }
+    catch (error) {
       console.error('Failed to cleanup expired environments:', error)
     }
   }
 
   async testConnection(sessionId: string): Promise<boolean> {
     try {
-      const sandboxUrl = `https://${sessionId}.platform.keyboard.dev/health`
+      const sandboxUrl = `https://${sessionId}.sandbox.keyboard.dev/health`
       const response = await fetch(sandboxUrl, { method: 'GET' })
       return response.ok
-    } catch (error) {
+    }
+    catch (error) {
       return false
     }
   }
