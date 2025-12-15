@@ -1,4 +1,4 @@
-git b// CRITICAL: Filter protocol URLs from process.argv BEFORE Electron processes them
+// CRITICAL: Filter protocol URLs from process.argv BEFORE Electron processes them
 // This prevents Electron from treating OAuth callback URLs as file paths
 // Must run BEFORE any imports or other code
 const CUSTOM_PROTOCOL = 'mcpauth'
@@ -97,16 +97,15 @@ import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
 import * as WebSocket from 'ws'
-import { getQueuedProtocolUrls, initializeApp as initializeElectronApp, type AppInitializerResult } from './app-initializer'
 import { aiRuntime, initializeAIProviders } from './ai-provider/setup'
 import { webSearch } from './ai-provider/utils/dedicated-web'
+import { getQueuedProtocolUrls, initializeApp as initializeElectronApp, type AppInitializerResult } from './app-initializer'
 import { setEncryptionKeyProvider } from './encryption'
 import { GithubService } from './Github'
 import { GitHubCodespacesService } from './github-codespaces'
 import { deleteScriptTemplate } from './keyboard-shortcuts'
-import { PKCEParams as NewPKCEParams, OAuthProvider, ServerProvider, ServerProviderInfo } from './oauth-providers'
-import { OAuthTokenStorage, StoredProviderTokens } from './oauth-token-storage'
-import { PerProviderTokenStorage } from './per-provider-token-storage'
+import { OAuthProvider, ServerProvider, ServerProviderInfo } from './oauth-providers'
+import { StoredProviderTokens } from './oauth-token-storage'
 import { OAuthProviderConfig } from './provider-storage'
 import { createRestAPIServer } from './rest-api'
 import { AuthService } from './services/auth-service'
@@ -195,9 +194,6 @@ class MenuBarNotificationApp {
   private sseBackgroundService: SSEBackgroundService | null = null
   private githubService!: GithubService
   private githubCodespacesService!: GitHubCodespacesService
-  private oauthTokenStorage!: OAuthTokenStorage
-  private perProviderTokenStorage!: PerProviderTokenStorage
-  private currentProviderPKCE: NewPKCEParams | null = null
   // WebSocket security
   private wsConnectionKey: string | null = null
   private readonly STORAGE_DIR = path.join(os.homedir(), '.keyboard-mcp')
@@ -367,7 +363,7 @@ class MenuBarNotificationApp {
       this.setupWebSocketServer()
       this.setupRestAPI()
       this.initializeAIProviders()
-      this.setupIPC()
+      // this.setupIPC()
 
       // Request notification permissions on all platforms
       await this.requestNotificationPermissions()
@@ -1385,8 +1381,8 @@ class MenuBarNotificationApp {
         await this.oauthService.refreshProviderTokens(providerId, tokens.refresh_token)
         return true
       }
-      catch (error) {
-        console.error(`Failed to refresh tokens for ${providerId}:`, error)
+      catch {
+        // console.error(`Failed to refresh tokens for ${providerId}:`, error)
         return false
       }
     })
