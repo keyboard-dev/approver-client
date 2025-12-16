@@ -112,9 +112,7 @@ export class MCPClientService {
         name: 'keyboard-approver',
         version: '1.0.0',
       }, {
-        capabilities: {
-          sampling: {},
-        },
+        capabilities: {},
       })
 
       // Connect to the server

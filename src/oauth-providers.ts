@@ -506,7 +506,7 @@ export class OAuthProviderManager {
         }
       }
       catch (error) {
-        console.debug(`Server ${server.name} failed to refresh tokens:`, error)
+        // console.debug(`Server ${server.name} failed to refresh tokens:`, error)
         continue // Try next server
       }
     }
