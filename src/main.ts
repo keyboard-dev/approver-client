@@ -109,6 +109,7 @@ import { StoredProviderTokens } from './oauth-token-storage'
 import { OAuthProviderConfig } from './provider-storage'
 import { createRestAPIServer } from './rest-api'
 import { AuthService } from './services/auth-service'
+import { CheckoutResponse, CreditsResponse, creditsService } from './services/credits-service'
 import { OAuthService } from './services/oauth-service'
 import { CodespaceData, SSEBackgroundService } from './services/SSEBackgroundService'
 import { TrayManager } from './tray-manager'
@@ -2022,6 +2023,35 @@ class MenuBarNotificationApp {
           error: { message: error instanceof Error ? error.message : 'Unknown error' },
         }
       }
+    })
+
+    // Credits balance IPC handler
+    ipcMain.handle('get-credits-balance', async (): Promise<CreditsResponse> => {
+      const accessToken = await this.authService.getValidAccessToken()
+      if (!accessToken) {
+        return {
+          success: false,
+          error: 'Not authenticated',
+        }
+      }
+      return await creditsService.getBalance(accessToken)
+    })
+
+    // Credits checkout IPC handler
+    ipcMain.handle('create-credits-checkout', async (_event, amountCents: number): Promise<CheckoutResponse> => {
+      const accessToken = await this.authService.getValidAccessToken()
+      if (!accessToken) {
+        return {
+          success: false,
+          error: 'Not authenticated',
+        }
+      }
+      const result = await creditsService.createCheckoutSession(accessToken, amountCents)
+      if (result.success) {
+        // Open the checkout URL in the default browser
+        await shell.openExternal(result.checkout_url)
+      }
+      return result
     })
   }
 
