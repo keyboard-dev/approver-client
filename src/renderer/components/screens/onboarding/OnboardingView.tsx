@@ -7,7 +7,7 @@ import { ButtonDesigned } from '../../ui/ButtonDesigned'
 import McpSetup from './McpSetup'
 import Persona from './Persona'
 import { ProgressIndicator } from './ProgressIndicator'
-import Integrations from './Integrations'
+import { Integrations } from './integrations'
 
 interface OnboardingViewProps {
   onComplete?: () => void
