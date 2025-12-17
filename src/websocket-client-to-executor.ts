@@ -1,3 +1,4 @@
+// import { Notification } from 'electron'
 import WebSocket from 'ws'
 import { GithubService } from './Github'
 import { CodespaceConnectionInfo, GitHubCodespacesService } from './github-codespaces'
@@ -61,6 +62,20 @@ export class ExecutorWebSocketClient {
   ) {
     this.onMessageReceived = onMessageReceived
     this.windowManager = windowManager
+  }
+
+  // Debug notification helper for production debugging
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  private showDebugNotification(title: string, body: string): void {
+    return
+    // try {
+    //   if (Notification.isSupported()) {
+    //     new Notification({ title: `[DEBUG] ${title}`, body }).show()
+    //   }
+    // }
+    // catch {
+    //   // Silently fail if notification fails
+    // }
   }
 
   // Set the GitHub token to use for authentication
@@ -448,7 +463,7 @@ export class ExecutorWebSocketClient {
 
     // Determine if we should switch based on current connection
     if (this.isConnected() && this.currentTarget) {
-      const shouldSwitch = this.shouldSwitchToNewCodespace(this.currentTarget, codespace)
+      const shouldSwitch = this.shouldSwitchToNewCodespace(this.currentTarget)
 
       if (!shouldSwitch) {
         return false
@@ -477,7 +492,6 @@ export class ExecutorWebSocketClient {
   // Determine if we should switch from current connection to new codespace
   private shouldSwitchToNewCodespace(
     currentTarget: ConnectionTarget,
-    newCodespace: { codespace_id: string, name: string, url: string, state: string },
   ): boolean {
     // Never switch away from manual connections (user explicitly chose)
     if (currentTarget.source === 'manual') {
@@ -907,8 +921,6 @@ export class ExecutorWebSocketClient {
       connected: boolean
     }
   }> {
-    const startTime = Date.now()
-
     try {
       if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
         return {

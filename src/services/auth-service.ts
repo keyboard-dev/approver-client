@@ -128,7 +128,7 @@ export class AuthService {
       await this.exchangeCodeForTokens(code)
     }
     catch (error) {
-      console.error('❌ OAuth callback error:', error)
+      console.error('OAuth callback error:', error)
       this.notifyAuthError(`Authentication failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
@@ -142,7 +142,9 @@ export class AuthService {
         throw new Error('No PKCE parameters available')
       }
 
-      const response = await fetch(`${this.OAUTH_SERVER_URL}/oauth/token`, {
+      const tokenUrl = `${this.OAUTH_SERVER_URL}/oauth/token`
+
+      const response = await fetch(tokenUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -169,6 +171,7 @@ export class AuthService {
       }
 
       this.authTokens = authTokens
+
       await this.refreshTokens()
 
       // Store tokens securely to encrypted storage
@@ -184,6 +187,7 @@ export class AuthService {
 
       // Show the window after successful authentication
       this.windowManager.showWindow()
+
       // Show success notification
       this.showNotification({
         id: 'auth-success',
@@ -199,8 +203,7 @@ export class AuthService {
       sseBackgroundService.setAuthToken(this.authTokens?.access_token)
 
       // Listen for codespace-online events to refresh user context
-      sseBackgroundService.on('codespace-online', (codespaceData) => {
-        console.log('🚀 Codespace came online:', codespaceData.name)
+      sseBackgroundService.on('codespace-online', (_codespaceData) => {
         // Clear context cache so user tokens get refreshed on next request
       })
 
@@ -208,8 +211,9 @@ export class AuthService {
       this.setSseBackgroundService(sseBackgroundService)
     }
     catch (error) {
-      console.error('❌ Token exchange error:', error)
+      console.error('Token exchange error:', error)
       this.notifyAuthError(`Token exchange failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      throw error // Re-throw to let caller handle
     }
   }
 

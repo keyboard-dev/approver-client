@@ -5,7 +5,9 @@ require('@dotenvx/dotenvx').config()
 module.exports = {
   packagerConfig: {
     asar: true,
-    icon: 'assets/keyboard-dock.icns',
+    // Use platform-specific icons
+    ...(process.platform === 'darwin' && { icon: 'assets/keyboard-dock.icns' }),
+    ...(process.platform === 'win32' && { icon: 'assets/keyboard-dock.ico' }),
     protocols: [
       {
         name: 'MCP Auth Protocol',
@@ -25,11 +27,17 @@ module.exports = {
     {
       name: '@electron-forge/maker-squirrel',
       config: {
-        name: 'keyboard approver', // Changed from 'electron_quick_start'
+        name: 'keyboard_approver', // No spaces in the name for better compatibility
+        setupExe: 'KeyboardApproverSetup.exe',
+        setupIcon: 'assets/keyboard-dock.ico',
+        // Add protocol registration during installation
+        loadingGif: undefined, // Can add a loading GIF if desired
+        // The protocols are already defined in packagerConfig and will be registered
       },
     },
     {
       name: '@electron-forge/maker-zip',
+      platforms: ['darwin'],
       config: {},
     },
     {

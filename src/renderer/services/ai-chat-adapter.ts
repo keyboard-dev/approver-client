@@ -114,25 +114,7 @@ export class AIChatAdapter implements ChatModelAdapter {
       .slice(0, 10) // Limit to most relevant keywords
   }
 
-  private findMatchedAbilities(aiMessages: AIMessage[]) {
-    const messagesToCheck = [...aiMessages]
-    // can we check all the messages to see if they mention any of the abilities, if they do we should return an array of abilities that are mentioned with the full ability name and description
-    const abilities = this.mcpIntegration?.functions || []
-    const matchedAbilities = []
-    if (!abilities) return []
-    for (const message of messagesToCheck) {
-      for (const ability of abilities) {
-        if (message.content.includes(ability.function.name)) {
-          matchedAbilities.push({
-            name: ability.function.name,
-            description: ability.function.description,
-            parameters: ability.function.parameters,
-          })
-        }
-      }
-    }
-    return matchedAbilities
-  }
+
 
   private preContextPrompt(aiMessages: AIMessage[]) {
     aiMessages[aiMessages.length - 1].content += `
@@ -217,69 +199,7 @@ export class AIChatAdapter implements ChatModelAdapter {
     return abilityCalls
   }
 
-  private async executeAbilityCalls(abilityCalls: Array<{ ability: string, parameters: Record<string, unknown> }>, currentIteration: number, originalUserMessage: AIMessage, abortSignal?: AbortSignal) {
-    if (!this.mcpIntegration) {
-      throw new Error('MCP integration not available')
-    }
 
-    let abilityResults = ''
-    for (const abilityCall of abilityCalls) {
-      const { ability: abilityName, parameters } = abilityCall
-
-      this.onTaskProgress?.({
-        step: currentIteration,
-        totalSteps: this.maxAgenticIterations,
-        currentAction: `Executing ${abilityName}`,
-        isComplete: false,
-      })
-
-      const abilityExists = this.mcpIntegration.functions.some(f => f.function.name === abilityName)
-
-      if (abilityExists) {
-        try {
-          this.updateToolExecutionState(true, abilityName)
-
-          // Execute with context-aware processing options
-          const processingOptions = {
-            maxTokens: 300, // Limit result size for efficient context
-            contextKeywords: this.extractKeywords(originalUserMessage.content),
-            filterSensitiveData: true,
-          }
-
-          const processedResult = await this.mcpIntegration.executeAbilityCall(abilityName, parameters, processingOptions)
-
-          abilityResults += `\n\n🚀 **${abilityName}** executed`
-          // if (processedResult.wasFiltered) {
-          //   abilityResults += ` (${processedResult.filterReason})`
-          // }
-          abilityResults += `\n**Result ${processedResult}`
-
-          // Check abort signal after tool execution
-          if (abortSignal?.aborted) {
-            throw new Error('Request was aborted')
-          }
-        }
-        catch (error) {
-          abilityResults += `\n\n❌ **Error:** Failed to execute ${abilityName} - ${error instanceof Error ? error.message : 'Unknown error'}`
-        }
-        finally {
-          this.updateToolExecutionState(false)
-        }
-      }
-      else {
-        // If ability not found, search for similar ones
-        const searchResult = this.mcpIntegration.searchAbilities(abilityName, 3)
-        if (searchResult.matches.length > 0) {
-          const suggestions = searchResult.matches.map(m => m.ability.name).join(', ')
-          abilityResults += `\n\n⚠️ **Error:** Ability '${abilityName}' not found. Similar abilities: ${suggestions}`
-        }
-        else {
-          abilityResults += `\n\n⚠️ **Error:** Ability '${abilityName}' not found`
-        }
-      }
-    }
-    return abilityResults
-  }
 
   private async executeAbilityCallsWithStreaming(
     abilityCalls: Array<{ ability: string, parameters: Record<string, unknown> }>,
@@ -819,7 +739,8 @@ Keep it clear and actionable.`,
       }
 
       // Handle keyboard.dev ability calling if enabled
-      if (this.currentProvider.mcpEnabled && this.mcpIntegration?.isConnected) {
+      const abilitiesAvailable = this.mcpIntegration?.functions || []
+      if (this.currentProvider.mcpEnabled && abilitiesAvailable.length > 0) {
         for await (const result of this.handleWithAbilityCalling(aiMessages, abortSignal)) {
           yield result
         }

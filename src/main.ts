@@ -1,3 +1,96 @@
+// CRITICAL: Filter protocol URLs from process.argv BEFORE Electron processes them
+// This prevents Electron from treating OAuth callback URLs as file paths
+// Must run BEFORE any imports or other code
+const CUSTOM_PROTOCOL = 'mcpauth'
+let earlyProtocolUrl: string | null = null
+
+// Find and extract protocol URL from argv
+const protocolUrlIndex = process.argv.findIndex(arg =>
+  arg.startsWith(`${CUSTOM_PROTOCOL}://`)
+  || arg.includes(`${CUSTOM_PROTOCOL}://`),
+)
+
+if (protocolUrlIndex !== -1) {
+  const foundArg = process.argv[protocolUrlIndex]
+
+  // Extract the URL (it might be just the URL or have other text)
+  const urlMatch = foundArg.match(new RegExp(`${CUSTOM_PROTOCOL}://[^\\s]*`))
+  if (urlMatch) {
+    earlyProtocolUrl = urlMatch[0]
+
+    // Remove the protocol URL from argv to prevent Electron from processing it
+    process.argv.splice(protocolUrlIndex, 1)
+  }
+}
+else {
+  // On Windows, protocol URLs might be split or mangled in various ways:
+  // 1. Full URL split across arguments: ["mcpauth://callback?code=X", "&state=Y"]
+  // 2. Just query params: ["?code=X&state=Y"]
+  // 3. URL-encoded variations
+
+  // Join all arguments and look for the protocol URL
+  const joinedArgs = process.argv.join(' ')
+  const protocolMatch = joinedArgs.match(new RegExp(`${CUSTOM_PROTOCOL}://[^\\s]*`))
+
+  if (protocolMatch) {
+    earlyProtocolUrl = protocolMatch[0]
+
+    // Remove arguments that contain parts of the protocol URL
+    process.argv = process.argv.filter(arg =>
+      !arg.includes(`${CUSTOM_PROTOCOL}://`)
+      && !arg.includes('?code=')
+      && !arg.includes('&state=')
+      && !arg.includes('code=')
+      && !arg.includes('state='),
+    )
+  }
+  else {
+    // Check for bare query parameters (Windows may pass just "?code=...&state=...")
+    // This happens when the protocol registration doesn't properly preserve the full URL
+    const queryParamPattern = /\?(.*code=.*state=|.*state=.*code=)/
+    const queryParamIndex = process.argv.findIndex(arg => queryParamPattern.test(arg))
+
+    if (queryParamIndex !== -1) {
+      const queryArg = process.argv[queryParamIndex]
+
+      // Reconstruct the full protocol URL
+      earlyProtocolUrl = `${CUSTOM_PROTOCOL}://callback${queryArg}`
+
+      // Remove the query parameter argument
+      process.argv.splice(queryParamIndex, 1)
+    }
+    else {
+      // Check if query params are split across multiple arguments
+      const codeArg = process.argv.find(arg => arg.includes('code='))
+      const stateArg = process.argv.find(arg => arg.includes('state='))
+
+      if (codeArg || stateArg) {
+        // Reconstruct query string from fragments
+        const fragments = process.argv.filter(arg =>
+          arg.includes('code=') || arg.includes('state=') || arg.startsWith('?') || arg.startsWith('&'),
+        )
+
+        let queryString = fragments.join('').replace(/^[?&]+/, '?').replace(/&&+/g, '&')
+
+        // Ensure it starts with ?
+        if (!queryString.startsWith('?')) {
+          queryString = '?' + queryString
+        }
+
+        earlyProtocolUrl = `${CUSTOM_PROTOCOL}://callback${queryString}`
+
+        // Remove all query-related arguments
+        process.argv = process.argv.filter(arg =>
+          !arg.includes('code=')
+          && !arg.includes('state=')
+          && !arg.startsWith('?')
+          && !arg.startsWith('&'),
+        )
+      }
+    }
+  }
+}
+
 import * as crypto from 'crypto'
 import { app, autoUpdater, BrowserWindow, ipcMain, Menu, Notification, shell } from 'electron'
 import * as fs from 'fs'
@@ -6,20 +99,21 @@ import * as path from 'path'
 import * as WebSocket from 'ws'
 import { aiRuntime, initializeAIProviders } from './ai-provider/setup'
 import { webSearch } from './ai-provider/utils/dedicated-web'
+import { getQueuedProtocolUrls, initializeApp as initializeElectronApp, type AppInitializerResult } from './app-initializer'
 import { setEncryptionKeyProvider } from './encryption'
 import { GithubService } from './Github'
 import { GitHubCodespacesService } from './github-codespaces'
 import { deleteScriptTemplate } from './keyboard-shortcuts'
-import { PKCEParams as NewPKCEParams, OAuthProvider, ServerProvider, ServerProviderInfo } from './oauth-providers'
-import { OAuthTokenStorage, StoredProviderTokens } from './oauth-token-storage'
-import { PerProviderTokenStorage } from './per-provider-token-storage'
+import { OAuthProvider, ServerProvider, ServerProviderInfo } from './oauth-providers'
+import { StoredProviderTokens } from './oauth-token-storage'
 import { OAuthProviderConfig } from './provider-storage'
 import { createRestAPIServer } from './rest-api'
 import { AuthService } from './services/auth-service'
+import { CheckoutResponse, CreditsResponse, creditsService } from './services/credits-service'
 import { OAuthService } from './services/oauth-service'
 import { CodespaceData, SSEBackgroundService } from './services/SSEBackgroundService'
 import { TrayManager } from './tray-manager'
-import { CollectionRequest, Message, ShareMessage } from './types'
+import { CodespaceInfo, CollectionRequest, Message, ShareMessage } from './types'
 import { CODE_APPROVAL_ORDER, CodeApprovalLevel, RESPONSE_APPROVAL_ORDER, ResponseApprovalLevel } from './types/settings-types'
 import { ExecutorWebSocketClient } from './websocket-client-to-executor'
 import { WindowManager } from './window-manager'
@@ -101,9 +195,6 @@ class MenuBarNotificationApp {
   private sseBackgroundService: SSEBackgroundService | null = null
   private githubService!: GithubService
   private githubCodespacesService!: GitHubCodespacesService
-  private oauthTokenStorage!: OAuthTokenStorage
-  private perProviderTokenStorage!: PerProviderTokenStorage
-  private currentProviderPKCE: NewPKCEParams | null = null
   // WebSocket security
   private wsConnectionKey: string | null = null
   private readonly STORAGE_DIR = path.join(os.homedir(), '.keyboard-mcp')
@@ -133,6 +224,8 @@ class MenuBarNotificationApp {
 
   // Execution Preference Service
   private executionPreferenceManager!: ExecutionPreferenceManager
+  // Startup protocol URL (for Windows OAuth callback handling)
+  private startupProtocolUrl: string | null = null
 
   constructor() {
     // Initialize managers
@@ -179,50 +272,23 @@ class MenuBarNotificationApp {
   }
 
   private initializeApp(): void {
-    // STEP 1: Handle single instance FIRST
-    const gotTheLock = app.requestSingleInstanceLock()
+    // Initialize the Electron app with platform-specific handlers
+    const initResult: AppInitializerResult = initializeElectronApp({
+      customProtocol: this.CUSTOM_PROTOCOL,
+      getAuthService: () => this.authService,
+      windowManager: this.windowManager,
+    })
 
-    if (!gotTheLock) {
+    if (!initResult.shouldContinue) {
       app.quit()
       return
     }
 
-    // STEP 2: Set up event listeners BEFORE app.whenReady()
-    // Platform-specific protocol handling
-    if (process.platform === 'darwin') {
-      // Handle macOS open-url events (MUST be before app.whenReady())
-      app.on('open-url', (event, url) => {
-        event.preventDefault()
+    // Store startup protocol URL for processing after OAuth services are ready
+    // Prefer early-captured URL (filtered before Electron processed argv)
+    this.startupProtocolUrl = earlyProtocolUrl || initResult.startupProtocolUrl
 
-        // Only handle our custom protocol URLs, ignore HTTP URLs
-        if (url.startsWith(`${this.CUSTOM_PROTOCOL}://`)) {
-          // Custom protocol URLs should only go to legacy OAuth handler - delegate to AuthService
-          this.authService?.handleOAuthCallback(url)
-        }
-        // else {
-        // }
-      })
-    }
-
-    // Handle second instance (protocol callbacks for all platforms)
-    app.on('second-instance', (_event, commandLine) => {
-      // Find protocol URL in command line arguments
-      const url = commandLine.find(arg => arg.startsWith(`${this.CUSTOM_PROTOCOL}://`))
-      if (url) {
-        // Custom protocol URLs should only go to legacy OAuth handler - delegate to AuthService
-        this.authService?.handleOAuthCallback(url)
-      }
-
-      // Show the window if it exists
-      this.windowManager.showWindow()
-    })
-
-    // STEP 3: Register as default protocol client
-    if (!app.isDefaultProtocolClient(this.CUSTOM_PROTOCOL)) {
-      app.setAsDefaultProtocolClient(this.CUSTOM_PROTOCOL)
-    }
-
-    // STEP 4: App ready event
+    // App ready event
     app.whenReady().then(async () => {
       // Set application icon for notifications (especially important for macOS)
       const assetsPath = getAssetsPath()
@@ -258,6 +324,34 @@ class MenuBarNotificationApp {
       // This creates both authService and oauthService instances
       await this.initializeOAuthServices()
 
+      // Process startup protocol URL if one was passed (Windows OAuth callback handling)
+      if (this.startupProtocolUrl) {
+        try {
+          await this.authService.handleOAuthCallback(this.startupProtocolUrl)
+        }
+        catch (error) {
+          console.error('Error processing startup protocol URL:', error)
+        }
+        finally {
+          this.startupProtocolUrl = null // Clear after processing
+        }
+      }
+
+      // Process any queued protocol URLs that arrived before auth service was ready
+      // This is critical on Windows where second-instance events can fire during initialization
+      const queuedUrls = getQueuedProtocolUrls()
+
+      if (queuedUrls.length > 0) {
+        for (const queuedUrl of queuedUrls) {
+          try {
+            await this.authService.handleOAuthCallback(queuedUrl)
+          }
+          catch (error) {
+            console.error('Error processing queued URL:', error)
+          }
+        }
+      }
+
       // Setup IPC handlers early so renderer can communicate with main process
       this.setupIPC()
 
@@ -265,7 +359,9 @@ class MenuBarNotificationApp {
       await this.connectToExecutorWithToken()
 
       // Configure auto-updater (only on macOS and Windows)
-      if (process.platform === 'darwin' || process.platform === 'win32') {
+      // Skip in development mode to avoid Squirrel errors on Windows
+      const isDev = process.argv.includes('--dev') || !app.isPackaged
+      if ((process.platform === 'darwin' || process.platform === 'win32') && !isDev) {
         const feedURL = `https://api.keyboard.dev/update/${process.platform}/${app.getVersion()}`
         autoUpdater.setFeedURL({
           url: feedURL,
@@ -309,7 +405,7 @@ class MenuBarNotificationApp {
       this.setupWebSocketServer()
       this.setupRestAPI()
       this.initializeAIProviders()
-      this.setupIPC()
+      // this.setupIPC()
 
       // Request notification permissions on all platforms
       await this.requestNotificationPermissions()
@@ -318,6 +414,15 @@ class MenuBarNotificationApp {
         // On macOS, show window when app is activated
         this.windowManager.showWindow()
       })
+    }).catch((error) => {
+      console.error('Fatal error during initialization:', error)
+      // Still try to show the window so user isn't left with nothing
+      try {
+        this.windowManager.showWindow()
+      }
+      catch (e) {
+        console.error('Failed to show window after initialization error:', e)
+      }
     })
 
     // Don't quit when all windows are closed (menu bar app behavior)
@@ -1372,8 +1477,8 @@ class MenuBarNotificationApp {
         await this.oauthService.refreshProviderTokens(providerId, tokens.refresh_token)
         return true
       }
-      catch (error) {
-        console.error(`Failed to refresh tokens for ${providerId}:`, error)
+      catch {
+        // console.error(`Failed to refresh tokens for ${providerId}:`, error)
         return false
       }
     })
@@ -1903,7 +2008,7 @@ class MenuBarNotificationApp {
     })
 
     // Get user tokens from current WebSocket session
-    ipcMain.handle('get-user-tokens', async (_event): Promise<{ tokensAvailable?: string[], error?: string }> => {
+    ipcMain.handle('get-user-tokens', async (): Promise<{ tokensAvailable?: string[], error?: string }> => {
       try {
         // Use existing provider status logic from line 1917
         const providerStatus = await this.oauthService.getProviderAuthStatus()
@@ -1922,7 +2027,7 @@ class MenuBarNotificationApp {
     })
 
     // Get codespace information using GitHub PAT token
-    ipcMain.handle('get-codespace-info', async (_event): Promise<{ success: boolean, data?: any, status?: number, error?: { message: string } }> => {
+    ipcMain.handle('get-codespace-info', async (): Promise<CodespaceInfo> => {
       try {
         // For localhost connections, return basic info
 
@@ -1931,7 +2036,21 @@ class MenuBarNotificationApp {
         // Use the GitHubCodespacesService to fetch resources
 
         const result = await this.githubCodespacesService.fetchKeyNameAndResources()
-        return { success: true, data: result }
+
+        // Return the result directly since it already has the right shape
+        if (!result.success) {
+          return {
+            success: false,
+            error: result.error,
+            status: result.status,
+          }
+        }
+
+        return {
+          success: true,
+          data: result.data,
+          status: result.status,
+        }
       }
       catch (error) {
         console.error('❌ Failed to get codespace info:', error)
@@ -1986,6 +2105,34 @@ class MenuBarNotificationApp {
         console.error('❌ Failed to set execution preference:', error)
         return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
       }
+    })
+    // Credits balance IPC handler
+    ipcMain.handle('get-credits-balance', async (): Promise<CreditsResponse> => {
+      const accessToken = await this.authService.getValidAccessToken()
+      if (!accessToken) {
+        return {
+          success: false,
+          error: 'Not authenticated',
+        }
+      }
+      return await creditsService.getBalance(accessToken)
+    })
+
+    // Credits checkout IPC handler
+    ipcMain.handle('create-credits-checkout', async (_event, amountCents: number): Promise<CheckoutResponse> => {
+      const accessToken = await this.authService.getValidAccessToken()
+      if (!accessToken) {
+        return {
+          success: false,
+          error: 'Not authenticated',
+        }
+      }
+      const result = await creditsService.createCheckoutSession(accessToken, amountCents)
+      if (result.success) {
+        // Open the checkout URL in the default browser
+        await shell.openExternal(result.checkout_url)
+      }
+      return result
     })
   }
 

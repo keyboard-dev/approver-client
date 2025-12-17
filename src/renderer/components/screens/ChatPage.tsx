@@ -80,11 +80,12 @@ export const ChatPage: React.FC = () => {
     const handleChatApprovalMessage = (event: CustomEvent<Message>) => {
       const message = event.detail
       console.log('💬 ChatPage: Received chat-approval-message event', message)
-      
+
       if (authStatus.authenticated || isSkippingAuth) {
         console.log('💬 ChatPage: Setting approval message for inline display', message)
         setApprovalMessage(message)
-      } else {
+      }
+      else {
         console.log('💬 ChatPage: Not authenticated, ignoring approval message')
       }
     }

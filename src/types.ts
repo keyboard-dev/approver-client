@@ -108,3 +108,18 @@ export interface Script {
   schema?: Record<string, TemplateVariableSchema>
   script?: string
 }
+
+export interface CodespaceInfo {
+  success: boolean
+  data?: {
+    keyName?: string
+    resources?: unknown[]
+    services?: string[]
+    environment?: Record<string, string>
+    environmentVariableKeys?: string[]
+  }
+  status?: number
+  error?: {
+    message: string
+  }
+}

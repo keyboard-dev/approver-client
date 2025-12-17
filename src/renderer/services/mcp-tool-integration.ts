@@ -2,6 +2,7 @@ import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
 import { useMcpClient } from '../hooks/useMcpClient'
 import { AbilityDiscoveryService, type AbilitySearchResult } from './ability-discovery'
 import { ResultProcessorService, type ProcessingOptions } from './result-processor'
+import { toolCacheService } from './tool-cache-service'
 import { webSearchTool } from './web-search-tool'
 
 /**
@@ -117,11 +118,27 @@ export function useMCPIntegration(
     abilityDiscovery.updateAbilities(mcpClient.tools)
   }
 
+  // Cache tools whenever we successfully get them from MCP client
+  if (mcpClient.tools.length > 0) {
+    toolCacheService.cacheTools(mcpClient.tools, serverUrl)
+  }
+
+  // Use cached tools as fallback when MCP client isn't ready
+  const availableTools = mcpClient.tools.length > 0 ? mcpClient.tools : toolCacheService.getAllTools()
+
+  // Log status for debugging
+  if (availableTools.length === 0) {
+    console.warn('⚠️ No tools available from MCP client or cache. User needs initial connection to mcp.keyboard.dev')
+  }
+  else if (mcpClient.tools.length === 0 && availableTools.length > 0) {
+    console.log('🔄 Using cached tools while MCP client reconnects')
+  }
+
   const integrationState: MCPIntegrationState = {
     isEnabled: true, // Always enabled when using this hook
     isConnected: mcpClient.state === 'ready',
-    abilities: mcpClient.tools,
-    functions: convertMCPAbilitiesToFunctions(mcpClient.tools),
+    abilities: availableTools,
+    functions: convertMCPAbilitiesToFunctions(availableTools),
     error: mcpClient.error,
     abilityDiscovery,
     resultProcessor,
@@ -153,6 +170,11 @@ export function useMCPIntegration(
     const executionId = executionTracker?.addExecution(functionName, args, typeof args.provider === 'string' ? args.provider : undefined)
 
     try {
+      // Check if we have any tools available before attempting execution
+      if (availableTools.length === 0) {
+        throw new Error('No tools available. Please ensure connection to mcp.keyboard.dev or wait for tools to be cached.')
+      }
+
       // Intercept web-search calls and route to local implementation
       if (functionName === 'web-search') {
         // Validate required parameters for web search
@@ -189,11 +211,8 @@ export function useMCPIntegration(
         return result
       }
 
-      if (mcpClient.state !== 'ready') {
-        const error = `MCP client is not ready. Current state: ${mcpClient.state}`
-        console.error('❌', error)
-        throw new Error(error)
-      }
+      // Note: Removed blocking "client not ready" check for resilient execution
+      // The underlying StreamableHTTPClientTransport will handle HTTP calls directly
 
       const { name, args: abilityArgs } = prepareMCPAbilityCall(functionName, args)
 
@@ -218,10 +237,23 @@ export function useMCPIntegration(
     }
     catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
-      console.error(`❌ Failed to execute keyboard.dev-ability ${functionName}:`, error)
+
+      // Distinguish between connection and execution errors
+      const isConnectionError = errorMessage.includes('fetch')
+        || errorMessage.includes('network')
+        || errorMessage.includes('timeout')
+        || errorMessage.includes('connection')
+        || errorMessage.includes('not available')
+
+      const errorType = isConnectionError ? 'Connection Error' : 'Execution Error'
+
+      console.error(`❌ ${errorType} for keyboard.dev-ability ${functionName}:`, error)
       console.error('❌ Error details:', {
+        type: errorType,
         name: error instanceof Error ? error.name : 'Unknown',
         message: errorMessage,
+        mcpClientState: mcpClient.state,
+        toolCached: toolCacheService.hasValidTool(functionName),
         stack: error instanceof Error ? error.stack : 'No stack trace',
       })
 
@@ -230,12 +262,23 @@ export function useMCPIntegration(
         executionTracker?.updateExecution(executionId, {
           status: 'error',
           error: errorMessage,
+          metadata: {
+            errorType,
+            mcpClientState: mcpClient.state,
+            toolCached: toolCacheService.hasValidTool(functionName),
+          },
         })
       }
 
+      // Provide more helpful error messages
+      let userFriendlyMessage = errorMessage
+      if (isConnectionError) {
+        userFriendlyMessage = `Connection issue with ${functionName}. The tool will retry automatically when connection is restored.`
+      }
+
       return {
-        summary: `Error executing ${functionName}: ${errorMessage}`,
-        tokenCount: errorMessage.length / 4,
+        summary: `${errorType}: ${userFriendlyMessage}`,
+        tokenCount: userFriendlyMessage.length / 4,
         wasFiltered: false,
       }
     }
