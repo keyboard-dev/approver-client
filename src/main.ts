@@ -117,6 +117,7 @@ import { CodespaceInfo, CollectionRequest, Message, ShareMessage } from './types
 import { CODE_APPROVAL_ORDER, CodeApprovalLevel, RESPONSE_APPROVAL_ORDER, ResponseApprovalLevel } from './types/settings-types'
 import { ExecutorWebSocketClient } from './websocket-client-to-executor'
 import { WindowManager } from './window-manager'
+import { ExecutionPreferenceManager, ExecutionPreference } from './execution-preference'
 
 // Helper function to find assets directory reliably
 export function getAssetsPath(): string {
@@ -221,6 +222,8 @@ class MenuBarNotificationApp {
   private authService!: AuthService
   private oauthService!: OAuthService
 
+  // Execution Preference Service
+  private executionPreferenceManager!: ExecutionPreferenceManager
   // Startup protocol URL (for Windows OAuth callback handling)
   private startupProtocolUrl: string | null = null
 
@@ -473,6 +476,9 @@ class MenuBarNotificationApp {
       // Initialize the OAuth provider system (this will trigger provider token refresh)
       await this.oauthService.initializeOAuthProviderSystem()
 
+      // Initialize execution preference manager
+      await this.initializeExecutionPreferenceManager()
+
       // Set up SSE event handlers if service exists
       // (service may be created during token loading/refresh)
       this.setupSSEEventHandlers()
@@ -480,6 +486,26 @@ class MenuBarNotificationApp {
     catch (error) {
       console.error('❌ Failed to initialize OAuth services:', error)
       throw error
+    }
+  }
+
+  /**
+   * Initialize Execution Preference Manager
+   */
+  private async initializeExecutionPreferenceManager(): Promise<void> {
+    try {
+      // Get valid access token for the execution preference manager
+      const accessToken = await this.authService.getValidAccessToken()
+      if (accessToken) {
+        this.executionPreferenceManager = new ExecutionPreferenceManager({
+          jwtToken: accessToken,
+          baseUrl: this.OAUTH_SERVER_URL,
+        })
+      }
+    }
+    catch (error) {
+      console.error('❌ Failed to initialize execution preference manager:', error)
+      // Don't throw error since this is not critical for app startup
     }
   }
 
@@ -508,6 +534,13 @@ class MenuBarNotificationApp {
       if (onboardingToken && this.executorWSClient) {
         this.executorWSClient.setGitHubToken(onboardingToken)
       }
+
+      // Try to get keyboard JWT token for keyboard environment access
+      const keyboardJwtToken = await this.authService.getValidAccessToken()
+
+      if (keyboardJwtToken && this.executorWSClient) {
+        this.executorWSClient.setKeyboardJwtToken(keyboardJwtToken)
+      }
     }
     catch (error) {
       console.error('❌ Error connecting to executor:', error)
@@ -528,10 +561,11 @@ class MenuBarNotificationApp {
     sseService.on('connected', () => {
       console.log('Connected to SSE')
     })
-
     // Handle codespace coming online - auto-connect to it
     sseService.on('codespace-online', async (data: CodespaceData) => {
       console.log('Codespace online:', data)
+      const preference = await this.executionPreferenceManager.getPreference()
+      this.executorWSClient?.setExecutionPreference(preference)
       await this.authService.getValidAccessToken()
       await this.connectToExecutorWithToken()
       await this.executorWSClient?.autoConnect()
@@ -1771,6 +1805,8 @@ class MenuBarNotificationApp {
       if (!this.executorWSClient) {
         return false
       }
+      const preference = await this.executionPreferenceManager.getPreference()
+      this.executorWSClient?.setExecutionPreference(preference)
       return await this.executorWSClient.autoConnect()
     })
 
@@ -2025,6 +2061,51 @@ class MenuBarNotificationApp {
       }
     })
 
+    // Execution Preference IPC handlers
+    ipcMain.handle('get-execution-preference', async (): Promise<{ preference?: string, error?: string }> => {
+      try {
+        if (!this.executionPreferenceManager) {
+          await this.initializeExecutionPreferenceManager()
+        }
+
+        if (this.executionPreferenceManager) {
+          const preference = await this.executionPreferenceManager.getPreference()
+          return { preference }
+        }
+
+        return { error: 'Execution preference manager not available' }
+      }
+      catch (error) {
+        console.error('❌ Failed to get execution preference:', error)
+        return { error: error instanceof Error ? error.message : 'Unknown error' }
+      }
+    })
+
+    ipcMain.handle('set-execution-preference', async (_event, preference: ExecutionPreference): Promise<{ success: boolean, error?: string }> => {
+      try {
+        if (!this.executionPreferenceManager) {
+          await this.initializeExecutionPreferenceManager()
+        }
+
+        if (this.executionPreferenceManager) {
+          // Update the JWT token before making the request
+          const accessToken = await this.authService.getValidAccessToken()
+          if (accessToken) {
+            this.executionPreferenceManager.setJwtToken(accessToken)
+            await this.executionPreferenceManager.updatePreference(preference)
+            return { success: true }
+          }
+
+          return { success: false, error: 'No valid access token available' }
+        }
+
+        return { success: false, error: 'Execution preference manager not available' }
+      }
+      catch (error) {
+        console.error('❌ Failed to set execution preference:', error)
+        return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+      }
+    })
     // Credits balance IPC handler
     ipcMain.handle('get-credits-balance', async (): Promise<CreditsResponse> => {
       const accessToken = await this.authService.getValidAccessToken()

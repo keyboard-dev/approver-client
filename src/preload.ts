@@ -244,6 +244,8 @@ export interface ElectronAPI {
   getAutomaticResponseApproval: () => Promise<ResponseApprovalLevel>
   setFullCodeExecution: (enabled: boolean) => Promise<void>
   getFullCodeExecution: () => Promise<boolean>
+  getExecutionPreference: () => Promise<{ preference?: string, error?: string }>
+  setExecutionPreference: (preference: string) => Promise<{ success: boolean, error?: string }>
   // Assets path
   getAssetsPath: () => Promise<string>
 
@@ -471,6 +473,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAutomaticResponseApproval: (): Promise<ResponseApprovalLevel> => ipcRenderer.invoke('get-automatic-response-approval'),
   setFullCodeExecution: (enabled: boolean): Promise<void> => ipcRenderer.invoke('set-full-code-execution', enabled),
   getFullCodeExecution: (): Promise<boolean> => ipcRenderer.invoke('get-full-code-execution'),
+  getExecutionPreference: (): Promise<{ preference?: string, error?: string }> => ipcRenderer.invoke('get-execution-preference'),
+  setExecutionPreference: (preference: string): Promise<{ success: boolean, error?: string }> => ipcRenderer.invoke('set-execution-preference', preference),
 
   // Assets path
   getAssetsPath: (): Promise<string> => ipcRenderer.invoke('get-assets-path'),
