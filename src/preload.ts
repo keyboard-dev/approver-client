@@ -110,6 +110,40 @@ export interface UpdateInfo {
   releaseNotes?: string
 }
 
+export interface CreditsBalance {
+  success: true
+  balance_cents: number
+  balance_usd: string
+  total_earned_cents: number
+  total_earned_usd: string
+  total_purchased_cents: number
+  total_purchased_usd: string
+  total_spent_cents: number
+  total_spent_usd: string
+  created_at: string
+  updated_at: string
+}
+
+export interface CreditsError {
+  success: false
+  error: string
+}
+
+export type CreditsResponse = CreditsBalance | CreditsError
+
+export interface CheckoutSuccess {
+  success: true
+  checkout_url: string
+  session_id: string
+}
+
+export interface CheckoutError {
+  success: false
+  error: string
+}
+
+export type CheckoutResponse = CheckoutSuccess | CheckoutError
+
 export interface ProgressInfo {
   bytesPerSecond: number
   percent: number
@@ -210,6 +244,8 @@ export interface ElectronAPI {
   getAutomaticResponseApproval: () => Promise<ResponseApprovalLevel>
   setFullCodeExecution: (enabled: boolean) => Promise<void>
   getFullCodeExecution: () => Promise<boolean>
+  getExecutionPreference: () => Promise<{ preference?: string, error?: string }>
+  setExecutionPreference: (preference: string) => Promise<{ success: boolean, error?: string }>
   // Assets path
   getAssetsPath: () => Promise<string>
 
@@ -268,7 +304,10 @@ export interface ElectronAPI {
   removeAIStreamListeners: () => void
   webSearch: (provider: string, query: string, company: string) => Promise<any>
   getUserTokens: () => Promise<{ tokensAvailable?: string[], error?: string }>
-  getCodespaceInfo: () => Promise<CodespaceInfo>
+  getCodespaceInfo: () => Promise<{ success: boolean, data?: any, status?: number, error?: { message: string } }>
+  // Credits balance
+  getCreditsBalance: () => Promise<CreditsResponse>
+  createCreditsCheckout: (amountCents: number) => Promise<CheckoutResponse>
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -434,6 +473,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAutomaticResponseApproval: (): Promise<ResponseApprovalLevel> => ipcRenderer.invoke('get-automatic-response-approval'),
   setFullCodeExecution: (enabled: boolean): Promise<void> => ipcRenderer.invoke('set-full-code-execution', enabled),
   getFullCodeExecution: (): Promise<boolean> => ipcRenderer.invoke('get-full-code-execution'),
+  getExecutionPreference: (): Promise<{ preference?: string, error?: string }> => ipcRenderer.invoke('get-execution-preference'),
+  setExecutionPreference: (preference: string): Promise<{ success: boolean, error?: string }> => ipcRenderer.invoke('set-execution-preference', preference),
 
   // Assets path
   getAssetsPath: (): Promise<string> => ipcRenderer.invoke('get-assets-path'),
@@ -500,7 +541,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   webSearch: (provider: string, query: string, company: string): Promise<any> => ipcRenderer.invoke('web-search', provider, query, company),
   getUserTokens: (): Promise<{ tokensAvailable?: string[], error?: string }> => ipcRenderer.invoke('get-user-tokens'),
-  getCodespaceInfo: (): Promise<CodespaceInfo> => ipcRenderer.invoke('get-codespace-info'),
+  getCodespaceInfo: (): Promise<{ success: boolean, data?: any, status?: number, error?: { message: string } }> => ipcRenderer.invoke('get-codespace-info'),
+  // Credits balance
+  getCreditsBalance: (): Promise<CreditsResponse> => ipcRenderer.invoke('get-credits-balance'),
+  createCreditsCheckout: (amountCents: number): Promise<CheckoutResponse> => ipcRenderer.invoke('create-credits-checkout', amountCents),
 } as ElectronAPI)
 
 // Extend the global Window interface

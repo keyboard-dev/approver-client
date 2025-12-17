@@ -13,7 +13,7 @@ import {
 } from './ui/dialog'
 
 interface ConnectionTarget {
-  type: 'localhost' | 'codespace'
+  type: 'localhost' | 'codespace' | 'keyboard-env'
   url: string
   name?: string
   codespaceName?: string
@@ -159,6 +159,9 @@ export const WebSocketStatusDialog: React.FC<WebSocketStatusDialogProps> = ({
     if (target.type === 'localhost') {
       return 'Local Development Server'
     }
+    if (target.type === 'keyboard-env') {
+      return target.name || 'Keyboard Environment'
+    }
     return target.name || target.codespaceName || 'GitHub Codespace'
   }
 
@@ -213,7 +216,8 @@ export const WebSocketStatusDialog: React.FC<WebSocketStatusDialogProps> = ({
                   <div className="min-w-0">
                     <div className="font-medium text-gray-700">Type</div>
                     <Badge variant="outline" className="text-xs">
-                      {connectionStatus.target.type === 'localhost' ? 'Local' : 'Codespace'}
+                      {connectionStatus.target.type === 'localhost' ? 'Local' : 
+                       connectionStatus.target.type === 'keyboard-env' ? 'Keyboard Environment' : 'Codespace'}
                     </Badge>
                   </div>
                 )}
