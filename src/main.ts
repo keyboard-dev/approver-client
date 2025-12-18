@@ -110,6 +110,7 @@ import { OAuthProviderConfig } from './provider-storage'
 import { createRestAPIServer } from './rest-api'
 import { AuthService } from './services/auth-service'
 import { CheckoutResponse, CreditsResponse, creditsService } from './services/credits-service'
+import { PaymentStatusResponse, SubscriptionCheckoutResponse, subscriptionsService } from './services/subscriptions-service'
 import { OAuthService } from './services/oauth-service'
 import { CodespaceData, SSEBackgroundService } from './services/SSEBackgroundService'
 import { TrayManager } from './tray-manager'
@@ -2133,6 +2134,35 @@ class MenuBarNotificationApp {
         await shell.openExternal(result.checkout_url)
       }
       return result
+    })
+
+    // Subscription checkout IPC handler
+    ipcMain.handle('create-subscription-checkout', async (): Promise<SubscriptionCheckoutResponse> => {
+      const accessToken = await this.authService.getValidAccessToken()
+      if (!accessToken) {
+        return {
+          success: false,
+          error: 'Not authenticated',
+        }
+      }
+      const result = await subscriptionsService.createCheckoutSession(accessToken)
+      if (result.success) {
+        // Open the checkout URL in the default browser
+        await shell.openExternal(result.checkout_url)
+      }
+      return result
+    })
+
+    // Payment status IPC handler
+    ipcMain.handle('get-payment-status', async (): Promise<PaymentStatusResponse> => {
+      const accessToken = await this.authService.getValidAccessToken()
+      if (!accessToken) {
+        return {
+          success: false,
+          error: 'Not authenticated',
+        }
+      }
+      return await subscriptionsService.getPaymentStatus(accessToken)
     })
   }
 
