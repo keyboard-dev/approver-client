@@ -131,6 +131,20 @@ export const WebSocketStatusDialog: React.FC<WebSocketStatusDialogProps> = ({
     }
   }
 
+  const handleDisconnect = async () => {
+    setIsReconnecting(true)
+    try {
+      await window.electronAPI.disconnectFromExecutor()
+      await fetchConnectionStatus()
+    }
+    catch (error) {
+      console.error('Failed to disconnect:', error)
+    }
+    finally {
+      setIsReconnecting(false)
+    }
+  }
+
   const getStatusIcon = () => {
     if (isLoading || isReconnecting) {
       return <RefreshCw className="h-5 w-5 animate-spin text-blue-500" />
@@ -283,7 +297,17 @@ export const WebSocketStatusDialog: React.FC<WebSocketStatusDialogProps> = ({
             Refresh
           </Button>
 
-          {!connectionStatus?.connected && (
+          {connectionStatus?.connected ? (
+            <Button
+              variant="destructive"
+              onClick={handleDisconnect}
+              disabled={isLoading || isReconnecting}
+              className="w-full sm:w-auto"
+            >
+              <WifiOff className="h-4 w-4 mr-2" />
+              Disconnect
+            </Button>
+          ) : (
             <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
               {/* <Button
                 variant="outline"

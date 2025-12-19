@@ -283,7 +283,7 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
   }, [pollingTimeoutId])
 
   // If onboarding is completed, don't render anything (let main app show)
-  if (isOnboardingCompleted && isGitHubConnected) {
+  if (isOnboardingCompleted && (isGitHubConnected || hasActiveSubscription)) {
     return null
   }
 
@@ -468,7 +468,7 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
             </div> */}
           </div>
 
-          {isGitHubConnected && (
+          {(isGitHubConnected || hasActiveSubscription) && (
             <ButtonDesigned
               variant="clear"
               onClick={() => {

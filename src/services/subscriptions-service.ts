@@ -3,6 +3,10 @@
  * from the Keyboard API
  */
 
+import * as fs from 'fs'
+import * as path from 'path'
+import * as os from 'os'
+
 export interface SubscriptionCheckoutSuccess {
   success: true
   checkout_url: string
@@ -38,6 +42,8 @@ export type PaymentStatusResponse = PaymentStatusSuccess | PaymentStatusError
 
 const SUBSCRIPTION_CHECKOUT_URL = 'https://api.keyboard.dev/api/payments/subscriptions/checkout'
 const PAYMENT_STATUS_URL = 'https://api.keyboard.dev/api/payments/status'
+const STORAGE_DIR = path.join(os.homedir(), '.keyboard-mcp')
+const HOSTED_SERVER_STATUS_FILE = path.join(STORAGE_DIR, 'hosted-server-status.json')
 
 export class SubscriptionsService {
   /**
@@ -75,11 +81,28 @@ export class SubscriptionsService {
 
   /**
    * Get the current payment status including active subscriptions
+   * First checks local cache file, then falls back to API
    * @param accessToken - The user's access token for authentication
    * @returns The payment status with subscriptions array or an error response
    */
   async getPaymentStatus(accessToken: string): Promise<PaymentStatusResponse> {
     try {
+      // Check if cache file exists and has valid status
+      if (fs.existsSync(HOSTED_SERVER_STATUS_FILE)) {
+        try {
+          const cachedData = JSON.parse(fs.readFileSync(HOSTED_SERVER_STATUS_FILE, 'utf-8'))
+          if (cachedData.status === true) {
+            // Return cached response
+            return cachedData as PaymentStatusSuccess
+          }
+        }
+        catch (cacheError) {
+          // If cache read fails, continue to API call
+          console.warn('Failed to read cached payment status:', cacheError)
+        }
+      }
+
+      // Cache miss or invalid - fetch from API
       const response = await fetch(PAYMENT_STATUS_URL, {
         method: 'GET',
         headers: {
@@ -96,6 +119,30 @@ export class SubscriptionsService {
       }
 
       const data = await response.json() as PaymentStatusSuccess
+
+      // Cache the response if user has subscriptions
+      if (data.success && data.subscriptions && data.subscriptions.length > 0) {
+        try {
+          // Ensure storage directory exists
+          if (!fs.existsSync(STORAGE_DIR)) {
+            fs.mkdirSync(STORAGE_DIR, { recursive: true, mode: 0o700 })
+          }
+
+          // Write cache file with status: true
+          const cacheData = {
+            ...data,
+            status: true,
+          }
+          fs.writeFileSync(HOSTED_SERVER_STATUS_FILE, JSON.stringify(cacheData, null, 2), {
+            mode: 0o600,
+          })
+        }
+        catch (cacheError) {
+          // Log but don't fail if cache write fails
+          console.warn('Failed to cache payment status:', cacheError)
+        }
+      }
+
       return data
     }
     catch (error) {

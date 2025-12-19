@@ -1,6 +1,7 @@
 import * as crypto from 'crypto'
 import { shell } from 'electron'
 import { CodespaceEncryptionConfig, encryptWithCodespaceKey } from '../codespace-encryption'
+import { ExecutionPreference } from '../execution-preference'
 import { GithubService } from '../Github'
 import { OAuthCallbackData, OAuthHttpServer } from '../oauth-http-server'
 import { PKCEParams as NewPKCEParams, OAuthProvider, OAuthProviderManager, ProviderTokens, ServerProvider, ServerProviderInfo } from '../oauth-providers'
@@ -42,6 +43,7 @@ export class OAuthService {
     private getGithubService: () => GithubService,
     private getEncryptionKey: () => string | null,
     private getMainAccessToken: () => Promise<string | null>,
+    private getExecutionPreference: () => Promise<ExecutionPreference | null>,
     private readonly OAUTH_PORT: number,
     private readonly SKIP_AUTH: boolean,
   ) {
@@ -144,7 +146,7 @@ export class OAuthService {
   }
 
   /**
-   * Helper function to encrypt provider token using codespace encryption
+   * Helper function to encrypt provider token using codespace or sandbox encryption
    */
   private async encryptProviderToken(token: string): Promise<{
     encryptedToken: string
@@ -164,16 +166,21 @@ export class OAuthService {
         const accessToken = await this.getMainAccessToken()
 
         if (onboardingToken && accessToken) {
+          // Get user's execution preference to determine which environment to use
+          const executionPreference = await this.getExecutionPreference()
+
           const config: CodespaceEncryptionConfig = {
-            codespaceUrl: 'auto', // Will be auto-discovered
-            bearerToken: accessToken, // Use GitHub token for authentication
-            githubToken: onboardingToken,
+            codespaceUrl: 'auto', // Will be auto-discovered based on preference
+            bearerToken: accessToken, // JWT token for sandbox OR GitHub token for codespace
+            githubToken: onboardingToken, // GitHub token (used for codespace discovery)
           }
 
-          // This will auto-discover the codespace URL and encrypt the token
-          encryptedToken = await encryptWithCodespaceKey(token, config)
+          // Auto-discover and encrypt using the appropriate environment
+          encryptedToken = await encryptWithCodespaceKey(token, config, executionPreference || 'github-codespace')
           encrypted = true
-          encryptionMethod = 'rsa-codespace'
+
+          // Set encryption method based on preference
+          encryptionMethod = executionPreference === 'keyboard-environment' ? 'rsa-sandbox' : 'rsa-codespace'
         }
       }
       catch (encryptionError) {
