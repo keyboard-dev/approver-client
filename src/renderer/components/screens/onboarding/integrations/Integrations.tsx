@@ -1,18 +1,17 @@
 /**
  * Integrations (Onboarding Step)
  *
- * Main container for the integrations onboarding step with tab navigation.
- * Users can switch between OAuth providers and Pipedream integrations.
+ * Onboarding step for connecting apps. Uses the shared ConnectorsContent
+ * component to provide a unified experience with the settings panel.
  */
 
-import React, { useState } from 'react'
+import React from 'react'
 
 import { useAuth } from '../../../../hooks/useAuth'
 import { Footer } from '../../../Footer'
 import { ButtonDesigned } from '../../../ui/ButtonDesigned'
+import { ConnectorsContent } from '../../../ui/ConnectorsContent'
 import { ProgressIndicator } from '../ProgressIndicator'
-import { OAuthPanel } from './OAuthPanel'
-import { PipedreamPanel } from './PipedreamPanel'
 
 // =============================================================================
 // Types
@@ -22,15 +21,12 @@ interface IntegrationsProps {
   onComplete: () => void
 }
 
-type IntegrationTab = 'oauth' | 'pipedream'
-
 // =============================================================================
 // Component
 // =============================================================================
 
 export const Integrations: React.FC<IntegrationsProps> = ({ onComplete }) => {
   const { isAuthenticated, isSkippingAuth } = useAuth()
-  const [activeTab, setActiveTab] = useState<IntegrationTab>('oauth')
 
   // ===========================================================================
   // Handlers
@@ -65,7 +61,7 @@ export const Integrations: React.FC<IntegrationsProps> = ({ onComplete }) => {
   return (
     <div className="flex flex-col h-full w-full py-[3.88rem] items-center">
       <div className="flex flex-col items-start h-full max-w-[800px] justify-between px-[100px]">
-        <div className="flex w-full flex-col items-start gap-[2rem]">
+        <div className="flex w-full flex-col items-start gap-[1.5rem]">
           {/* Header */}
           <div className="flex w-full flex-col items-start gap-[0.63rem] pb-[1.25rem] border-b border-neutral-200">
             <div className="text-[1.38rem] font-semibold">
@@ -80,38 +76,13 @@ export const Integrations: React.FC<IntegrationsProps> = ({ onComplete }) => {
             </div>
           </div>
 
-          {/* Tab Navigation */}
-          <div className="flex w-full border-b border-neutral-200">
-            <button
-              className={`px-4 py-2 text-[14px] font-medium border-b-2 transition-colors ${
-                activeTab === 'oauth'
-                  ? 'border-[#5093B7] text-[#5093B7]'
-                  : 'border-transparent text-neutral-500 hover:text-neutral-700'
-              }`}
-              onClick={() => setActiveTab('oauth')}
-            >
-              OAuth Providers
-            </button>
-            <button
-              className={`px-4 py-2 text-[14px] font-medium border-b-2 transition-colors ${
-                activeTab === 'pipedream'
-                  ? 'border-[#5093B7] text-[#5093B7]'
-                  : 'border-transparent text-neutral-500 hover:text-neutral-700'
-              }`}
-              onClick={() => setActiveTab('pipedream')}
-            >
-              Pipedream Integrations
-            </button>
-          </div>
-
-          {/* Tab Content */}
+          {/* Connectors Content */}
           <div className="w-full">
-            {activeTab === 'oauth' && <OAuthPanel />}
-            {activeTab === 'pipedream' && <PipedreamPanel isAuthenticated={isAuthenticated && !isSkippingAuth} />}
+            <ConnectorsContent maxConnectorsHeight="280px" />
           </div>
 
           {/* Buttons */}
-          <div className="flex gap-[5px] justify-end w-full max-w-[400px]">
+          <div className="flex gap-[5px] justify-end w-full">
             <ButtonDesigned
               variant="clear"
               onClick={handleComplete}
