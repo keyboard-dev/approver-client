@@ -73,7 +73,7 @@ export class ContextService {
       this.fetchUserTokens(),
       this.fetchCodespaceInfo(),
     ])
-    console.log('what is the codespaceInfo', codespaceInfo)
+
     const context: EnhancedContext = {
       planningToken,
       userTokens: userTokens.status === 'fulfilled' ? userTokens.value : [],
