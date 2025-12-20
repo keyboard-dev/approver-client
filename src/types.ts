@@ -110,16 +110,10 @@ export interface Script {
 }
 
 export interface CodespaceInfo {
+  packageJson?: Record<string, unknown>
+  environmentVariableKeys?: string[] // not actual environment variables, but the key namesthat are available in the codespace
+  docResources?: Record<string, unknown>
   success: boolean
-  data?: {
-    keyName?: string
-    resources?: unknown[]
-    services?: string[]
-    environment?: Record<string, string>
-    environmentVariableKeys?: string[]
-  }
+  error?: { message: string }
   status?: number
-  error?: {
-    message: string
-  }
 }

@@ -73,7 +73,7 @@ export class ContextService {
       this.fetchUserTokens(),
       this.fetchCodespaceInfo(),
     ])
-
+    console.log('what is the codespaceInfo', codespaceInfo)
     const context: EnhancedContext = {
       planningToken,
       userTokens: userTokens.status === 'fulfilled' ? userTokens.value : [],
@@ -97,8 +97,12 @@ export class ContextService {
       ? context.userTokens.map(token => `- ${token}`).join('\n')
       : '- No user tokens currently available'
 
-    const codespaceDetails = context.codespaceInfo?.success
-      ? JSON.stringify(context.codespaceInfo.data, null, 2)
+    const codespaceDetails = context.codespaceInfo
+      ? JSON.stringify({
+          packageJson: context.codespaceInfo.packageJson,
+          environmentVariableKeys: context.codespaceInfo.environmentVariableKeys, // not actual environment variables, but the key namesthat are available in the codespace
+          docResources: context.codespaceInfo.docResources,
+        }, null, 2)
       : 'No codespace information available'
 
     const abilitiesList = JSON.stringify(toolsToAbilities, null, 2)
@@ -217,9 +221,9 @@ USER REQUEST: ${userMessage}`
   private async fetchCodespaceInfo(): Promise<CodespaceInfo | null> {
     try {
       // Get codespace info via electron API
-      const codespaceInfo = await window.electronAPI?.getCodespaceInfo?.() as CodespaceInfo | undefined
+      const codespaceInfo = await window.electronAPI?.getCodespaceInfo?.()
 
-      if (codespaceInfo) {
+      if (codespaceInfo?.packageJson) {
         return codespaceInfo
       }
 

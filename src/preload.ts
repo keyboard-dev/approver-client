@@ -304,7 +304,7 @@ export interface ElectronAPI {
   removeAIStreamListeners: () => void
   webSearch: (provider: string, query: string, company: string) => Promise<any>
   getUserTokens: () => Promise<{ tokensAvailable?: string[], error?: string }>
-  getCodespaceInfo: () => Promise<{ success: boolean, data?: any, status?: number, error?: { message: string } }>
+  getCodespaceInfo: () => Promise<CodespaceInfo>
   // Credits balance
   getCreditsBalance: () => Promise<CreditsResponse>
   createCreditsCheckout: (amountCents: number) => Promise<CheckoutResponse>
@@ -541,7 +541,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   webSearch: (provider: string, query: string, company: string): Promise<any> => ipcRenderer.invoke('web-search', provider, query, company),
   getUserTokens: (): Promise<{ tokensAvailable?: string[], error?: string }> => ipcRenderer.invoke('get-user-tokens'),
-  getCodespaceInfo: (): Promise<{ success: boolean, data?: any, status?: number, error?: { message: string } }> => ipcRenderer.invoke('get-codespace-info'),
+  getCodespaceInfo: (): Promise<CodespaceInfo> => ipcRenderer.invoke('get-codespace-info'),
   // Credits balance
   getCreditsBalance: (): Promise<CreditsResponse> => ipcRenderer.invoke('get-credits-balance'),
   createCreditsCheckout: (amountCents: number): Promise<CheckoutResponse> => ipcRenderer.invoke('create-credits-checkout', amountCents),
