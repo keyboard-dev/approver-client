@@ -173,13 +173,6 @@ export class GithubService {
 
   // Repository Operations
   async fetchResources(url: string) {
-    console.log('🔍 Fetching resources...', url)
-    console.log('🔍 Token:', this.token)
-    console.log('🔍 Headers:', {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${this.token}`,
-      'x-github-token': this.token || '',
-    })
     this.ensureAuthenticated()
     const response = await fetch(url, {
       method: 'POST',
