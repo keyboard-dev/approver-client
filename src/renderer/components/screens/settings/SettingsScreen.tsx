@@ -4,8 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { AdvancedPanel } from './panels/AdvancedPanel'
 import { AICreditsPanel } from './panels/AICreditsPanel'
 import { AIProvidersPanel } from './panels/AIProvidersPanel'
-import { ConnectedAppsPanel } from './panels/ConnectedAppsPanel'
-import { ConnectorPanel } from './panels/ConnectorPanel'
+import { ConnectorsPanel } from './panels/ConnectorsPanel'
 import { KeyPanel } from './panels/KeyPanel'
 import { NotificationPanel } from './panels/NotificationPanel'
 
@@ -30,7 +29,6 @@ const TABS = [
   'AI Credits',
   'Notifications',
   'Connectors',
-  'Pipedream Integrations',
   'Advanced',
 ] as const
 
@@ -109,9 +107,7 @@ export const SettingsScreen: React.FC = () => {
       case 'Notifications':
         return <NotificationPanel />
       case 'Connectors':
-        return <ConnectorPanel />
-      case 'Pipedream Integrations':
-        return <ConnectedAppsPanel />
+        return <ConnectorsPanel />
       case 'Advanced':
         return <AdvancedPanel />
       default:
