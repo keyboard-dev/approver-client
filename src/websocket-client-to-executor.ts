@@ -108,7 +108,8 @@ export class ExecutorWebSocketClient {
         maxRetries: 3,
         retryDelay: 2000,
       })
-    } else {
+    }
+    else {
       this.keyboardEnvironmentManager = null
     }
 
@@ -311,7 +312,7 @@ export class ExecutorWebSocketClient {
     try {
       // Try to find or create a sandbox environment
       const sandboxInfo = await this.keyboardEnvironmentManager.findOrCreateEnvironment()
-      
+
       // Create connection target from sandbox info
       this.currentTarget = this.keyboardEnvironmentManager.createConnectionTarget(sandboxInfo)
 
@@ -323,9 +324,10 @@ export class ExecutorWebSocketClient {
 
       this.connectToTarget(this.currentTarget)
       return true
-    } catch (error) {
+    }
+    catch (error) {
       console.error('Failed to connect to keyboard environment:', error)
-      
+
       // Fallback to legacy environment variables
       return this.connectToLegacyKeyboardEnvTarget()
     }
@@ -344,7 +346,8 @@ export class ExecutorWebSocketClient {
     if (keyboardWsUrl) {
       targetUrl = keyboardWsUrl
       targetName = 'custom-websocket'
-    } else if (keyboardExecutorHost) {
+    }
+    else if (keyboardExecutorHost) {
       const port = keyboardExecutorPort || this.EXECUTOR_WS_PORT
       targetUrl = `ws://${keyboardExecutorHost}:${port}`
       targetName = `${keyboardExecutorHost}:${port}`
@@ -392,7 +395,8 @@ export class ExecutorWebSocketClient {
     try {
       const { sandboxes } = await this.keyboardEnvironmentManager.listUserSandboxes()
       return sandboxes
-    } catch (error) {
+    }
+    catch (error) {
       console.error('Failed to list keyboard environments:', error)
       return []
     }
@@ -429,7 +433,8 @@ export class ExecutorWebSocketClient {
       // Connect to the environment
       this.connectToTarget(this.currentTarget)
       return true
-    } catch (error) {
+    }
+    catch (error) {
       console.error(`Failed to connect to keyboard environment ${sessionId}:`, error)
       return false
     }
@@ -443,7 +448,8 @@ export class ExecutorWebSocketClient {
 
     try {
       await this.keyboardEnvironmentManager.cleanupExpiredEnvironments()
-    } catch (error) {
+    }
+    catch (error) {
       console.error('Failed to cleanup keyboard environments:', error)
     }
   }
@@ -544,7 +550,6 @@ export class ExecutorWebSocketClient {
 
   // Automatically discover and connect to the best available executor
   async autoConnect(): Promise<boolean> {
-   
     // If we have a GitHub token and codespaces service, try GitHub codespaces first
     if (this.codespacesService && this.githubToken && this.executionPreference != 'keyboard-environment') {
       try {
@@ -578,7 +583,8 @@ export class ExecutorWebSocketClient {
       console.log('No GitHub token available, trying keyboard environment target')
       try {
         return await this.connectToKeyboardEnvTarget()
-      } catch (error) {
+      }
+      catch (error) {
         console.error('Failed to connect to keyboard environment:', error)
         return false
       }

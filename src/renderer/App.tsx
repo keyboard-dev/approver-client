@@ -79,9 +79,14 @@ export const AppContent: React.FC = () => {
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Check GitHub connection status
+
   const checkGitHubConnection = useCallback(async () => {
     try {
-      const connected = await window.electronAPI.checkOnboardingGithubToken()
+      let connected = await window.electronAPI.checkOnboardingGithubToken()
+      const result = await window.electronAPI.getPaymentStatus()
+      if (result.success && result.subscriptions && result.subscriptions.length > 0) {
+        connected = true
+      }
       setIsGitHubConnected(connected)
     }
     catch (error) {

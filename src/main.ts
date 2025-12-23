@@ -101,6 +101,7 @@ import { aiRuntime, initializeAIProviders } from './ai-provider/setup'
 import { webSearch } from './ai-provider/utils/dedicated-web'
 import { getQueuedProtocolUrls, initializeApp as initializeElectronApp, type AppInitializerResult } from './app-initializer'
 import { setEncryptionKeyProvider } from './encryption'
+import { ExecutionPreference, ExecutionPreferenceManager } from './execution-preference'
 import { GithubService } from './Github'
 import { GitHubCodespacesService } from './github-codespaces'
 import { deleteScriptTemplate } from './keyboard-shortcuts'
@@ -112,12 +113,12 @@ import { AuthService } from './services/auth-service'
 import { CheckoutResponse, CreditsResponse, creditsService } from './services/credits-service'
 import { OAuthService } from './services/oauth-service'
 import { CodespaceData, SSEBackgroundService } from './services/SSEBackgroundService'
+import { PaymentStatusResponse, SubscriptionCheckoutResponse, subscriptionsService } from './services/subscriptions-service'
 import { TrayManager } from './tray-manager'
 import { CodespaceInfo, CollectionRequest, Message, ShareMessage } from './types'
 import { CODE_APPROVAL_ORDER, CodeApprovalLevel, RESPONSE_APPROVAL_ORDER, ResponseApprovalLevel } from './types/settings-types'
 import { ExecutorWebSocketClient } from './websocket-client-to-executor'
 import { WindowManager } from './window-manager'
-import { ExecutionPreferenceManager, ExecutionPreference } from './execution-preference'
 
 // Helper function to find assets directory reliably
 export function getAssetsPath(): string {
@@ -469,6 +470,17 @@ class MenuBarNotificationApp {
         () => this.githubService,
         () => this.getActiveEncryptionKey(),
         () => this.authService.getValidAccessToken('provider'),
+        async () => {
+          try {
+            if (!this.executionPreferenceManager) {
+              await this.initializeExecutionPreferenceManager()
+            }
+            return this.executionPreferenceManager ? await this.executionPreferenceManager.getPreference() : null
+          }
+          catch (error) {
+            return null
+          }
+        },
         this.OAUTH_PORT,
         this.SKIP_AUTH,
       )
@@ -2120,6 +2132,35 @@ class MenuBarNotificationApp {
         await shell.openExternal(result.checkout_url)
       }
       return result
+    })
+
+    // Subscription checkout IPC handler
+    ipcMain.handle('create-subscription-checkout', async (): Promise<SubscriptionCheckoutResponse> => {
+      const accessToken = await this.authService.getValidAccessToken()
+      if (!accessToken) {
+        return {
+          success: false,
+          error: 'Not authenticated',
+        }
+      }
+      const result = await subscriptionsService.createCheckoutSession(accessToken)
+      if (result.success) {
+        // Open the checkout URL in the default browser
+        await shell.openExternal(result.checkout_url)
+      }
+      return result
+    })
+
+    // Payment status IPC handler
+    ipcMain.handle('get-payment-status', async (): Promise<PaymentStatusResponse> => {
+      const accessToken = await this.authService.getValidAccessToken()
+      if (!accessToken) {
+        return {
+          success: false,
+          error: 'Not authenticated',
+        }
+      }
+      return await subscriptionsService.getPaymentStatus(accessToken)
     })
   }
 

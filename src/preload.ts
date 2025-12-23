@@ -144,6 +144,39 @@ export interface CheckoutError {
 
 export type CheckoutResponse = CheckoutSuccess | CheckoutError
 
+export interface SubscriptionCheckoutSuccess {
+  success: true
+  checkout_url: string
+  session_id: string
+}
+
+export interface SubscriptionCheckoutError {
+  success: false
+  error: string
+}
+
+export type SubscriptionCheckoutResponse = SubscriptionCheckoutSuccess | SubscriptionCheckoutError
+
+export interface Subscription {
+  id: string
+  status: string
+  plan: string
+  [key: string]: unknown
+}
+
+export interface PaymentStatusSuccess {
+  success: true
+  subscriptions: Subscription[]
+  [key: string]: unknown
+}
+
+export interface PaymentStatusError {
+  success: false
+  error: string
+}
+
+export type PaymentStatusResponse = PaymentStatusSuccess | PaymentStatusError
+
 export interface ProgressInfo {
   bytesPerSecond: number
   percent: number
@@ -308,6 +341,9 @@ export interface ElectronAPI {
   // Credits balance
   getCreditsBalance: () => Promise<CreditsResponse>
   createCreditsCheckout: (amountCents: number) => Promise<CheckoutResponse>
+  // Subscriptions
+  createSubscriptionCheckout: () => Promise<SubscriptionCheckoutResponse>
+  getPaymentStatus: () => Promise<PaymentStatusResponse>
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -545,6 +581,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Credits balance
   getCreditsBalance: (): Promise<CreditsResponse> => ipcRenderer.invoke('get-credits-balance'),
   createCreditsCheckout: (amountCents: number): Promise<CheckoutResponse> => ipcRenderer.invoke('create-credits-checkout', amountCents),
+  // Subscriptions
+  createSubscriptionCheckout: (): Promise<SubscriptionCheckoutResponse> => ipcRenderer.invoke('create-subscription-checkout'),
+  getPaymentStatus: (): Promise<PaymentStatusResponse> => ipcRenderer.invoke('get-payment-status'),
 } as ElectronAPI)
 
 // Extend the global Window interface
