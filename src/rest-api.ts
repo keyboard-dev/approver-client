@@ -39,6 +39,8 @@ interface RestAPIServerDeps {
   getMessages: () => Message[]
   getAuthTokens: () => AuthTokens | null
   getWebSocketServerStatus: () => boolean
+  getLatestConnectedAccountSessionId: () => string | null
+  completeConnectedAccount: (sessionId: string, connectCode: string) => Promise<{ success: boolean, message: string, data?: unknown }>
   updateMessageStatus: (messageId: string, status: 'approved' | 'rejected', feedback?: string) => boolean
 }
 
@@ -631,6 +633,48 @@ const setupExpressApp = (deps: RestAPIServerDeps): Application => {
       res.json({ success: true, decryptedCode })
     }
     catch {
+      res.status(500).json({ error: 'Internal server error' })
+    }
+  })
+
+  app.get('/connected/accounts/callback', async (req: Request, res: Response) => {
+    try {
+      const { connect_code, state } = req.query
+      const sessionId = deps.getLatestConnectedAccountSessionId()
+
+      if (!sessionId) {
+        res.status(400).json({ error: 'No active session found' })
+        return
+      }
+
+      if (!connect_code || typeof connect_code !== 'string') {
+        res.status(400).json({ error: 'Missing or invalid connect_code' })
+        return
+      }
+
+      // Complete the connection by calling the token vault
+      const result = await deps.completeConnectedAccount(sessionId, connect_code)
+
+      if (!result.success) {
+        res.status(500).json({
+          success: false,
+          error: result.message,
+        })
+        return
+      }
+
+      res.json({
+        success: true,
+        message: 'Connection completed successfully',
+        data: {
+          state,
+          session_id: sessionId,
+          result: result.data,
+        },
+      })
+    }
+    catch (error) {
+      console.error('❌ Connected accounts callback error:', error)
       res.status(500).json({ error: 'Internal server error' })
     }
   })

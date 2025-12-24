@@ -110,12 +110,13 @@ import { StoredProviderTokens } from './oauth-token-storage'
 import { OAuthProviderConfig } from './provider-storage'
 import { createRestAPIServer } from './rest-api'
 import { AuthService } from './services/auth-service'
+import { ConnectedAccountsService } from './services/connected-accounts-service'
 import { CheckoutResponse, CreditsResponse, creditsService } from './services/credits-service'
 import { OAuthService } from './services/oauth-service'
 import { CodespaceData, SSEBackgroundService } from './services/SSEBackgroundService'
 import { PaymentStatusResponse, SubscriptionCheckoutResponse, subscriptionsService } from './services/subscriptions-service'
 import { TrayManager } from './tray-manager'
-import { CodespaceInfo, CollectionRequest, Message, ShareMessage } from './types'
+import { CollectionRequest, Message, ShareMessage } from './types'
 import { CODE_APPROVAL_ORDER, CodeApprovalLevel, RESPONSE_APPROVAL_ORDER, ResponseApprovalLevel } from './types/settings-types'
 import { ExecutorWebSocketClient } from './websocket-client-to-executor'
 import { WindowManager } from './window-manager'
@@ -223,6 +224,10 @@ class MenuBarNotificationApp {
   private authService!: AuthService
   private oauthService!: OAuthService
 
+  // Connected Accounts Service
+  private connectedAccountsService!: ConnectedAccountsService
+  private latestConnectedAccountSessionId: string | null = null
+
   // Execution Preference Service
   private executionPreferenceManager!: ExecutionPreferenceManager
   // Startup protocol URL (for Windows OAuth callback handling)
@@ -320,6 +325,9 @@ class MenuBarNotificationApp {
 
       // Initialize GitHub service
       await this.initializeGithubService()
+
+      // Initialize Connected Accounts service
+      this.initializeConnectedAccountsService()
 
       // Initialize OAuth services (after encryption is ready)
       // This creates both authService and oauthService instances
@@ -477,7 +485,7 @@ class MenuBarNotificationApp {
             }
             return this.executionPreferenceManager ? await this.executionPreferenceManager.getPreference() : null
           }
-          catch (error) {
+          catch {
             return null
           }
         },
@@ -533,6 +541,74 @@ class MenuBarNotificationApp {
   private async initializeGithubService(): Promise<void> {
     this.githubService = await new GithubService()
     this.githubCodespacesService = new GitHubCodespacesService(this.githubService)
+  }
+
+  private initializeConnectedAccountsService(): void {
+    this.connectedAccountsService = new ConnectedAccountsService({
+      tokenVaultUrl: process.env.TOKEN_VAULT_URL || 'http://localhost:4000',
+    })
+  }
+
+  /**
+   * Initiate connected account flow
+   */
+  private async initiateConnectedAccount(
+    connection: string,
+    scopes: string[],
+  ): Promise<{ success: boolean, connect_uri?: string, error?: string }> {
+    try {
+      const response = await this.connectedAccountsService.initiateConnection({
+        connection,
+        scopes,
+        redirect_uri: `http://localhost:${this.restApiServer?.getPort() || 8081}/connected/accounts/callback`,
+      })
+
+      if (response.success && response.data) {
+        // Store the session_id for later use
+        this.latestConnectedAccountSessionId = response.data.session_id
+        return { success: true, connect_uri: response.data.connect_uri }
+      }
+
+      return { success: false, error: response.message }
+    }
+    catch (error) {
+      console.error('❌ Failed to initiate connected account:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      }
+    }
+  }
+
+  /**
+   * Get the latest connected account session ID
+   */
+  private getLatestConnectedAccountSessionId(): string | null {
+    return this.latestConnectedAccountSessionId
+  }
+
+  /**
+   * Complete connected account flow
+   */
+  private async completeConnectedAccount(
+    sessionId: string,
+    connectCode: string,
+  ): Promise<{ success: boolean, message: string, data?: unknown }> {
+    try {
+      const response = await this.connectedAccountsService.completeConnection({
+        session_id: sessionId,
+        connect_code: connectCode,
+      })
+
+      return response
+    }
+    catch (error) {
+      console.error('❌ Failed to complete connected account:', error)
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error',
+      }
+    }
   }
 
   /**
@@ -2162,6 +2238,11 @@ class MenuBarNotificationApp {
       }
       return await subscriptionsService.getPaymentStatus(accessToken)
     })
+
+    // Connected Accounts IPC handler
+    ipcMain.handle('initiate-connected-account', async (_event, connection: string, scopes: string[]): Promise<{ success: boolean, connect_uri?: string, error?: string }> => {
+      return await this.initiateConnectedAccount(connection, scopes)
+    })
   }
 
   private handleApproveMessage(message: Message, feedback?: string): Message {
@@ -2257,6 +2338,9 @@ class MenuBarNotificationApp {
       getMessages: () => [], // Messages now stored in renderer IndexedDB
       getAuthTokens: () => this.authService.getAuthTokens(),
       getWebSocketServerStatus: () => !!this.wsServer,
+      getLatestConnectedAccountSessionId: () => this.getLatestConnectedAccountSessionId(),
+      completeConnectedAccount: (sessionId: string, connectCode: string) =>
+        this.completeConnectedAccount(sessionId, connectCode),
       updateMessageStatus: (messageId: string, status: 'approved' | 'rejected', feedback?: string) => {
         // Use helper method to handle message status update
         const message = status === 'rejected'
