@@ -2291,6 +2291,17 @@ class MenuBarNotificationApp {
       return await this.initiateConnectedAccount(connection, scopes)
     })
 
+    ipcMain.handle('get-additional-connected-accounts', async () => {
+      const accessToken = await this.authService.getValidAccessToken()
+      if (!accessToken) {
+        return {
+          success: false,
+          accounts: [],
+        }
+      }
+      return await this.connectedAccountsService.getConnectedAccounts(accessToken)
+    })
+
     // Fetch Additional Connectors IPC handler
     ipcMain.handle('fetch-additional-connectors', async () => {
       return this.getAdditionalConnectors()

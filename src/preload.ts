@@ -346,6 +346,7 @@ export interface ElectronAPI {
   getPaymentStatus: () => Promise<PaymentStatusResponse>
   // Connected Accounts
   initiateConnectedAccount: (connection: string, scopes: string[]) => Promise<{ success: boolean, connect_uri?: string, error?: string }>
+  getAdditionalConnectedAccounts: () => Promise<{ success: boolean, accounts: Array<{ id: string, connection: string, access_type: string, scopes: string[], created_at: string, icon?: string }> }>
   fetchAdditionalConnectors: () => Promise<Array<{ id: string, name: string, description?: string, icon: string, scopes?: string[], source?: 'local' | 'pipedream' | 'custom', metadata?: Record<string, unknown> }>>
 }
 
@@ -589,6 +590,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getPaymentStatus: (): Promise<PaymentStatusResponse> => ipcRenderer.invoke('get-payment-status'),
   // Connected Accounts
   initiateConnectedAccount: (connection: string, scopes: string[]): Promise<{ success: boolean, connect_uri?: string, error?: string }> => ipcRenderer.invoke('initiate-connected-account', connection, scopes),
+  getAdditionalConnectedAccounts: (): Promise<{ success: boolean, accounts: Array<{ id: string, connection: string, access_type: string, scopes: string[], created_at: string, icon?: string }> }> => ipcRenderer.invoke('get-additional-connected-accounts'),
   fetchAdditionalConnectors: (): Promise<Array<{ id: string, name: string, description?: string, icon: string, scopes?: string[], source?: 'local' | 'pipedream' | 'custom', metadata?: Record<string, unknown> }>> => ipcRenderer.invoke('fetch-additional-connectors'),
 } as ElectronAPI)
 

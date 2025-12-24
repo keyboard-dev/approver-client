@@ -43,6 +43,20 @@ export interface SocialProvidersResponse {
   message: string
 }
 
+export interface ConnectedAccount {
+  id: string
+  connection: string
+  access_type: string
+  scopes: string[]
+  created_at: string
+  icon?: string
+}
+
+export interface ConnectedAccountsResponse {
+  success: boolean
+  accounts: ConnectedAccount[]
+}
+
 export interface ConnectedAccountsServiceConfig {
   tokenVaultUrl: string
 }
@@ -147,6 +161,37 @@ export class ConnectedAccountsService {
     }
     catch (error) {
       console.error('❌ Failed to fetch social providers:', error)
+      throw error
+    }
+  }
+
+  async getConnectedAccounts(accessToken: string): Promise<ConnectedAccountsResponse> {
+    try {
+      const response = await fetch(
+        `${this.tokenVaultUrl}/api/token-vault/connected-accounts`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+          },
+        },
+      )
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const data = await response.json() as ConnectedAccountsResponse
+
+      if (!data.success) {
+        throw new Error('Failed to fetch connected accounts')
+      }
+
+      return data
+    }
+    catch (error) {
+      console.error('❌ Failed to fetch connected accounts:', error)
       throw error
     }
   }
