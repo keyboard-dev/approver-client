@@ -19,8 +19,9 @@ export interface InitiateConnectionResponse {
 }
 
 export interface CompleteConnectionRequest {
-  session_id: string
+  auth_session: string
   connect_code: string
+  redirect_uri: string
 }
 
 export interface CompleteConnectionResponse {
@@ -70,6 +71,7 @@ export class ConnectedAccountsService {
 
   async initiateConnection(
     request: InitiateConnectionRequest,
+    token: string,
   ): Promise<InitiateConnectionResponse> {
     try {
       const response = await fetch(
@@ -78,6 +80,7 @@ export class ConnectedAccountsService {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
           },
           body: JSON.stringify(request),
         },
@@ -102,7 +105,7 @@ export class ConnectedAccountsService {
   }
 
   async completeConnection(
-    request: CompleteConnectionRequest,
+    request: CompleteConnectionRequest, token: string,
   ): Promise<CompleteConnectionResponse> {
     try {
       const response = await fetch(
@@ -111,6 +114,7 @@ export class ConnectedAccountsService {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
           },
           body: JSON.stringify(request),
         },

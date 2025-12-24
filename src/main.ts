@@ -557,15 +557,15 @@ class MenuBarNotificationApp {
     scopes: string[],
   ): Promise<{ success: boolean, connect_uri?: string, error?: string }> {
     try {
+      const accessToken = await this.authService.getValidAccessToken()
       const response = await this.connectedAccountsService.initiateConnection({
         connection,
         scopes,
-        redirect_uri: `http://localhost:${this.restApiServer?.getPort() || 8081}/connected/accounts/callback`,
-      })
+        redirect_uri: `http://localhost:${this.restApiServer?.getPort()}/connected/accounts/callback`,
+      }, accessToken || '')
 
       if (response.success && response.data) {
-        // Store the session_id for later use
-        this.latestConnectedAccountSessionId = response.data.session_id
+        this.latestConnectedAccountSessionId = response.data.auth_session
         return { success: true, connect_uri: response.data.connect_uri }
       }
 
@@ -595,10 +595,12 @@ class MenuBarNotificationApp {
     connectCode: string,
   ): Promise<{ success: boolean, message: string, data?: unknown }> {
     try {
+      const accessToken = await this.authService.getValidAccessToken()
       const response = await this.connectedAccountsService.completeConnection({
-        session_id: sessionId,
+        auth_session: sessionId,
         connect_code: connectCode,
-      })
+        redirect_uri: `http://localhost:${this.restApiServer?.getPort()}/connected/accounts/callback`,
+      }, accessToken || '')
 
       return response
     }
@@ -627,7 +629,6 @@ class MenuBarNotificationApp {
     try {
       const accessToken = await this.authService.getValidAccessToken()
       const response = await this.connectedAccountsService.getSocialProviders(accessToken || '')
-      console.log('response', response)
 
       const providerMetadata: Record<string, { displayName: string, description: string, icon: string }> = {}
 
