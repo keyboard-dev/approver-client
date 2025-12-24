@@ -10,6 +10,7 @@ import { RefreshCw, Search, Trash2, X } from 'lucide-react'
 import React, { useMemo, useState } from 'react'
 
 import squaresIconUrl from '../../../../assets/icon-squares.svg'
+import { useCustomIntegrations } from '../../hooks/useCustomIntegrations'
 import { KeyboardApiProvider, useKeyboardApiConnectors } from '../../hooks/useKeyboardApiConnectors'
 import { usePipedream } from '../../hooks/usePipedream'
 import { usePopup } from '../../hooks/usePopup'
@@ -31,7 +32,7 @@ export interface ConnectorsContentProps {
 // Tag Component
 // =============================================================================
 
-type SourceType = 'local' | 'pipedream'
+type SourceType = 'local' | 'pipedream' | 'custom'
 
 interface SourceTagProps {
   source: SourceType
@@ -40,7 +41,9 @@ interface SourceTagProps {
 export const SourceTag: React.FC<SourceTagProps> = ({ source }) => {
   const styles = source === 'local'
     ? 'bg-[#E5EFF4] text-[#5093B7] border-[#5093B7]'
-    : 'bg-[#F3E8FF] text-[#9333EA] border-[#9333EA]'
+    : source === 'pipedream'
+      ? 'bg-[#F3E8FF] text-[#9333EA] border-[#9333EA]'
+      : 'bg-[#FFF4E5] text-[#D97706] border-[#D97706]'
 
   return (
     <span className={`text-[10px] px-1.5 py-0.5 rounded border ${styles}`}>
@@ -154,6 +157,65 @@ const PipedreamAppCard: React.FC<PipedreamAppCardProps> = ({ app, isConnecting, 
           {app.description && (
             <div className="text-sm text-[#737373] line-clamp-1 max-w-[300px]">
               {app.description}
+            </div>
+          )}
+        </div>
+      </div>
+      <ButtonDesigned
+        variant="clear"
+        hasBorder
+        className="px-4 py-2 shrink-0"
+        disabled={isConnecting}
+        onClick={onConnect}
+      >
+        {isConnecting ? 'Connecting...' : 'Connect'}
+      </ButtonDesigned>
+    </div>
+  )
+}
+
+// =============================================================================
+// Custom Integration Card
+// =============================================================================
+
+interface CustomIntegrationCardProps {
+  integration: {
+    id: string
+    name: string
+    description?: string
+    icon: string
+    source?: 'local' | 'pipedream' | 'custom'
+  }
+  isConnecting: boolean
+  onConnect: () => void
+}
+
+const CustomIntegrationCard: React.FC<CustomIntegrationCardProps> = ({
+  integration,
+  isConnecting,
+  onConnect,
+}) => {
+  return (
+    <div className="flex items-center justify-between p-3 border border-[#E5E5E5] rounded-lg hover:border-[#CCC] transition-colors">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-lg border border-[#E5E5E5] flex items-center justify-center overflow-hidden bg-white">
+          <img
+            src={integration.icon}
+            alt={integration.name}
+            className="w-6 h-6 object-contain"
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = squaresIconUrl
+            }}
+          />
+        </div>
+        <div>
+          <div className="flex items-center gap-2">
+            <div className="font-medium text-[#171717]">{integration.name}</div>
+            <SourceTag source={integration.source || 'custom'} />
+          </div>
+          {integration.description && (
+            <div className="text-sm text-[#737373] line-clamp-1 max-w-[300px]">
+              {integration.description}
             </div>
           )}
         </div>
@@ -331,6 +393,15 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
   const [searchQuery, setSearchQuery] = useState('')
   const [connectError, setConnectError] = useState<string | null>(null)
 
+  // Custom integrations
+  const {
+    filteredIntegrations: customIntegrations,
+    loading: customIntegrationsLoading,
+    error: customIntegrationsError,
+    connectingIntegrationId,
+    connectIntegration,
+  } = useCustomIntegrations(searchQuery)
+
   // ==========================================================================
   // Computed Values
   // ==========================================================================
@@ -430,12 +501,28 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
   }
 
   // ==========================================================================
+  // Handlers - Custom Integrations
+  // ==========================================================================
+
+  const handleConnectCustom = async (integrationId: string) => {
+    setConnectError(null)
+    try {
+      await connectIntegration(integrationId)
+    }
+    catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to connect'
+      setConnectError(message)
+    }
+  }
+
+  // ==========================================================================
   // Render
   // ==========================================================================
 
   const isSearching = searchQuery.trim().length > 0
   const showPipedreamResults = isSearching && pipedreamApps.length > 0
   const showPipedreamDefaults = !isSearching && pipedreamDefaultApps.length > 0
+  const totalAvailableCount = filteredLocalProviders.length + pipedreamApps.length + customIntegrations.length
 
   return (
     <div className={`flex flex-col gap-4 ${className}`}>
@@ -460,19 +547,19 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
       </div>
 
       {/* Error Display */}
-      {(connectError || localError || pipedreamAppsError) && (
+      {(connectError || localError || pipedreamAppsError || customIntegrationsError) && (
         <div className="p-3 bg-[#FEE] border border-[#D23535] rounded-lg text-[#D23535] text-sm">
-          {connectError || localError || pipedreamAppsError}
+          {connectError || localError || pipedreamAppsError || customIntegrationsError}
         </div>
       )}
 
       {/* Available Connectors Section */}
       <div>
         <div className="text-sm font-medium mb-2 text-[#737373]">
-          {localLoading
+          {localLoading || customIntegrationsLoading
             ? 'Loading connectors...'
             : isSearching
-              ? `${filteredLocalProviders.length + pipedreamApps.length} connector${(filteredLocalProviders.length + pipedreamApps.length) !== 1 ? 's' : ''} found`
+              ? `${totalAvailableCount} connector${totalAvailableCount !== 1 ? 's' : ''} found`
               : 'Available Connectors'}
         </div>
 
@@ -496,6 +583,16 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
             )
           })}
 
+          {/* Custom Integrations (always show after local providers) */}
+          {customIntegrations.map(integration => (
+            <CustomIntegrationCard
+              key={`custom-${integration.id}`}
+              integration={integration}
+              isConnecting={connectingIntegrationId === integration.id}
+              onConnect={() => handleConnectCustom(integration.id)}
+            />
+          ))}
+
           {/* Pipedream Apps (search results or defaults) */}
           {isSearching
             ? (
@@ -513,7 +610,7 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
                       onConnect={() => handleConnectPipedream(app.nameSlug)}
                     />
                   ))}
-                  {!pipedreamAppsLoading && pipedreamApps.length === 0 && filteredLocalProviders.length === 0 && (
+                  {!pipedreamAppsLoading && pipedreamApps.length === 0 && filteredLocalProviders.length === 0 && customIntegrations.length === 0 && (
                     <div className="text-center py-6 text-[#737373]">
                       No connectors found for "
                       {searchQuery}

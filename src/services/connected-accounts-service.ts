@@ -29,6 +29,20 @@ export interface CompleteConnectionResponse {
   data?: unknown
 }
 
+export interface SocialProvider {
+  name: string
+  strategy: string
+  scopes: string[]
+  icon?: string
+}
+
+export interface SocialProvidersResponse {
+  success: boolean
+  providers: SocialProvider[]
+  count: number
+  message: string
+}
+
 export interface ConnectedAccountsServiceConfig {
   tokenVaultUrl: string
 }
@@ -102,6 +116,37 @@ export class ConnectedAccountsService {
     }
     catch (error) {
       console.error('❌ Failed to complete connected account:', error)
+      throw error
+    }
+  }
+
+  async getSocialProviders(accessToken: string): Promise<SocialProvidersResponse> {
+    try {
+      const response = await fetch(
+        `${this.tokenVaultUrl}/api/token-vault/connected-accounts/social-providers`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+          },
+        },
+      )
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const data = await response.json() as SocialProvidersResponse
+
+      if (!data.success) {
+        throw new Error(data.message || 'Failed to fetch social providers')
+      }
+
+      return data
+    }
+    catch (error) {
+      console.error('❌ Failed to fetch social providers:', error)
       throw error
     }
   }

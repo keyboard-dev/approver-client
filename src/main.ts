@@ -612,6 +612,53 @@ class MenuBarNotificationApp {
   }
 
   /**
+   * Get additional connectors
+   * This method can be extended to fetch from config, database, or API
+   */
+  private async getAdditionalConnectors(): Promise<Array<{
+    id: string
+    name: string
+    description?: string
+    icon: string
+    scopes?: string[]
+    source?: 'local' | 'pipedream' | 'custom'
+    metadata?: Record<string, unknown>
+  }>> {
+    try {
+      const accessToken = await this.authService.getValidAccessToken()
+      const response = await this.connectedAccountsService.getSocialProviders(accessToken || '')
+      console.log('response', response)
+
+      const providerMetadata: Record<string, { displayName: string, description: string, icon: string }> = {}
+
+      return response.providers.map((provider) => {
+        const metadata = providerMetadata[provider.name] || {
+          displayName: provider.name,
+          description: `Connect your ${provider.name} account`,
+          icon: provider.icon,
+        }
+
+        return {
+          id: provider.name,
+          name: metadata.displayName,
+          description: metadata.description,
+          icon: metadata.icon,
+          scopes: provider.scopes,
+          source: 'custom' as const,
+          metadata: {
+            type: 'oauth',
+            provider: provider.name,
+            strategy: provider.strategy,
+          },
+        }
+      })
+    }
+    catch {
+      return []
+    }
+  }
+
+  /**
    * Connect to executor WebSocket server with GitHub token
    */
   private async connectToExecutorWithToken(): Promise<void> {
@@ -2242,6 +2289,11 @@ class MenuBarNotificationApp {
     // Connected Accounts IPC handler
     ipcMain.handle('initiate-connected-account', async (_event, connection: string, scopes: string[]): Promise<{ success: boolean, connect_uri?: string, error?: string }> => {
       return await this.initiateConnectedAccount(connection, scopes)
+    })
+
+    // Fetch Additional Connectors IPC handler
+    ipcMain.handle('fetch-additional-connectors', async () => {
+      return this.getAdditionalConnectors()
     })
   }
 

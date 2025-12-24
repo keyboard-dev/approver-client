@@ -344,6 +344,9 @@ export interface ElectronAPI {
   // Subscriptions
   createSubscriptionCheckout: () => Promise<SubscriptionCheckoutResponse>
   getPaymentStatus: () => Promise<PaymentStatusResponse>
+  // Connected Accounts
+  initiateConnectedAccount: (connection: string, scopes: string[]) => Promise<{ success: boolean, connect_uri?: string, error?: string }>
+  fetchAdditionalConnectors: () => Promise<Array<{ id: string, name: string, description?: string, icon: string, scopes?: string[], source?: 'local' | 'pipedream' | 'custom', metadata?: Record<string, unknown> }>>
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -584,6 +587,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Subscriptions
   createSubscriptionCheckout: (): Promise<SubscriptionCheckoutResponse> => ipcRenderer.invoke('create-subscription-checkout'),
   getPaymentStatus: (): Promise<PaymentStatusResponse> => ipcRenderer.invoke('get-payment-status'),
+  // Connected Accounts
+  initiateConnectedAccount: (connection: string, scopes: string[]): Promise<{ success: boolean, connect_uri?: string, error?: string }> => ipcRenderer.invoke('initiate-connected-account', connection, scopes),
+  fetchAdditionalConnectors: (): Promise<Array<{ id: string, name: string, description?: string, icon: string, scopes?: string[], source?: 'local' | 'pipedream' | 'custom', metadata?: Record<string, unknown> }>> => ipcRenderer.invoke('fetch-additional-connectors'),
 } as ElectronAPI)
 
 // Extend the global Window interface
