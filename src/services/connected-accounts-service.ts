@@ -58,6 +58,11 @@ export interface ConnectedAccountsResponse {
   accounts: ConnectedAccount[]
 }
 
+export interface DeleteAccountResponse {
+  success: boolean
+  message: string
+}
+
 export interface ConnectedAccountsServiceConfig {
   tokenVaultUrl: string
 }
@@ -196,6 +201,37 @@ export class ConnectedAccountsService {
     }
     catch (error) {
       console.error('❌ Failed to fetch connected accounts:', error)
+      throw error
+    }
+  }
+
+  async deleteAccount(accountId: string, accessToken: string): Promise<DeleteAccountResponse> {
+    try {
+      const response = await fetch(
+        `${this.tokenVaultUrl}/api/token-vault/connected-accounts/${accountId}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+          },
+        },
+      )
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const data = await response.json() as DeleteAccountResponse
+
+      if (!data.success) {
+        throw new Error(data.message || 'Failed to delete account')
+      }
+
+      return data
+    }
+    catch (error) {
+      console.error('❌ Failed to delete connected account:', error)
       throw error
     }
   }

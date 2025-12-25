@@ -2303,6 +2303,17 @@ class MenuBarNotificationApp {
       return await this.connectedAccountsService.getConnectedAccounts(accessToken)
     })
 
+    ipcMain.handle('delete-additional-account', async (_event, accountId: string) => {
+      const accessToken = await this.authService.getValidAccessToken()
+      if (!accessToken) {
+        return {
+          success: false,
+          message: 'Not authenticated',
+        }
+      }
+      return await this.connectedAccountsService.deleteAccount(accountId, accessToken)
+    })
+
     // Fetch Additional Connectors IPC handler
     ipcMain.handle('fetch-additional-connectors', async () => {
       return this.getAdditionalConnectors()

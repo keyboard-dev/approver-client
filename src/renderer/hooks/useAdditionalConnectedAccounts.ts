@@ -114,18 +114,24 @@ export function useAdditionalConnectedAccounts(): UseAdditionalConnectedAccounts
   }, [])
 
   // ==========================================================================
-  // Disconnect Function (Placeholder for future implementation)
+  // Disconnect Function
   // ==========================================================================
 
   const disconnectAccount = useCallback(async (accountId: string) => {
     setDisconnectingAccountId(accountId)
 
     try {
-      // TODO: Implement disconnect functionality when API endpoint is available
-      // For now, just refresh the accounts list
+      const response = await window.electronAPI.deleteAdditionalAccount(accountId)
+
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to delete account')
+      }
+
+      // Refresh the accounts list after successful deletion
       await refreshAccounts()
     }
     catch (error) {
+      setAccountsError(error instanceof Error ? error.message : 'Failed to delete account')
       throw error
     }
     finally {
