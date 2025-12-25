@@ -491,6 +491,7 @@ class MenuBarNotificationApp {
         },
         this.OAUTH_PORT,
         this.SKIP_AUTH,
+        () => this.connectedAccountsService,
       )
 
       // Initialize the OAuth provider system (this will trigger provider token refresh)

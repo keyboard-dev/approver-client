@@ -46,6 +46,7 @@ export class OAuthService {
     private getExecutionPreference: () => Promise<ExecutionPreference | null>,
     private readonly OAUTH_PORT: number,
     private readonly SKIP_AUTH: boolean,
+    private getConnectedAccountsService?: () => any,
   ) {
     this.oauthHttpServer = new OAuthHttpServer(this.OAUTH_PORT)
   }
@@ -269,9 +270,27 @@ export class OAuthService {
       const providerStatus = await this.perProviderTokenStorage.getProviderStatus()
 
       // Check ALL stored provider tokens (both direct and server provider tokens)
-      const tokensAvailable = Object.entries(providerStatus)
+      const localTokens = Object.entries(providerStatus)
         .filter(([, status]) => status?.authenticated)
         .map(([providerId]) => `KEYBOARD_PROVIDER_USER_TOKEN_FOR_${providerId.toUpperCase()}`)
+
+      // Get connected accounts tokens
+      let connectedAccountTokens: string[] = []
+      try {
+        if (this.getConnectedAccountsService) {
+          const connectedAccountsService = this.getConnectedAccountsService()
+          const accessToken = await this.getMainAccessToken()
+          if (accessToken && connectedAccountsService) {
+            connectedAccountTokens = await connectedAccountsService.getAvailableTokenNames(accessToken)
+          }
+        }
+      }
+      catch (connectedAccountError) {
+        console.warn('Failed to fetch connected accounts tokens:', connectedAccountError)
+      }
+
+      // Combine both token sources
+      const tokensAvailable = [...localTokens, ...connectedAccountTokens]
 
       const statusResponse = {
         type: 'user-tokens-available',
@@ -810,9 +829,27 @@ export class OAuthService {
       const providerStatus = await this.perProviderTokenStorage.getProviderStatus()
 
       // Check ALL stored provider tokens (both direct and server provider tokens)
-      const tokensAvailable = Object.entries(providerStatus)
+      const localTokens = Object.entries(providerStatus)
         .filter(([, status]) => status?.authenticated)
         .map(([providerId]) => `KEYBOARD_PROVIDER_USER_TOKEN_FOR_${providerId.toUpperCase()}`)
+
+      // Get connected accounts tokens
+      let connectedAccountTokens: string[] = []
+      try {
+        if (this.getConnectedAccountsService) {
+          const connectedAccountsService = this.getConnectedAccountsService()
+          const accessToken = await this.getMainAccessToken()
+          if (accessToken && connectedAccountsService) {
+            connectedAccountTokens = await connectedAccountsService.getAvailableTokenNames(accessToken)
+          }
+        }
+      }
+      catch (connectedAccountError) {
+        console.warn('Failed to fetch connected accounts tokens:', connectedAccountError)
+      }
+
+      // Combine both token sources
+      const tokensAvailable = [...localTokens, ...connectedAccountTokens]
 
       return {
         type: 'user-tokens-available',

@@ -235,4 +235,22 @@ export class ConnectedAccountsService {
       throw error
     }
   }
+
+  async getAvailableTokenNames(accessToken: string): Promise<string[]> {
+    try {
+      const connectedAccountsResponse = await this.getConnectedAccounts(accessToken)
+
+      if (!connectedAccountsResponse.success) {
+        return []
+      }
+
+      return connectedAccountsResponse.accounts.map(account =>
+        `KEYBOARD_CONNECTED_ACCOUNT_TOKEN_FOR_${account.connection.toUpperCase().replace(/-/g, '_')}`,
+      )
+    }
+    catch (error) {
+      console.error('❌ Failed to get available token names from connected accounts:', error)
+      return []
+    }
+  }
 }
