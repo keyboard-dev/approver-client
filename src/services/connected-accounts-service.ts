@@ -1,4 +1,5 @@
 import fetch from 'node-fetch'
+import type { TokenResult } from './external-token-source'
 
 export interface InitiateConnectionRequest {
   connection: string
@@ -251,6 +252,58 @@ export class ConnectedAccountsService {
     catch (error) {
       console.error('❌ Failed to get available token names from connected accounts:', error)
       return []
+    }
+  }
+
+  async getToken(connection: string, accessToken: string): Promise<TokenResult> {
+    try {
+      console.log('connection', connection)
+      console.log('accessToken', accessToken)
+      const response = await fetch(
+        `${this.tokenVaultUrl}/api/token-vault/connected-accounts/credentials`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            connection: connection,
+          }),
+        },
+      )
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const data = await response.json() as {
+        success: boolean
+        message: string
+        credentials?: {
+          access_token: string
+          expires_in?: number
+          scope?: string
+          token_type?: string
+        }
+      }
+      const tokenResult = {
+        success: data.success,
+        token: data.credentials?.access_token,
+        expires_in: data.credentials?.expires_in,
+        scope: data.credentials?.scope,
+        token_type: data.credentials?.token_type,
+      } as TokenResult
+
+      if (!tokenResult.success) {
+        throw new Error(tokenResult.error || 'Failed to fetch token')
+      }
+
+      return tokenResult
+    }
+    catch (error) {
+      console.error('❌ Failed to fetch connected account token:', error)
+      throw error
     }
   }
 }

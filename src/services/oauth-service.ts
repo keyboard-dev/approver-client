@@ -11,6 +11,9 @@ import { OAuthProviderConfig } from '../provider-storage'
 import { Message } from '../types'
 import { ExecutorWebSocketClient } from '../websocket-client-to-executor'
 import { WindowManager } from '../window-manager'
+import { ConnectedAccountsService } from './connected-accounts-service'
+import { ConnectedAccountsTokenSource } from './connected-accounts-token-source'
+import { ExternalTokenSourceRegistry } from './external-token-source'
 
 interface OnboardingGitHubResponse {
   session_id: string
@@ -35,6 +38,7 @@ export class OAuthService {
   private perProviderTokenStorage!: PerProviderTokenStorage
   private currentProviderPKCE: NewPKCEParams | null = null
   private oauthHttpServer: OAuthHttpServer
+  private externalTokenSourceRegistry!: ExternalTokenSourceRegistry
 
   constructor(
     private windowManager: WindowManager,
@@ -46,7 +50,7 @@ export class OAuthService {
     private getExecutionPreference: () => Promise<ExecutionPreference | null>,
     private readonly OAUTH_PORT: number,
     private readonly SKIP_AUTH: boolean,
-    private getConnectedAccountsService?: () => any,
+    private getConnectedAccountsService?: () => unknown,
   ) {
     this.oauthHttpServer = new OAuthHttpServer(this.OAUTH_PORT)
   }
@@ -60,6 +64,19 @@ export class OAuthService {
       this.oauthProviderManager = new OAuthProviderManager()
       this.oauthTokenStorage = new OAuthTokenStorage() // Keep for migration
       this.perProviderTokenStorage = new PerProviderTokenStorage()
+
+      // Initialize external token source registry
+      this.externalTokenSourceRegistry = new ExternalTokenSourceRegistry()
+
+      // Register connected accounts as the first external token source
+      if (this.getConnectedAccountsService) {
+        const service = this.getConnectedAccountsService()
+        const connectedAccountsTokenSource = new ConnectedAccountsTokenSource(
+          service as ConnectedAccountsService,
+          this.getMainAccessToken,
+        )
+        this.externalTokenSourceRegistry.registerSource(connectedAccountsTokenSource)
+      }
 
       // Inject main access token getter for server provider refresh
       this.oauthProviderManager.setMainAccessTokenGetter(() => this.getMainAccessToken())
@@ -94,9 +111,6 @@ export class OAuthService {
         return
       }
 
-      let successCount = 0
-      let failedCount = 0
-
       // Attempt to refresh each expired provider
       // Do this sequentially to avoid rate limits and be gentle on startup
       for (const providerId of expiredProviders) {
@@ -104,20 +118,15 @@ export class OAuthService {
           const tokens = await this.perProviderTokenStorage.getTokens(providerId)
 
           if (!tokens?.refresh_token) {
-            failedCount++
             continue
           }
 
           // Attempt to refresh the tokens
           const refreshedTokens = await this.refreshProviderTokens(providerId, tokens.refresh_token)
           await this.perProviderTokenStorage.storeTokens(refreshedTokens)
-
-          successCount++
         }
-        catch (error) {
+        catch {
           // Silently fail - user can manually refresh from the UI if needed
-
-          failedCount++
         }
       }
     }
@@ -166,16 +175,16 @@ export class OAuthService {
         )
         const accessToken = await this.getMainAccessToken()
 
-        if (onboardingToken && accessToken) {
+        if (onboardingToken || accessToken) {
           // Get user's execution preference to determine which environment to use
           const executionPreference = await this.getExecutionPreference()
 
           const config: CodespaceEncryptionConfig = {
             codespaceUrl: 'auto', // Will be auto-discovered based on preference
-            bearerToken: accessToken, // JWT token for sandbox OR GitHub token for codespace
-            githubToken: onboardingToken, // GitHub token (used for codespace discovery)
+            bearerToken: accessToken || '', // JWT token for sandbox OR GitHub token for codespace
+            githubToken: onboardingToken || '', // GitHub token (used for codespace discovery)
           }
-
+          console.log('config', config)
           // Auto-discover and encrypt using the appropriate environment
           encryptedToken = await encryptWithCodespaceKey(token, config, executionPreference || 'github-codespace')
           encrypted = true
@@ -195,6 +204,7 @@ export class OAuthService {
 
   /**
    * Handle provider token request from executor WebSocket
+   * Supports both local providers and external token sources (connected accounts, AWS Secrets, etc.)
    */
   async handleExecutorProviderTokenRequest(message: { providerId?: string, requestId?: string }): Promise<void> {
     const { providerId } = message
@@ -214,23 +224,63 @@ export class OAuthService {
     }
 
     try {
-      const token = await this.getValidProviderAccessToken(providerId.toLowerCase())
-      const providerStatus = await this.perProviderTokenStorage.getProviderStatus()
-      const providerInfo = providerStatus[providerId]
-      const provider = await this.oauthProviderManager.getProvider(providerId)
-      if (!token) {
-        throw new Error('No token available')
-      }
-      // Encrypt token using codespace encryption if available
+      let token: string | null = null
+      let providerInfo: { user?: unknown, authenticated?: boolean } | null = null
+      let providerName = providerId
+      let tokenSource: 'local-provider' | 'external-source' = 'local-provider'
+      let actualProviderId = providerId
 
+      // Strategy 1: Try local provider storage first
+      token = await this.getValidProviderAccessToken(providerId.toLowerCase())
+
+      if (token) {
+        // Local provider token found
+        const providerStatus = await this.perProviderTokenStorage.getProviderStatus()
+        providerInfo = providerStatus[providerId]
+        const provider = await this.oauthProviderManager.getProvider(providerId)
+        providerName = provider?.name || providerId
+      }
+      else {
+        // Strategy 2: Try external token sources (connected accounts, AWS Secrets, etc.)
+        // Note: externalTokenSourceRegistry.getToken now automatically handles extraction
+        // of provider ID from token names like KEYBOARD_CONNECTED_ACCOUNT_TOKEN_FOR_*
+        const externalResult = await this.externalTokenSourceRegistry.getToken(providerId)
+
+        if (externalResult.success && externalResult.token) {
+          token = externalResult.token
+          tokenSource = 'external-source'
+
+          if (externalResult.user) {
+            providerInfo = {
+              user: externalResult.user,
+              authenticated: true,
+            }
+          }
+
+          // Extract the actual provider ID from metadata if available
+          if (externalResult.metadata?.actualProviderId) {
+            actualProviderId = externalResult.metadata.actualProviderId as string
+          }
+
+          providerName = externalResult.providerName || actualProviderId
+        }
+      }
+
+      if (!token) {
+        throw new Error('No token available for this provider from any source')
+      }
+      console.log('DO I GET HERE BRRRROROROROORORORORO', token)
+
+      // Encrypt token using codespace encryption if available
       const { encryptedToken, encrypted, encryptionMethod } = await this.encryptProviderToken(token)
+
       if (!encrypted) {
         throw new Error('Failed to encrypt token')
       }
 
       const tokenResponse = {
         type: 'provider-auth-token',
-        providerId: providerId,
+        providerId: actualProviderId,
         token: encryptedToken,
         encrypted: encrypted,
         encryptionMethod: encryptionMethod,
@@ -238,7 +288,8 @@ export class OAuthService {
         requestId: message.requestId,
         authenticated: !!token || this.SKIP_AUTH,
         user: providerInfo?.user || (this.SKIP_AUTH ? { email: 'test@example.com', firstName: 'Test Provider' } : null),
-        providerName: provider?.name || providerId,
+        providerName: providerName,
+        source: tokenSource,
       }
 
       // Send response back through executor client
@@ -262,6 +313,7 @@ export class OAuthService {
 
   /**
    * Handle provider status request from executor WebSocket
+   * Returns available tokens from all sources: local providers and external sources
    */
   async handleExecutorProviderStatusRequest(message: { requestId?: string }): Promise<void> {
     const executorWSClient = this.getExecutorWSClient()
@@ -269,28 +321,22 @@ export class OAuthService {
     try {
       const providerStatus = await this.perProviderTokenStorage.getProviderStatus()
 
-      // Check ALL stored provider tokens (both direct and server provider tokens)
+      // Get local provider tokens (direct OAuth and server providers)
       const localTokens = Object.entries(providerStatus)
         .filter(([, status]) => status?.authenticated)
         .map(([providerId]) => `KEYBOARD_PROVIDER_USER_TOKEN_FOR_${providerId.toUpperCase()}`)
 
-      // Get connected accounts tokens
-      let connectedAccountTokens: string[] = []
+      // Get external source tokens (connected accounts, AWS Secrets, WorkOS, etc.)
+      let externalTokens: string[] = []
       try {
-        if (this.getConnectedAccountsService) {
-          const connectedAccountsService = this.getConnectedAccountsService()
-          const accessToken = await this.getMainAccessToken()
-          if (accessToken && connectedAccountsService) {
-            connectedAccountTokens = await connectedAccountsService.getAvailableTokenNames(accessToken)
-          }
-        }
+        externalTokens = await this.externalTokenSourceRegistry.getAllAvailableTokenNames()
       }
-      catch (connectedAccountError) {
-        console.warn('Failed to fetch connected accounts tokens:', connectedAccountError)
+      catch (externalError) {
+        console.warn('Failed to fetch external source tokens:', externalError)
       }
 
-      // Combine both token sources
-      const tokensAvailable = [...localTokens, ...connectedAccountTokens]
+      // Combine all token sources
+      const tokensAvailable = [...localTokens, ...externalTokens]
 
       const statusResponse = {
         type: 'user-tokens-available',
@@ -764,6 +810,7 @@ export class OAuthService {
 
   /**
    * Handle WebSocket provider token request (for legacy WebSocket server)
+   * Supports both local providers and external token sources (connected accounts, AWS Secrets, etc.)
    */
   async handleWebSocketProviderTokenRequest(providerId: string): Promise<{
     type: string
@@ -777,12 +824,50 @@ export class OAuthService {
     providerName?: string
     error?: string
     requestId?: string
+    source?: 'local-provider' | 'external-source'
   }> {
     try {
-      const token = await this.getValidProviderAccessToken(providerId.toLowerCase())
-      const providerStatus = await this.perProviderTokenStorage.getProviderStatus()
-      const providerInfo = providerStatus[providerId]
-      const provider = await this.oauthProviderManager.getProvider(providerId)
+      let token: string | null = null
+      let providerInfo: { user?: unknown, authenticated?: boolean } | null = null
+      let providerName = providerId
+      let tokenSource: 'local-provider' | 'external-source' = 'local-provider'
+      let actualProviderId = providerId
+
+      // Strategy 1: Try local provider storage first
+      token = await this.getValidProviderAccessToken(providerId.toLowerCase())
+
+      if (token) {
+        // Local provider token found
+        const providerStatus = await this.perProviderTokenStorage.getProviderStatus()
+        providerInfo = providerStatus[providerId]
+        const provider = await this.oauthProviderManager.getProvider(providerId)
+        providerName = provider?.name || providerId
+      }
+      else {
+        // Strategy 2: Try external token sources (connected accounts, AWS Secrets, etc.)
+        // Note: externalTokenSourceRegistry.getToken now automatically handles extraction
+        // of provider ID from token names like KEYBOARD_CONNECTED_ACCOUNT_TOKEN_FOR_*
+        const externalResult = await this.externalTokenSourceRegistry.getToken(providerId)
+
+        if (externalResult.success && externalResult.token) {
+          token = externalResult.token
+          tokenSource = 'external-source'
+
+          if (externalResult.user) {
+            providerInfo = {
+              user: externalResult.user,
+              authenticated: true,
+            }
+          }
+
+          // Extract the actual provider ID from metadata if available
+          if (externalResult.metadata?.actualProviderId) {
+            actualProviderId = externalResult.metadata.actualProviderId as string
+          }
+
+          providerName = externalResult.providerName || actualProviderId
+        }
+      }
 
       // Encrypt token using codespace encryption if available
       const { encryptedToken, encrypted, encryptionMethod } = token
@@ -791,14 +876,15 @@ export class OAuthService {
 
       return {
         type: 'provider-auth-token',
-        providerId: providerId,
+        providerId: actualProviderId,
         token: encryptedToken,
         encrypted: encrypted,
         encryptionMethod: encryptionMethod,
         timestamp: Date.now(),
         authenticated: !!token || this.SKIP_AUTH,
         user: providerInfo?.user || (this.SKIP_AUTH ? { email: 'test@example.com', firstName: 'Test Provider' } : null),
-        providerName: provider?.name || providerId,
+        providerName: providerName,
+        source: tokenSource,
       }
     }
     catch (error) {
@@ -817,6 +903,7 @@ export class OAuthService {
 
   /**
    * Handle WebSocket provider status request (for legacy WebSocket server)
+   * Returns available tokens from all sources: local providers and external sources
    */
   async handleWebSocketProviderStatusRequest(): Promise<{
     type: string
@@ -828,28 +915,22 @@ export class OAuthService {
     try {
       const providerStatus = await this.perProviderTokenStorage.getProviderStatus()
 
-      // Check ALL stored provider tokens (both direct and server provider tokens)
+      // Get local provider tokens (direct OAuth and server providers)
       const localTokens = Object.entries(providerStatus)
         .filter(([, status]) => status?.authenticated)
         .map(([providerId]) => `KEYBOARD_PROVIDER_USER_TOKEN_FOR_${providerId.toUpperCase()}`)
 
-      // Get connected accounts tokens
-      let connectedAccountTokens: string[] = []
+      // Get external source tokens (connected accounts, AWS Secrets, WorkOS, etc.)
+      let externalTokens: string[] = []
       try {
-        if (this.getConnectedAccountsService) {
-          const connectedAccountsService = this.getConnectedAccountsService()
-          const accessToken = await this.getMainAccessToken()
-          if (accessToken && connectedAccountsService) {
-            connectedAccountTokens = await connectedAccountsService.getAvailableTokenNames(accessToken)
-          }
-        }
+        externalTokens = await this.externalTokenSourceRegistry.getAllAvailableTokenNames()
       }
-      catch (connectedAccountError) {
-        console.warn('Failed to fetch connected accounts tokens:', connectedAccountError)
+      catch (externalError) {
+        console.warn('Failed to fetch external source tokens:', externalError)
       }
 
-      // Combine both token sources
-      const tokensAvailable = [...localTokens, ...connectedAccountTokens]
+      // Combine all token sources
+      const tokensAvailable = [...localTokens, ...externalTokens]
 
       return {
         type: 'user-tokens-available',
