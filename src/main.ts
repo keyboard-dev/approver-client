@@ -700,7 +700,6 @@ class MenuBarNotificationApp {
     })
     // Handle codespace coming online - auto-connect to it
     sseService.on('codespace-online', async (data: CodespaceData) => {
-      console.log('Codespace online:', data)
       const preference = await this.executionPreferenceManager.getPreference()
       this.executorWSClient?.setExecutionPreference(preference)
       await this.authService.getValidAccessToken()
@@ -2149,7 +2148,7 @@ class MenuBarNotificationApp {
       try {
         // Use existing provider status logic from line 1917
         const providerStatus = await this.oauthService.getProviderAuthStatus()
-        console.log('providerStatus', providerStatus)
+
         // Check ALL stored provider tokens (both direct and server provider tokens)
         const tokensAvailable = Object.entries(providerStatus)
           .filter(([, status]) => status?.authenticated)

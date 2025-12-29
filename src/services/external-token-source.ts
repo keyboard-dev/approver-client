@@ -111,12 +111,10 @@ export class ExternalTokenSourceRegistry {
         // If we detected a specific token type, we can add logic here to filter sources
         // For now, try all sources in priority order
         const canProvide = await source.canProvideToken(actualProviderId)
-        console.log('canProvide', canProvide)
         if (canProvide) {
           const result = await source.getToken(actualProviderId)
-          console.log('result', result)
+
           if (result.success && result.token) {
-            console.log('result', result)
             // Add token type and actual provider ID metadata if detected
             if (tokenType || actualProviderId !== providerId) {
               result.metadata = result.metadata || {}

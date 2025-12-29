@@ -257,8 +257,6 @@ export class ConnectedAccountsService {
 
   async getToken(connection: string, accessToken: string): Promise<TokenResult> {
     try {
-      console.log('connection', connection)
-      console.log('accessToken', accessToken)
       const response = await fetch(
         `${this.tokenVaultUrl}/api/token-vault/connected-accounts/credentials`,
         {

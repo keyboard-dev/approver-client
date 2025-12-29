@@ -184,7 +184,7 @@ export class OAuthService {
             bearerToken: accessToken || '', // JWT token for sandbox OR GitHub token for codespace
             githubToken: onboardingToken || '', // GitHub token (used for codespace discovery)
           }
-          console.log('config', config)
+          
           // Auto-discover and encrypt using the appropriate environment
           encryptedToken = await encryptWithCodespaceKey(token, config, executionPreference || 'github-codespace')
           encrypted = true
@@ -269,7 +269,7 @@ export class OAuthService {
       if (!token) {
         throw new Error('No token available for this provider from any source')
       }
-      console.log('DO I GET HERE BRRRROROROROORORORORO', token)
+      
 
       // Encrypt token using codespace encryption if available
       const { encryptedToken, encrypted, encryptionMethod } = await this.encryptProviderToken(token)
