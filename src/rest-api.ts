@@ -39,6 +39,8 @@ interface RestAPIServerDeps {
   getMessages: () => Message[]
   getAuthTokens: () => AuthTokens | null
   getWebSocketServerStatus: () => boolean
+  getLatestConnectedAccountSessionId: () => string | null
+  completeConnectedAccount: (authSession: string, connectCode: string) => Promise<{ success: boolean, message: string, data?: unknown }>
   updateMessageStatus: (messageId: string, status: 'approved' | 'rejected', feedback?: string) => boolean
 }
 
@@ -631,6 +633,58 @@ const setupExpressApp = (deps: RestAPIServerDeps): Application => {
       res.json({ success: true, decryptedCode })
     }
     catch {
+      res.status(500).json({ error: 'Internal server error' })
+    }
+  })
+
+  app.get('/connected/accounts/callback', async (req: Request, res: Response) => {
+    try {
+      const { connect_code, state } = req.query
+      const authSession = deps.getLatestConnectedAccountSessionId()
+
+      if (!authSession) {
+        res.status(400).json({ error: 'No active session found' })
+        return
+      }
+
+      if (!connect_code || typeof connect_code !== 'string') {
+        res.status(400).json({ error: 'Missing or invalid connect_code' })
+        return
+      }
+
+      // Complete the connection by calling the token vault
+      const result = await deps.completeConnectedAccount(authSession, connect_code)
+
+      if (!result.success) {
+        res.status(500).json({
+          success: false,
+          error: result.message,
+        })
+        return
+      }
+
+      res.writeHead(200, { 'Content-Type': 'text/html' })
+      res.end(`
+        <html>
+          <head><title>Connection Success</title></head>
+          <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #f5f5f5;">
+            <div style="background: white; padding: 40px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 500px; margin: 0 auto;">
+              <h2 style="color: #27ae60;">Connection Successful!</h2>
+              <p style="color: #666; margin: 20px 0;">
+                You have successfully connected your account.
+              </p>
+              <p style="color: #666;">You can close this window and return to the app.</p>
+              <button onclick="window.close()" style="background: #27ae60; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; margin-top: 20px;">Close Window</button>
+            </div>
+            <script>
+              setTimeout(() => window.close(), 3000);
+            </script>
+          </body>
+        </html>
+      `)
+    }
+    catch (error) {
+      console.error('❌ Connected accounts callback error:', error)
       res.status(500).json({ error: 'Internal server error' })
     }
   })

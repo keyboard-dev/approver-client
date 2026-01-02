@@ -40,6 +40,13 @@ const toSentenceCase = (text: string): string => {
   return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase()
 }
 
+// Utility function to sanitize unusual line terminators
+const sanitizeLineTerminators = (text: string | undefined): string => {
+  if (!text) return ''
+  // Replace Unicode Line Separator (U+2028) and Paragraph Separator (U+2029) with standard newlines
+  return text.replace(/[\u2028\u2029]/g, '\n')
+}
+
 export const CodeResponseApprovalPanel: React.FC<CodeResponseApprovalPanelProps> = ({
   message,
   onApprove,
@@ -190,7 +197,7 @@ export const CodeResponseApprovalPanel: React.FC<CodeResponseApprovalPanelProps>
                         className="grow shrink min-h-24"
                         language="plaintext"
                         defaultValue="No output"
-                        value={codespaceResponseData?.stdout}
+                        value={sanitizeLineTerminators(codespaceResponseData?.stdout)}
                         onChange={(value) => {
                           if (codespaceResponseData) {
                             codespaceResponseData.stdout = value
@@ -221,7 +228,7 @@ export const CodeResponseApprovalPanel: React.FC<CodeResponseApprovalPanelProps>
                         <Editor
                           className="min-h-24"
                           language="plaintext"
-                          value={codespaceResponseData?.stderr}
+                          value={sanitizeLineTerminators(codespaceResponseData?.stderr)}
                           onChange={(value) => {
                             if (codespaceResponseData) {
                               codespaceResponseData.stderr = value

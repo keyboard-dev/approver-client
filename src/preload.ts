@@ -344,6 +344,11 @@ export interface ElectronAPI {
   // Subscriptions
   createSubscriptionCheckout: () => Promise<SubscriptionCheckoutResponse>
   getPaymentStatus: () => Promise<PaymentStatusResponse>
+  // Connected Accounts
+  initiateConnectedAccount: (connection: string, scopes: string[]) => Promise<{ success: boolean, connect_uri?: string, error?: string }>
+  getAdditionalConnectedAccounts: () => Promise<{ success: boolean, accounts: Array<{ id: string, connection: string, access_type: string, scopes: string[], created_at: string, icon?: string }> }>
+  fetchAdditionalConnectors: () => Promise<Array<{ id: string, name: string, description?: string, icon: string, scopes?: string[], source?: 'local' | 'pipedream' | 'custom', metadata?: Record<string, unknown> }>>
+  deleteAdditionalAccount: (accountId: string) => Promise<{ success: boolean, message?: string }>
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -584,6 +589,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Subscriptions
   createSubscriptionCheckout: (): Promise<SubscriptionCheckoutResponse> => ipcRenderer.invoke('create-subscription-checkout'),
   getPaymentStatus: (): Promise<PaymentStatusResponse> => ipcRenderer.invoke('get-payment-status'),
+  // Connected Accounts
+  initiateConnectedAccount: (connection: string, scopes: string[]): Promise<{ success: boolean, connect_uri?: string, error?: string }> => ipcRenderer.invoke('initiate-connected-account', connection, scopes),
+  getAdditionalConnectedAccounts: (): Promise<{ success: boolean, accounts: Array<{ id: string, connection: string, access_type: string, scopes: string[], created_at: string, icon?: string }> }> => ipcRenderer.invoke('get-additional-connected-accounts'),
+  deleteAdditionalAccount: (accountId: string): Promise<{ success: boolean, message?: string }> => ipcRenderer.invoke('delete-additional-account', accountId),
+  fetchAdditionalConnectors: (): Promise<Array<{ id: string, name: string, description?: string, icon: string, scopes?: string[], source?: 'local' | 'pipedream' | 'custom', metadata?: Record<string, unknown> }>> => ipcRenderer.invoke('fetch-additional-connectors'),
 } as ElectronAPI)
 
 // Extend the global Window interface

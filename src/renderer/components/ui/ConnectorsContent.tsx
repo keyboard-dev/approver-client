@@ -10,6 +10,8 @@ import { RefreshCw, Search, Trash2, X } from 'lucide-react'
 import React, { useMemo, useState } from 'react'
 
 import squaresIconUrl from '../../../../assets/icon-squares.svg'
+import { AdditionalConnectedAccount, useAdditionalConnectedAccounts } from '../../hooks/useAdditionalConnectedAccounts'
+import { useCustomIntegrations } from '../../hooks/useCustomIntegrations'
 import { KeyboardApiProvider, useKeyboardApiConnectors } from '../../hooks/useKeyboardApiConnectors'
 import { usePipedream } from '../../hooks/usePipedream'
 import { usePopup } from '../../hooks/usePopup'
@@ -31,7 +33,7 @@ export interface ConnectorsContentProps {
 // Tag Component
 // =============================================================================
 
-type SourceType = 'local' | 'pipedream'
+type SourceType = 'local' | 'pipedream' | 'cloud'
 
 interface SourceTagProps {
   source: SourceType
@@ -40,7 +42,9 @@ interface SourceTagProps {
 export const SourceTag: React.FC<SourceTagProps> = ({ source }) => {
   const styles = source === 'local'
     ? 'bg-[#E5EFF4] text-[#5093B7] border-[#5093B7]'
-    : 'bg-[#F3E8FF] text-[#9333EA] border-[#9333EA]'
+    : source === 'pipedream'
+      ? 'bg-[#F3E8FF] text-[#9333EA] border-[#9333EA]'
+      : 'bg-[#FFF4E5] text-[#D97706] border-[#D97706]'
 
   return (
     <span className={`text-[10px] px-1.5 py-0.5 rounded border ${styles}`}>
@@ -154,6 +158,65 @@ const PipedreamAppCard: React.FC<PipedreamAppCardProps> = ({ app, isConnecting, 
           {app.description && (
             <div className="text-sm text-[#737373] line-clamp-1 max-w-[300px]">
               {app.description}
+            </div>
+          )}
+        </div>
+      </div>
+      <ButtonDesigned
+        variant="clear"
+        hasBorder
+        className="px-4 py-2 shrink-0"
+        disabled={isConnecting}
+        onClick={onConnect}
+      >
+        {isConnecting ? 'Connecting...' : 'Connect'}
+      </ButtonDesigned>
+    </div>
+  )
+}
+
+// =============================================================================
+// Custom Integration Card
+// =============================================================================
+
+interface CustomIntegrationCardProps {
+  integration: {
+    id: string
+    name: string
+    description?: string
+    icon: string
+    source?: 'local' | 'pipedream' | 'custom'
+  }
+  isConnecting: boolean
+  onConnect: () => void
+}
+
+const CustomIntegrationCard: React.FC<CustomIntegrationCardProps> = ({
+  integration,
+  isConnecting,
+  onConnect,
+}) => {
+  return (
+    <div className="flex items-center justify-between p-3 border border-[#E5E5E5] rounded-lg hover:border-[#CCC] transition-colors">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-lg border border-[#E5E5E5] flex items-center justify-center overflow-hidden bg-white">
+          <img
+            src={integration.icon}
+            alt={integration.name}
+            className="w-6 h-6 object-contain"
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = squaresIconUrl
+            }}
+          />
+        </div>
+        <div>
+          <div className="flex items-center gap-2">
+            <div className="font-medium text-[#171717]">{integration.name}</div>
+            <SourceTag source={integration.source || 'custom'} />
+          </div>
+          {integration.description && (
+            <div className="text-sm text-[#737373] line-clamp-1 max-w-[300px]">
+              {integration.description}
             </div>
           )}
         </div>
@@ -287,6 +350,64 @@ const ConnectedPipedreamAccountCard: React.FC<ConnectedPipedreamAccountCardProps
 }
 
 // =============================================================================
+// Additional Connected Account Card
+// =============================================================================
+
+interface ConnectedAdditionalAccountCardProps {
+  account: AdditionalConnectedAccount
+  isDisconnecting: boolean
+  onDisconnect: () => void
+}
+
+const ConnectedAdditionalAccountCard: React.FC<ConnectedAdditionalAccountCardProps> = ({
+  account,
+  isDisconnecting,
+  onDisconnect,
+}) => {
+  return (
+    <div className="flex items-center justify-between p-3 border border-[#E5E5E5] rounded-lg">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-lg border border-[#E5E5E5] flex items-center justify-center overflow-hidden bg-white">
+          {account.icon
+            ? (
+                <img
+                  src={account.icon}
+                  alt={account.displayName}
+                  className="w-6 h-6 object-contain"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = squaresIconUrl
+                  }}
+                />
+              )
+            : (
+                <img src={squaresIconUrl} alt={account.displayName} className="w-6 h-6" />
+              )}
+        </div>
+        <div>
+          <div className="flex items-center gap-2">
+            <div className="font-medium text-[#171717]">{account.displayName}</div>
+            <SourceTag source="cloud" />
+          </div>
+          <div className="text-sm text-[#737373]">
+            {account.access_type}
+          </div>
+        </div>
+      </div>
+      <ButtonDesigned
+        variant="clear"
+        className="px-3 py-2 text-[#D23535] hover:bg-[#FEE] shrink-0"
+        disabled={isDisconnecting}
+        onClick={onDisconnect}
+      >
+        {isDisconnecting
+          ? <RefreshCw className="w-4 h-4 animate-spin" />
+          : <Trash2 className="w-4 h-4" />}
+      </ButtonDesigned>
+    </div>
+  )
+}
+
+// =============================================================================
 // Main Component
 // =============================================================================
 
@@ -331,6 +452,25 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
   const [searchQuery, setSearchQuery] = useState('')
   const [connectError, setConnectError] = useState<string | null>(null)
 
+  // Custom integrations
+  const {
+    filteredIntegrations: customIntegrations,
+    loading: customIntegrationsLoading,
+    error: customIntegrationsError,
+    connectingIntegrationId,
+    connectIntegration,
+  } = useCustomIntegrations(searchQuery)
+
+  // Additional connected accounts (from Token Vault)
+  const {
+    accounts: additionalAccounts,
+    accountsLoading: additionalAccountsLoading,
+    accountsError: additionalAccountsError,
+    disconnectingAccountId: disconnectingAdditionalAccountId,
+    refreshAccounts: refreshAdditionalAccounts,
+    disconnectAccount: disconnectAdditionalAccount,
+  } = useAdditionalConnectedAccounts()
+
   // ==========================================================================
   // Computed Values
   // ==========================================================================
@@ -352,7 +492,7 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
   }, [localProviders, providerStatus])
 
   // Total connected accounts count
-  const totalConnectedCount = connectedLocalAccounts.length + pipedreamAccounts.length
+  const totalConnectedCount = connectedLocalAccounts.length + pipedreamAccounts.length + additionalAccounts.length
 
   // ==========================================================================
   // Handlers
@@ -424,9 +564,41 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
     })
   }
 
+  const handleDisconnectAdditional = (account: AdditionalConnectedAccount) => {
+    showPopup({
+      description: `Are you sure you want to disconnect ${account.displayName}? You'll need to reconnect to use this account.`,
+      onConfirm: async () => {
+        hidePopup()
+        try {
+          await disconnectAdditionalAccount(account.id)
+        }
+        catch (error) {
+          console.error('Failed to disconnect:', error)
+        }
+      },
+      onCancel: hidePopup,
+    })
+  }
+
   const handleRefreshAll = () => {
     refreshLocalStatus()
     refreshPipedreamAccounts()
+    refreshAdditionalAccounts()
+  }
+
+  // ==========================================================================
+  // Handlers - Custom Integrations
+  // ==========================================================================
+
+  const handleConnectCustom = async (integrationId: string) => {
+    setConnectError(null)
+    try {
+      await connectIntegration(integrationId)
+    }
+    catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to connect'
+      setConnectError(message)
+    }
   }
 
   // ==========================================================================
@@ -436,6 +608,7 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
   const isSearching = searchQuery.trim().length > 0
   const showPipedreamResults = isSearching && pipedreamApps.length > 0
   const showPipedreamDefaults = !isSearching && pipedreamDefaultApps.length > 0
+  const totalAvailableCount = filteredLocalProviders.length + pipedreamApps.length + customIntegrations.length
 
   return (
     <div className={`flex flex-col gap-4 ${className}`}>
@@ -460,19 +633,19 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
       </div>
 
       {/* Error Display */}
-      {(connectError || localError || pipedreamAppsError) && (
+      {(connectError || localError || pipedreamAppsError || customIntegrationsError) && (
         <div className="p-3 bg-[#FEE] border border-[#D23535] rounded-lg text-[#D23535] text-sm">
-          {connectError || localError || pipedreamAppsError}
+          {connectError || localError || pipedreamAppsError || customIntegrationsError}
         </div>
       )}
 
       {/* Available Connectors Section */}
       <div>
         <div className="text-sm font-medium mb-2 text-[#737373]">
-          {localLoading
+          {localLoading || customIntegrationsLoading
             ? 'Loading connectors...'
             : isSearching
-              ? `${filteredLocalProviders.length + pipedreamApps.length} connector${(filteredLocalProviders.length + pipedreamApps.length) !== 1 ? 's' : ''} found`
+              ? `${totalAvailableCount} connector${totalAvailableCount !== 1 ? 's' : ''} found`
               : 'Available Connectors'}
         </div>
 
@@ -496,6 +669,16 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
             )
           })}
 
+          {/* Custom Integrations (always show after local providers) */}
+          {customIntegrations.map(integration => (
+            <CustomIntegrationCard
+              key={`custom-${integration.id}`}
+              integration={integration}
+              isConnecting={connectingIntegrationId === integration.id}
+              onConnect={() => handleConnectCustom(integration.id)}
+            />
+          ))}
+
           {/* Pipedream Apps (search results or defaults) */}
           {isSearching
             ? (
@@ -513,7 +696,7 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
                       onConnect={() => handleConnectPipedream(app.nameSlug)}
                     />
                   ))}
-                  {!pipedreamAppsLoading && pipedreamApps.length === 0 && filteredLocalProviders.length === 0 && (
+                  {!pipedreamAppsLoading && pipedreamApps.length === 0 && filteredLocalProviders.length === 0 && customIntegrations.length === 0 && (
                     <div className="text-center py-6 text-[#737373]">
                       No connectors found for "
                       {searchQuery}
@@ -563,20 +746,20 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
           </div>
           <button
             onClick={handleRefreshAll}
-            disabled={localLoading || pipedreamAccountsLoading}
+            disabled={localLoading || pipedreamAccountsLoading || additionalAccountsLoading}
             className="text-[#737373] hover:text-[#171717] disabled:opacity-50"
           >
-            <RefreshCw className={`w-4 h-4 ${(localLoading || pipedreamAccountsLoading) ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-4 h-4 ${(localLoading || pipedreamAccountsLoading || additionalAccountsLoading) ? 'animate-spin' : ''}`} />
           </button>
         </div>
 
-        {pipedreamAccountsError && (
+        {(pipedreamAccountsError || additionalAccountsError) && (
           <div className="p-3 bg-[#FEE] border border-[#D23535] rounded-lg text-[#D23535] text-sm mb-2">
-            {pipedreamAccountsError}
+            {pipedreamAccountsError || additionalAccountsError}
           </div>
         )}
 
-        {(localLoading || pipedreamAccountsLoading) && totalConnectedCount === 0
+        {(localLoading || pipedreamAccountsLoading || additionalAccountsLoading) && totalConnectedCount === 0
           ? (
               <div className="text-center py-8 text-[#737373]">
                 Loading connected accounts...
@@ -611,6 +794,16 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
                       account={account}
                       isDisconnecting={disconnectingAccountId === account.id}
                       onDisconnect={() => handleDisconnectPipedream(account)}
+                    />
+                  ))}
+
+                  {/* Connected Additional Accounts (Token Vault) */}
+                  {additionalAccounts.map(account => (
+                    <ConnectedAdditionalAccountCard
+                      key={`connected-additional-${account.id}`}
+                      account={account}
+                      isDisconnecting={disconnectingAdditionalAccountId === account.id}
+                      onDisconnect={() => handleDisconnectAdditional(account)}
                     />
                   ))}
                 </div>
