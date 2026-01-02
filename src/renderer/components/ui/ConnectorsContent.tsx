@@ -33,7 +33,7 @@ export interface ConnectorsContentProps {
 // Tag Component
 // =============================================================================
 
-type SourceType = 'local' | 'pipedream' | 'custom'
+type SourceType = 'local' | 'pipedream' | 'cloud'
 
 interface SourceTagProps {
   source: SourceType
@@ -386,7 +386,7 @@ const ConnectedAdditionalAccountCard: React.FC<ConnectedAdditionalAccountCardPro
         <div>
           <div className="flex items-center gap-2">
             <div className="font-medium text-[#171717]">{account.displayName}</div>
-            <SourceTag source="custom" />
+            <SourceTag source="cloud" />
           </div>
           <div className="text-sm text-[#737373]">
             {account.access_type}

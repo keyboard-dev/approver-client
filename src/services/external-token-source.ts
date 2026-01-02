@@ -83,8 +83,8 @@ export class ExternalTokenSourceRegistry {
     const normalized = tokenName.toLowerCase().trim()
 
     // Check for KEYBOARD_CONNECTED_ACCOUNT_TOKEN_FOR_* pattern
-    const connectedAccountPrefix = 'keyboard_connected_account_token_for_'
-    if (normalized.startsWith(connectedAccountPrefix)) {
+    const connectedAccountPrefix = '_stored_in_cloud'
+    if (normalized.endsWith(connectedAccountPrefix)) {
       // Extract and normalize the provider ID
       const providerId = normalized.substring(connectedAccountPrefix.length)
       return {
@@ -100,44 +100,54 @@ export class ExternalTokenSourceRegistry {
    * Get token from the first source that can provide it
    * Automatically detects token type from token name pattern
    */
+  handleConnectedCloudAccount = (providerId: string): string => {
+    console.log('providerId in handleConnectedCloudAccount', providerId)
+    const cleanedProviderId = providerId.replace('KEYBOARD_PROVIDER_USER_TOKEN_FOR_', '').replace('_STORED_IN_CLOUD', '').toLowerCase().replace(/_/g, '-')
+    console.log('cleanedProviderId in handleConnectedCloudAccount', cleanedProviderId)
+    return cleanedProviderId
+  }
+
+  handleProviderId = (providerId: string): { tokenType: string, cleanedProviderId: string } => {
+    console.log('providerId', providerId)
+    if (providerId.endsWith('_STORED_IN_CLOUD')) {
+      return { tokenType: 'connected_account', cleanedProviderId: this.handleConnectedCloudAccount(providerId) }
+    }
+    return { tokenType: 'connected_account', cleanedProviderId: providerId.toLowerCase().replace(/_/g, '-') }
+  }
+
   async getToken(providerId: string): Promise<TokenResult> {
     // First, check if the providerId is actually a full token name that needs extraction
-    const extracted = this.extractProviderIdFromTokenName(providerId)
-    const actualProviderId = extracted ? extracted.providerId : providerId
-    const tokenType = extracted ? extracted.type : undefined
+    // console.log('before the extraction, providerId', providerId)
+    // const extracted = this.extractProviderIdFromTokenName(providerId)
+    // const actualProviderId = extracted ? extracted.providerId : providerId
+    // const tokenType = extracted ? extracted.type : undefined
+    const { cleanedProviderId } = this.handleProviderId(providerId)
 
     for (const source of this.sources) {
       try {
         // If we detected a specific token type, we can add logic here to filter sources
         // For now, try all sources in priority order
-        const canProvide = await source.canProvideToken(actualProviderId)
+        console.log('after the extraction, actualProviderId', cleanedProviderId)
+        const canProvide = await source.canProvideToken(cleanedProviderId)
         if (canProvide) {
-          const result = await source.getToken(actualProviderId)
+          console.log('canProvide', canProvide)
+          const result = await source.getToken(cleanedProviderId)
 
           if (result.success && result.token) {
             // Add token type and actual provider ID metadata if detected
-            if (tokenType || actualProviderId !== providerId) {
-              result.metadata = result.metadata || {}
-              if (tokenType) {
-                result.metadata.tokenType = tokenType
-              }
-              if (actualProviderId !== providerId) {
-                result.metadata.actualProviderId = actualProviderId
-              }
-            }
             return result
           }
         }
       }
       catch (error) {
-        console.warn(`External token source ${source.config.name} failed for ${actualProviderId}:`, error)
+        console.warn(`External token source ${source.config.name} failed for ${cleanedProviderId}:`, error)
         // Continue to next source
       }
     }
 
     return {
       success: false,
-      error: `No external source can provide token for provider: ${actualProviderId}`,
+      error: `No external source can provide token for provider: ${cleanedProviderId}`,
     }
   }
 
@@ -171,7 +181,7 @@ export class ExternalTokenSourceRegistry {
   async getAllAvailableTokenNames(): Promise<string[]> {
     const providers = await this.getAllAvailableProviders()
     return providers.map(({ providerId }) =>
-      `KEYBOARD_CONNECTED_ACCOUNT_TOKEN_FOR_${providerId.toUpperCase().replace(/-/g, '_')}`,
+      `KEYBOARD_PROVIDER_USER_TOKEN_FOR_${providerId.toUpperCase().replace(/-/g, '_')}_STORED_IN_CLOUD`,
     )
   }
 

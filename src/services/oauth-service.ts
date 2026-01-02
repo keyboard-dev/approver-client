@@ -241,6 +241,7 @@ export class OAuthService {
         providerName = provider?.name || providerId
       }
       else {
+        console.log('DO I GET HERE BRRRROROROROORORORORO', providerId)
         // Strategy 2: Try external token sources (connected accounts, AWS Secrets, etc.)
         // Note: externalTokenSourceRegistry.getToken now automatically handles extraction
         // of provider ID from token names like KEYBOARD_CONNECTED_ACCOUNT_TOKEN_FOR_*
@@ -265,7 +266,8 @@ export class OAuthService {
           providerName = externalResult.providerName || actualProviderId
         }
       }
-
+      console.log('token', token)
+      console.log('actualProviderId', actualProviderId)
       if (!token) {
         throw new Error('No token available for this provider from any source')
       }
@@ -291,6 +293,7 @@ export class OAuthService {
         providerName: providerName,
         source: tokenSource,
       }
+      console.log('tokenResponse', tokenResponse)
 
       // Send response back through executor client
       if (executorWSClient) {
@@ -827,6 +830,7 @@ export class OAuthService {
     source?: 'local-provider' | 'external-source'
   }> {
     try {
+      console.log('is this a joke?', providerId)
       let token: string | null = null
       let providerInfo: { user?: unknown, authenticated?: boolean } | null = null
       let providerName = providerId
@@ -835,7 +839,7 @@ export class OAuthService {
 
       // Strategy 1: Try local provider storage first
       token = await this.getValidProviderAccessToken(providerId.toLowerCase())
-
+      console.log('token', token)
       if (token) {
         // Local provider token found
         const providerStatus = await this.perProviderTokenStorage.getProviderStatus()
@@ -848,6 +852,7 @@ export class OAuthService {
         // Note: externalTokenSourceRegistry.getToken now automatically handles extraction
         // of provider ID from token names like KEYBOARD_CONNECTED_ACCOUNT_TOKEN_FOR_*
         const externalResult = await this.externalTokenSourceRegistry.getToken(providerId)
+        console.log('externalResult', externalResult)
 
         if (externalResult.success && externalResult.token) {
           token = externalResult.token
@@ -868,7 +873,7 @@ export class OAuthService {
           providerName = externalResult.providerName || actualProviderId
         }
       }
-
+      console.log('token', token)
       // Encrypt token using codespace encryption if available
       const { encryptedToken, encrypted, encryptionMethod } = token
         ? await this.encryptProviderToken(token)

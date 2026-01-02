@@ -20,6 +20,7 @@ export class ConnectedAccountsTokenSource implements ExternalTokenSource {
 
   async canProvideToken(providerId: string): Promise<boolean> {
     try {
+      // let cleanProviderId = providerId.endsWith('_STORED_IN_CLOUD') ? providerId.substring(0, providerId.length - '_STORED_IN_CLOUD'.length) : providerId
       const accessToken = await this.getAccessToken()
       if (!accessToken) {
         return false
@@ -32,7 +33,8 @@ export class ConnectedAccountsTokenSource implements ExternalTokenSource {
 
       // Normalize provider ID for comparison (handle both formats)
       const normalizedProviderId = providerId.toLowerCase().replace(/_/g, '-')
-
+      console.log('normalizedProviderId', normalizedProviderId)
+      console.log('accounts.accounts', accounts.accounts)
       return accounts.accounts.some(
         account => account.connection.toLowerCase() === normalizedProviderId,
       )

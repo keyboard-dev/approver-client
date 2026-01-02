@@ -246,7 +246,7 @@ export class ConnectedAccountsService {
       }
 
       return connectedAccountsResponse.accounts.map(account =>
-        `KEYBOARD_CONNECTED_ACCOUNT_TOKEN_FOR_${account.connection.toUpperCase().replace(/-/g, '_')}`,
+        `KEYBOARD_PROVIDER_USER_TOKEN_FOR_${account.connection.toUpperCase().replace(/-/g, '_')}_STORED_IN_CLOUD`,
       )
     }
     catch (error) {
@@ -257,6 +257,12 @@ export class ConnectedAccountsService {
 
   async getToken(connection: string, accessToken: string): Promise<TokenResult> {
     try {
+      let cleanConnection = connection
+      console.log('cleanConnection', cleanConnection)
+      if (cleanConnection.endsWith('_stored_in_cloud')) {
+        cleanConnection = cleanConnection.substring(0, cleanConnection.length - '_stored_in_cloud'.length)
+      }
+      console.log('cleanConnection', cleanConnection)
       const response = await fetch(
         `${this.tokenVaultUrl}/api/token-vault/connected-accounts/credentials`,
         {
@@ -266,7 +272,7 @@ export class ConnectedAccountsService {
             'Authorization': `Bearer ${accessToken}`,
           },
           body: JSON.stringify({
-            connection: connection,
+            connection: cleanConnection,
           }),
         },
       )

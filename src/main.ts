@@ -546,7 +546,7 @@ class MenuBarNotificationApp {
 
   private initializeConnectedAccountsService(): void {
     this.connectedAccountsService = new ConnectedAccountsService({
-      tokenVaultUrl: process.env.TOKEN_VAULT_URL || 'http://localhost:4000',
+      tokenVaultUrl: process.env.TOKEN_VAULT_URL || 'https://api.keyboard.dev',
     })
   }
 
@@ -713,6 +713,7 @@ class MenuBarNotificationApp {
    */
   private handleExecutorMessage(message: { type: string, message?: Message, data?: unknown, id?: string, providerId?: string, requestId?: string }): void {
     try {
+      // console.log('message', message)
       switch (message.type) {
         case 'websocket-message':
           // Forward to existing message handling
@@ -1290,6 +1291,7 @@ class MenuBarNotificationApp {
 
     this.wsServer.on('connection', (ws: WebSocket) => {
       ws.on('message', async (data: WebSocket.Data) => {
+        console.log('message', data)
         try {
           const message = JSON.parse(data.toString())
 
