@@ -88,7 +88,6 @@ export class OAuthService {
       await this.refreshAllExpiredProvidersOnStartup()
     }
     catch (error) {
-      console.error('❌ Failed to initialize OAuth provider system:', error)
       throw error
     }
   }
@@ -132,7 +131,6 @@ export class OAuthService {
     }
     catch (error) {
       // Don't throw - we don't want startup refresh failures to break app initialization
-      console.error('❌ Error during startup OAuth provider refresh:', error)
     }
   }
 
@@ -151,7 +149,6 @@ export class OAuthService {
       }
     }
     catch (error) {
-      console.error('❌ Error during token storage migration:', error)
     }
   }
 
@@ -184,7 +181,7 @@ export class OAuthService {
             bearerToken: accessToken || '', // JWT token for sandbox OR GitHub token for codespace
             githubToken: onboardingToken || '', // GitHub token (used for codespace discovery)
           }
-          
+
           // Auto-discover and encrypt using the appropriate environment
           encryptedToken = await encryptWithCodespaceKey(token, config, executionPreference || 'github-codespace')
           encrypted = true
@@ -194,8 +191,6 @@ export class OAuthService {
         }
       }
       catch (encryptionError) {
-        console.error('❌ Failed to encrypt provider token:', encryptionError)
-        // Continue with unencrypted token as fallback
       }
     }
 
@@ -241,10 +236,6 @@ export class OAuthService {
         providerName = provider?.name || providerId
       }
       else {
-        console.log('DO I GET HERE BRRRROROROROORORORORO', providerId)
-        // Strategy 2: Try external token sources (connected accounts, AWS Secrets, etc.)
-        // Note: externalTokenSourceRegistry.getToken now automatically handles extraction
-        // of provider ID from token names like KEYBOARD_CONNECTED_ACCOUNT_TOKEN_FOR_*
         const externalResult = await this.externalTokenSourceRegistry.getToken(providerId)
 
         if (externalResult.success && externalResult.token) {
@@ -266,12 +257,9 @@ export class OAuthService {
           providerName = externalResult.providerName || actualProviderId
         }
       }
-      console.log('token', token)
-      console.log('actualProviderId', actualProviderId)
       if (!token) {
         throw new Error('No token available for this provider from any source')
       }
-      
 
       // Encrypt token using codespace encryption if available
       const { encryptedToken, encrypted, encryptionMethod } = await this.encryptProviderToken(token)
@@ -293,9 +281,6 @@ export class OAuthService {
         providerName: providerName,
         source: tokenSource,
       }
-      console.log('tokenResponse', tokenResponse)
-
-      // Send response back through executor client
       if (executorWSClient) {
         executorWSClient.send(tokenResponse)
       }
@@ -335,7 +320,6 @@ export class OAuthService {
         externalTokens = await this.externalTokenSourceRegistry.getAllAvailableTokenNames()
       }
       catch (externalError) {
-        console.warn('Failed to fetch external source tokens:', externalError)
       }
 
       // Combine all token sources
@@ -395,7 +379,6 @@ export class OAuthService {
       await shell.openExternal(authUrl)
     }
     catch (error) {
-      console.error(`❌ OAuth flow error for ${providerId}:`, error)
       await this.notifyProviderAuthError(providerId, 'Failed to start authentication')
       this.oauthHttpServer.stopServer() // Clean up on error
       throw error
@@ -420,11 +403,6 @@ export class OAuthService {
       }
 
       if (callbackData.state !== this.currentProviderPKCE.state) {
-        console.error('❌ State mismatch details:', {
-          received: callbackData.state,
-          expected: this.currentProviderPKCE.state,
-          providerId: this.currentProviderPKCE.providerId,
-        })
         throw new Error('State mismatch - potential CSRF attack')
       }
 
@@ -432,7 +410,6 @@ export class OAuthService {
       await this.exchangeProviderCodeForTokens(this.currentProviderPKCE.providerId, callbackData.code, this.currentProviderPKCE)
     }
     catch (error) {
-      console.error('❌ OAuth HTTP callback error:', error)
       const providerId = this.currentProviderPKCE?.providerId || 'unknown'
       this.notifyProviderAuthError(providerId, `Authentication failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
@@ -477,7 +454,6 @@ export class OAuthService {
       })
     }
     catch (error) {
-      console.error(`❌ Token exchange error for ${providerId}:`, error)
       await this.notifyProviderAuthError(providerId, `Token exchange failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
@@ -503,8 +479,6 @@ export class OAuthService {
    * Notify about provider authentication errors
    */
   private async notifyProviderAuthError(providerId: string, message: string): Promise<void> {
-    console.error(`🔐 Auth Error for ${providerId}:`, message)
-
     this.windowManager.sendMessage('provider-auth-error', {
       providerId,
       message,
@@ -569,7 +543,6 @@ export class OAuthService {
       await shell.openExternal(authUrl)
     }
     catch (error) {
-      console.error(`❌ Server OAuth flow error for ${serverId}/${provider}:`, error)
       this.notifyProviderAuthError(provider, 'Failed to start authentication')
       this.oauthHttpServer.stopServer() // Clean up on error
     }
@@ -625,10 +598,6 @@ export class OAuthService {
       }
 
       if (callbackData.state !== this.currentProviderPKCE.state) {
-        console.error('❌ State mismatch:', {
-          received: callbackData.state,
-          expected: this.currentProviderPKCE.state,
-        })
         throw new Error('State mismatch - potential security issue')
       }
 
@@ -685,7 +654,6 @@ export class OAuthService {
       })
     }
     catch (error) {
-      console.error(`❌ Server OAuth callback error for ${serverId}/${provider}:`, error)
       this.notifyProviderAuthError(provider, `Authentication failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
@@ -830,7 +798,6 @@ export class OAuthService {
     source?: 'local-provider' | 'external-source'
   }> {
     try {
-      console.log('is this a joke?', providerId)
       let token: string | null = null
       let providerInfo: { user?: unknown, authenticated?: boolean } | null = null
       let providerName = providerId
@@ -839,7 +806,6 @@ export class OAuthService {
 
       // Strategy 1: Try local provider storage first
       token = await this.getValidProviderAccessToken(providerId.toLowerCase())
-      console.log('token', token)
       if (token) {
         // Local provider token found
         const providerStatus = await this.perProviderTokenStorage.getProviderStatus()
@@ -852,8 +818,6 @@ export class OAuthService {
         // Note: externalTokenSourceRegistry.getToken now automatically handles extraction
         // of provider ID from token names like KEYBOARD_CONNECTED_ACCOUNT_TOKEN_FOR_*
         const externalResult = await this.externalTokenSourceRegistry.getToken(providerId)
-        console.log('externalResult', externalResult)
-
         if (externalResult.success && externalResult.token) {
           token = externalResult.token
           tokenSource = 'external-source'
@@ -873,8 +837,6 @@ export class OAuthService {
           providerName = externalResult.providerName || actualProviderId
         }
       }
-      console.log('token', token)
-      // Encrypt token using codespace encryption if available
       const { encryptedToken, encrypted, encryptionMethod } = token
         ? await this.encryptProviderToken(token)
         : { encryptedToken: token, encrypted: false, encryptionMethod: 'none' }
@@ -931,7 +893,6 @@ export class OAuthService {
         externalTokens = await this.externalTokenSourceRegistry.getAllAvailableTokenNames()
       }
       catch (externalError) {
-        console.warn('Failed to fetch external source tokens:', externalError)
       }
 
       // Combine all token sources

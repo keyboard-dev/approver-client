@@ -79,162 +79,132 @@ export class ConnectedAccountsService {
     request: InitiateConnectionRequest,
     token: string,
   ): Promise<InitiateConnectionResponse> {
-    try {
-      const response = await fetch(
-        `${this.tokenVaultUrl}/api/token-vault/connected-accounts/initiate`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-          body: JSON.stringify(request),
+    const response = await fetch(
+      `${this.tokenVaultUrl}/api/token-vault/connected-accounts/initiate`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
         },
-      )
+        body: JSON.stringify(request),
+      },
+    )
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
-      const data = await response.json() as InitiateConnectionResponse
-
-      if (!data.success) {
-        throw new Error(data.message || 'Failed to initiate connection')
-      }
-
-      return data
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
     }
-    catch (error) {
-      console.error('❌ Failed to initiate connected account:', error)
-      throw error
+
+    const data = await response.json() as InitiateConnectionResponse
+
+    if (!data.success) {
+      throw new Error(data.message || 'Failed to initiate connection')
     }
+
+    return data
   }
 
   async completeConnection(
     request: CompleteConnectionRequest, token: string,
   ): Promise<CompleteConnectionResponse> {
-    try {
-      const response = await fetch(
-        `${this.tokenVaultUrl}/api/token-vault/connected-accounts/complete`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-          body: JSON.stringify(request),
+    const response = await fetch(
+      `${this.tokenVaultUrl}/api/token-vault/connected-accounts/complete`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
         },
-      )
+        body: JSON.stringify(request),
+      },
+    )
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
-      const data = await response.json() as CompleteConnectionResponse
-
-      if (!data.success) {
-        throw new Error(data.message || 'Failed to complete connection')
-      }
-
-      return data
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
     }
-    catch (error) {
-      console.error('❌ Failed to complete connected account:', error)
-      throw error
+
+    const data = await response.json() as CompleteConnectionResponse
+
+    if (!data.success) {
+      throw new Error(data.message || 'Failed to complete connection')
     }
+
+    return data
   }
 
   async getSocialProviders(accessToken: string): Promise<SocialProvidersResponse> {
-    try {
-      const response = await fetch(
-        `${this.tokenVaultUrl}/api/token-vault/connected-accounts/social-providers`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${accessToken}`,
-          },
+    const response = await fetch(
+      `${this.tokenVaultUrl}/api/token-vault/connected-accounts/social-providers`,
+      {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
         },
-      )
+      },
+    )
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
-      const data = await response.json() as SocialProvidersResponse
-
-      if (!data.success) {
-        throw new Error(data.message || 'Failed to fetch social providers')
-      }
-
-      return data
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
     }
-    catch (error) {
-      console.error('❌ Failed to fetch social providers:', error)
-      throw error
+
+    const data = await response.json() as SocialProvidersResponse
+
+    if (!data.success) {
+      throw new Error(data.message || 'Failed to fetch social providers')
     }
+
+    return data
   }
 
   async getConnectedAccounts(accessToken: string): Promise<ConnectedAccountsResponse> {
-    try {
-      const response = await fetch(
-        `${this.tokenVaultUrl}/api/token-vault/connected-accounts`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${accessToken}`,
-          },
+    const response = await fetch(
+      `${this.tokenVaultUrl}/api/token-vault/connected-accounts`,
+      {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
         },
-      )
+      },
+    )
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
-      const data = await response.json() as ConnectedAccountsResponse
-
-      if (!data.success) {
-        throw new Error('Failed to fetch connected accounts')
-      }
-
-      return data
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
     }
-    catch (error) {
-      console.error('❌ Failed to fetch connected accounts:', error)
-      throw error
+
+    const data = await response.json() as ConnectedAccountsResponse
+
+    if (!data.success) {
+      throw new Error('Failed to fetch connected accounts')
     }
+
+    return data
   }
 
   async deleteAccount(accountId: string, accessToken: string): Promise<DeleteAccountResponse> {
-    try {
-      const response = await fetch(
-        `${this.tokenVaultUrl}/api/token-vault/connected-accounts/${accountId}`,
-        {
-          method: 'DELETE',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${accessToken}`,
-          },
+    const response = await fetch(
+      `${this.tokenVaultUrl}/api/token-vault/connected-accounts/${accountId}`,
+      {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
         },
-      )
+      },
+    )
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
-      const data = await response.json() as DeleteAccountResponse
-
-      if (!data.success) {
-        throw new Error(data.message || 'Failed to delete account')
-      }
-
-      return data
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
     }
-    catch (error) {
-      console.error('❌ Failed to delete connected account:', error)
-      throw error
+
+    const data = await response.json() as DeleteAccountResponse
+
+    if (!data.success) {
+      throw new Error(data.message || 'Failed to delete account')
     }
+
+    return data
   }
 
   async getAvailableTokenNames(accessToken: string): Promise<string[]> {
@@ -249,65 +219,56 @@ export class ConnectedAccountsService {
         `KEYBOARD_PROVIDER_USER_TOKEN_FOR_${account.connection.toUpperCase().replace(/-/g, '_')}_STORED_IN_CLOUD`,
       )
     }
-    catch (error) {
-      console.error('❌ Failed to get available token names from connected accounts:', error)
+    catch {
       return []
     }
   }
 
   async getToken(connection: string, accessToken: string): Promise<TokenResult> {
-    try {
-      let cleanConnection = connection
-      console.log('cleanConnection', cleanConnection)
-      if (cleanConnection.endsWith('_stored_in_cloud')) {
-        cleanConnection = cleanConnection.substring(0, cleanConnection.length - '_stored_in_cloud'.length)
-      }
-      console.log('cleanConnection', cleanConnection)
-      const response = await fetch(
-        `${this.tokenVaultUrl}/api/token-vault/connected-accounts/credentials`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify({
-            connection: cleanConnection,
-          }),
+    let cleanConnection = connection
+    if (cleanConnection.endsWith('_stored_in_cloud')) {
+      cleanConnection = cleanConnection.substring(0, cleanConnection.length - '_stored_in_cloud'.length)
+    }
+    const response = await fetch(
+      `${this.tokenVaultUrl}/api/token-vault/connected-accounts/credentials`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
         },
-      )
+        body: JSON.stringify({
+          connection: cleanConnection,
+        }),
+      },
+    )
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
-      const data = await response.json() as {
-        success: boolean
-        message: string
-        credentials?: {
-          access_token: string
-          expires_in?: number
-          scope?: string
-          token_type?: string
-        }
-      }
-      const tokenResult = {
-        success: data.success,
-        token: data.credentials?.access_token,
-        expires_in: data.credentials?.expires_in,
-        scope: data.credentials?.scope,
-        token_type: data.credentials?.token_type,
-      } as TokenResult
-
-      if (!tokenResult.success) {
-        throw new Error(tokenResult.error || 'Failed to fetch token')
-      }
-
-      return tokenResult
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
     }
-    catch (error) {
-      console.error('❌ Failed to fetch connected account token:', error)
-      throw error
+
+    const data = await response.json() as {
+      success: boolean
+      message: string
+      credentials?: {
+        access_token: string
+        expires_in?: number
+        scope?: string
+        token_type?: string
+      }
     }
+    const tokenResult = {
+      success: data.success,
+      token: data.credentials?.access_token,
+      expires_in: data.credentials?.expires_in,
+      scope: data.credentials?.scope,
+      token_type: data.credentials?.token_type,
+    } as TokenResult
+
+    if (!tokenResult.success) {
+      throw new Error(tokenResult.error || 'Failed to fetch token')
+    }
+
+    return tokenResult
   }
 }

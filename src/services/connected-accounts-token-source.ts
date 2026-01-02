@@ -33,8 +33,6 @@ export class ConnectedAccountsTokenSource implements ExternalTokenSource {
 
       // Normalize provider ID for comparison (handle both formats)
       const normalizedProviderId = providerId.toLowerCase().replace(/_/g, '-')
-      console.log('normalizedProviderId', normalizedProviderId)
-      console.log('accounts.accounts', accounts.accounts)
       return accounts.accounts.some(
         account => account.connection.toLowerCase() === normalizedProviderId,
       )

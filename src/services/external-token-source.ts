@@ -101,14 +101,11 @@ export class ExternalTokenSourceRegistry {
    * Automatically detects token type from token name pattern
    */
   handleConnectedCloudAccount = (providerId: string): string => {
-    console.log('providerId in handleConnectedCloudAccount', providerId)
     const cleanedProviderId = providerId.replace('KEYBOARD_PROVIDER_USER_TOKEN_FOR_', '').replace('_STORED_IN_CLOUD', '').toLowerCase().replace(/_/g, '-')
-    console.log('cleanedProviderId in handleConnectedCloudAccount', cleanedProviderId)
     return cleanedProviderId
   }
 
   handleProviderId = (providerId: string): { tokenType: string, cleanedProviderId: string } => {
-    console.log('providerId', providerId)
     if (providerId.endsWith('_STORED_IN_CLOUD')) {
       return { tokenType: 'connected_account', cleanedProviderId: this.handleConnectedCloudAccount(providerId) }
     }
@@ -127,10 +124,8 @@ export class ExternalTokenSourceRegistry {
       try {
         // If we detected a specific token type, we can add logic here to filter sources
         // For now, try all sources in priority order
-        console.log('after the extraction, actualProviderId', cleanedProviderId)
         const canProvide = await source.canProvideToken(cleanedProviderId)
         if (canProvide) {
-          console.log('canProvide', canProvide)
           const result = await source.getToken(cleanedProviderId)
 
           if (result.success && result.token) {
@@ -140,8 +135,6 @@ export class ExternalTokenSourceRegistry {
         }
       }
       catch (error) {
-        console.warn(`External token source ${source.config.name} failed for ${cleanedProviderId}:`, error)
-        // Continue to next source
       }
     }
 
@@ -168,7 +161,6 @@ export class ExternalTokenSourceRegistry {
         }
       }
       catch (error) {
-        console.warn(`Failed to get providers from ${source.config.name}:`, error)
       }
     }
 
