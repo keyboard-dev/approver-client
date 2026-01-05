@@ -77,6 +77,36 @@ export const useWebSocketConnection = (
     }
   }, [authStatus.authenticated, isSkippingAuth, updateConnectionStatus])
 
+  // Periodically verify connection status to prevent stale state
+  useEffect(() => {
+    if (!authStatus.authenticated && !isSkippingAuth) return
+
+    const verifyConnectionStatus = async () => {
+      try {
+        const status = await window.electronAPI.getExecutorConnectionStatus()
+        const actualStatus = status.connected ? 'connected' : 'disconnected'
+        
+        // Only update if different from current state to avoid unnecessary re-renders
+        setConnectionStatus(prevStatus => {
+          if (prevStatus !== actualStatus) {
+            return actualStatus
+          }
+          return prevStatus
+        })
+      }
+      catch (error) {
+        // Silently handle errors during periodic checks
+      }
+    }
+
+    // Check every 5 seconds to ensure status accuracy
+    const intervalId = setInterval(verifyConnectionStatus, 5000)
+
+    return () => {
+      clearInterval(intervalId)
+    }
+  }, [authStatus.authenticated, isSkippingAuth])
+
   // WebSocket event handlers
   useEffect(() => {
     const handleWebSocketConnecting = (_event: unknown, data: { target: string, type: string }) => {
