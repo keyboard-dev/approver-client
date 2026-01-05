@@ -350,14 +350,35 @@ export interface ElectronAPI {
   fetchAdditionalConnectors: () => Promise<Array<{ id: string, name: string, description?: string, icon: string, scopes?: string[], source?: 'local' | 'pipedream' | 'custom', metadata?: Record<string, unknown> }>>
   deleteAdditionalAccount: (accountId: string) => Promise<{ success: boolean, message?: string }>
   // Pipedream Triggers
+  fetchPipedreamAccounts: () => Promise<string[]>
   fetchPipedreamTriggers: (app: string) => Promise<{ success: boolean, data?: unknown, error?: string }>
   deployPipedreamTrigger: (config: {
     componentKey: string
     appName: string
     appSlug: string
     configuredProps?: Record<string, unknown>
+    tasks?: Array<{
+      keyboard_shortcut_ids?: string[]
+      cloud_credentials?: string[]
+      pipedream_proxy_apps?: string[]
+      ask?: string | null
+    }>
   }) => Promise<{ success: boolean, data?: unknown, error?: string }>
-  getDeployedPipedreamTriggers: () => Promise<{ success: boolean, data?: unknown, error?: string }>
+  getDeployedPipedreamTriggers: (includeTasks?: boolean) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  createTriggerTask: (config: {
+    deployed_trigger_id: string
+    keyboard_shortcut_ids?: string[]
+    cloud_credentials?: string[]
+    pipedream_proxy_apps?: string[]
+    ask?: string | null
+  }) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  updateTriggerTask: (taskId: string, config: {
+    keyboard_shortcut_ids?: string[]
+    cloud_credentials?: string[]
+    pipedream_proxy_apps?: string[]
+    ask?: string | null
+  }) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  getTriggerTasks: (deployedTriggerId: string, limit?: number) => Promise<{ success: boolean, data?: unknown, error?: string }>
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -604,14 +625,35 @@ contextBridge.exposeInMainWorld('electronAPI', {
   deleteAdditionalAccount: (accountId: string): Promise<{ success: boolean, message?: string }> => ipcRenderer.invoke('delete-additional-account', accountId),
   fetchAdditionalConnectors: (): Promise<Array<{ id: string, name: string, description?: string, icon: string, scopes?: string[], source?: 'local' | 'pipedream' | 'custom', metadata?: Record<string, unknown> }>> => ipcRenderer.invoke('fetch-additional-connectors'),
   // Pipedream Triggers
+  fetchPipedreamAccounts: (): Promise<string[]> => ipcRenderer.invoke('fetch-pipedream-accounts'),
   fetchPipedreamTriggers: (app: string): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('fetch-pipedream-triggers', app),
   deployPipedreamTrigger: (config: {
     componentKey: string
     appName: string
     appSlug: string
     configuredProps?: Record<string, unknown>
+    tasks?: Array<{
+      keyboard_shortcut_ids?: string[]
+      cloud_credentials?: string[]
+      pipedream_proxy_apps?: string[]
+      ask?: string | null
+    }>
   }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('deploy-pipedream-trigger', config),
-  getDeployedPipedreamTriggers: (): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('get-deployed-pipedream-triggers'),
+  getDeployedPipedreamTriggers: (includeTasks = false): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('get-deployed-pipedream-triggers', includeTasks),
+  createTriggerTask: (config: {
+    deployed_trigger_id: string
+    keyboard_shortcut_ids?: string[]
+    cloud_credentials?: string[]
+    pipedream_proxy_apps?: string[]
+    ask?: string | null
+  }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('create-trigger-task', config),
+  updateTriggerTask: (taskId: string, config: {
+    keyboard_shortcut_ids?: string[]
+    cloud_credentials?: string[]
+    pipedream_proxy_apps?: string[]
+    ask?: string | null
+  }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('update-trigger-task', taskId, config),
+  getTriggerTasks: (deployedTriggerId: string, limit = 10): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('get-trigger-tasks', deployedTriggerId, limit),
 } as ElectronAPI)
 
 // Extend the global Window interface

@@ -1,4 +1,15 @@
+import { ChevronDown, X } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
+import { Script } from '../../../../../main'
+import { Button } from '../../../ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '../../../ui/dropdown-menu'
 
 interface ConfigurableProp {
   name: string
@@ -20,6 +31,17 @@ interface Trigger {
   configurable_props: ConfigurableProp[]
 }
 
+interface TriggerTask {
+  id?: string
+  deployedTriggerId?: string
+  keyboard_shortcut_ids?: string[]
+  cloud_credentials?: string[]
+  pipedream_proxy_apps?: string[]
+  ask?: string | null
+  createdAt?: string
+  updatedAt?: string
+}
+
 interface DeployedTrigger {
   id: string
   triggerId: string
@@ -28,6 +50,7 @@ interface DeployedTrigger {
   appSlug: string
   status: string
   configuredProps: Record<string, unknown>
+  tasks?: TriggerTask[]
   createdAt: string
   updatedAt: string
 }
@@ -55,6 +78,14 @@ export const PipedreamTriggersPanel: React.FC = () => {
   const [deploySuccess, setDeploySuccess] = useState<string | null>(null)
   const [deployedTriggers, setDeployedTriggers] = useState<DeployedTrigger[]>([])
   const [isLoadingDeployed, setIsLoadingDeployed] = useState(false)
+  const [tasks, setTasks] = useState<TriggerTask[]>([])
+  const [showTasksSection, setShowTasksSection] = useState(false)
+  const [selectedDeployedTrigger, setSelectedDeployedTrigger] = useState<DeployedTrigger | null>(null)
+  const [showTasksModal, setShowTasksModal] = useState(false)
+  const [availableScripts, setAvailableScripts] = useState<Script[]>([])
+  const [availableCredentials, setAvailableCredentials] = useState<Array<{ id: string, connection: string, icon?: string }>>([])
+  const [availablePipedreamAccounts, setAvailablePipedreamAccounts] = useState<string[]>([])
+  const [isLoadingOptions, setIsLoadingOptions] = useState(false)
 
   const handleSearch = async () => {
     if (!appName.trim()) {
@@ -97,6 +128,8 @@ export const PipedreamTriggersPanel: React.FC = () => {
     setConfigValues({})
     setDeploySuccess(null)
     setError(null)
+    setTasks([])
+    setShowTasksSection(false)
   }
 
   const handleCloseModal = () => {
@@ -105,6 +138,13 @@ export const PipedreamTriggersPanel: React.FC = () => {
     setConfigValues({})
     setDeploySuccess(null)
     setError(null)
+    setTasks([])
+    setShowTasksSection(false)
+  }
+
+  const handleCloseTasksModal = () => {
+    setShowTasksModal(false)
+    setSelectedDeployedTrigger(null)
   }
 
   const extractAppName = (appSlug: string): string => {
@@ -145,12 +185,19 @@ export const PipedreamTriggersPanel: React.FC = () => {
       }
 
       const configuredProps = Object.keys(configValues).length > 0 ? configValues : undefined
+      const tasksToSend = tasks.map(task => ({
+        keyboard_shortcut_ids: task.keyboard_shortcut_ids || [],
+        cloud_credentials: task.cloud_credentials || [],
+        pipedream_proxy_apps: task.pipedream_proxy_apps || [],
+        ask: task.ask || null,
+      }))
 
       const response = await window.electronAPI.deployPipedreamTrigger({
         componentKey: selectedTrigger.key,
         appName: extractAppName(appName),
         appSlug: appName,
         ...(configuredProps && { configuredProps }),
+        tasks: tasksToSend,
       })
 
       if (response.success) {
@@ -241,7 +288,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
   const loadDeployedTriggers = async () => {
     setIsLoadingDeployed(true)
     try {
-      const response = await window.electronAPI.getDeployedPipedreamTriggers()
+      const response = await window.electronAPI.getDeployedPipedreamTriggers(true)
       if (response.success && response.data) {
         const data = response.data as { triggers: DeployedTrigger[] }
         setDeployedTriggers(data.triggers || [])
@@ -255,9 +302,68 @@ export const PipedreamTriggersPanel: React.FC = () => {
     }
   }
 
+  const addTask = () => {
+    setTasks([...tasks, {
+      keyboard_shortcut_ids: [],
+      cloud_credentials: [],
+      pipedream_proxy_apps: [],
+      ask: '',
+    }])
+    setShowTasksSection(true)
+  }
+
+  const removeTask = (index: number) => {
+    setTasks(tasks.filter((_, i) => i !== index))
+    if (tasks.length === 1) {
+      setShowTasksSection(false)
+    }
+  }
+
+  const updateTask = (index: number, field: keyof TriggerTask, value: unknown) => {
+    const newTasks = [...tasks]
+    newTasks[index] = { ...newTasks[index], [field]: value }
+    setTasks(newTasks)
+  }
+
+  const handleShowTasks = (trigger: DeployedTrigger) => {
+    setSelectedDeployedTrigger(trigger)
+    setShowTasksModal(true)
+  }
+
   useEffect(() => {
     loadDeployedTriggers()
+    loadTaskOptions()
   }, [])
+
+  const loadTaskOptions = async () => {
+    setIsLoadingOptions(true)
+    try {
+      const [scriptsResponse, accountsResponse, pipedreamAppNames] = await Promise.all([
+        window.electronAPI.getScripts(),
+        window.electronAPI.getAdditionalConnectedAccounts(),
+        window.electronAPI.fetchPipedreamAccounts(),
+      ])
+
+      setAvailableScripts(Array.isArray(scriptsResponse) ? scriptsResponse : [])
+
+      if (accountsResponse.success && Array.isArray(accountsResponse.accounts)) {
+        setAvailableCredentials(accountsResponse.accounts)
+      }
+      else {
+        setAvailableCredentials([])
+      }
+
+      setAvailablePipedreamAccounts(Array.isArray(pipedreamAppNames) ? pipedreamAppNames : [])
+    }
+    catch {
+      setAvailableScripts([])
+      setAvailableCredentials([])
+      setAvailablePipedreamAccounts([])
+    }
+    finally {
+      setIsLoadingOptions(false)
+    }
+  }
 
   return (
     <div className="flex flex-col w-full h-full overflow-hidden">
@@ -347,8 +453,23 @@ export const PipedreamTriggersPanel: React.FC = () => {
                         {' '}
                         {new Date(deployed.createdAt).toLocaleDateString()}
                       </span>
+                      {deployed.tasks && deployed.tasks.length > 0 && (
+                        <span className="text-blue-600">
+                          Tasks:
+                          {' '}
+                          {deployed.tasks.length}
+                        </span>
+                      )}
                     </div>
                   </div>
+                  {deployed.tasks && deployed.tasks.length > 0 && (
+                    <button
+                      onClick={() => handleShowTasks(deployed)}
+                      className="text-xs px-3 py-1 border border-[#E5E5E5] rounded hover:bg-white transition-colors"
+                    >
+                      View Tasks
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
@@ -533,6 +654,282 @@ export const PipedreamTriggersPanel: React.FC = () => {
                         </div>
                       </div>
                     )}
+
+                    <div className="mt-6">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-semibold text-[#171717]">Trigger Tasks (Optional)</h4>
+                        {!showTasksSection && (
+                          <button
+                            onClick={addTask}
+                            className="text-sm text-blue-600 hover:text-blue-700"
+                          >
+                            + Add Task
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-xs text-[#737373] mb-3">
+                        Define tasks to execute when this trigger fires (keyboard shortcuts, AI prompts, etc.)
+                      </p>
+
+                      {showTasksSection && (
+                        <div className="space-y-4">
+                          {tasks.map((task, index) => (
+                            <div key={index} className="p-4 border border-[#E5E5E5] rounded-lg bg-white">
+                              <div className="flex items-center justify-between mb-3">
+                                <span className="font-semibold text-sm">
+                                  Task
+                                  {index + 1}
+                                </span>
+                                <button
+                                  onClick={() => removeTask(index)}
+                                  className="text-red-600 hover:text-red-700 text-sm"
+                                >
+                                  Remove
+                                </button>
+                              </div>
+
+                              <div className="space-y-3">
+                                <div>
+                                  <label className="text-xs text-[#737373] mb-2 block">
+                                    Keyboard Shortcuts
+                                  </label>
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button
+                                        variant="outline"
+                                        className="w-full justify-between text-sm h-auto min-h-[2.5rem] py-2"
+                                        disabled={isLoadingOptions}
+                                      >
+                                        {task.keyboard_shortcut_ids && task.keyboard_shortcut_ids.length > 0
+                                          ? `${task.keyboard_shortcut_ids.length} selected`
+                                          : 'Select shortcuts...'}
+                                        <ChevronDown className="ml-2 h-4 w-4 opacity-50" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent className="w-80 max-h-80 overflow-y-auto">
+                                      <DropdownMenuLabel>Available Shortcuts</DropdownMenuLabel>
+                                      <DropdownMenuSeparator />
+                                      {(!availableScripts || availableScripts.length === 0) && (
+                                        <div className="px-2 py-3 text-sm text-[#737373]">
+                                          No shortcuts available
+                                        </div>
+                                      )}
+                                      {availableScripts && availableScripts.map((script) => {
+                                        const isSelected = task.keyboard_shortcut_ids?.includes(script.id) || false
+                                        return (
+                                          <DropdownMenuCheckboxItem
+                                            key={script.id}
+                                            checked={isSelected}
+                                            onCheckedChange={(checked) => {
+                                              const currentIds = task.keyboard_shortcut_ids || []
+                                              const newIds = checked
+                                                ? [...currentIds, script.id]
+                                                : currentIds.filter(id => id !== script.id)
+                                              updateTask(index, 'keyboard_shortcut_ids', newIds)
+                                            }}
+                                          >
+                                            <div className="flex flex-col">
+                                              <span className="font-medium">{script.name}</span>
+                                              <span className="text-xs text-[#737373]">{script.description}</span>
+                                            </div>
+                                          </DropdownMenuCheckboxItem>
+                                        )
+                                      })}
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                  {task.keyboard_shortcut_ids && task.keyboard_shortcut_ids.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 mt-2">
+                                      {task.keyboard_shortcut_ids.map((id) => {
+                                        const script = availableScripts?.find(s => s.id === id)
+                                        return (
+                                          <span
+                                            key={id}
+                                            className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs"
+                                          >
+                                            {script?.name || id}
+                                            <X
+                                              className="h-3 w-3 cursor-pointer hover:text-blue-900"
+                                              onClick={() => {
+                                                const newIds = (task.keyboard_shortcut_ids || []).filter(i => i !== id)
+                                                updateTask(index, 'keyboard_shortcut_ids', newIds)
+                                              }}
+                                            />
+                                          </span>
+                                        )
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div>
+                                  <label className="text-xs text-[#737373] mb-2 block">
+                                    Cloud Credentials
+                                  </label>
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button
+                                        variant="outline"
+                                        className="w-full justify-between text-sm h-auto min-h-[2.5rem] py-2"
+                                        disabled={isLoadingOptions}
+                                      >
+                                        {task.cloud_credentials && task.cloud_credentials.length > 0
+                                          ? `${task.cloud_credentials.length} selected`
+                                          : 'Select credentials...'}
+                                        <ChevronDown className="ml-2 h-4 w-4 opacity-50" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent className="w-80 max-h-80 overflow-y-auto">
+                                      <DropdownMenuLabel>Connected Accounts</DropdownMenuLabel>
+                                      <DropdownMenuSeparator />
+                                      {(!availableCredentials || availableCredentials.length === 0) && (
+                                        <div className="px-2 py-3 text-sm text-[#737373]">
+                                          No connected accounts
+                                        </div>
+                                      )}
+                                      {availableCredentials && availableCredentials.map((cred) => {
+                                        const isSelected = task.cloud_credentials?.includes(cred.id) || false
+                                        return (
+                                          <DropdownMenuCheckboxItem
+                                            key={cred.id}
+                                            checked={isSelected}
+                                            onCheckedChange={(checked) => {
+                                              const currentCreds = task.cloud_credentials || []
+                                              const newCreds = checked
+                                                ? [...currentCreds, cred.id]
+                                                : currentCreds.filter(id => id !== cred.id)
+                                              updateTask(index, 'cloud_credentials', newCreds)
+                                            }}
+                                          >
+                                            <div className="flex items-center gap-2">
+                                              {cred.icon && (
+                                                <img src={cred.icon} alt="" className="w-4 h-4" />
+                                              )}
+                                              <span>{cred.connection}</span>
+                                            </div>
+                                          </DropdownMenuCheckboxItem>
+                                        )
+                                      })}
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                  {task.cloud_credentials && task.cloud_credentials.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 mt-2">
+                                      {task.cloud_credentials.map((id) => {
+                                        const cred = availableCredentials?.find(c => c.id === id)
+                                        return (
+                                          <span
+                                            key={id}
+                                            className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded text-xs"
+                                          >
+                                            {cred?.connection || id}
+                                            <X
+                                              className="h-3 w-3 cursor-pointer hover:text-green-900"
+                                              onClick={() => {
+                                                const newCreds = (task.cloud_credentials || []).filter(i => i !== id)
+                                                updateTask(index, 'cloud_credentials', newCreds)
+                                              }}
+                                            />
+                                          </span>
+                                        )
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div>
+                                  <label className="text-xs text-[#737373] mb-2 block">
+                                    Pipedream Proxy Apps
+                                  </label>
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button
+                                        variant="outline"
+                                        className="w-full justify-between text-sm h-auto min-h-[2.5rem] py-2"
+                                        disabled={isLoadingOptions}
+                                      >
+                                        {task.pipedream_proxy_apps && task.pipedream_proxy_apps.length > 0
+                                          ? `${task.pipedream_proxy_apps.length} selected`
+                                          : 'Select Pipedream apps...'}
+                                        <ChevronDown className="ml-2 h-4 w-4 opacity-50" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent className="w-80 max-h-80 overflow-y-auto">
+                                      <DropdownMenuLabel>Pipedream Connected Apps</DropdownMenuLabel>
+                                      <DropdownMenuSeparator />
+                                      {(!availablePipedreamAccounts || availablePipedreamAccounts.length === 0) && (
+                                        <div className="px-2 py-3 text-sm text-[#737373]">
+                                          No Pipedream apps connected
+                                        </div>
+                                      )}
+                                      {availablePipedreamAccounts && availablePipedreamAccounts.map((appName) => {
+                                        const isSelected = task.pipedream_proxy_apps?.includes(appName) || false
+                                        return (
+                                          <DropdownMenuCheckboxItem
+                                            key={appName}
+                                            checked={isSelected}
+                                            onCheckedChange={(checked) => {
+                                              const currentApps = task.pipedream_proxy_apps || []
+                                              const newApps = checked
+                                                ? [...currentApps, appName]
+                                                : currentApps.filter(name => name !== appName)
+                                              updateTask(index, 'pipedream_proxy_apps', newApps)
+                                            }}
+                                          >
+                                            <div className="flex flex-col">
+                                              <span className="font-medium">{appName}</span>
+                                            </div>
+                                          </DropdownMenuCheckboxItem>
+                                        )
+                                      })}
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                  {task.pipedream_proxy_apps && task.pipedream_proxy_apps.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 mt-2">
+                                      {task.pipedream_proxy_apps.map((appName) => {
+                                        return (
+                                          <span
+                                            key={appName}
+                                            className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs"
+                                          >
+                                            {appName}
+                                            <X
+                                              className="h-3 w-3 cursor-pointer hover:text-purple-900"
+                                              onClick={() => {
+                                                const newApps = (task.pipedream_proxy_apps || []).filter(name => name !== appName)
+                                                updateTask(index, 'pipedream_proxy_apps', newApps)
+                                              }}
+                                            />
+                                          </span>
+                                        )
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div>
+                                  <label className="text-xs text-[#737373] mb-1 block">
+                                    AI Prompt (optional)
+                                  </label>
+                                  <textarea
+                                    value={task.ask || ''}
+                                    onChange={e => updateTask(index, 'ask', e.target.value)}
+                                    placeholder="Enter an AI prompt or question..."
+                                    rows={3}
+                                    className="w-full px-3 py-2 text-sm border border-[#E5E5E5] rounded focus:outline-none focus:ring-2 focus:ring-[#171717]"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+
+                          <button
+                            onClick={addTask}
+                            className="text-sm text-blue-600 hover:text-blue-700"
+                          >
+                            + Add Another Task
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </>
                 )
               })()}
@@ -552,6 +949,133 @@ export const PipedreamTriggersPanel: React.FC = () => {
                 className="px-6 py-2 bg-[#171717] text-white rounded-lg hover:bg-[#404040] transition-colors disabled:bg-[#A3A3A3] disabled:cursor-not-allowed"
               >
                 {isDeploying ? 'Deploying...' : deploySuccess ? 'Deployed!' : 'Deploy Trigger'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showTasksModal && selectedDeployedTrigger && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[80vh] m-4 flex flex-col">
+            <div className="p-6 border-b border-[#E5E5E5] flex items-start justify-between">
+              <div className="flex-1">
+                <h3 className="text-xl font-bold text-[#171717] mb-2">
+                  Tasks for
+                  {' '}
+                  {selectedDeployedTrigger.triggerAction}
+                </h3>
+                <p className="text-sm text-[#737373]">
+                  {selectedDeployedTrigger.tasks?.length || 0}
+                  {' '}
+                  task(s) configured
+                </p>
+              </div>
+              <button
+                onClick={handleCloseTasksModal}
+                className="text-[#737373] hover:text-[#171717] ml-4"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6">
+              {selectedDeployedTrigger.tasks && selectedDeployedTrigger.tasks.length > 0
+                ? (
+                    <div className="space-y-4">
+                      {selectedDeployedTrigger.tasks.map((task, index) => (
+                        <div key={task.id || index} className="p-4 border border-[#E5E5E5] rounded-lg bg-[#FAFAFA]">
+                          <div className="mb-3">
+                            <span className="font-semibold text-[#171717]">
+                              Task
+                              {' '}
+                              {index + 1}
+                            </span>
+                            {task.id && (
+                              <span className="ml-2 text-xs text-[#737373]">
+                                ID:
+                                {' '}
+                                {task.id}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="space-y-3 text-sm">
+                            {task.keyboard_shortcut_ids && task.keyboard_shortcut_ids.length > 0 && (
+                              <div>
+                                <span className="text-[#737373]">Keyboard Shortcuts:</span>
+                                <div className="mt-1 flex flex-wrap gap-1">
+                                  {task.keyboard_shortcut_ids.map((id, i) => (
+                                    <span key={i} className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">
+                                      {id}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {task.cloud_credentials && task.cloud_credentials.length > 0 && (
+                              <div>
+                                <span className="text-[#737373]">Cloud Credentials:</span>
+                                <div className="mt-1 flex flex-wrap gap-1">
+                                  {task.cloud_credentials.map((cred, i) => (
+                                    <span key={i} className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs">
+                                      {cred}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {task.pipedream_proxy_apps && task.pipedream_proxy_apps.length > 0 && (
+                              <div>
+                                <span className="text-[#737373]">Pipedream Proxy Apps:</span>
+                                <div className="mt-1 flex flex-wrap gap-1">
+                                  {task.pipedream_proxy_apps.map((app, i) => (
+                                    <span key={i} className="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs">
+                                      {app}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {task.ask && (
+                              <div>
+                                <span className="text-[#737373]">AI Prompt:</span>
+                                <div className="mt-1 p-3 bg-white rounded border border-[#E5E5E5] text-[#171717]">
+                                  {task.ask}
+                                </div>
+                              </div>
+                            )}
+
+                            {task.createdAt && (
+                              <div className="text-xs text-[#737373] pt-2 border-t border-[#E5E5E5]">
+                                Created:
+                                {' '}
+                                {new Date(task.createdAt).toLocaleString()}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                : (
+                    <div className="text-center text-[#737373] py-8">
+                      No tasks configured for this trigger
+                    </div>
+                  )}
+            </div>
+
+            <div className="p-6 border-t border-[#E5E5E5] flex justify-end">
+              <button
+                onClick={handleCloseTasksModal}
+                className="px-6 py-2 border border-[#E5E5E5] rounded-lg hover:bg-[#F5F5F5] transition-colors"
+              >
+                Close
               </button>
             </div>
           </div>

@@ -2280,6 +2280,28 @@ class MenuBarNotificationApp {
     })
 
     // Pipedream Triggers IPC handler
+    ipcMain.handle('fetch-pipedream-accounts', async () => {
+      const accessToken = await this.authService.getValidAccessToken()
+      if (!accessToken) {
+        throw new Error('Not authenticated')
+      }
+      const response = await fetch('http://localhost:4000/api/pipedream/accounts',
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
+      )
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      const data = await response.json()
+      const connectedApps = (data as { accounts: Array<{ app?: { name: string } }> }).accounts.map((account) => {
+        return account.app?.name || 'Unknown App'
+      })
+      return connectedApps
+    })
+
     ipcMain.handle('fetch-pipedream-triggers', async (_event, app: string) => {
       try {
         const accessToken = await this.authService.getValidAccessToken()
@@ -2316,6 +2338,12 @@ class MenuBarNotificationApp {
       appName: string
       appSlug: string
       configuredProps?: Record<string, unknown>
+      tasks?: Array<{
+        keyboard_shortcut_ids?: string[]
+        cloud_credentials?: string[]
+        pipedream_proxy_apps?: string[]
+        ask?: string | null
+      }>
     }) => {
       try {
         const accessToken = await this.authService.getValidAccessToken()
@@ -2329,11 +2357,14 @@ class MenuBarNotificationApp {
         const requestBody = {
           componentKey: deployConfig.componentKey,
           appName: deployConfig.appName,
+          tasks: deployConfig.tasks,
           appSlug: deployConfig.appSlug,
           ...(deployConfig.configuredProps && Object.keys(deployConfig.configuredProps).length > 0
             ? { configuredProps: deployConfig.configuredProps }
             : {}),
         }
+
+        console.log('requestBody', requestBody)
 
         const response = await fetch('http://localhost:4000/api/pipedream/deployed-triggers', {
           method: 'POST',
@@ -2361,7 +2392,7 @@ class MenuBarNotificationApp {
     })
 
     // Get Deployed Pipedream Triggers IPC handler
-    ipcMain.handle('get-deployed-pipedream-triggers', async () => {
+    ipcMain.handle('get-deployed-pipedream-triggers', async (_event, includeTasks = false) => {
       try {
         const accessToken = await this.authService.getValidAccessToken()
         if (!accessToken) {
@@ -2371,12 +2402,135 @@ class MenuBarNotificationApp {
           }
         }
 
-        const response = await fetch('http://localhost:4000/api/pipedream/deployed-triggers', {
+        const url = includeTasks
+          ? 'http://localhost:4000/api/pipedream/deployed-triggers?include_tasks=true'
+          : 'http://localhost:4000/api/pipedream/deployed-triggers'
+
+        const response = await fetch(url, {
           method: 'GET',
           headers: {
             Authorization: `Bearer ${accessToken}`,
           },
         })
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return { success: true, data }
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    // Create Trigger Task IPC handler
+    ipcMain.handle('create-trigger-task', async (_event, taskConfig: {
+      deployed_trigger_id: string
+      keyboard_shortcut_ids?: string[]
+      cloud_credentials?: string[]
+      pipedream_proxy_apps?: string[]
+      ask?: string | null
+    }) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return {
+            success: false,
+            error: 'Not authenticated',
+          }
+        }
+
+        const response = await fetch('http://localhost:4000/api/pipedream/trigger-tasks', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(taskConfig),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string }
+          throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return { success: true, data }
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    // Update Trigger Task IPC handler
+    ipcMain.handle('update-trigger-task', async (_event, taskId: string, taskConfig: {
+      keyboard_shortcut_ids?: string[]
+      cloud_credentials?: string[]
+      pipedream_proxy_apps?: string[]
+      ask?: string | null
+    }) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return {
+            success: false,
+            error: 'Not authenticated',
+          }
+        }
+
+        const response = await fetch(`http://localhost:4000/api/pipedream/trigger-tasks/${taskId}`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(taskConfig),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string }
+          throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return { success: true, data }
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    // Get Trigger Tasks IPC handler
+    ipcMain.handle('get-trigger-tasks', async (_event, deployedTriggerId: string, limit = 10) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return {
+            success: false,
+            error: 'Not authenticated',
+          }
+        }
+
+        const response = await fetch(
+          `http://localhost:4000/api/pipedream/trigger-tasks?deployed_trigger_id=${encodeURIComponent(deployedTriggerId)}&limit=${limit}`,
+          {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          },
+        )
 
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`)
