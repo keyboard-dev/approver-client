@@ -349,6 +349,8 @@ export interface ElectronAPI {
   getAdditionalConnectedAccounts: () => Promise<{ success: boolean, accounts: Array<{ id: string, connection: string, access_type: string, scopes: string[], created_at: string, icon?: string }> }>
   fetchAdditionalConnectors: () => Promise<Array<{ id: string, name: string, description?: string, icon: string, scopes?: string[], source?: 'local' | 'pipedream' | 'custom', metadata?: Record<string, unknown> }>>
   deleteAdditionalAccount: (accountId: string) => Promise<{ success: boolean, message?: string }>
+  // Pipedream Triggers
+  fetchPipedreamTriggers: (app: string) => Promise<{ success: boolean, data?: any, error?: string }>
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -594,6 +596,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAdditionalConnectedAccounts: (): Promise<{ success: boolean, accounts: Array<{ id: string, connection: string, access_type: string, scopes: string[], created_at: string, icon?: string }> }> => ipcRenderer.invoke('get-additional-connected-accounts'),
   deleteAdditionalAccount: (accountId: string): Promise<{ success: boolean, message?: string }> => ipcRenderer.invoke('delete-additional-account', accountId),
   fetchAdditionalConnectors: (): Promise<Array<{ id: string, name: string, description?: string, icon: string, scopes?: string[], source?: 'local' | 'pipedream' | 'custom', metadata?: Record<string, unknown> }>> => ipcRenderer.invoke('fetch-additional-connectors'),
+  // Pipedream Triggers
+  fetchPipedreamTriggers: (app: string): Promise<{ success: boolean, data?: any, error?: string }> => ipcRenderer.invoke('fetch-pipedream-triggers', app),
 } as ElectronAPI)
 
 // Extend the global Window interface

@@ -339,7 +339,6 @@ class MenuBarNotificationApp {
           await this.authService.handleOAuthCallback(this.startupProtocolUrl)
         }
         catch (error) {
-          console.error('Error processing startup protocol URL:', error)
         }
         finally {
           this.startupProtocolUrl = null // Clear after processing
@@ -356,7 +355,6 @@ class MenuBarNotificationApp {
             await this.authService.handleOAuthCallback(queuedUrl)
           }
           catch (error) {
-            console.error('Error processing queued URL:', error)
           }
         }
       }
@@ -402,7 +400,6 @@ class MenuBarNotificationApp {
         })
 
         autoUpdater.on('error', (error) => {
-          console.error('Update error:', error)
         })
 
         // Check for updates
@@ -424,13 +421,10 @@ class MenuBarNotificationApp {
         this.windowManager.showWindow()
       })
     }).catch((error) => {
-      console.error('Fatal error during initialization:', error)
-      // Still try to show the window so user isn't left with nothing
       try {
         this.windowManager.showWindow()
       }
       catch (e) {
-        console.error('Failed to show window after initialization error:', e)
       }
     })
 
@@ -505,7 +499,6 @@ class MenuBarNotificationApp {
       this.setupSSEEventHandlers()
     }
     catch (error) {
-      console.error('❌ Failed to initialize OAuth services:', error)
       throw error
     }
   }
@@ -525,8 +518,6 @@ class MenuBarNotificationApp {
       }
     }
     catch (error) {
-      console.error('❌ Failed to initialize execution preference manager:', error)
-      // Don't throw error since this is not critical for app startup
     }
   }
 
@@ -535,7 +526,6 @@ class MenuBarNotificationApp {
       initializeAIProviders()
     }
     catch (error) {
-      console.error('❌ Failed to initialize AI providers:', error)
     }
   }
 
@@ -573,7 +563,6 @@ class MenuBarNotificationApp {
       return { success: false, error: response.message }
     }
     catch (error) {
-      console.error('❌ Failed to initiate connected account:', error)
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -606,7 +595,6 @@ class MenuBarNotificationApp {
       return response
     }
     catch (error) {
-      console.error('❌ Failed to complete connected account:', error)
       return {
         success: false,
         message: error instanceof Error ? error.message : 'Unknown error',
@@ -680,7 +668,6 @@ class MenuBarNotificationApp {
       }
     }
     catch (error) {
-      console.error('❌ Error connecting to executor:', error)
     }
   }
 
@@ -696,7 +683,6 @@ class MenuBarNotificationApp {
 
     // Handle SSE connection confirmation
     sseService.on('connected', () => {
-      console.log('Connected to SSE')
     })
     // Handle codespace coming online - auto-connect to it
     sseService.on('codespace-online', async (data: CodespaceData) => {
@@ -756,7 +742,6 @@ class MenuBarNotificationApp {
       }
     }
     catch (error) {
-      console.error('❌ Error handling executor message:', error)
     }
   }
 
@@ -811,8 +796,6 @@ class MenuBarNotificationApp {
       await this.generateNewWebSocketKey()
     }
     catch (error) {
-      console.error('❌ Error initializing WebSocket key:', error)
-      // Fallback: generate new key
       await this.generateNewWebSocketKey()
     }
   }
@@ -839,7 +822,6 @@ class MenuBarNotificationApp {
       })
     }
     catch (error) {
-      console.error('❌ Error generating WebSocket key:', error)
       throw error
     }
   }
@@ -888,8 +870,6 @@ class MenuBarNotificationApp {
       await this.generateNewEncryptionKey()
     }
     catch (error) {
-      console.error('❌ Error initializing encryption key:', error)
-      // Fallback: generate new key
       await this.generateNewEncryptionKey()
     }
   }
@@ -918,7 +898,6 @@ class MenuBarNotificationApp {
       })
     }
     catch (error) {
-      console.error('❌ Error generating encryption key:', error)
       throw error
     }
   }
@@ -941,7 +920,6 @@ class MenuBarNotificationApp {
         }
       }
       catch (error) {
-        console.error('Error reading encryption key file:', error)
       }
     }
 
@@ -993,8 +971,6 @@ class MenuBarNotificationApp {
       }
     }
     catch (error) {
-      console.error('❌ Error initializing settings:', error)
-      // Use defaults if settings file is corrupted
       this.showNotifications = true
       this.automaticResponseApproval = 'never'
       this.fullCodeExecution = false
@@ -1016,7 +992,6 @@ class MenuBarNotificationApp {
       fs.writeFileSync(this.SETTINGS_FILE, JSON.stringify(settingsData, null, 2), { mode: 0o600 })
     }
     catch (error) {
-      console.error('❌ Error saving settings:', error)
       throw error
     }
   }
@@ -1032,7 +1007,6 @@ class MenuBarNotificationApp {
       }
     }
     catch (error) {
-      console.error('Error reading settings file:', error)
     }
 
     return {
@@ -1197,7 +1171,6 @@ class MenuBarNotificationApp {
       return timestamp
     }
     catch (error) {
-      console.error('Failed to get version install timestamp:', error)
       return null
     }
   }
@@ -1212,7 +1185,6 @@ class MenuBarNotificationApp {
       return fs.existsSync(this.ONBOARDING_COMPLETED_FILE)
     }
     catch (error) {
-      console.error('Failed to check onboarding completion:', error)
       return false
     }
   }
@@ -1233,7 +1205,6 @@ class MenuBarNotificationApp {
       fs.writeFileSync(this.ONBOARDING_COMPLETED_FILE, JSON.stringify(completionData, null, 2), { mode: 0o600 })
     }
     catch (error) {
-      console.error('Failed to mark onboarding as completed:', error)
       throw error
     }
   }
@@ -1283,7 +1254,6 @@ class MenuBarNotificationApp {
           return true
         }
         catch (error) {
-          console.error('❌ Error validating WebSocket connection:', error)
           return false
         }
       },
@@ -1291,7 +1261,6 @@ class MenuBarNotificationApp {
 
     this.wsServer.on('connection', (ws: WebSocket) => {
       ws.on('message', async (data: WebSocket.Data) => {
-        console.log('message', data)
         try {
           const message = JSON.parse(data.toString())
 
@@ -1350,7 +1319,6 @@ class MenuBarNotificationApp {
           this.handleIncomingMessage(message)
         }
         catch (error) {
-          console.error('Error parsing message:', error)
         }
       })
 
@@ -1484,7 +1452,6 @@ class MenuBarNotificationApp {
       notification.show()
     }
     catch (error) {
-      console.error('❌ Error showing notification:', error)
     }
   }
 
@@ -1509,7 +1476,6 @@ class MenuBarNotificationApp {
       notification.show()
     }
     catch (error) {
-      console.error('❌ Error showing share notification:', error)
     }
   }
 
@@ -1783,7 +1749,6 @@ class MenuBarNotificationApp {
         }
       }
       catch (error) {
-        console.error('Error reading key file:', error)
       }
 
       return {
@@ -2096,7 +2061,6 @@ class MenuBarNotificationApp {
         return response.content
       }
       catch (error) {
-        console.error('🚨 Main IPC send-ai-message error:', error)
         throw new Error(`Failed to send message to ${provider}: ${error instanceof Error ? error.message : 'Unknown error'}`)
       }
     })
@@ -2117,7 +2081,6 @@ class MenuBarNotificationApp {
             event.sender.send('ai-stream-end')
           }
           catch (error) {
-            console.error('🚨 Streaming error:', error)
             event.sender.send('ai-stream-error', error instanceof Error ? error.message : 'Unknown error')
           }
         }
@@ -2128,7 +2091,6 @@ class MenuBarNotificationApp {
         return 'Stream started'
       }
       catch (error) {
-        console.error('🚨 Main IPC send-ai-message-stream error:', error)
         throw new Error(`Failed to stream message to ${provider}: ${error instanceof Error ? error.message : 'Unknown error'}`)
       }
     })
@@ -2159,7 +2121,6 @@ class MenuBarNotificationApp {
         return { tokensAvailable }
       }
       catch (error) {
-        console.error('❌ Failed to get user tokens:', error)
         return { error: error instanceof Error ? error.message : 'Unknown error' }
       }
     })
@@ -2178,7 +2139,6 @@ class MenuBarNotificationApp {
         return result
       }
       catch (error) {
-        console.error('❌ Failed to get codespace info:', error)
         return {
           success: false,
           error: { message: error instanceof Error ? error.message : 'Unknown error' },
@@ -2201,7 +2161,6 @@ class MenuBarNotificationApp {
         return { error: 'Execution preference manager not available' }
       }
       catch (error) {
-        console.error('❌ Failed to get execution preference:', error)
         return { error: error instanceof Error ? error.message : 'Unknown error' }
       }
     })
@@ -2227,7 +2186,6 @@ class MenuBarNotificationApp {
         return { success: false, error: 'Execution preference manager not available' }
       }
       catch (error) {
-        console.error('❌ Failed to set execution preference:', error)
         return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
       }
     })
@@ -2319,6 +2277,37 @@ class MenuBarNotificationApp {
     // Fetch Additional Connectors IPC handler
     ipcMain.handle('fetch-additional-connectors', async () => {
       return this.getAdditionalConnectors()
+    })
+
+    // Pipedream Triggers IPC handler
+    ipcMain.handle('fetch-pipedream-triggers', async (_event, app: string) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return {
+            success: false,
+            error: 'Not authenticated',
+          }
+        }
+        const response = await fetch(`http://localhost:4000/api/pipedream/triggers?app=${encodeURIComponent(app)}`,
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          },
+        )
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+        const data = await response.json()
+        return { success: true, data }
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
     })
   }
 
@@ -2434,14 +2423,12 @@ class MenuBarNotificationApp {
     })
 
     this.restApiServer.start().catch((error: Error) => {
-      console.error('Failed to start REST API server:', error)
     })
   }
 
   private cleanup(): void {
     if (this.restApiServer) {
       this.restApiServer.stop().catch((error: Error) => {
-        console.error('Error stopping REST API server:', error)
       })
     }
 

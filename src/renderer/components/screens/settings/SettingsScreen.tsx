@@ -7,6 +7,7 @@ import { AIProvidersPanel } from './panels/AIProvidersPanel'
 import { ConnectorsPanel } from './panels/ConnectorsPanel'
 import { KeyPanel } from './panels/KeyPanel'
 import { NotificationPanel } from './panels/NotificationPanel'
+import { PipedreamTriggersPanel } from './panels/PipedreamTriggersPanel'
 
 /*
  * REACT ROUTER MIGRATION NOTE:
@@ -29,6 +30,7 @@ const TABS = [
   'AI Credits',
   'Notifications',
   'Connectors',
+  'Pipedream',
   'Advanced',
 ] as const
 
@@ -108,6 +110,8 @@ export const SettingsScreen: React.FC = () => {
         return <NotificationPanel />
       case 'Connectors':
         return <ConnectorsPanel />
+      case 'Pipedream':
+        return <PipedreamTriggersPanel />
       case 'Advanced':
         return <AdvancedPanel />
       default:
