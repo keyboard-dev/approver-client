@@ -335,7 +335,7 @@ export interface ElectronAPI {
   onAIStreamEnd: (callback: () => void) => void
   onAIStreamError: (callback: (error: string) => void) => void
   removeAIStreamListeners: () => void
-  webSearch: (provider: string, query: string, company: string) => Promise<any>
+  webSearch: (provider: string, query: string, company: string) => Promise<unknown>
   getUserTokens: () => Promise<{ tokensAvailable?: string[], error?: string }>
   getCodespaceInfo: () => Promise<CodespaceInfo>
   // Credits balance
@@ -350,7 +350,14 @@ export interface ElectronAPI {
   fetchAdditionalConnectors: () => Promise<Array<{ id: string, name: string, description?: string, icon: string, scopes?: string[], source?: 'local' | 'pipedream' | 'custom', metadata?: Record<string, unknown> }>>
   deleteAdditionalAccount: (accountId: string) => Promise<{ success: boolean, message?: string }>
   // Pipedream Triggers
-  fetchPipedreamTriggers: (app: string) => Promise<{ success: boolean, data?: any, error?: string }>
+  fetchPipedreamTriggers: (app: string) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  deployPipedreamTrigger: (config: {
+    componentKey: string
+    appName: string
+    appSlug: string
+    configuredProps?: Record<string, unknown>
+  }) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  getDeployedPipedreamTriggers: () => Promise<{ success: boolean, data?: unknown, error?: string }>
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -582,7 +589,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.removeAllListeners('ai-stream-end')
     ipcRenderer.removeAllListeners('ai-stream-error')
   },
-  webSearch: (provider: string, query: string, company: string): Promise<any> => ipcRenderer.invoke('web-search', provider, query, company),
+  webSearch: (provider: string, query: string, company: string): Promise<unknown> => ipcRenderer.invoke('web-search', provider, query, company),
   getUserTokens: (): Promise<{ tokensAvailable?: string[], error?: string }> => ipcRenderer.invoke('get-user-tokens'),
   getCodespaceInfo: (): Promise<CodespaceInfo> => ipcRenderer.invoke('get-codespace-info'),
   // Credits balance
@@ -597,7 +604,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   deleteAdditionalAccount: (accountId: string): Promise<{ success: boolean, message?: string }> => ipcRenderer.invoke('delete-additional-account', accountId),
   fetchAdditionalConnectors: (): Promise<Array<{ id: string, name: string, description?: string, icon: string, scopes?: string[], source?: 'local' | 'pipedream' | 'custom', metadata?: Record<string, unknown> }>> => ipcRenderer.invoke('fetch-additional-connectors'),
   // Pipedream Triggers
-  fetchPipedreamTriggers: (app: string): Promise<{ success: boolean, data?: any, error?: string }> => ipcRenderer.invoke('fetch-pipedream-triggers', app),
+  fetchPipedreamTriggers: (app: string): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('fetch-pipedream-triggers', app),
+  deployPipedreamTrigger: (config: {
+    componentKey: string
+    appName: string
+    appSlug: string
+    configuredProps?: Record<string, unknown>
+  }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('deploy-pipedream-trigger', config),
+  getDeployedPipedreamTriggers: (): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('get-deployed-pipedream-triggers'),
 } as ElectronAPI)
 
 // Extend the global Window interface

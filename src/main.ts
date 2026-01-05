@@ -2309,6 +2309,89 @@ class MenuBarNotificationApp {
         }
       }
     })
+
+    // Deploy Pipedream Trigger IPC handler
+    ipcMain.handle('deploy-pipedream-trigger', async (_event, deployConfig: {
+      componentKey: string
+      appName: string
+      appSlug: string
+      configuredProps?: Record<string, unknown>
+    }) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return {
+            success: false,
+            error: 'Not authenticated',
+          }
+        }
+
+        const requestBody = {
+          componentKey: deployConfig.componentKey,
+          appName: deployConfig.appName,
+          appSlug: deployConfig.appSlug,
+          ...(deployConfig.configuredProps && Object.keys(deployConfig.configuredProps).length > 0
+            ? { configuredProps: deployConfig.configuredProps }
+            : {}),
+        }
+
+        const response = await fetch('http://localhost:4000/api/pipedream/deployed-triggers', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(requestBody),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string }
+          throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return { success: true, data }
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    // Get Deployed Pipedream Triggers IPC handler
+    ipcMain.handle('get-deployed-pipedream-triggers', async () => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return {
+            success: false,
+            error: 'Not authenticated',
+          }
+        }
+
+        const response = await fetch('http://localhost:4000/api/pipedream/deployed-triggers', {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return { success: true, data }
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
   }
 
   private handleApproveMessage(message: Message, feedback?: string): Message {
