@@ -86,6 +86,10 @@ export const PipedreamTriggersPanel: React.FC = () => {
   const [availableCredentials, setAvailableCredentials] = useState<Array<{ id: string, connection: string, icon?: string }>>([])
   const [availablePipedreamAccounts, setAvailablePipedreamAccounts] = useState<string[]>([])
   const [isLoadingOptions, setIsLoadingOptions] = useState(false)
+  const [isTokenStored, setIsTokenStored] = useState<boolean | null>(null)
+  const [isCheckingToken, setIsCheckingToken] = useState(true)
+  const [isStoringToken, setIsStoringToken] = useState(false)
+  const [tokenError, setTokenError] = useState<string | null>(null)
 
   const handleSearch = async () => {
     if (!appName.trim()) {
@@ -330,10 +334,35 @@ export const PipedreamTriggersPanel: React.FC = () => {
     setShowTasksModal(true)
   }
 
+  const handleDeleteTrigger = async (triggerId: string) => {
+    if (!confirm('Are you sure you want to delete this trigger?')) {
+      return
+    }
+
+    try {
+      const response = await window.electronAPI.deleteDeployedPipedreamTrigger(triggerId)
+      if (response.success) {
+        await loadDeployedTriggers()
+      }
+      else {
+        alert(`Failed to delete trigger: ${response.error || 'Unknown error'}`)
+      }
+    }
+    catch (err) {
+      alert(`Failed to delete trigger: ${err instanceof Error ? err.message : 'Unknown error'}`)
+    }
+  }
+
   useEffect(() => {
-    loadDeployedTriggers()
-    loadTaskOptions()
+    checkTokenStatus()
   }, [])
+
+  useEffect(() => {
+    if (isTokenStored === true) {
+      loadDeployedTriggers()
+      loadTaskOptions()
+    }
+  }, [isTokenStored])
 
   const loadTaskOptions = async () => {
     setIsLoadingOptions(true)
@@ -363,6 +392,110 @@ export const PipedreamTriggersPanel: React.FC = () => {
     finally {
       setIsLoadingOptions(false)
     }
+  }
+
+  const checkTokenStatus = async () => {
+    setIsCheckingToken(true)
+    setTokenError(null)
+    try {
+      const response = await window.electronAPI.checkUserTokenStatus()
+
+      if (response.success && response.data) {
+        const data = response.data as { stored: boolean, message?: string }
+        setIsTokenStored(data.stored)
+      }
+      else {
+        throw new Error(response.error || 'Failed to check token status')
+      }
+    }
+    catch (err) {
+      setIsTokenStored(false)
+      setTokenError(err instanceof Error ? err.message : 'Failed to check token status')
+    }
+    finally {
+      setIsCheckingToken(false)
+    }
+  }
+
+  const storeRefreshToken = async () => {
+    setIsStoringToken(true)
+    setTokenError(null)
+    try {
+      const response = await window.electronAPI.storeUserRefreshToken()
+
+      if (response.success) {
+        setIsTokenStored(true)
+        setTokenError(null)
+      }
+      else {
+        throw new Error(response.error || 'Failed to store token')
+      }
+    }
+    catch (err) {
+      setTokenError(err instanceof Error ? err.message : 'Failed to store refresh token')
+      throw err
+    }
+    finally {
+      setIsStoringToken(false)
+    }
+  }
+
+  if (isCheckingToken) {
+    return (
+      <div className="flex flex-col items-center justify-center w-full h-full p-6">
+        <div className="text-[#737373] mb-2">Checking token status...</div>
+      </div>
+    )
+  }
+
+  if (isTokenStored === false) {
+    return (
+      <div className="flex flex-col w-full h-full overflow-hidden">
+        <div className="p-6">
+          <h2 className="text-[1.25rem] font-bold mb-4">Pipedream Webhook Triggers</h2>
+          <p className="text-[#737373] mb-6">
+            To use Pipedream webhook triggers, you need to enable access by storing your refresh token securely on our backend.
+          </p>
+
+          {tokenError && (
+            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+              {tokenError}
+            </div>
+          )}
+
+          <div className="mb-6 p-6 border border-[#E5E5E5] rounded-lg bg-[#FAFAFA]">
+            <h3 className="font-semibold text-[#171717] mb-3">Enable Pipedream Integration</h3>
+            <p className="text-sm text-[#737373] mb-4">
+              Click the button below to enable Pipedream webhook triggers. This will securely store your refresh token on the backend, allowing you to create and manage webhook triggers.
+            </p>
+            <button
+              onClick={async () => {
+                try {
+                  await storeRefreshToken()
+                }
+                catch {
+                  // Error already handled in storeRefreshToken
+                }
+              }}
+              disabled={isStoringToken}
+              className="px-6 py-3 bg-[#171717] text-white rounded-lg hover:bg-[#404040] disabled:bg-[#A3A3A3] disabled:cursor-not-allowed transition-colors font-medium"
+            >
+              {isStoringToken ? 'Enabling...' : 'Enable Pipedream Triggers'}
+            </button>
+          </div>
+
+          <div className="p-4 border border-blue-200 bg-blue-50 rounded-lg">
+            <h4 className="font-semibold text-blue-900 mb-2">What happens when you enable?</h4>
+            <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
+              <li>Your refresh token will be securely stored on the backend</li>
+              <li>You'll be able to search and deploy webhook triggers</li>
+              <li>Triggers will be able to execute your keyboard shortcuts and workflows</li>
+              <li>You can disable this at any time</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -462,14 +595,22 @@ export const PipedreamTriggersPanel: React.FC = () => {
                       )}
                     </div>
                   </div>
-                  {deployed.tasks && deployed.tasks.length > 0 && (
+                  <div className="flex gap-2">
+                    {deployed.tasks && deployed.tasks.length > 0 && (
+                      <button
+                        onClick={() => handleShowTasks(deployed)}
+                        className="text-xs px-3 py-1 border border-[#E5E5E5] rounded hover:bg-white transition-colors"
+                      >
+                        View Tasks
+                      </button>
+                    )}
                     <button
-                      onClick={() => handleShowTasks(deployed)}
-                      className="text-xs px-3 py-1 border border-[#E5E5E5] rounded hover:bg-white transition-colors"
+                      onClick={() => handleDeleteTrigger(deployed.id)}
+                      className="text-xs px-3 py-1 border border-red-200 text-red-600 rounded hover:bg-red-50 transition-colors"
                     >
-                      View Tasks
+                      Delete
                     </button>
-                  )}
+                  </div>
                 </div>
               </div>
             ))}

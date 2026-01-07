@@ -2364,8 +2364,6 @@ class MenuBarNotificationApp {
             : {}),
         }
 
-        console.log('requestBody', requestBody)
-
         const response = await fetch('http://localhost:4000/api/pipedream/deployed-triggers', {
           method: 'POST',
           headers: {
@@ -2415,6 +2413,40 @@ class MenuBarNotificationApp {
 
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return { success: true, data }
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    // Delete Deployed Pipedream Trigger IPC handler
+    ipcMain.handle('delete-deployed-pipedream-trigger', async (_event, triggerId: string) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return {
+            success: false,
+            error: 'Not authenticated',
+          }
+        }
+
+        const response = await fetch(`http://localhost:4000/api/pipedream/deployed-triggers/${triggerId}`, {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string }
+          throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
         }
 
         const data = await response.json()
@@ -2534,6 +2566,85 @@ class MenuBarNotificationApp {
 
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return { success: true, data }
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    // Check User Token Status IPC handler
+    ipcMain.handle('check-user-token-status', async () => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return {
+            success: false,
+            error: 'Not authenticated',
+          }
+        }
+
+        const response = await fetch('http://localhost:4000/api/token-vault/user-token-status', {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return { success: true, data }
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    // Store User Refresh Token IPC handler
+    ipcMain.handle('store-user-refresh-token', async (_event) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        const refreshToken = await this.authService.getRefreshToken()
+        if (!refreshToken) {
+          return {
+            success: false,
+            error: 'Failed to refresh tokens',
+          }
+        }
+        console.log('refreshToken', refreshToken)
+        if (!accessToken) {
+          return {
+            success: false,
+            error: 'Not authenticated',
+          }
+        }
+
+        const response = await fetch('http://localhost:4000/api/token-vault/user-token', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            refresh_token: refreshToken,
+          }),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string, details?: string }
+          throw new Error(errorData.error || errorData.details || `HTTP error! status: ${response.status}`)
         }
 
         const data = await response.json()

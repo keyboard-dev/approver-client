@@ -365,6 +365,7 @@ export interface ElectronAPI {
     }>
   }) => Promise<{ success: boolean, data?: unknown, error?: string }>
   getDeployedPipedreamTriggers: (includeTasks?: boolean) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  deleteDeployedPipedreamTrigger: (triggerId: string) => Promise<{ success: boolean, data?: unknown, error?: string }>
   createTriggerTask: (config: {
     deployed_trigger_id: string
     keyboard_shortcut_ids?: string[]
@@ -379,6 +380,8 @@ export interface ElectronAPI {
     ask?: string | null
   }) => Promise<{ success: boolean, data?: unknown, error?: string }>
   getTriggerTasks: (deployedTriggerId: string, limit?: number) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  checkUserTokenStatus: () => Promise<{ success: boolean, data?: unknown, error?: string }>
+  storeUserRefreshToken: () => Promise<{ success: boolean, data?: unknown, error?: string }>
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -640,6 +643,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     }>
   }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('deploy-pipedream-trigger', config),
   getDeployedPipedreamTriggers: (includeTasks = false): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('get-deployed-pipedream-triggers', includeTasks),
+  deleteDeployedPipedreamTrigger: (triggerId: string): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('delete-deployed-pipedream-trigger', triggerId),
   createTriggerTask: (config: {
     deployed_trigger_id: string
     keyboard_shortcut_ids?: string[]
@@ -654,6 +658,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ask?: string | null
   }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('update-trigger-task', taskId, config),
   getTriggerTasks: (deployedTriggerId: string, limit = 10): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('get-trigger-tasks', deployedTriggerId, limit),
+  checkUserTokenStatus: (): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('check-user-token-status'),
+  storeUserRefreshToken: (): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('store-user-refresh-token'),
 } as ElectronAPI)
 
 // Extend the global Window interface
