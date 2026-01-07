@@ -63,13 +63,11 @@ interface GitHubCodespacePort {
 }
 
 export interface FetchKeyNameAndResourcesResult {
+  packageJson?: Record<string, unknown>
+  environmentVariableKeys?: string[] // not actual environment variables, but the key namesthat are available in the codespace
+  docResources?: Record<string, unknown>
   success: boolean
-  data?: {
-    environmentVariableKeys?: string[]
-  }
-  error?: {
-    message: string
-  }
+  error?: { message: string }
   status?: number
 }
 

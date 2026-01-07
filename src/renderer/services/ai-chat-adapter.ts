@@ -114,8 +114,6 @@ export class AIChatAdapter implements ChatModelAdapter {
       .slice(0, 10) // Limit to most relevant keywords
   }
 
-
-
   private preContextPrompt(aiMessages: AIMessage[]) {
     aiMessages[aiMessages.length - 1].content += `
       
@@ -198,8 +196,6 @@ export class AIChatAdapter implements ChatModelAdapter {
     }
     return abilityCalls
   }
-
-
 
   private async executeAbilityCallsWithStreaming(
     abilityCalls: Array<{ ability: string, parameters: Record<string, unknown> }>,
@@ -683,7 +679,6 @@ Keep it clear and actionable.`,
           const lastUserMessage = aiMessages[aiMessages.length - 1]
           if (lastUserMessage?.role === 'user') {
             // Get enhanced context with planning token, user tokens, and codespace info
-
             const enhancedSystemPrompt = await contextService.buildEnhancedSystemPrompt(lastUserMessage.content)
             console.log('🔧 Enhanced system prompt:', enhancedSystemPrompt)
 

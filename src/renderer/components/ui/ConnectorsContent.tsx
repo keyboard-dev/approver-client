@@ -36,7 +36,7 @@ type FilterType = 'all' | 'local' | 'pipedream'
 // Tag Component
 // =============================================================================
 
-type SourceType = 'local' | 'pipedream'
+type SourceType = 'local' | 'pipedream' | 'cloud'
 
 interface SourceTagProps {
   source: SourceType
@@ -284,8 +284,8 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
         try {
           await disconnectProvider(provider.id)
         }
-        catch (error) {
-          console.error('Failed to disconnect:', error)
+        catch {
+          // Error handled by disconnect function
         }
       },
       onCancel: hidePopup,
@@ -312,8 +312,8 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
         try {
           await disconnectAccount(account.id)
         }
-        catch (error) {
-          console.error('Failed to disconnect:', error)
+        catch {
+          // Error handled by disconnect function
         }
       },
       onCancel: hidePopup,

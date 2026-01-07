@@ -73,7 +73,6 @@ function handleSquirrelEvents(): boolean {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const squirrelStartup = require('electron-squirrel-startup')
     if (squirrelStartup) {
-      console.log('Squirrel event detected, quitting app')
       return false
     }
   }
@@ -88,7 +87,6 @@ function handleSingleInstanceLock(options: AppInitializerOptions): boolean {
   const gotTheLock = app.requestSingleInstanceLock()
 
   if (!gotTheLock) {
-    console.log('Another instance is already running')
     return false
   }
 
@@ -106,7 +104,6 @@ function handleSingleInstanceLock(options: AppInitializerOptions): boolean {
           authService.handleOAuthCallback(url)
         }
         catch (error) {
-          console.error('Error processing second instance URL:', error)
         }
       }
       else {
@@ -188,12 +185,10 @@ export function registerProtocolClient(customProtocol: string): void {
       }
 
       if (!registrationSuccess) {
-        console.error(`Failed to register protocol "${customProtocol}"`)
       }
     }
   }
   catch (error) {
-    console.error('Error during protocol registration:', error)
   }
 }
 

@@ -144,6 +144,39 @@ export interface CheckoutError {
 
 export type CheckoutResponse = CheckoutSuccess | CheckoutError
 
+export interface SubscriptionCheckoutSuccess {
+  success: true
+  checkout_url: string
+  session_id: string
+}
+
+export interface SubscriptionCheckoutError {
+  success: false
+  error: string
+}
+
+export type SubscriptionCheckoutResponse = SubscriptionCheckoutSuccess | SubscriptionCheckoutError
+
+export interface Subscription {
+  id: string
+  status: string
+  plan: string
+  [key: string]: unknown
+}
+
+export interface PaymentStatusSuccess {
+  success: true
+  subscriptions: Subscription[]
+  [key: string]: unknown
+}
+
+export interface PaymentStatusError {
+  success: false
+  error: string
+}
+
+export type PaymentStatusResponse = PaymentStatusSuccess | PaymentStatusError
+
 export interface ProgressInfo {
   bytesPerSecond: number
   percent: number
@@ -304,10 +337,18 @@ export interface ElectronAPI {
   removeAIStreamListeners: () => void
   webSearch: (provider: string, query: string, company: string) => Promise<any>
   getUserTokens: () => Promise<{ tokensAvailable?: string[], error?: string }>
-  getCodespaceInfo: () => Promise<{ success: boolean, data?: any, status?: number, error?: { message: string } }>
+  getCodespaceInfo: () => Promise<CodespaceInfo>
   // Credits balance
   getCreditsBalance: () => Promise<CreditsResponse>
   createCreditsCheckout: (amountCents: number) => Promise<CheckoutResponse>
+  // Subscriptions
+  createSubscriptionCheckout: () => Promise<SubscriptionCheckoutResponse>
+  getPaymentStatus: () => Promise<PaymentStatusResponse>
+  // Connected Accounts
+  initiateConnectedAccount: (connection: string, scopes: string[]) => Promise<{ success: boolean, connect_uri?: string, error?: string }>
+  getAdditionalConnectedAccounts: () => Promise<{ success: boolean, accounts: Array<{ id: string, connection: string, access_type: string, scopes: string[], created_at: string, icon?: string }> }>
+  fetchAdditionalConnectors: () => Promise<Array<{ id: string, name: string, description?: string, icon: string, scopes?: string[], source?: 'local' | 'pipedream' | 'custom', metadata?: Record<string, unknown> }>>
+  deleteAdditionalAccount: (accountId: string) => Promise<{ success: boolean, message?: string }>
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -541,10 +582,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   webSearch: (provider: string, query: string, company: string): Promise<any> => ipcRenderer.invoke('web-search', provider, query, company),
   getUserTokens: (): Promise<{ tokensAvailable?: string[], error?: string }> => ipcRenderer.invoke('get-user-tokens'),
-  getCodespaceInfo: (): Promise<{ success: boolean, data?: any, status?: number, error?: { message: string } }> => ipcRenderer.invoke('get-codespace-info'),
+  getCodespaceInfo: (): Promise<CodespaceInfo> => ipcRenderer.invoke('get-codespace-info'),
   // Credits balance
   getCreditsBalance: (): Promise<CreditsResponse> => ipcRenderer.invoke('get-credits-balance'),
   createCreditsCheckout: (amountCents: number): Promise<CheckoutResponse> => ipcRenderer.invoke('create-credits-checkout', amountCents),
+  // Subscriptions
+  createSubscriptionCheckout: (): Promise<SubscriptionCheckoutResponse> => ipcRenderer.invoke('create-subscription-checkout'),
+  getPaymentStatus: (): Promise<PaymentStatusResponse> => ipcRenderer.invoke('get-payment-status'),
+  // Connected Accounts
+  initiateConnectedAccount: (connection: string, scopes: string[]): Promise<{ success: boolean, connect_uri?: string, error?: string }> => ipcRenderer.invoke('initiate-connected-account', connection, scopes),
+  getAdditionalConnectedAccounts: (): Promise<{ success: boolean, accounts: Array<{ id: string, connection: string, access_type: string, scopes: string[], created_at: string, icon?: string }> }> => ipcRenderer.invoke('get-additional-connected-accounts'),
+  deleteAdditionalAccount: (accountId: string): Promise<{ success: boolean, message?: string }> => ipcRenderer.invoke('delete-additional-account', accountId),
+  fetchAdditionalConnectors: (): Promise<Array<{ id: string, name: string, description?: string, icon: string, scopes?: string[], source?: 'local' | 'pipedream' | 'custom', metadata?: Record<string, unknown> }>> => ipcRenderer.invoke('fetch-additional-connectors'),
 } as ElectronAPI)
 
 // Extend the global Window interface

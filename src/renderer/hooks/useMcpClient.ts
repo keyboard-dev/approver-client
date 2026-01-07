@@ -91,19 +91,22 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
 
     try {
       // Discover tools
+      console.log('🔍 Discovering tools...')
       const toolsResponse = await client.listTools()
       setTools(toolsResponse.tools || [])
 
       // Discover resources
+      console.log('🔍 Discovering resources...')
       const resourcesResponse = await client.listResources()
       setResources(resourcesResponse.resources || [])
 
       // Discover prompts
-      const promptsResponse = await client.listPrompts()
-      setPrompts((promptsResponse.prompts || []).map(p => ({
-        name: p.name,
-        description: p.description,
-      })))
+      // console.log('🔍 Discovering prompts...')
+      // const promptsResponse = await client.listPrompts()
+      // setPrompts((promptsResponse.prompts || []).map(p => ({
+      //   name: p.name,
+      //   description: p.description,
+      // })))
     }
     catch (err) {
       console.error('❌ Failed to discover MCP capabilities:', err)

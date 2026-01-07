@@ -1,6 +1,7 @@
 import { constants, publicEncrypt } from 'crypto'
 import { GithubService } from './Github'
 import { GitHubCodespacesService } from './github-codespaces'
+import { KeyboardEnvironmentManager } from './keyboard-environment'
 
 export interface CodespacePublicKeyResponse {
   success: boolean
@@ -70,6 +71,29 @@ export async function discoverCodespaceUrl(githubToken: string): Promise<string 
   }
 }
 
+/**
+ * Automatically discover the best sandbox URL for encryption
+ */
+export async function discoverSandboxUrl(jwtToken: string): Promise<string | null> {
+  try {
+    const environmentManager = new KeyboardEnvironmentManager({
+      jwtToken,
+      baseUrl: 'https://sandbox.keyboard.dev',
+    })
+
+    const runningSandbox = await environmentManager.findRunningEnvironment()
+
+    if (runningSandbox) {
+      return `https://${runningSandbox.sessionId}.sandbox.keyboard.dev`
+    }
+
+    return null
+  }
+  catch {
+    return null
+  }
+}
+
 export async function fetchPublicKey(config: CodespaceEncryptionConfig): Promise<string> {
   try {
     const response = await fetch(`${config.codespaceUrl}/crypto/public-key`, {
@@ -101,24 +125,38 @@ export async function fetchPublicKey(config: CodespaceEncryptionConfig): Promise
 export async function encryptWithCodespaceKey(
   data: string,
   config: CodespaceEncryptionConfig,
+  executionPreference?: 'github-codespace' | 'keyboard-environment',
 ): Promise<string> {
   try {
-    // Auto-discover codespace URL if not provided or if placeholder URL is used
+    // Auto-discover URL if not provided or if placeholder URL is used
     let finalConfig = config
     if (!config.codespaceUrl
       || config.codespaceUrl === 'https://github.com'
       || config.codespaceUrl === ''
       || config.codespaceUrl === 'auto') {
-      const discoveredUrl = await discoverCodespaceUrl(config.githubToken)
+      let discoveredUrl: string | null = null
+
+      // Use appropriate discovery based on execution preference
+      if (executionPreference === 'keyboard-environment') {
+        discoveredUrl = await discoverSandboxUrl(config.bearerToken)
+      }
+      else {
+        // Default to codespace discovery for 'github-codespace' or undefined preference
+        discoveredUrl = await discoverCodespaceUrl(config.githubToken)
+      }
+
       if (discoveredUrl) {
         finalConfig = { ...config, codespaceUrl: discoveredUrl }
       }
       else {
-        throw new Error('No suitable codespace found for encryption and no manual URL provided')
+        const environmentType = executionPreference === 'keyboard-environment' ? 'sandbox' : 'codespace'
+        
+        throw new Error(`No suitable ${environmentType} found for encryption and no manual URL provided`)
       }
     }
-
+    
     const key = await fetchPublicKey(finalConfig)
+    
 
     const encrypted = publicEncrypt(
       {
@@ -128,6 +166,7 @@ export async function encryptWithCodespaceKey(
       },
       Buffer.from(data, 'utf8'),
     )
+    
 
     return encrypted.toString('base64')
   }

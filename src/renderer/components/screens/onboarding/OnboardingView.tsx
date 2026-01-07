@@ -1,5 +1,5 @@
 import { IpcRendererEvent } from 'electron'
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import blueCheckIconUrl from '../../../../../assets/icon-check-blue.svg'
 import { Footer } from '../../Footer'
 import GitHubOAuthButton from '../../GitHubOAuthButton'
@@ -23,6 +23,13 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
   const [isGitHubConnected, setIsGitHubConnected] = useState(false)
   const [isOnboardingCompleted, setIsOnboardingCompleted] = useState(false)
   const [currentStep, setCurrentStep] = useState<OnboardingStep>('github')
+  const [isCheckingSubscription, setIsCheckingSubscription] = useState(false)
+  const [subscriptionError, setSubscriptionError] = useState<string | null>(null)
+  const [hasActiveSubscription, setHasActiveSubscription] = useState(false)
+  const [pollingTimeoutId, setPollingTimeoutId] = useState<NodeJS.Timeout | null>(null)
+  const [preferenceSetError, setPreferenceSetError] = useState<string | null>(null)
+  const [isSettingPreference, setIsSettingPreference] = useState(false)
+  const preferenceSetRef = useRef(false)
 
   // Initial status check and step determination (only on mount)
   useEffect(() => {
@@ -146,8 +153,137 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
     }
   }
 
+  // Set execution preference to keyboard-environment when subscription is detected
+  const setExecutionPreferenceOnSubscription = async (): Promise<void> => {
+    // Prevent duplicate calls
+    if (preferenceSetRef.current) {
+      return
+    }
+    preferenceSetRef.current = true
+
+    setIsSettingPreference(true)
+    setPreferenceSetError(null)
+
+    try {
+      const result = await window.electronAPI.setExecutionPreference('keyboard-environment')
+
+      if (result.success) {
+        console.log('✓ Execution preference set to keyboard-environment')
+      }
+      else {
+        const errorMsg = result.error || 'Failed to set execution preference'
+        console.error('Failed to set execution preference:', errorMsg)
+        setPreferenceSetError(errorMsg)
+      }
+    }
+    catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error'
+      console.error('Error setting execution preference:', errorMsg)
+      setPreferenceSetError(errorMsg)
+    }
+    finally {
+      setIsSettingPreference(false)
+    }
+  }
+
+  // Subscription status check
+  const checkSubscriptionStatus = async (): Promise<boolean> => {
+    try {
+      const result = await window.electronAPI.getPaymentStatus()
+      if (result.success && result.subscriptions && result.subscriptions.length > 0) {
+        setHasActiveSubscription(true)
+        setSubscriptionError(null)
+        // Clear polling if active
+        if (pollingTimeoutId) {
+          clearTimeout(pollingTimeoutId)
+          setPollingTimeoutId(null)
+        }
+        // Set execution preference BEFORE proceeding
+        await setExecutionPreferenceOnSubscription()
+        // Auto-proceed to next step (even if preference setting failed)
+        handleNextStep()
+        return true
+      }
+      return false
+    }
+    catch (error) {
+      console.error('Error checking subscription status:', error)
+      return false
+    }
+  }
+
+  // Start subscription polling
+  const startSubscriptionPolling = () => {
+    setIsCheckingSubscription(true)
+    setSubscriptionError(null)
+
+    let attempts = 0
+    const maxAttempts = 36 // 3 minutes at 5 second intervals
+
+    const poll = async () => {
+      attempts++
+      const hasSubscription = await checkSubscriptionStatus()
+
+      if (hasSubscription) {
+        setIsCheckingSubscription(false)
+        return
+      }
+
+      if (attempts >= maxAttempts) {
+        setSubscriptionError('We couldn\'t automatically detect your subscription. Please click \'Refresh Status\' to check again, or contact support if you\'ve completed the purchase.')
+        // Keep isCheckingSubscription true so refresh button remains available
+        return
+      }
+
+      // Schedule next poll
+      const timeoutId = setTimeout(poll, 5000)
+      setPollingTimeoutId(timeoutId)
+    }
+
+    // Start polling
+    poll()
+  }
+
+  // Handle buy hosted server button click
+  const handleBuyHostedServer = async () => {
+    try {
+      setSubscriptionError(null)
+      const result = await window.electronAPI.createSubscriptionCheckout()
+
+      if (result.success) {
+        // Checkout URL will be opened automatically by the IPC handler
+        // Start polling for subscription status
+        startSubscriptionPolling()
+      }
+      else {
+        setSubscriptionError(result.error || 'Failed to create checkout session')
+      }
+    }
+    catch (error) {
+      console.error('Error creating subscription checkout:', error)
+      setSubscriptionError('Failed to create checkout session. Please try again.')
+    }
+  }
+
+  // Handle manual refresh status button click
+  const handleRefreshStatus = async () => {
+    setSubscriptionError(null)
+    await checkSubscriptionStatus()
+  }
+
+  // Cleanup polling timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (pollingTimeoutId) {
+        clearTimeout(pollingTimeoutId)
+      }
+      // Reset preference tracking on unmount
+      preferenceSetRef.current = false
+    }
+  }, [pollingTimeoutId])
+
   // If onboarding is completed, don't render anything (let main app show)
-  if (isOnboardingCompleted && isGitHubConnected) {
+  if (isOnboardingCompleted && (isGitHubConnected || hasActiveSubscription)) {
     return null
   }
 
@@ -199,20 +335,96 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
           <div
             className="flex flex-col items-start gap-[0.94rem] text-[#A5A5A5] w-full"
           >
-            <GitHubOAuthButton
-              className="w-full"
-              buttonClassName="w-full px-[1.25rem] py-[0.5rem] bg-transparent hover:bg-transparent text-[#171717] border border-[#A5A5A5] rounded-[0.25rem]"
-              isConnected={isGitHubConnected}
-            />
+            {/* Hosted Server Section */}
+            <div className="flex flex-col gap-[0.63rem] w-full">
+              <div className="text-[0.88rem] text-[#171717]">
+                Use our hosted Keyboard Service, where you get an isolated hosted execution environment. Only 5 dollars from automating everything!
+              </div>
 
-            <div className="text-sm text-[#A5A5A5] bg-blue-50 p-3 rounded-md border border-blue-200">
-              <div className="font-medium text-blue-800 mb-1">🔒 Security First</div>
-              <div className="text-blue-700">
-                We heavily prioritize the security of your credentials. Your GitHub token is one of the only credentials we store in the cloud, and it's encrypted with industry-standard security.
+              <div className="flex gap-[0.63rem]">
+                <ButtonDesigned
+                  variant="primary-black"
+                  onClick={handleBuyHostedServer}
+                  disabled={isCheckingSubscription || hasActiveSubscription}
+                  className="px-[1rem] py-[0.5rem] flex-1"
+                  hasBorder
+                >
+                  {hasActiveSubscription ? 'Subscribed' : 'Use Hosted Server'}
+                </ButtonDesigned>
+
+                {isCheckingSubscription && (
+                  <ButtonDesigned
+                    variant="clear"
+                    onClick={handleRefreshStatus}
+                    className="px-[1rem] py-[0.5rem]"
+                    hasBorder
+                  >
+                    Refresh Status
+                  </ButtonDesigned>
+                )}
+              </div>
+
+              {isCheckingSubscription && !hasActiveSubscription && (
+                <div className="text-sm text-blue-700 bg-blue-50 p-2 rounded-md border border-blue-200">
+                  Checking subscription status...
+                </div>
+              )}
+
+              {hasActiveSubscription && (
+                <div className="flex flex-col gap-2">
+                  <div className="text-sm text-green-700 bg-green-50 p-2 rounded-md border border-green-200">
+                    ✓ Hosted server subscription active!
+                  </div>
+
+                  {isSettingPreference && (
+                    <div className="text-sm text-blue-700 bg-blue-50 p-2 rounded-md border border-blue-200">
+                      Configuring execution environment...
+                    </div>
+                  )}
+
+                  {preferenceSetError && (
+                    <div className="text-sm text-yellow-700 bg-yellow-50 p-2 rounded-md border border-yellow-200">
+                      ⚠ Note: Execution environment preference could not be set automatically. You can configure this later in Settings → Advanced.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {subscriptionError && (
+                <div className="text-sm text-red-700 bg-red-50 p-2 rounded-md border border-red-200">
+                  {subscriptionError}
+                </div>
+              )}
+            </div>
+
+            {/* Divider with OR */}
+            <div className="flex items-center gap-[0.63rem] w-full my-[0.31rem]">
+              <div className="flex-1 h-[1px] bg-[#E5E5E5]" />
+              <div className="text-[0.88rem] text-[#171717] font-medium">OR</div>
+              <div className="flex-1 h-[1px] bg-[#E5E5E5]" />
+            </div>
+
+            {/* GitHub Section */}
+            <div className="flex flex-col gap-[0.63rem] w-full">
+              <div className="text-[0.95rem] text-[#171717] font-medium">
+                Want to get started for free instead using GitHub?  Use your own GitHub account and codespaces in one click.
+              </div>
+
+              <GitHubOAuthButton
+                className="w-full"
+                buttonClassName="w-full px-[1.25rem] py-[0.5rem] bg-transparent hover:bg-transparent text-[#171717] border border-[#A5A5A5] rounded-[0.25rem]"
+                isConnected={isGitHubConnected}
+              />
+
+              <div className="text-sm bg-blue-50 p-3 rounded-md border border-blue-200">
+                <div className="font-medium text-blue-900 mb-1">🔒 Security First</div>
+                <div className="text-blue-800">
+                  We heavily prioritize the security of your credentials. Your GitHub token is one of the only credentials we store in the cloud, and it's encrypted with industry-standard security.
+                </div>
               </div>
             </div>
 
-            <div>
+            {/* <div>
               Permission will allow Keyboard to:
             </div>
 
@@ -253,10 +465,10 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
               <div>
                 Create a fork of the codespace-executor and app-creator repos
               </div>
-            </div>
+            </div> */}
           </div>
 
-          {isGitHubConnected && (
+          {(isGitHubConnected || hasActiveSubscription) && (
             <ButtonDesigned
               variant="clear"
               onClick={() => {

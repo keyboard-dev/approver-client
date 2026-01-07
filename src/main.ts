@@ -101,6 +101,7 @@ import { aiRuntime, initializeAIProviders } from './ai-provider/setup'
 import { webSearch } from './ai-provider/utils/dedicated-web'
 import { getQueuedProtocolUrls, initializeApp as initializeElectronApp, type AppInitializerResult } from './app-initializer'
 import { setEncryptionKeyProvider } from './encryption'
+import { ExecutionPreference, ExecutionPreferenceManager } from './execution-preference'
 import { GithubService } from './Github'
 import { GitHubCodespacesService } from './github-codespaces'
 import { deleteScriptTemplate } from './keyboard-shortcuts'
@@ -109,15 +110,16 @@ import { StoredProviderTokens } from './oauth-token-storage'
 import { OAuthProviderConfig } from './provider-storage'
 import { createRestAPIServer } from './rest-api'
 import { AuthService } from './services/auth-service'
+import { ConnectedAccountsService } from './services/connected-accounts-service'
 import { CheckoutResponse, CreditsResponse, creditsService } from './services/credits-service'
 import { OAuthService } from './services/oauth-service'
 import { CodespaceData, SSEBackgroundService } from './services/SSEBackgroundService'
+import { PaymentStatusResponse, SubscriptionCheckoutResponse, subscriptionsService } from './services/subscriptions-service'
 import { TrayManager } from './tray-manager'
-import { CodespaceInfo, CollectionRequest, Message, ShareMessage } from './types'
+import { CollectionRequest, Message, ShareMessage } from './types'
 import { CODE_APPROVAL_ORDER, CodeApprovalLevel, RESPONSE_APPROVAL_ORDER, ResponseApprovalLevel } from './types/settings-types'
 import { ExecutorWebSocketClient } from './websocket-client-to-executor'
 import { WindowManager } from './window-manager'
-import { ExecutionPreferenceManager, ExecutionPreference } from './execution-preference'
 
 // Helper function to find assets directory reliably
 export function getAssetsPath(): string {
@@ -222,6 +224,10 @@ class MenuBarNotificationApp {
   private authService!: AuthService
   private oauthService!: OAuthService
 
+  // Connected Accounts Service
+  private connectedAccountsService!: ConnectedAccountsService
+  private latestConnectedAccountSessionId: string | null = null
+
   // Execution Preference Service
   private executionPreferenceManager!: ExecutionPreferenceManager
   // Startup protocol URL (for Windows OAuth callback handling)
@@ -319,6 +325,9 @@ class MenuBarNotificationApp {
 
       // Initialize GitHub service
       await this.initializeGithubService()
+
+      // Initialize Connected Accounts service
+      this.initializeConnectedAccountsService()
 
       // Initialize OAuth services (after encryption is ready)
       // This creates both authService and oauthService instances
@@ -469,8 +478,20 @@ class MenuBarNotificationApp {
         () => this.githubService,
         () => this.getActiveEncryptionKey(),
         () => this.authService.getValidAccessToken('provider'),
+        async () => {
+          try {
+            if (!this.executionPreferenceManager) {
+              await this.initializeExecutionPreferenceManager()
+            }
+            return this.executionPreferenceManager ? await this.executionPreferenceManager.getPreference() : null
+          }
+          catch {
+            return null
+          }
+        },
         this.OAUTH_PORT,
         this.SKIP_AUTH,
+        () => this.connectedAccountsService,
       )
 
       // Initialize the OAuth provider system (this will trigger provider token refresh)
@@ -523,6 +544,122 @@ class MenuBarNotificationApp {
     this.githubCodespacesService = new GitHubCodespacesService(this.githubService)
   }
 
+  private initializeConnectedAccountsService(): void {
+    this.connectedAccountsService = new ConnectedAccountsService({
+      tokenVaultUrl: process.env.TOKEN_VAULT_URL || 'https://api.keyboard.dev',
+    })
+  }
+
+  /**
+   * Initiate connected account flow
+   */
+  private async initiateConnectedAccount(
+    connection: string,
+    scopes: string[],
+  ): Promise<{ success: boolean, connect_uri?: string, error?: string }> {
+    try {
+      const accessToken = await this.authService.getValidAccessToken()
+      const response = await this.connectedAccountsService.initiateConnection({
+        connection,
+        scopes,
+        redirect_uri: `http://localhost:${this.restApiServer?.getPort()}/connected/accounts/callback`,
+      }, accessToken || '')
+
+      if (response.success && response.data) {
+        this.latestConnectedAccountSessionId = response.data.auth_session
+        return { success: true, connect_uri: response.data.connect_uri }
+      }
+
+      return { success: false, error: response.message }
+    }
+    catch (error) {
+      console.error('❌ Failed to initiate connected account:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      }
+    }
+  }
+
+  /**
+   * Get the latest connected account session ID
+   */
+  private getLatestConnectedAccountSessionId(): string | null {
+    return this.latestConnectedAccountSessionId
+  }
+
+  /**
+   * Complete connected account flow
+   */
+  private async completeConnectedAccount(
+    sessionId: string,
+    connectCode: string,
+  ): Promise<{ success: boolean, message: string, data?: unknown }> {
+    try {
+      const accessToken = await this.authService.getValidAccessToken()
+      const response = await this.connectedAccountsService.completeConnection({
+        auth_session: sessionId,
+        connect_code: connectCode,
+        redirect_uri: `http://localhost:${this.restApiServer?.getPort()}/connected/accounts/callback`,
+      }, accessToken || '')
+
+      return response
+    }
+    catch (error) {
+      console.error('❌ Failed to complete connected account:', error)
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error',
+      }
+    }
+  }
+
+  /**
+   * Get additional connectors
+   * This method can be extended to fetch from config, database, or API
+   */
+  private async getAdditionalConnectors(): Promise<Array<{
+    id: string
+    name: string
+    description?: string
+    icon: string
+    scopes?: string[]
+    source?: 'local' | 'pipedream' | 'custom'
+    metadata?: Record<string, unknown>
+  }>> {
+    try {
+      const accessToken = await this.authService.getValidAccessToken()
+      const response = await this.connectedAccountsService.getSocialProviders(accessToken || '')
+
+      const providerMetadata: Record<string, { displayName: string, description: string, icon: string }> = {}
+
+      return response.providers.map((provider) => {
+        const metadata = providerMetadata[provider.name] || {
+          displayName: provider.name,
+          description: `Connect your ${provider.name} account`,
+          icon: provider.icon,
+        }
+
+        return {
+          id: provider.name,
+          name: metadata.displayName,
+          description: metadata.description,
+          icon: metadata.icon,
+          scopes: provider.scopes,
+          source: 'custom' as const,
+          metadata: {
+            type: 'oauth',
+            provider: provider.name,
+            strategy: provider.strategy,
+          },
+        }
+      })
+    }
+    catch {
+      return []
+    }
+  }
+
   /**
    * Connect to executor WebSocket server with GitHub token
    */
@@ -563,7 +700,6 @@ class MenuBarNotificationApp {
     })
     // Handle codespace coming online - auto-connect to it
     sseService.on('codespace-online', async (data: CodespaceData) => {
-      console.log('Codespace online:', data)
       const preference = await this.executionPreferenceManager.getPreference()
       this.executorWSClient?.setExecutionPreference(preference)
       await this.authService.getValidAccessToken()
@@ -577,6 +713,7 @@ class MenuBarNotificationApp {
    */
   private handleExecutorMessage(message: { type: string, message?: Message, data?: unknown, id?: string, providerId?: string, requestId?: string }): void {
     try {
+      // console.log('message', message)
       switch (message.type) {
         case 'websocket-message':
           // Forward to existing message handling
@@ -1154,6 +1291,7 @@ class MenuBarNotificationApp {
 
     this.wsServer.on('connection', (ws: WebSocket) => {
       ws.on('message', async (data: WebSocket.Data) => {
+        console.log('message', data)
         try {
           const message = JSON.parse(data.toString())
 
@@ -2012,7 +2150,7 @@ class MenuBarNotificationApp {
       try {
         // Use existing provider status logic from line 1917
         const providerStatus = await this.oauthService.getProviderAuthStatus()
-        console.log('providerStatus', providerStatus)
+
         // Check ALL stored provider tokens (both direct and server provider tokens)
         const tokensAvailable = Object.entries(providerStatus)
           .filter(([, status]) => status?.authenticated)
@@ -2027,7 +2165,7 @@ class MenuBarNotificationApp {
     })
 
     // Get codespace information using GitHub PAT token
-    ipcMain.handle('get-codespace-info', async (): Promise<CodespaceInfo> => {
+    ipcMain.handle('get-codespace-info', async () => {
       try {
         // For localhost connections, return basic info
 
@@ -2036,21 +2174,8 @@ class MenuBarNotificationApp {
         // Use the GitHubCodespacesService to fetch resources
 
         const result = await this.githubCodespacesService.fetchKeyNameAndResources()
-
         // Return the result directly since it already has the right shape
-        if (!result.success) {
-          return {
-            success: false,
-            error: result.error,
-            status: result.status,
-          }
-        }
-
-        return {
-          success: true,
-          data: result.data,
-          status: result.status,
-        }
+        return result
       }
       catch (error) {
         console.error('❌ Failed to get codespace info:', error)
@@ -2133,6 +2258,67 @@ class MenuBarNotificationApp {
         await shell.openExternal(result.checkout_url)
       }
       return result
+    })
+
+    // Subscription checkout IPC handler
+    ipcMain.handle('create-subscription-checkout', async (): Promise<SubscriptionCheckoutResponse> => {
+      const accessToken = await this.authService.getValidAccessToken()
+      if (!accessToken) {
+        return {
+          success: false,
+          error: 'Not authenticated',
+        }
+      }
+      const result = await subscriptionsService.createCheckoutSession(accessToken)
+      if (result.success) {
+        // Open the checkout URL in the default browser
+        await shell.openExternal(result.checkout_url)
+      }
+      return result
+    })
+
+    // Payment status IPC handler
+    ipcMain.handle('get-payment-status', async (): Promise<PaymentStatusResponse> => {
+      const accessToken = await this.authService.getValidAccessToken()
+      if (!accessToken) {
+        return {
+          success: false,
+          error: 'Not authenticated',
+        }
+      }
+      return await subscriptionsService.getPaymentStatus(accessToken)
+    })
+
+    // Connected Accounts IPC handler
+    ipcMain.handle('initiate-connected-account', async (_event, connection: string, scopes: string[]): Promise<{ success: boolean, connect_uri?: string, error?: string }> => {
+      return await this.initiateConnectedAccount(connection, scopes)
+    })
+
+    ipcMain.handle('get-additional-connected-accounts', async () => {
+      const accessToken = await this.authService.getValidAccessToken()
+      if (!accessToken) {
+        return {
+          success: false,
+          accounts: [],
+        }
+      }
+      return await this.connectedAccountsService.getConnectedAccounts(accessToken)
+    })
+
+    ipcMain.handle('delete-additional-account', async (_event, accountId: string) => {
+      const accessToken = await this.authService.getValidAccessToken()
+      if (!accessToken) {
+        return {
+          success: false,
+          message: 'Not authenticated',
+        }
+      }
+      return await this.connectedAccountsService.deleteAccount(accountId, accessToken)
+    })
+
+    // Fetch Additional Connectors IPC handler
+    ipcMain.handle('fetch-additional-connectors', async () => {
+      return this.getAdditionalConnectors()
     })
   }
 
@@ -2229,6 +2415,9 @@ class MenuBarNotificationApp {
       getMessages: () => [], // Messages now stored in renderer IndexedDB
       getAuthTokens: () => this.authService.getAuthTokens(),
       getWebSocketServerStatus: () => !!this.wsServer,
+      getLatestConnectedAccountSessionId: () => this.getLatestConnectedAccountSessionId(),
+      completeConnectedAccount: (sessionId: string, connectCode: string) =>
+        this.completeConnectedAccount(sessionId, connectCode),
       updateMessageStatus: (messageId: string, status: 'approved' | 'rejected', feedback?: string) => {
         // Use helper method to handle message status update
         const message = status === 'rejected'
