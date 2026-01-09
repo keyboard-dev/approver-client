@@ -5,6 +5,7 @@ require('@dotenvx/dotenvx').config()
 module.exports = {
   packagerConfig: {
     asar: true,
+    name: 'KeyboardAI',
     // Use platform-specific icons
     ...(process.platform === 'darwin' && { icon: 'assets/keyboard-dock.icns' }),
     ...(process.platform === 'win32' && { icon: 'assets/keyboard-dock.ico' }),
@@ -28,7 +29,7 @@ module.exports = {
       name: '@electron-forge/maker-squirrel',
       config: {
         name: 'keyboard_approver', // No spaces in the name for better compatibility
-        setupExe: 'KeyboardApproverSetup.exe',
+        setupExe: 'KeyboardAISetup.exe',
         setupIcon: 'assets/keyboard-dock.ico',
         // Add protocol registration during installation
         loadingGif: undefined, // Can add a loading GIF if desired
