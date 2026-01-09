@@ -382,6 +382,39 @@ export interface ElectronAPI {
   getTriggerTasks: (deployedTriggerId: string, limit?: number) => Promise<{ success: boolean, data?: unknown, error?: string }>
   checkUserTokenStatus: () => Promise<{ success: boolean, data?: unknown, error?: string }>
   storeUserRefreshToken: () => Promise<{ success: boolean, data?: unknown, error?: string }>
+  // Composio Integration
+  initiateComposioConnection: (request: { appName: string, redirectUrl?: string, authConfig?: Record<string, unknown> }) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  listComposioConnectedAccounts: (params?: { appName?: string, status?: string }) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  getComposioConnectedAccount: (accountId: string) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  deleteComposioConnectedAccount: (accountId: string) => Promise<{ success: boolean, error?: string }>
+  syncComposioConnectedAccounts: () => Promise<{ success: boolean, data?: unknown, error?: string }>
+  deployComposioTrigger: (config: {
+    connectedAccountId: string
+    triggerName: string
+    appName: string
+    config?: Record<string, unknown>
+    encryptionEnabled?: boolean
+    tasks?: Array<{
+      keyboardShortcutIds?: string[]
+      cloudCredentials?: string[]
+      ask?: string
+    }>
+  }) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  listComposioTriggers: (params?: { appName?: string, status?: string }) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  getComposioTrigger: (triggerId: string) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  updateComposioTriggerConfig: (triggerId: string, config: Record<string, unknown>) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  pauseComposioTrigger: (triggerId: string) => Promise<{ success: boolean, error?: string }>
+  resumeComposioTrigger: (triggerId: string) => Promise<{ success: boolean, error?: string }>
+  deleteComposioTrigger: (triggerId: string) => Promise<{ success: boolean, error?: string }>
+  listComposioAvailableTriggers: (appName: string) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  createComposioTriggerTask: (triggerId: string, task: { keyboardShortcutIds?: string[], cloudCredentials?: string[], ask?: string }) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  listComposioTriggerTasks: (triggerId: string) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  getComposioTriggerTask: (taskId: string) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  updateComposioTriggerTask: (taskId: string, updates: { keyboardShortcutIds?: string[], cloudCredentials?: string[], ask?: string }) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  deleteComposioTriggerTask: (taskId: string) => Promise<{ success: boolean, error?: string }>
+  listComposioApps: (params?: { search?: string, category?: string, limit?: number, supportsTriggers?: boolean }) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  listComposioAppCategories: () => Promise<{ success: boolean, data?: unknown, error?: string }>
+  getComposioApp: (appSlug: string) => Promise<{ success: boolean, data?: unknown, error?: string }>
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -660,6 +693,39 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getTriggerTasks: (deployedTriggerId: string, limit = 10): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('get-trigger-tasks', deployedTriggerId, limit),
   checkUserTokenStatus: (): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('check-user-token-status'),
   storeUserRefreshToken: (): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('store-user-refresh-token'),
+  // Composio Integration
+  initiateComposioConnection: (request: { appName: string, redirectUrl?: string, authConfig?: Record<string, unknown> }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('initiate-composio-connection', request),
+  listComposioConnectedAccounts: (params?: { appName?: string, status?: string }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('list-composio-connected-accounts', params),
+  getComposioConnectedAccount: (accountId: string): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('get-composio-connected-account', accountId),
+  deleteComposioConnectedAccount: (accountId: string): Promise<{ success: boolean, error?: string }> => ipcRenderer.invoke('delete-composio-connected-account', accountId),
+  syncComposioConnectedAccounts: (): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('sync-composio-connected-accounts'),
+  deployComposioTrigger: (config: {
+    connectedAccountId: string
+    triggerName: string
+    appName: string
+    config?: Record<string, unknown>
+    encryptionEnabled?: boolean
+    tasks?: Array<{
+      keyboardShortcutIds?: string[]
+      cloudCredentials?: string[]
+      ask?: string
+    }>
+  }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('deploy-composio-trigger', config),
+  listComposioTriggers: (params?: { appName?: string, status?: string }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('list-composio-triggers', params),
+  getComposioTrigger: (triggerId: string): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('get-composio-trigger', triggerId),
+  updateComposioTriggerConfig: (triggerId: string, config: Record<string, unknown>): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('update-composio-trigger-config', triggerId, config),
+  pauseComposioTrigger: (triggerId: string): Promise<{ success: boolean, error?: string }> => ipcRenderer.invoke('pause-composio-trigger', triggerId),
+  resumeComposioTrigger: (triggerId: string): Promise<{ success: boolean, error?: string }> => ipcRenderer.invoke('resume-composio-trigger', triggerId),
+  deleteComposioTrigger: (triggerId: string): Promise<{ success: boolean, error?: string }> => ipcRenderer.invoke('delete-composio-trigger', triggerId),
+  listComposioAvailableTriggers: (appName: string): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('list-composio-available-triggers', appName),
+  createComposioTriggerTask: (triggerId: string, task: { keyboardShortcutIds?: string[], cloudCredentials?: string[], ask?: string }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('create-composio-trigger-task', triggerId, task),
+  listComposioTriggerTasks: (triggerId: string): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('list-composio-trigger-tasks', triggerId),
+  getComposioTriggerTask: (taskId: string): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('get-composio-trigger-task', taskId),
+  updateComposioTriggerTask: (taskId: string, updates: { keyboardShortcutIds?: string[], cloudCredentials?: string[], ask?: string }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('update-composio-trigger-task', taskId, updates),
+  deleteComposioTriggerTask: (taskId: string): Promise<{ success: boolean, error?: string }> => ipcRenderer.invoke('delete-composio-trigger-task', taskId),
+  listComposioApps: (params?: { search?: string, category?: string, limit?: number, supportsTriggers?: boolean }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('list-composio-apps', params),
+  listComposioAppCategories: (): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('list-composio-app-categories'),
+  getComposioApp: (appSlug: string): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('get-composio-app', appSlug),
 } as ElectronAPI)
 
 // Extend the global Window interface

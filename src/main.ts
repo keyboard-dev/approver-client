@@ -2623,7 +2623,6 @@ class MenuBarNotificationApp {
             error: 'Failed to refresh tokens',
           }
         }
-        console.log('refreshToken', refreshToken)
         if (!accessToken) {
           return {
             success: false,
@@ -2649,6 +2648,709 @@ class MenuBarNotificationApp {
 
         const data = await response.json()
         return { success: true, data }
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    // =============================================================================
+    // Composio Integration - Connected Accounts
+    // =============================================================================
+
+    ipcMain.handle('initiate-composio-connection', async (_event, request: {
+      appName: string
+      redirectUrl?: string
+      authConfig?: Record<string, unknown>
+    }) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const response = await fetch('http://localhost:4000/api/composio/accounts/connect', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(request),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string, message?: string, details?: unknown }
+          throw new Error(errorData.message || errorData.error || `HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    ipcMain.handle('list-composio-connected-accounts', async (_event, params?: {
+      appName?: string
+      status?: string
+    }) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const queryParams = new URLSearchParams()
+        if (params?.appName) queryParams.set('appName', params.appName)
+        if (params?.status) queryParams.set('status', params.status)
+
+        const url = `http://localhost:4000/api/composio/accounts${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
+
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+
+        console.log("what is the connected accounts response", response)
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        console.log("what is the connected accounts data", data)
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    ipcMain.handle('get-composio-connected-account', async (_event, accountId: string) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const response = await fetch(`http://localhost:4000/api/composio/accounts/${accountId}`, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    ipcMain.handle('delete-composio-connected-account', async (_event, accountId: string) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const response = await fetch(`http://localhost:4000/api/composio/accounts/${accountId}`, {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string }
+          throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    ipcMain.handle('sync-composio-connected-accounts', async () => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const response = await fetch('http://localhost:4000/api/composio/accounts/sync', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    // =============================================================================
+    // Composio Integration - Triggers
+    // =============================================================================
+
+    ipcMain.handle('deploy-composio-trigger', async (_event, config: {
+      connectedAccountId: string
+      triggerName: string
+      appName: string
+      config?: Record<string, unknown>
+      encryptionEnabled?: boolean
+      tasks?: Array<{
+        keyboardShortcutIds?: string[]
+        cloudCredentials?: string[]
+        ask?: string
+      }>
+    }) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const response = await fetch('http://localhost:4000/api/composio/triggers', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(config),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string }
+          throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    ipcMain.handle('list-composio-triggers', async (_event, params?: {
+      appName?: string
+      status?: string
+    }) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const queryParams = new URLSearchParams()
+        if (params?.appName) queryParams.set('appName', params.appName)
+        if (params?.status) queryParams.set('status', params.status)
+
+        const url = `http://localhost:4000/api/composio/triggers${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
+
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    ipcMain.handle('get-composio-trigger', async (_event, triggerId: string) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const response = await fetch(`http://localhost:4000/api/composio/triggers/${triggerId}`, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    ipcMain.handle('update-composio-trigger-config', async (_event, triggerId: string, config: Record<string, unknown>) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const response = await fetch(`http://localhost:4000/api/composio/triggers/${triggerId}`, {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ config }),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string }
+          throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    ipcMain.handle('pause-composio-trigger', async (_event, triggerId: string) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const response = await fetch(`http://localhost:4000/api/composio/triggers/${triggerId}/pause`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string }
+          throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    ipcMain.handle('resume-composio-trigger', async (_event, triggerId: string) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const response = await fetch(`http://localhost:4000/api/composio/triggers/${triggerId}/resume`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string }
+          throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    ipcMain.handle('delete-composio-trigger', async (_event, triggerId: string) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const response = await fetch(`http://localhost:4000/api/composio/triggers/${triggerId}`, {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string }
+          throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    ipcMain.handle('list-composio-available-triggers', async (_event, appName: string) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+        console.log("what is the app name", appName)
+        const response = await fetch(`http://localhost:4000/api/composio/triggers/available/${appName}`, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+        console.log("what is the response", response)
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        console.log("what is the data", data)
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    // =============================================================================
+    // Composio Integration - Trigger Tasks
+    // =============================================================================
+
+    ipcMain.handle('create-composio-trigger-task', async (_event, triggerId: string, task: {
+      keyboardShortcutIds?: string[]
+      cloudCredentials?: string[]
+      ask?: string
+    }) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const response = await fetch(`http://localhost:4000/api/composio/triggers/${triggerId}/tasks`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(task),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string }
+          throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    ipcMain.handle('list-composio-trigger-tasks', async (_event, triggerId: string) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const response = await fetch(`http://localhost:4000/api/composio/triggers/${triggerId}/tasks`, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    ipcMain.handle('get-composio-trigger-task', async (_event, taskId: string) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const response = await fetch(`http://localhost:4000/api/composio/tasks/${taskId}`, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    ipcMain.handle('update-composio-trigger-task', async (_event, taskId: string, updates: {
+      keyboardShortcutIds?: string[]
+      cloudCredentials?: string[]
+      ask?: string
+    }) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const response = await fetch(`http://localhost:4000/api/composio/tasks/${taskId}`, {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(updates),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string }
+          throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    ipcMain.handle('delete-composio-trigger-task', async (_event, taskId: string) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const response = await fetch(`http://localhost:4000/api/composio/tasks/${taskId}`, {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string }
+          throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    // =============================================================================
+    // Composio Integration - Apps
+    // =============================================================================
+
+    ipcMain.handle('list-composio-apps', async (_event, params?: {
+      search?: string
+      category?: string
+      limit?: number
+      supportsTriggers?: boolean
+    }) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const queryParams = new URLSearchParams()
+        if (params?.search) queryParams.set('search', params.search)
+        if (params?.category) queryParams.set('category', params.category)
+        if (params?.limit) queryParams.set('limit', params.limit.toString())
+        if (params?.supportsTriggers !== undefined) {
+          queryParams.set('supportsTriggers', params.supportsTriggers.toString())
+        }
+
+        const url = `http://localhost:4000/api/composio/apps${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    ipcMain.handle('list-composio-app-categories', async () => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const response = await fetch('http://localhost:4000/api/composio/apps/categories', {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    ipcMain.handle('get-composio-app', async (_event, appSlug: string) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const response = await fetch(`http://localhost:4000/api/composio/apps/${appSlug}`, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return data
       }
       catch (error) {
         return {
