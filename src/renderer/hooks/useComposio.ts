@@ -8,20 +8,21 @@
 import { useCallback, useEffect, useState } from 'react'
 
 import {
-    ComposioApp,
-    ComposioConnectedAccount,
-    ComposioTrigger,
-    deleteConnectedAccount,
-    deleteTrigger,
-    listApps,
-    listAvailableTriggers,
-    listConnectedAccounts,
-    listTriggers,
-    openConnectionUrl,
-    pauseTrigger,
-    resumeTrigger,
-    syncConnectedAccounts,
-    type ComposioAvailableTrigger,
+  ComposioApp,
+  ComposioConnectedAccount,
+  ComposioTrigger,
+  deleteConnectedAccount,
+  deleteTrigger,
+  getTriggerConfig,
+  listApps,
+  listAvailableTriggers,
+  listConnectedAccounts,
+  listTriggers,
+  openConnectionUrl,
+  pauseTrigger,
+  resumeTrigger,
+  syncConnectedAccounts,
+  type ComposioAvailableTrigger,
 } from '../services/composio-service'
 
 // =============================================================================
@@ -49,6 +50,11 @@ interface UseComposioState {
   availableTriggersLoading: boolean
   availableTriggersError: string | null
 
+  // Trigger configuration
+  triggerConfig: Record<string, unknown> | null
+  triggerConfigLoading: boolean
+  triggerConfigError: string | null
+
   // Search state
   searchQuery: string
 
@@ -69,6 +75,7 @@ interface UseComposioActions {
   refreshTriggers: () => Promise<void>
   fetchAvailableTriggers: (appName: string) => Promise<void>
   fetchAppsWithTriggers: () => Promise<void>
+  fetchTriggerConfig: (triggerName: string) => Promise<void>
 
   // Connect/Disconnect accounts
   connectApp: (appName: string) => Promise<void>
@@ -84,6 +91,7 @@ interface UseComposioActions {
   setSearchQuery: (query: string) => void
   clearSearch: () => void
   clearAvailableTriggers: () => void
+  clearTriggerConfig: () => void
 }
 
 export type UseComposioReturn = UseComposioState & UseComposioActions
@@ -112,6 +120,11 @@ export function useComposio(): UseComposioReturn {
   const [availableTriggers, setAvailableTriggers] = useState<ComposioAvailableTrigger[]>([])
   const [availableTriggersLoading, setAvailableTriggersLoading] = useState(false)
   const [availableTriggersError, setAvailableTriggersError] = useState<string | null>(null)
+
+  // Trigger configuration state
+  const [triggerConfig, setTriggerConfig] = useState<Record<string, unknown> | null>(null)
+  const [triggerConfigLoading, setTriggerConfigLoading] = useState(false)
+  const [triggerConfigError, setTriggerConfigError] = useState<string | null>(null)
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('')
@@ -190,7 +203,7 @@ export function useComposio(): UseComposioReturn {
 
     try {
       const response = await listAvailableTriggers(appName)
-      setAvailableTriggers(response.data?.items || [])
+      setAvailableTriggers(response.data || [])
     }
     catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to fetch available triggers'
@@ -215,6 +228,23 @@ export function useComposio(): UseComposioReturn {
     }
     finally {
       setAppsLoading(false)
+    }
+  }, [])
+
+  const fetchTriggerConfig = useCallback(async (triggerName: string) => {
+    setTriggerConfigLoading(true)
+    setTriggerConfigError(null)
+
+    try {
+      const response = await getTriggerConfig(triggerName)
+      setTriggerConfig(response.data?.config || null)
+    }
+    catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to fetch trigger config'
+      setTriggerConfigError(message)
+    }
+    finally {
+      setTriggerConfigLoading(false)
     }
   }, [])
 
@@ -329,6 +359,11 @@ export function useComposio(): UseComposioReturn {
     setAvailableTriggersError(null)
   }, [])
 
+  const clearTriggerConfig = useCallback(() => {
+    setTriggerConfig(null)
+    setTriggerConfigError(null)
+  }, [])
+
   // ==========================================================================
   // Effects
   // ==========================================================================
@@ -371,6 +406,9 @@ export function useComposio(): UseComposioReturn {
     availableTriggers,
     availableTriggersLoading,
     availableTriggersError,
+    triggerConfig,
+    triggerConfigLoading,
+    triggerConfigError,
     searchQuery,
     connectingApp,
     disconnectingAccountId,
@@ -384,6 +422,7 @@ export function useComposio(): UseComposioReturn {
     refreshTriggers,
     fetchAvailableTriggers,
     fetchAppsWithTriggers,
+    fetchTriggerConfig,
     connectApp,
     disconnectAccount,
     syncAccounts,
@@ -393,6 +432,7 @@ export function useComposio(): UseComposioReturn {
     setSearchQuery: handleSetSearchQuery,
     clearSearch,
     clearAvailableTriggers,
+    clearTriggerConfig,
   }
 }
 

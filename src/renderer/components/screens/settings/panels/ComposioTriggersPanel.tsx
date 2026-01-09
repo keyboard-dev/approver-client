@@ -1,7 +1,7 @@
 import { X } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import useComposio from '../../../../hooks/useComposio'
-import type { ComposioApp } from '../../../../services/composio-service'
+import { deployTrigger, type ComposioApp, type ComposioAvailableTrigger } from '../../../../services/composio-service'
 import { Button } from '../../../ui/button'
 
 export const ComposioTriggersPanel: React.FC = () => {
@@ -19,18 +19,28 @@ export const ComposioTriggersPanel: React.FC = () => {
     availableTriggers,
     availableTriggersLoading,
     availableTriggersError,
+    triggerConfig,
+    triggerConfigLoading,
+    triggerConfigError,
     refreshAccounts,
     connectApp,
     disconnectAccount,
     fetchAppsWithTriggers,
     fetchAvailableTriggers,
     clearAvailableTriggers,
+    fetchTriggerConfig,
+    clearTriggerConfig,
   } = useComposio()
 
   const [selectedApp, setSelectedApp] = useState<ComposioApp | null>(null)
+  const [selectedTrigger, setSelectedTrigger] = useState<ComposioAvailableTrigger | null>(null)
   const [showAccountModal, setShowAccountModal] = useState(false)
   const [showTriggersModal, setShowTriggersModal] = useState(false)
+  const [showConfigModal, setShowConfigModal] = useState(false)
   const [connectionError, setConnectionError] = useState<string | null>(null)
+  const [configValues, setConfigValues] = useState<Record<string, unknown>>({})
+  const [deployingTrigger, setDeployingTrigger] = useState(false)
+  const [deployError, setDeployError] = useState<string | null>(null)
 
   useEffect(() => {
     refreshAccounts()
@@ -41,11 +51,8 @@ export const ComposioTriggersPanel: React.FC = () => {
     const appSlug = app.slug || app.name
 
     // Debug: Log what we're checking
-    console.log("what are the accounts", accounts)
-    console.log("what is the app slug", appSlug)
-    console.log("what is the app", app)
     const connectedAccount = accounts.find(acc => acc.toolkit.slug
-        === appSlug)
+      === appSlug)
     if (!connectedAccount) {
       setSelectedApp(app)
       setShowAccountModal(true)
@@ -83,9 +90,72 @@ export const ComposioTriggersPanel: React.FC = () => {
     }
   }
 
+  const handleTriggerClick = async (trigger: ComposioAvailableTrigger) => {
+    setSelectedTrigger(trigger)
+    setShowConfigModal(true)
+    setShowTriggersModal(false)
+    await fetchTriggerConfig(trigger.slug)
+
+    // Set default values from config schema
+    if (trigger.config?.properties) {
+      const defaults: Record<string, unknown> = {}
+      Object.entries(trigger.config.properties).forEach(([key, value]) => {
+        const propValue = value as { default?: unknown }
+        if (propValue.default !== undefined) {
+          defaults[key] = propValue.default
+        }
+      })
+      setConfigValues(defaults)
+    }
+  }
+
   const isAppConnected = (app: ComposioApp) => {
     const appSlug = app.slug || app.name
     return accounts.some(acc => acc.appName === appSlug && acc.status === 'active')
+  }
+
+  const handleDeployTrigger = async () => {
+    if (!selectedTrigger || !selectedApp) return
+
+    const appSlug = selectedApp.slug || selectedApp.name
+    const connectedAccount = accounts.find(acc => acc.toolkit.slug === appSlug)
+
+    if (!connectedAccount) {
+      setDeployError('No connected account found for this app')
+      return
+    }
+
+    setDeployingTrigger(true)
+    setDeployError(null)
+
+    try {
+      const response = await deployTrigger({
+        connectedAccountId: connectedAccount.id,
+        triggerName: selectedTrigger.slug,
+        appName: appSlug,
+        config: configValues,
+        encryptionEnabled: true,
+      })
+
+      if (response.success) {
+        // Success! Close modal and show success message
+        setShowConfigModal(false)
+        setSelectedTrigger(null)
+        setSelectedApp(null)
+        setConfigValues({})
+        clearTriggerConfig()
+        alert('Trigger deployed successfully!')
+      }
+      else {
+        setDeployError(response.error || 'Failed to deploy trigger')
+      }
+    }
+    catch (error) {
+      setDeployError(error instanceof Error ? error.message : 'Failed to deploy trigger')
+    }
+    finally {
+      setDeployingTrigger(false)
+    }
   }
 
   return (
@@ -349,42 +419,60 @@ export const ComposioTriggersPanel: React.FC = () => {
 
             {!availableTriggersLoading && availableTriggers.length > 0 && (
               <div className="flex-1 overflow-y-auto">
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {availableTriggers.map(trigger => (
                     <button
-                      key={trigger.name}
-                      onClick={() => {
-                        alert(`Selected trigger: ${trigger.display_name || trigger.name}\n\nNext: Configure and deploy this trigger`)
-                      }}
+                      key={trigger.slug}
+                      onClick={() => handleTriggerClick(trigger)}
                       className="w-full text-left p-4 border border-[#E5E5E5] rounded-lg hover:border-[#171717] hover:shadow-sm transition-all"
                     >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1">
-                          <h4 className="font-semibold text-[#171717] mb-1">
-                            {trigger.display_name || trigger.name}
-                          </h4>
-                          {trigger.description && (
-                            <p className="text-sm text-[#737373] mb-2">{trigger.description}</p>
-                          )}
-                          <div className="flex gap-2 flex-wrap">
-                            <span className="text-xs px-2 py-1 bg-[#F5F5F5] rounded">
+                      <div className="flex items-start gap-3">
+                        {trigger.toolkit?.logo && (
+                          <img
+                            src={trigger.toolkit.logo}
+                            alt={trigger.toolkit.name}
+                            className="w-8 h-8 rounded flex-shrink-0"
+                          />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2 mb-1">
+                            <h4 className="font-semibold text-[#171717]">
                               {trigger.name}
+                            </h4>
+                            <svg
+                              className="w-5 h-5 text-[#737373] flex-shrink-0"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                          </div>
+                          {trigger.description && (
+                            <p className="text-sm text-[#737373] mb-2 line-clamp-2">{trigger.description}</p>
+                          )}
+                          {trigger.instructions && (
+                            <p className="text-xs text-[#A3A3A3] mb-2 line-clamp-2 italic">{trigger.instructions}</p>
+                          )}
+                          <div className="flex gap-2 flex-wrap items-center">
+                            <span className="text-xs px-2 py-1 bg-[#F5F5F5] rounded font-mono">
+                              {trigger.slug}
                             </span>
-                            {trigger.enabled !== undefined && (
-                              <span className={`text-xs px-2 py-1 rounded ${trigger.enabled ? 'bg-green-50 text-green-700' : 'bg-gray-50 text-gray-700'}`}>
-                                {trigger.enabled ? 'Enabled' : 'Disabled'}
+                            {trigger.version && (
+                              <span className="text-xs text-[#A3A3A3]">
+                                v
+                                {trigger.version}
+                              </span>
+                            )}
+                            {trigger.config?.properties && (
+                              <span className="text-xs text-[#A3A3A3]">
+                                {Object.keys(trigger.config.properties).length}
+                                {' '}
+                                config options
                               </span>
                             )}
                           </div>
                         </div>
-                        <svg
-                          className="w-5 h-5 text-[#737373] flex-shrink-0 mt-1"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
                       </div>
                     </button>
                   ))}
@@ -403,6 +491,179 @@ export const ComposioTriggersPanel: React.FC = () => {
                 className="w-full"
               >
                 Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Trigger Configuration Modal */}
+      {showConfigModal && selectedTrigger && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-semibold">
+                  Configure
+                  {' '}
+                  {selectedTrigger.name}
+                </h3>
+                <p className="text-sm text-[#737373]">Set up your trigger configuration</p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowConfigModal(false)
+                  setSelectedTrigger(null)
+                  setConfigValues({})
+                  setDeployError(null)
+                  clearTriggerConfig()
+                }}
+                className="text-[#737373] hover:text-[#171717]"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {triggerConfigLoading && (
+              <div className="flex-1 flex items-center justify-center py-12">
+                <div className="text-[#737373]">Loading configuration...</div>
+              </div>
+            )}
+
+            {triggerConfigError && (
+              <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded text-red-700">
+                {triggerConfigError}
+              </div>
+            )}
+
+            {deployError && (
+              <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded text-red-700">
+                {deployError}
+              </div>
+            )}
+
+            {(!triggerConfigLoading && triggerConfig?.properties)
+              ? (
+                  <div className="flex-1 overflow-y-auto">
+                    <div className="space-y-4">
+                      {selectedTrigger.instructions && (
+                        <div className="p-3 bg-blue-50 border border-blue-200 rounded text-sm text-blue-800">
+                          <p className="font-medium mb-1">Instructions:</p>
+                          <p>{selectedTrigger.instructions}</p>
+                        </div>
+                      )}
+
+                      {Object.entries(triggerConfig.properties).map(([key, propSchema]) => {
+                        const schema = propSchema as {
+                          type?: string
+                          title?: string
+                          description?: string
+                          default?: unknown
+                          examples?: unknown[]
+                          minimum?: number
+                          maximum?: number
+                          enum?: unknown[]
+                        }
+                        const required = (triggerConfig as { required?: string[] }).required || []
+                        const isRequired = required.includes(key)
+
+                        const renderField = () => {
+                          if (schema.type === 'boolean') {
+                            return (
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  checked={Boolean(configValues[key] ?? schema.default ?? false)}
+                                  onChange={e => setConfigValues(prev => ({ ...prev, [key]: e.target.checked }))}
+                                  className="w-4 h-4 rounded border-[#E5E5E5]"
+                                />
+                                <span className="text-sm text-[#737373]">
+                                  {schema.description || 'Enable this option'}
+                                </span>
+                              </div>
+                            )
+                          }
+                          if (schema.type === 'number' || schema.type === 'integer') {
+                            return (
+                              <input
+                                type="number"
+                                value={String(configValues[key] ?? schema.default ?? '')}
+                                onChange={e => setConfigValues(prev => ({ ...prev, [key]: schema.type === 'integer' ? parseInt(e.target.value) : parseFloat(e.target.value) }))}
+                                min={schema.minimum}
+                                max={schema.maximum}
+                                placeholder={schema.examples?.[0] ? String(schema.examples[0]) : ''}
+                                className="w-full px-3 py-2 border border-[#E5E5E5] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#171717]"
+                                required={isRequired}
+                              />
+                            )
+                          }
+                          if (schema.enum) {
+                            return (
+                              <select
+                                value={String(configValues[key] ?? schema.default ?? '')}
+                                onChange={e => setConfigValues(prev => ({ ...prev, [key]: e.target.value }))}
+                                className="w-full px-3 py-2 border border-[#E5E5E5] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#171717]"
+                                required={isRequired}
+                              >
+                                <option value="">Select an option</option>
+                                {schema.enum.map(option => (
+                                  <option key={String(option)} value={String(option)}>
+                                    {String(option)}
+                                  </option>
+                                ))}
+                              </select>
+                            )
+                          }
+                          return (
+                            <input
+                              type="text"
+                              value={String(configValues[key] ?? schema.default ?? '')}
+                              onChange={e => setConfigValues(prev => ({ ...prev, [key]: e.target.value }))}
+                              placeholder={schema.examples?.[0] ? String(schema.examples[0]) : ''}
+                              className="w-full px-3 py-2 border border-[#E5E5E5] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#171717]"
+                              required={isRequired}
+                            />
+                          )
+                        }
+
+                        return (
+                          <div key={key} className="space-y-2">
+                            <label className="block text-sm font-medium text-[#171717]">
+                              {schema.title || key}
+                              {isRequired && <span className="text-red-500 ml-1">*</span>}
+                            </label>
+                            {schema.description && (
+                              <p className="text-xs text-[#737373]">{schema.description}</p>
+                            )}
+                            {renderField()}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              : null}
+
+            <div className="mt-6 pt-4 border-t border-[#E5E5E5] flex gap-3">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowConfigModal(false)
+                  setShowTriggersModal(true)
+                  setSelectedTrigger(null)
+                  setConfigValues({})
+                  setDeployError(null)
+                }}
+                className="flex-1"
+              >
+                Back
+              </Button>
+              <Button
+                onClick={handleDeployTrigger}
+                disabled={triggerConfigLoading || deployingTrigger}
+                className="flex-1"
+              >
+                {deployingTrigger ? 'Deploying...' : 'Deploy Trigger'}
               </Button>
             </div>
           </div>

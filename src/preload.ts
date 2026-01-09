@@ -407,6 +407,7 @@ export interface ElectronAPI {
   resumeComposioTrigger: (triggerId: string) => Promise<{ success: boolean, error?: string }>
   deleteComposioTrigger: (triggerId: string) => Promise<{ success: boolean, error?: string }>
   listComposioAvailableTriggers: (appName: string) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  getComposioTriggerConfig: (triggerName: string) => Promise<{ success: boolean, data?: unknown, error?: string }>
   createComposioTriggerTask: (triggerId: string, task: { keyboardShortcutIds?: string[], cloudCredentials?: string[], ask?: string }) => Promise<{ success: boolean, data?: unknown, error?: string }>
   listComposioTriggerTasks: (triggerId: string) => Promise<{ success: boolean, data?: unknown, error?: string }>
   getComposioTriggerTask: (taskId: string) => Promise<{ success: boolean, data?: unknown, error?: string }>
@@ -718,6 +719,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   resumeComposioTrigger: (triggerId: string): Promise<{ success: boolean, error?: string }> => ipcRenderer.invoke('resume-composio-trigger', triggerId),
   deleteComposioTrigger: (triggerId: string): Promise<{ success: boolean, error?: string }> => ipcRenderer.invoke('delete-composio-trigger', triggerId),
   listComposioAvailableTriggers: (appName: string): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('list-composio-available-triggers', appName),
+  getComposioTriggerConfig: (triggerName: string): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('get-composio-trigger-config', triggerName),
   createComposioTriggerTask: (triggerId: string, task: { keyboardShortcutIds?: string[], cloudCredentials?: string[], ask?: string }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('create-composio-trigger-task', triggerId, task),
   listComposioTriggerTasks: (triggerId: string): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('list-composio-trigger-tasks', triggerId),
   getComposioTriggerTask: (taskId: string): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('get-composio-trigger-task', taskId),

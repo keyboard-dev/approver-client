@@ -2720,14 +2720,11 @@ class MenuBarNotificationApp {
           },
         })
 
-        console.log("what is the connected accounts response", response)
-
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`)
         }
 
         const data = await response.json()
-        console.log("what is the connected accounts data", data)
         return data
       }
       catch (error) {
@@ -2847,6 +2844,7 @@ class MenuBarNotificationApp {
         if (!accessToken) {
           return { success: false, error: 'Not authenticated' }
         }
+        console.log("what is the config", config)
 
         const response = await fetch('http://localhost:4000/api/composio/triggers', {
           method: 'POST',
@@ -2857,6 +2855,7 @@ class MenuBarNotificationApp {
           body: JSON.stringify(config),
         })
 
+        console.log("what is the response", response)
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string }
           throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
@@ -3068,20 +3067,46 @@ class MenuBarNotificationApp {
         if (!accessToken) {
           return { success: false, error: 'Not authenticated' }
         }
-        console.log("what is the app name", appName)
         const response = await fetch(`http://localhost:4000/api/composio/triggers/available/${appName}`, {
           method: 'GET',
           headers: {
             Authorization: `Bearer ${accessToken}`,
           },
         })
-        console.log("what is the response", response)
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`)
         }
 
         const data = await response.json()
-        console.log("what is the data", data)
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    ipcMain.handle('get-composio-trigger-config', async (_event, triggerName: string) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const response = await fetch(`http://localhost:4000/api/composio/triggers/config/${triggerName}`, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
         return data
       }
       catch (error) {

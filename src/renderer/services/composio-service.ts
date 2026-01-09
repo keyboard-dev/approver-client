@@ -38,6 +38,9 @@ export interface ComposioConnectedAccount {
   connectionParams?: Record<string, unknown>
   createdAt: string
   updatedAt: string
+  toolkit: {
+    slug: string
+  }
 }
 
 export interface ComposioTrigger {
@@ -56,11 +59,29 @@ export interface ComposioTrigger {
 }
 
 export interface ComposioAvailableTrigger {
+  slug: string
   name: string
-  display_name?: string
   description?: string
-  config?: Record<string, unknown>
-  enabled: boolean
+  instructions?: string
+  toolkit: {
+    logo: string
+    slug: string
+    name: string
+  }
+  payload: {
+    description?: string
+    properties: Record<string, unknown>
+    required?: string[]
+    title: string
+    type: string
+  }
+  config: {
+    description?: string
+    properties: Record<string, unknown>
+    title: string
+    type: string
+  }
+  version: string
 }
 
 export interface ComposioTriggerTask {
@@ -178,8 +199,20 @@ export interface DeleteTriggerResponse {
 
 export interface ListAvailableTriggersResponse {
   success: boolean
+  data?: ComposioAvailableTrigger[]
+  error?: string
+}
+
+export interface GetTriggerConfigResponse {
+  success: boolean
   data?: {
-    items: ComposioAvailableTrigger[]
+    config: {
+      description?: string
+      properties: Record<string, unknown>
+      required?: string[]
+      title: string
+      type: string
+    }
   }
   error?: string
 }
@@ -355,6 +388,13 @@ export async function listAvailableTriggers(appName: string): Promise<ListAvaila
   return window.electronAPI.listComposioAvailableTriggers(appName) as Promise<ListAvailableTriggersResponse>
 }
 
+/**
+ * Get configuration schema for a specific trigger.
+ */
+export async function getTriggerConfig(triggerName: string): Promise<GetTriggerConfigResponse> {
+  return window.electronAPI.getComposioTriggerConfig(triggerName) as Promise<GetTriggerConfigResponse>
+}
+
 // =============================================================================
 // Trigger Tasks API Functions
 // =============================================================================
@@ -474,6 +514,7 @@ export const composioService = {
   resumeTrigger,
   deleteTrigger,
   listAvailableTriggers,
+  getTriggerConfig,
 
   // Trigger Tasks
   createTriggerTask,
