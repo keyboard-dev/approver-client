@@ -1,5 +1,5 @@
 {
-  "name": "keyboard-approver App",
+  "name": "keyboard-ai",
   "version": "0.1.9",
   "description": "Desktop notification app for MCP approval workflow",
   "main": "dist/main.js",
@@ -13,19 +13,10 @@
     "dev": "npm run build && npm run copy-assets && electron dist/main.js --dev",
     "copy-assets": "cpy \"assets/**\" dist/assets",
     "create-windows-icon": "node scripts/create-windows-icon.js",
-    "build-mac": "npm run build && electron-builder --mac",
-    "build-mac-forge": "npm run build && electron-forge make --platform=darwin",
-    "build-signed": "npm run build && electron-forge make --platform=darwin",
     "build-mac-universal": "npm run build && electron-forge make --platform=darwin --arch=universal",
-    "build-signed-bg": "nohup npm run build-signed > build.log 2>&1 &",
-    "build-signed-ci": "dotenvx run -f .env.ci -- npm run build-signed",
-    "build-dev": "NODE_ENV=development npm run build && SKIP_SIGNING=true electron-forge package --platform=darwin",
+    "build-mac-dev": "SKIP_SIGNING=true npm run build-mac-universal",
     "check-build": "tail -f build.log",
-    "build-win": "npm run build && electron-builder --win",
-    "build-win-forge": "npm run build && npm run copy-assets && electron-forge make --platform=win32",
     "build-win-universal": "npm run build && electron-forge make --platform=win32 --arch=x64,ia32,arm64",
-    "build-dev-win": "set SKIP_SIGNING=true && npm run build && electron-forge make --platform=win32 --arch=x64,ia32,arm64",
-    "build-linux": "npm run build && electron-builder --linux",
     "check-certificates": "node scripts/check-certificates.js",
     "test-client": "node test-client.js",
     "test-approval": "node test-approval-client.js",
@@ -140,7 +131,7 @@
   },
   "build": {
     "appId": "dev.keyboard.desktop",
-    "productName": "Keyboard Approver",
+    "productName": "KeyboardAI",
     "directories": {
       "output": "dist-build"
     },
