@@ -14,6 +14,7 @@ import { KeyboardApiProvider, useKeyboardApiConnectors } from '../../hooks/useKe
 import { usePipedream } from '../../hooks/usePipedream'
 import { usePopup } from '../../hooks/usePopup'
 import { PipedreamAccount } from '../../services/pipedream-service'
+import { isWeb } from '../../web/platform'
 
 // =============================================================================
 // Types
@@ -62,9 +63,12 @@ interface FilterTabsProps {
 }
 
 const FilterTabs: React.FC<FilterTabsProps> = ({ activeFilter, onFilterChange }) => {
+  const isWebMode = isWeb()
+
   const tabs: { id: FilterType, label: string }[] = [
     { id: 'all', label: 'All' },
-    { id: 'local', label: 'Local' },
+    // Hide local filter in web mode
+    ...(!isWebMode ? [{ id: 'local' as FilterType, label: 'Local' }] : []),
     { id: 'pipedream', label: 'Pipedream' },
   ]
 
@@ -170,6 +174,7 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
   showDocsLink = false,
 }) => {
   const { showPopup, hidePopup } = usePopup()
+  const isWebMode = isWeb()
 
   // Local (Keyboard API) connectors
   const {
@@ -209,6 +214,11 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
 
   // Filter local providers based on search and filter type
   const filteredLocalProviders = useMemo(() => {
+    // Hide local in web mode
+    if (isWebMode) {
+      return []
+    }
+
     // Hide local if pipedream filter is active
     if (filterType === 'pipedream') {
       return []
@@ -222,7 +232,7 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
       )
     }
     return providers
-  }, [localProviders, searchQuery, filterType])
+  }, [localProviders, searchQuery, filterType, isWebMode])
 
   // Filter Pipedream apps based on filter type
   const filteredPipedreamApps = useMemo(() => {
@@ -357,8 +367,18 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
         {/* Description Text */}
         {showDescription && (
           <p className="text-[14px] font-medium text-[#a5a5a5]">
-            Local apps are managed by Keyboard. Pipedream apps are powered by
-            {' '}
+            {!isWebMode && (
+              <>
+                Local apps are managed by Keyboard. Pipedream apps are powered by
+                {' '}
+              </>
+            )}
+            {isWebMode && (
+              <>
+                Pipedream apps are powered by
+                {' '}
+              </>
+            )}
             <button
               className="underline decoration-solid hover:text-[#737373]"
               onClick={() => window.electronAPI.openExternalUrl('https://pipedream.com/')}
@@ -371,9 +391,9 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
       </div>
 
       {/* Error Display */}
-      {(connectError || localError || pipedreamAppsError) && (
+      {(connectError || (!isWebMode && localError) || pipedreamAppsError) && (
         <div className="p-3 bg-[#FEE] border border-[#D23535] rounded-lg text-[#D23535] text-sm">
-          {connectError || localError || pipedreamAppsError}
+          {connectError || (!isWebMode && localError) || pipedreamAppsError}
         </div>
       )}
 
@@ -383,14 +403,14 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
         style={{ maxHeight: maxConnectorsHeight }}
       >
         {/* Loading State */}
-        {localLoading && (
+        {!isWebMode && localLoading && (
           <div className="text-center py-4 text-[#737373]">
             Loading connectors...
           </div>
         )}
 
-        {/* Local Connectors */}
-        {filteredLocalProviders.map((provider) => {
+        {/* Local Connectors - Only show in Electron mode */}
+        {!isWebMode && filteredLocalProviders.map((provider) => {
           const isAuthenticated = providerStatus[provider.id]?.authenticated || false
           return (
             <ConnectorRow
@@ -479,7 +499,7 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
         )}
 
         {/* Empty State */}
-        {!localLoading && filteredLocalProviders.length === 0 && filteredPipedreamAccounts.length === 0 && !showPipedreamResults && !showPipedreamDefaults && (
+        {(!isWebMode ? !localLoading : true) && filteredLocalProviders.length === 0 && filteredPipedreamAccounts.length === 0 && !showPipedreamResults && !showPipedreamDefaults && (
           <div className="text-center py-6 text-[#737373]">
             No connectors available
           </div>

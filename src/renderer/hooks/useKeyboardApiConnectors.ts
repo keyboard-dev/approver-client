@@ -9,6 +9,7 @@ import { useCallback, useEffect, useState } from 'react'
 
 import { ServerProviderInfo } from '../../oauth-providers'
 import { getProviderIcon } from '../utils/providerUtils'
+import { isWeb } from '../web/platform'
 
 // =============================================================================
 // Types
@@ -65,6 +66,9 @@ export type UseKeyboardApiConnectorsReturn = UseKeyboardApiConnectorsState & Use
 // =============================================================================
 
 export function useKeyboardApiConnectors(): UseKeyboardApiConnectorsReturn {
+  // In web mode, local connectors are not supported (they require Electron IPC)
+  const isWebMode = isWeb()
+
   // Providers state
   const [providers, setProviders] = useState<KeyboardApiProvider[]>([])
   const [providersLoading, setProvidersLoading] = useState(true)
@@ -82,6 +86,13 @@ export function useKeyboardApiConnectors(): UseKeyboardApiConnectorsReturn {
   // ==========================================================================
 
   const refreshProviders = useCallback(async () => {
+    // Skip in web mode - local connectors require Electron IPC
+    if (isWebMode) {
+      setProvidersLoading(false)
+      setProviders([])
+      return
+    }
+
     setProvidersLoading(true)
     setProvidersError(null)
 
@@ -131,9 +142,14 @@ export function useKeyboardApiConnectors(): UseKeyboardApiConnectorsReturn {
     finally {
       setProvidersLoading(false)
     }
-  }, [])
+  }, [isWebMode])
 
   const refreshStatus = useCallback(async () => {
+    // Skip in web mode - local connectors require Electron IPC
+    if (isWebMode) {
+      return
+    }
+
     try {
       const status = await window.electronAPI.getProviderAuthStatus()
       setProviderStatus(status)
@@ -141,13 +157,20 @@ export function useKeyboardApiConnectors(): UseKeyboardApiConnectorsReturn {
     catch (error) {
       console.error('[useKeyboardApiConnectors] Failed to load provider status:', error)
     }
-  }, [])
+  }, [isWebMode])
 
   // ==========================================================================
   // Connect/Disconnect Functions
   // ==========================================================================
 
   const connectProvider = useCallback(async (providerId: string) => {
+    // Skip in web mode - local connectors require Electron IPC
+    if (isWebMode) {
+      console.warn('[useKeyboardApiConnectors] Cannot connect local provider in web mode')
+      setProvidersError('Local connectors are not supported in web mode')
+      return
+    }
+
     setConnectingProviderId(providerId)
     setProvidersError(null)
 
@@ -160,9 +183,15 @@ export function useKeyboardApiConnectors(): UseKeyboardApiConnectorsReturn {
       setProvidersError(`Failed to start OAuth: ${error instanceof Error ? error.message : 'Unknown error'}`)
       setConnectingProviderId(null)
     }
-  }, [])
+  }, [isWebMode])
 
   const disconnectProvider = useCallback(async (providerId: string) => {
+    // Skip in web mode - local connectors require Electron IPC
+    if (isWebMode) {
+      console.warn('[useKeyboardApiConnectors] Cannot disconnect local provider in web mode')
+      return
+    }
+
     setDisconnectingProviderId(providerId)
     setProvidersError(null)
 
@@ -177,7 +206,7 @@ export function useKeyboardApiConnectors(): UseKeyboardApiConnectorsReturn {
     finally {
       setDisconnectingProviderId(null)
     }
-  }, [refreshStatus])
+  }, [isWebMode, refreshStatus])
 
   // ==========================================================================
   // Effects

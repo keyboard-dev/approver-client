@@ -8,6 +8,7 @@
 import React from 'react'
 
 import { useAuth } from '../../../../hooks/useAuth'
+import { isWeb } from '../../../../web/platform'
 import { Confirmation } from '../../../ui/Confirmation'
 import { ConnectorsContent, SourceTag } from '../../../ui/ConnectorsContent'
 
@@ -17,6 +18,7 @@ import { ConnectorsContent, SourceTag } from '../../../ui/ConnectorsContent'
 
 export const ConnectorsPanel: React.FC = () => {
   const { isAuthenticated, isSkippingAuth } = useAuth()
+  const isWebMode = isWeb()
 
   return (
     <div className="relative grow shrink min-w-0 h-full py-2 flex flex-col gap-4 overflow-auto">
@@ -54,11 +56,15 @@ export const ConnectorsPanel: React.FC = () => {
       {/* Info Footer */}
       <div className="px-4 mt-auto pt-4">
         <div className="text-xs text-[#A3A3A3]">
-          <span className="inline-flex items-center gap-1">
-            <SourceTag source="local" />
-            connectors are managed by Keyboard.
-          </span>
-          {' '}
+          {!isWebMode && (
+            <>
+              <span className="inline-flex items-center gap-1">
+                <SourceTag source="local" />
+                connectors are managed by Keyboard.
+              </span>
+              {' '}
+            </>
+          )}
           <span className="inline-flex items-center gap-1">
             <SourceTag source="pipedream" />
             apps are powered by

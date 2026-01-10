@@ -5,7 +5,9 @@
  * on the remote-oauth-server (api.keyboard.dev)
  */
 
-const API_BASE = 'https://api.keyboard.dev/api/pipedream'
+import { API_URL } from '../web/config'
+
+const API_BASE = `${API_URL}/api/pipedream`
 
 // =============================================================================
 // Types
