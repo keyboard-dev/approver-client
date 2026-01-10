@@ -71,6 +71,7 @@ export const AppContent: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false)
   const [isInitialized, setIsInitialized] = useState(false)
   const [isGitHubConnected, setIsGitHubConnected] = useState(false)
+  const [isOnboardingCompleted, setIsOnboardingCompleted] = useState(false)
   const [isCheckingGitHub, setIsCheckingGitHub] = useState(true)
   const [showPrompterOnly, setShowPrompterOnly] = useState(false)
   // NOTE: Chat functionality moved to /chat route - no longer need chat state flags
@@ -88,10 +89,15 @@ export const AppContent: React.FC = () => {
         connected = true
       }
       setIsGitHubConnected(connected)
+
+      // Also check onboarding completion status
+      const completed = await window.electronAPI.checkOnboardingCompleted()
+      setIsOnboardingCompleted(completed)
     }
     catch (error) {
       console.error('Failed to check GitHub connection:', error)
       setIsGitHubConnected(false)
+      setIsOnboardingCompleted(false)
     }
     finally {
       setIsCheckingGitHub(false)
@@ -514,7 +520,7 @@ export const AppContent: React.FC = () => {
     }
 
     // Check if onboarding is needed
-    if ((authStatus.authenticated || isSkippingAuth) && !isCheckingGitHub && !isGitHubConnected) {
+    if ((authStatus.authenticated || isSkippingAuth) && !isCheckingGitHub && (!isGitHubConnected || !isOnboardingCompleted)) {
       return <OnboardingView onComplete={checkGitHubConnection} />
     }
 

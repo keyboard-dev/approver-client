@@ -1,3 +1,7 @@
+// Initialize web mode BEFORE React - this sets up window.electronAPI for web
+// This import must come first to ensure the API bridge is available
+import './web/init'
+
 import React from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'

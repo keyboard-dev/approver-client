@@ -34,7 +34,10 @@
     "publish": "electron-forge publish",
     "encrypt-keys": "npx @dotenvx/dotenvx encrypt",
     "lint": "eslint .",
-    "lint:fix": "eslint . --fix"
+    "lint:fix": "eslint . --fix",
+    "build:web": "VITE_PLATFORM=web vite build --config vite.config.web.ts",
+    "dev:web": "VITE_PLATFORM=web vite --config vite.config.web.ts",
+    "preview:web": "VITE_PLATFORM=web vite preview --config vite.config.web.ts"
   },
   "dependencies": {
     "@assistant-ui/react": "^0.11.37",
