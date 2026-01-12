@@ -143,6 +143,7 @@ export async function listApps(
   category?: string,
   sortKey: 'name' | 'name_slug' | 'featured_weight' = 'featured_weight',
   sortDirection: 'asc' | 'desc' = 'desc',
+  hasTriggers?: boolean,
 ): Promise<AppsResponse> {
   const headers = await getAuthHeaders()
   const params = new URLSearchParams()
@@ -151,6 +152,9 @@ export async function listApps(
   }
   if (category) {
     params.set('category', category)
+  }
+  if (hasTriggers !== undefined) {
+    params.set('has_triggers', hasTriggers.toString())
   }
   params.set('limit', limit.toString())
   params.set('sort_key', sortKey)

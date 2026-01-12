@@ -107,17 +107,13 @@ const SCHEDULE_TRIGGER_OPTIONS: ScheduleTrigger[] = [
   },
 ]
 
-// Popular apps for quick trigger browsing
-const POPULAR_APPS = [
-  { slug: 'slack', name: 'Slack', icon: 'https://res.cloudinary.com/pipedreamin/image/upload/v1646763735/marketplace/apps/slack/icon_slack.svg' },
-  { slug: 'github', name: 'GitHub', icon: 'https://res.cloudinary.com/pipedreamin/image/upload/v1646763735/marketplace/apps/github/icon_github.svg' },
-  { slug: 'gmail', name: 'Gmail', icon: 'https://res.cloudinary.com/pipedreamin/image/upload/v1646763735/marketplace/apps/gmail/icon_gmail.svg' },
-  { slug: 'google_sheets', name: 'Google Sheets', icon: 'https://res.cloudinary.com/pipedreamin/image/upload/v1646763735/marketplace/apps/google_sheets/icon_google_sheets.svg' },
-  { slug: 'stripe', name: 'Stripe', icon: 'https://res.cloudinary.com/pipedreamin/image/upload/v1646763735/marketplace/apps/stripe/icon_stripe.svg' },
-  { slug: 'hubspot', name: 'HubSpot', icon: 'https://res.cloudinary.com/pipedreamin/image/upload/v1646763735/marketplace/apps/hubspot/icon_hubspot.svg' },
-  { slug: 'airtable', name: 'Airtable', icon: 'https://res.cloudinary.com/pipedreamin/image/upload/v1646763735/marketplace/apps/airtable/icon_airtable.svg' },
-  { slug: 'discord', name: 'Discord', icon: 'https://res.cloudinary.com/pipedreamin/image/upload/v1646763735/marketplace/apps/discord/icon_discord.svg' },
-]
+interface AppWithTriggers {
+  id: string
+  name: string
+  nameSlug: string
+  logoUrl?: string
+  description?: string
+}
 
 export const PipedreamTriggersPanel: React.FC = () => {
   const [appName, setAppName] = useState('slack_v2')
@@ -151,6 +147,8 @@ export const PipedreamTriggersPanel: React.FC = () => {
   const [scheduleMinute, setScheduleMinute] = useState('0')
   const [scheduleDayOfWeek, setScheduleDayOfWeek] = useState('1')
   const [scheduleInterval, setScheduleInterval] = useState('15')
+  const [appsWithTriggers, setAppsWithTriggers] = useState<AppWithTriggers[]>([])
+  const [isLoadingApps, setIsLoadingApps] = useState(false)
 
   const handleSearch = async (appSlug?: string) => {
     const searchApp = appSlug || appName.trim()
@@ -169,7 +167,6 @@ export const PipedreamTriggersPanel: React.FC = () => {
 
       if (response.success && response.data) {
         const data = response.data as TriggersResponse
-        console.log("this is the triggers data", JSON.stringify(data, null, 2))
         if (data.triggers && data.triggers.length > 0) {
           // Filter out triggers that require pipedreamApiKey (instant triggers not compatible with Connect)
           const compatibleTriggers = data.triggers.filter((trigger) => {
@@ -205,6 +202,45 @@ export const PipedreamTriggersPanel: React.FC = () => {
   const handlePopularAppClick = (appSlug: string) => {
     setAppName(appSlug)
     handleSearch(appSlug)
+  }
+
+  const loadAppsWithTriggers = async () => {
+    setIsLoadingApps(true)
+    try {
+      const response = await window.electronAPI.fetchPipedreamApps({
+        hasTriggers: true,
+        limit: 12,
+        sortKey: 'featured_weight',
+        sortDirection: 'desc',
+      })
+
+      if (response.success && response.data) {
+        const data = response.data as { apps: Array<{
+          id: string
+          name: string
+          name_slug: string
+          img_src?: string
+          logoUrl?: string
+          description?: string
+        }> }
+
+        const apps: AppWithTriggers[] = data.apps.map(app => ({
+          id: app.id,
+          name: app.name,
+          nameSlug: app.name_slug,
+          logoUrl: app.logoUrl,
+          description: app.description,
+        }))
+
+        setAppsWithTriggers(apps)
+      }
+    }
+    catch {
+      // Silent fail - apps grid is optional
+    }
+    finally {
+      setIsLoadingApps(false)
+    }
   }
 
   const handleTriggerClick = (trigger: Trigger) => {
@@ -703,6 +739,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
     if (isTokenStored === true) {
       loadDeployedTriggers()
       loadTaskOptions()
+      loadAppsWithTriggers()
     }
   }, [isTokenStored])
 
@@ -886,31 +923,56 @@ export const PipedreamTriggersPanel: React.FC = () => {
           </p>
 
           {/* Popular Apps */}
-          <div className="mb-6">
-            <h4 className="text-sm font-semibold text-[#171717] mb-3">Popular Apps</h4>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {POPULAR_APPS.map(app => (
-                <button
-                  key={app.slug}
-                  onClick={() => handlePopularAppClick(app.slug)}
-                  disabled={isLoading}
-                  className="flex items-center gap-2 p-3 border border-[#E5E5E5] rounded-lg hover:border-[#171717] hover:shadow-sm transition-all bg-white disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <div className="w-6 h-6 flex-shrink-0">
-                    <img
-                      src={app.icon}
-                      alt={app.name}
-                      className="w-full h-full object-contain"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = 'none'
-                      }}
-                    />
+          {isLoadingApps
+            ? (
+                <div className="mb-6">
+                  <h4 className="text-sm font-semibold text-[#171717] mb-3">Popular Apps</h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {[...Array(8)].map((_, i) => (
+                      <div key={i} className="flex items-center gap-2 p-3 border border-[#E5E5E5] rounded-lg bg-[#FAFAFA] animate-pulse">
+                        <div className="w-6 h-6 bg-[#E5E5E5] rounded" />
+                        <div className="flex-1 h-4 bg-[#E5E5E5] rounded" />
+                      </div>
+                    ))}
                   </div>
-                  <span className="text-sm font-medium text-[#171717] truncate">{app.name}</span>
-                </button>
-              ))}
-            </div>
-          </div>
+                </div>
+              )
+            : appsWithTriggers.length > 0 && (
+              <div className="mb-6">
+                <h4 className="text-sm font-semibold text-[#171717] mb-3">Popular Apps with Triggers</h4>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {appsWithTriggers.map(app => (
+                    <button
+                      key={app.id}
+                      onClick={() => handlePopularAppClick(app.nameSlug)}
+                      disabled={isLoading}
+                      className="flex items-center gap-2 p-3 border border-[#E5E5E5] rounded-lg hover:border-[#171717] hover:shadow-sm transition-all bg-white disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={app.description}
+                    >
+                      <div className="w-6 h-6 flex-shrink-0">
+                        {app.logoUrl
+                          ? (
+                              <img
+                                src={app.logoUrl}
+                                alt={app.name}
+                                className="w-full h-full object-contain"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).style.display = 'none'
+                                }}
+                              />
+                            )
+                          : (
+                              <div className="w-full h-full bg-[#F5F5F5] rounded flex items-center justify-center text-[#737373] text-xs font-bold">
+                                {app.name.charAt(0)}
+                              </div>
+                            )}
+                      </div>
+                      <span className="text-sm font-medium text-[#171717] truncate">{app.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
           {/* Search */}
           <div>

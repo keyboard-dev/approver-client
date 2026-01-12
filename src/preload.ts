@@ -351,6 +351,14 @@ export interface ElectronAPI {
   deleteAdditionalAccount: (accountId: string) => Promise<{ success: boolean, message?: string }>
   // Pipedream Triggers
   fetchPipedreamAccounts: () => Promise<string[]>
+  fetchPipedreamApps: (options?: {
+    query?: string
+    limit?: number
+    category?: string
+    sortKey?: 'name' | 'name_slug' | 'featured_weight'
+    sortDirection?: 'asc' | 'desc'
+    hasTriggers?: boolean
+  }) => Promise<{ success: boolean, data?: unknown, error?: string }>
   fetchPipedreamTriggers: (app: string) => Promise<{ success: boolean, data?: unknown, error?: string }>
   deployPipedreamTrigger: (config: {
     componentKey: string
@@ -678,6 +686,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   fetchAdditionalConnectors: (): Promise<Array<{ id: string, name: string, description?: string, icon: string, scopes?: string[], source?: 'local' | 'pipedream' | 'custom', metadata?: Record<string, unknown> }>> => ipcRenderer.invoke('fetch-additional-connectors'),
   // Pipedream Triggers
   fetchPipedreamAccounts: (): Promise<string[]> => ipcRenderer.invoke('fetch-pipedream-accounts'),
+  fetchPipedreamApps: (options?: {
+    query?: string
+    limit?: number
+    category?: string
+    sortKey?: 'name' | 'name_slug' | 'featured_weight'
+    sortDirection?: 'asc' | 'desc'
+    hasTriggers?: boolean
+  }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('fetch-pipedream-apps', options),
   fetchPipedreamTriggers: (app: string): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('fetch-pipedream-triggers', app),
   deployPipedreamTrigger: (config: {
     componentKey: string

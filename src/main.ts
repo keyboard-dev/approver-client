@@ -2302,10 +2302,69 @@ class MenuBarNotificationApp {
       return connectedApps
     })
 
+    ipcMain.handle('fetch-pipedream-apps', async (_event, options?: {
+      query?: string
+      limit?: number
+      category?: string
+      sortKey?: 'name' | 'name_slug' | 'featured_weight'
+      sortDirection?: 'asc' | 'desc'
+      hasTriggers?: boolean
+    }) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return {
+            success: false,
+            error: 'Not authenticated',
+          }
+        }
+
+        const params = new URLSearchParams()
+        if (options?.query) {
+          params.set('q', options.query)
+        }
+        if (options?.category) {
+          params.set('category', options.category)
+        }
+        if (options?.hasTriggers !== undefined) {
+          params.set('has_triggers', options.hasTriggers.toString())
+        }
+        if (options?.limit !== undefined) {
+          params.set('limit', options.limit.toString())
+        }
+        if (options?.sortKey) {
+          params.set('sort_key', options.sortKey)
+        }
+        if (options?.sortDirection) {
+          params.set('sort_direction', options.sortDirection)
+        }
+
+        const url = `http://localhost:4000/api/pipedream/apps${params.toString() ? `?${params.toString()}` : ''}`
+
+        const response = await fetch(url, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return { success: true, data }
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
     ipcMain.handle('fetch-pipedream-triggers', async (_event, app: string) => {
       try {
         const accessToken = await this.authService.getValidAccessToken()
-        console.log("this is the access token", accessToken)
         if (!accessToken) {
           return {
             success: false,
@@ -2513,7 +2572,6 @@ class MenuBarNotificationApp {
     }) => {
       try {
         const accessToken = await this.authService.getValidAccessToken()
-        console.log("this is the access token", accessToken)
         if (!accessToken) {
           return {
             success: false,
