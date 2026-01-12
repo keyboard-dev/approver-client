@@ -366,6 +366,21 @@ export interface ElectronAPI {
   }) => Promise<{ success: boolean, data?: unknown, error?: string }>
   getDeployedPipedreamTriggers: (includeTasks?: boolean) => Promise<{ success: boolean, data?: unknown, error?: string }>
   deleteDeployedPipedreamTrigger: (triggerId: string) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  fetchPipedreamScheduleTriggers: () => Promise<{ success: boolean, data?: unknown, error?: string }>
+  deployPipedreamScheduleTrigger: (config: {
+    scheduleType: string
+    cron: {
+      cron: string
+      timezone?: string
+    }
+    label: string
+    tasks?: Array<{
+      keyboard_shortcut_ids?: string[]
+      cloud_credentials?: string[]
+      pipedream_proxy_apps?: string[]
+      ask?: string | null
+    }>
+  }) => Promise<{ success: boolean, data?: unknown, error?: string }>
   createTriggerTask: (config: {
     deployed_trigger_id: string
     keyboard_shortcut_ids?: string[]
@@ -678,6 +693,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
   }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('deploy-pipedream-trigger', config),
   getDeployedPipedreamTriggers: (includeTasks = false): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('get-deployed-pipedream-triggers', includeTasks),
   deleteDeployedPipedreamTrigger: (triggerId: string): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('delete-deployed-pipedream-trigger', triggerId),
+  fetchPipedreamScheduleTriggers: (): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('fetch-pipedream-schedule-triggers'),
+  deployPipedreamScheduleTrigger: (config: {
+    scheduleType: string
+    cron: {
+      cron: string
+      timezone?: string
+    }
+    label: string
+    tasks?: Array<{
+      keyboard_shortcut_ids?: string[]
+      cloud_credentials?: string[]
+      pipedream_proxy_apps?: string[]
+      ask?: string | null
+    }>
+  }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('deploy-pipedream-schedule-trigger', config),
   createTriggerTask: (config: {
     deployed_trigger_id: string
     keyboard_shortcut_ids?: string[]

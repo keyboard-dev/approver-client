@@ -2460,6 +2460,91 @@ class MenuBarNotificationApp {
       }
     })
 
+    // Fetch Pipedream Schedule Triggers IPC handler
+    ipcMain.handle('fetch-pipedream-schedule-triggers', async () => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return {
+            success: false,
+            error: 'Not authenticated',
+          }
+        }
+
+        const response = await fetch('http://localhost:4000/api/pipedream/schedule-triggers', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string }
+          throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return { success: true, data }
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    // Deploy Pipedream Schedule Trigger IPC handler
+    ipcMain.handle('deploy-pipedream-schedule-trigger', async (_event, scheduleConfig: {
+      scheduleType: string
+      cron: {
+        cron: string
+        timezone?: string
+      }
+      label: string
+      tasks?: Array<{
+        keyboard_shortcut_ids?: string[]
+        cloud_credentials?: string[]
+        pipedream_proxy_apps?: string[]
+        ask?: string | null
+      }>
+    }) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        console.log("this is the access token", accessToken)
+        if (!accessToken) {
+          return {
+            success: false,
+            error: 'Not authenticated',
+          }
+        }
+
+        const response = await fetch('http://localhost:4000/api/pipedream/deploy-schedule-trigger', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(scheduleConfig),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string }
+          throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return { success: true, data }
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
     // Create Trigger Task IPC handler
     ipcMain.handle('create-trigger-task', async (_event, taskConfig: {
       deployed_trigger_id: string
@@ -2844,8 +2929,6 @@ class MenuBarNotificationApp {
         if (!accessToken) {
           return { success: false, error: 'Not authenticated' }
         }
-        console.log("what is the config", config)
-
         const response = await fetch('http://localhost:4000/api/composio/triggers', {
           method: 'POST',
           headers: {
@@ -2855,7 +2938,6 @@ class MenuBarNotificationApp {
           body: JSON.stringify(config),
         })
 
-        console.log("what is the response", response)
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string }
           throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
