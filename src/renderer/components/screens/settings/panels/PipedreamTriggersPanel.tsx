@@ -218,8 +218,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
         const data = response.data as { apps: Array<{
           id: string
           name: string
-          name_slug: string
-          img_src?: string
+          nameSlug: string
           logoUrl?: string
           description?: string
         }> }
@@ -227,7 +226,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
         const apps: AppWithTriggers[] = data.apps.map(app => ({
           id: app.id,
           name: app.name,
-          nameSlug: app.name_slug,
+          nameSlug: app.nameSlug,
           logoUrl: app.logoUrl,
           description: app.description,
         }))
