@@ -28,6 +28,15 @@ interface ConfigurableProp {
   max?: number
 }
 
+interface TriggerApp {
+  id: string
+  name_slug: string
+  name: string
+  auth_type: string
+  description?: string
+  img_src?: string
+}
+
 interface Trigger {
   name: string
   description: string
@@ -35,6 +44,7 @@ interface Trigger {
   version: string
   key: string
   configurable_props: ConfigurableProp[]
+  app?: TriggerApp
 }
 
 interface TriggerTask {
@@ -97,6 +107,18 @@ const SCHEDULE_TRIGGER_OPTIONS: ScheduleTrigger[] = [
   },
 ]
 
+// Popular apps for quick trigger browsing
+const POPULAR_APPS = [
+  { slug: 'slack', name: 'Slack', icon: 'https://res.cloudinary.com/pipedreamin/image/upload/v1646763735/marketplace/apps/slack/icon_slack.svg' },
+  { slug: 'github', name: 'GitHub', icon: 'https://res.cloudinary.com/pipedreamin/image/upload/v1646763735/marketplace/apps/github/icon_github.svg' },
+  { slug: 'gmail', name: 'Gmail', icon: 'https://res.cloudinary.com/pipedreamin/image/upload/v1646763735/marketplace/apps/gmail/icon_gmail.svg' },
+  { slug: 'google_sheets', name: 'Google Sheets', icon: 'https://res.cloudinary.com/pipedreamin/image/upload/v1646763735/marketplace/apps/google_sheets/icon_google_sheets.svg' },
+  { slug: 'stripe', name: 'Stripe', icon: 'https://res.cloudinary.com/pipedreamin/image/upload/v1646763735/marketplace/apps/stripe/icon_stripe.svg' },
+  { slug: 'hubspot', name: 'HubSpot', icon: 'https://res.cloudinary.com/pipedreamin/image/upload/v1646763735/marketplace/apps/hubspot/icon_hubspot.svg' },
+  { slug: 'airtable', name: 'Airtable', icon: 'https://res.cloudinary.com/pipedreamin/image/upload/v1646763735/marketplace/apps/airtable/icon_airtable.svg' },
+  { slug: 'discord', name: 'Discord', icon: 'https://res.cloudinary.com/pipedreamin/image/upload/v1646763735/marketplace/apps/discord/icon_discord.svg' },
+]
+
 export const PipedreamTriggersPanel: React.FC = () => {
   const [appName, setAppName] = useState('slack_v2')
   const [isLoading, setIsLoading] = useState(false)
@@ -130,8 +152,9 @@ export const PipedreamTriggersPanel: React.FC = () => {
   const [scheduleDayOfWeek, setScheduleDayOfWeek] = useState('1')
   const [scheduleInterval, setScheduleInterval] = useState('15')
 
-  const handleSearch = async () => {
-    if (!appName.trim()) {
+  const handleSearch = async (appSlug?: string) => {
+    const searchApp = appSlug || appName.trim()
+    if (!searchApp) {
       setError('Please enter an app name')
       return
     }
@@ -142,10 +165,11 @@ export const PipedreamTriggersPanel: React.FC = () => {
     setSelectedTrigger(null)
 
     try {
-      const response = await window.electronAPI.fetchPipedreamTriggers(appName.trim())
+      const response = await window.electronAPI.fetchPipedreamTriggers(searchApp)
 
       if (response.success && response.data) {
         const data = response.data as TriggersResponse
+        console.log("this is the triggers data", JSON.stringify(data, null, 2))
         if (data.triggers && data.triggers.length > 0) {
           // Filter out triggers that require pipedreamApiKey (instant triggers not compatible with Connect)
           const compatibleTriggers = data.triggers.filter((trigger) => {
@@ -176,6 +200,11 @@ export const PipedreamTriggersPanel: React.FC = () => {
     finally {
       setIsLoading(false)
     }
+  }
+
+  const handlePopularAppClick = (appSlug: string) => {
+    setAppName(appSlug)
+    handleSearch(appSlug)
   }
 
   const handleTriggerClick = (trigger: Trigger) => {
@@ -797,6 +826,18 @@ export const PipedreamTriggersPanel: React.FC = () => {
             </button>
           </div>
 
+          <div className="p-4 border border-amber-200 bg-amber-50 rounded-lg mb-4">
+            <h4 className="font-semibold text-amber-900 mb-2 flex items-center gap-2">
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+              Important: Transparency Notice
+            </h4>
+            <p className="text-sm text-amber-900 font-medium">
+              Webhook events will be processed through Pipedream's service before reaching our service. This is required for the webhook integration to function properly.
+            </p>
+          </div>
+
           <div className="p-4 border border-blue-200 bg-blue-50 rounded-lg">
             <h4 className="font-semibold text-blue-900 mb-2">What happens when you enable?</h4>
             <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
@@ -841,25 +882,57 @@ export const PipedreamTriggersPanel: React.FC = () => {
         <div className="border-t border-[#E5E5E5] pt-6">
           <h3 className="font-semibold text-[#171717] mb-3">🔔 Webhook Triggers</h3>
           <p className="text-[#737373] mb-4">
-            Search for webhook triggers by app name
+            Browse popular apps or search for webhook triggers
           </p>
-          <div className="flex gap-3 mb-6">
-            <input
-              type="text"
-              value={appName}
-              onChange={e => setAppName(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Enter app name (e.g., slack_v2, github, stripe)"
-              className="flex-1 px-4 py-2 border border-[#E5E5E5] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#171717]"
-              disabled={isLoading}
-            />
-            <button
-              onClick={handleSearch}
-              disabled={isLoading}
-              className="px-6 py-2 bg-[#171717] text-white rounded-lg hover:bg-[#404040] disabled:bg-[#A3A3A3] disabled:cursor-not-allowed transition-colors"
-            >
-              {isLoading ? 'Searching...' : 'Search'}
-            </button>
+
+          {/* Popular Apps */}
+          <div className="mb-6">
+            <h4 className="text-sm font-semibold text-[#171717] mb-3">Popular Apps</h4>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {POPULAR_APPS.map(app => (
+                <button
+                  key={app.slug}
+                  onClick={() => handlePopularAppClick(app.slug)}
+                  disabled={isLoading}
+                  className="flex items-center gap-2 p-3 border border-[#E5E5E5] rounded-lg hover:border-[#171717] hover:shadow-sm transition-all bg-white disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <div className="w-6 h-6 flex-shrink-0">
+                    <img
+                      src={app.icon}
+                      alt={app.name}
+                      className="w-full h-full object-contain"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none'
+                      }}
+                    />
+                  </div>
+                  <span className="text-sm font-medium text-[#171717] truncate">{app.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Search */}
+          <div>
+            <h4 className="text-sm font-semibold text-[#171717] mb-3">Search for App</h4>
+            <div className="flex gap-3">
+              <input
+                type="text"
+                value={appName}
+                onChange={e => setAppName(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Enter app name (e.g., slack, github, stripe)"
+                className="flex-1 px-4 py-2 border border-[#E5E5E5] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#171717]"
+                disabled={isLoading}
+              />
+              <button
+                onClick={() => handleSearch()}
+                disabled={isLoading}
+                className="px-6 py-2 bg-[#171717] text-white rounded-lg hover:bg-[#404040] disabled:bg-[#A3A3A3] disabled:cursor-not-allowed transition-colors"
+              >
+                {isLoading ? 'Searching...' : 'Search'}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -973,25 +1046,51 @@ export const PipedreamTriggersPanel: React.FC = () => {
                 onClick={() => handleTriggerClick(trigger)}
                 className="w-full text-left p-4 border border-[#E5E5E5] rounded-lg hover:border-[#171717] hover:shadow-sm transition-all"
               >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-[#171717] mb-1">{trigger.name}</h3>
-                    <p className="text-sm text-[#737373] mb-2">{trigger.description}</p>
-                    <div className="flex gap-2 text-xs">
-                      <span className="px-2 py-1 bg-[#F5F5F5] rounded">
-                        v
-                        {trigger.version}
-                      </span>
-                      <span className="px-2 py-1 bg-[#F5F5F5] rounded">
-                        {trigger.configurable_props.length}
-                        {' '}
-                        config
-                        {trigger.configurable_props.length !== 1 ? 's' : ''}
-                      </span>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-3 flex-1">
+                    {/* App Logo */}
+                    {trigger.app?.img_src && (
+                      <div className="w-10 h-10 flex-shrink-0 rounded-lg border border-[#E5E5E5] flex items-center justify-center overflow-hidden bg-white">
+                        <img
+                          src={trigger.app.img_src}
+                          alt={trigger.app.name}
+                          className="w-6 h-6 object-contain"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none'
+                          }}
+                        />
+                      </div>
+                    )}
+
+                    {/* Trigger Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-semibold text-[#171717]">{trigger.name}</h3>
+                        {trigger.app?.name && (
+                          <span className="text-xs text-[#737373] px-2 py-0.5 bg-[#F5F5F5] rounded">
+                            {trigger.app.name}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm text-[#737373] mb-2 line-clamp-2">{trigger.description}</p>
+                      <div className="flex gap-2 text-xs">
+                        <span className="px-2 py-1 bg-[#F5F5F5] rounded">
+                          v
+                          {trigger.version}
+                        </span>
+                        <span className="px-2 py-1 bg-[#F5F5F5] rounded">
+                          {trigger.configurable_props.length}
+                          {' '}
+                          config
+                          {trigger.configurable_props.length !== 1 ? 's' : ''}
+                        </span>
+                      </div>
                     </div>
                   </div>
+
+                  {/* Arrow Icon */}
                   <svg
-                    className="w-5 h-5 text-[#737373] flex-shrink-0 ml-4"
+                    className="w-5 h-5 text-[#737373] flex-shrink-0"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -1035,6 +1134,20 @@ export const PipedreamTriggersPanel: React.FC = () => {
                   {error}
                 </div>
               )}
+
+              <div className="mb-4 p-4 border border-amber-200 bg-amber-50 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <svg className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  <div>
+                    <p className="text-sm font-semibold text-amber-900 mb-1">Transparency Notice</p>
+                    <p className="text-sm text-amber-800">
+                      Webhook events will be processed through Pipedream's service before reaching our service. This is required for webhook functionality.
+                    </p>
+                  </div>
+                </div>
+              </div>
 
               <div className="mb-6">
                 <h4 className="font-semibold text-[#171717] mb-2">Trigger Information</h4>
@@ -1586,6 +1699,20 @@ export const PipedreamTriggersPanel: React.FC = () => {
                   {error}
                 </div>
               )}
+
+              <div className="mb-4 p-4 border border-amber-200 bg-amber-50 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <svg className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  <div>
+                    <p className="text-sm font-semibold text-amber-900 mb-1">Transparency Notice</p>
+                    <p className="text-sm text-amber-800">
+                      Schedule events will be processed through Pipedream's service before reaching our service. This is required for schedule trigger functionality.
+                    </p>
+                  </div>
+                </div>
+              </div>
 
               <div className="space-y-4">
                 <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">

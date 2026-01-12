@@ -2305,6 +2305,7 @@ class MenuBarNotificationApp {
     ipcMain.handle('fetch-pipedream-triggers', async (_event, app: string) => {
       try {
         const accessToken = await this.authService.getValidAccessToken()
+        console.log("this is the access token", accessToken)
         if (!accessToken) {
           return {
             success: false,
