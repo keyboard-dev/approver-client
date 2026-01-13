@@ -117,7 +117,6 @@ export class GithubService {
       }
     }
     catch (error) {
-      console.error('Failed to initialize GitHub service:', error)
     }
   }
 
@@ -137,7 +136,6 @@ export class GithubService {
       return tokenData
     }
     catch (error) {
-      console.error('Error reading GitHub token:', error)
       return null
     }
   }
@@ -389,7 +387,6 @@ export class GithubService {
       return await this.makeRequest<GitHubUser>('/user')
     }
     catch (error) {
-      console.error('Failed to get current user:', error)
       return null
     }
   }

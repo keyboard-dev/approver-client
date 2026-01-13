@@ -247,7 +247,6 @@ export async function saveScriptTemplate(
     return { success: true, id: response.id }
   }
   catch (error) {
-    console.error('Error saving script template:', error)
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
   }
 }
@@ -271,7 +270,6 @@ export async function getScriptTemplate(
     return { success: true, script }
   }
   catch (error) {
-    console.error('Error retrieving script template:', error)
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
   }
 }
@@ -298,7 +296,6 @@ export async function listScriptTemplates(
         }
       }
       catch (decryptError) {
-        console.error(`Error decrypting script ${script.id}:`, decryptError)
       }
 
       const justScriptInfo: Partial<ScriptsListApiResponse['scripts'][0]> = { ...script }
@@ -309,7 +306,6 @@ export async function listScriptTemplates(
         }
       }
       catch (decryptError) {
-        console.error(`Error decrypting script ${script.id}:`, decryptError)
         return {
           ...justScriptInfo,
         }
@@ -319,7 +315,6 @@ export async function listScriptTemplates(
     return { success: true, scripts: decryptedScripts as ScriptTemplate[] }
   }
   catch (error) {
-    console.error('Error listing script templates:', error)
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
   }
 }
@@ -342,7 +337,6 @@ export async function updateScriptTemplate(
     return { success: true }
   }
   catch (error) {
-    console.error('Error updating script template:', error)
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
   }
 }
@@ -358,7 +352,6 @@ export async function deleteScriptTemplate(
     return { success: true }
   }
   catch (error) {
-    console.error('Error deleting script template:', error)
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
   }
 }
@@ -383,7 +376,6 @@ export async function searchScriptTemplates(
         }
       }
       catch (decryptError) {
-        console.error(`Error decrypting script ${script.id}:`, decryptError)
       }
 
       const justScriptInfo: Partial<SearchScriptsApiResponse['scripts'][0]> = { ...script }
@@ -394,7 +386,6 @@ export async function searchScriptTemplates(
     return { success: true, scripts: decryptedScripts as ScriptTemplate[] }
   }
   catch (error) {
-    console.error('Error searching script templates:', error)
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
   }
 }
@@ -457,7 +448,6 @@ export async function interpolateScriptViaAPI(
     return { success: true, result }
   }
   catch (error) {
-    console.error('Error interpolating script:', error)
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
   }
 }
@@ -479,7 +469,6 @@ export async function interpolateScriptViaAPIEndpoint(
     return { success: true, result: response.result }
   }
   catch (error) {
-    console.error('Error interpolating script via API:', error)
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
   }
 }

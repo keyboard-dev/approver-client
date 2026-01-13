@@ -47,7 +47,6 @@ export const KeyboardApiConnectors: React.FC<KeyboardApiConnectorsProps> = ({
     }
 
     const handleProviderAuthError = (_event: unknown, data: { providerId: string, message?: string }) => {
-      console.error('Provider auth error:', data)
       setError(`Authentication failed: ${data.message || 'Unknown error'}`)
       setIsLoading(prev => ({ ...prev, [data.providerId]: false }))
     }
@@ -96,7 +95,6 @@ export const KeyboardApiConnectors: React.FC<KeyboardApiConnectorsProps> = ({
       }
     }
     catch (error) {
-      console.error('Failed to fetch providers:', error)
       setProviders([
         { id: 'google', name: 'Google', icon: getProviderIcon(undefined, 'google'), configured: true, scopes: [] },
         { id: 'github', name: 'GitHub', icon: getProviderIcon(undefined, 'github'), configured: true, scopes: [] },
@@ -114,7 +112,6 @@ export const KeyboardApiConnectors: React.FC<KeyboardApiConnectorsProps> = ({
       setProviderStatus(status)
     }
     catch (error) {
-      console.error('Failed to load provider status:', error)
     }
   }
 
@@ -127,7 +124,6 @@ export const KeyboardApiConnectors: React.FC<KeyboardApiConnectorsProps> = ({
       await window.electronAPI.startServerProviderOAuth(serverId, providerId)
     }
     catch (error) {
-      console.error(`Failed to start OAuth for ${providerId}:`, error)
       setError(`Failed to start OAuth: ${error instanceof Error ? error.message : 'Unknown error'}`)
       setIsLoading(prev => ({ ...prev, [providerId]: false }))
     }
@@ -140,7 +136,6 @@ export const KeyboardApiConnectors: React.FC<KeyboardApiConnectorsProps> = ({
       setError(null)
     }
     catch (error) {
-      console.error(`Failed to disconnect ${providerId}:`, error)
       setError(`Failed to disconnect from ${providerId}`)
     }
   }

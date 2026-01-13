@@ -69,11 +69,9 @@ export class AIChatAdapter implements ChatModelAdapter {
         const result = await window.electronAPI.sendManualPing()
 
         if (!result.success) {
-          console.warn('⚠️ Periodic ping failed:', result.error)
         }
       }
       catch (error) {
-        console.error('❌ Periodic ping error:', error)
       }
     }, 10000) // 10 seconds
   }
@@ -653,7 +651,6 @@ Keep it clear and actionable.`,
       return analysis
     }
     catch (error) {
-      console.error('Failed to get AI analysis:', error)
       return `**Summary**: ${abilitiesRan.split('\n').length} abilities were executed. See detailed results above.`
     }
   }
@@ -680,9 +677,6 @@ Keep it clear and actionable.`,
           if (lastUserMessage?.role === 'user') {
             // Get enhanced context with planning token, user tokens, and codespace info
             const enhancedSystemPrompt = await contextService.buildEnhancedSystemPrompt(lastUserMessage.content)
-            console.log('🔧 Enhanced system prompt:', enhancedSystemPrompt)
-
-            // Check if there's already a system message
             const existingSystemIndex = aiMessages.findIndex(m => m.role === 'system')
             if (existingSystemIndex >= 0) {
               // Replace existing system message with enhanced one
@@ -695,13 +689,9 @@ Keep it clear and actionable.`,
                 content: enhancedSystemPrompt,
               })
             }
-
-            console.log('✅ Enhanced context injected successfully')
           }
         }
         catch (error) {
-          console.error('❌ Failed to inject enhanced context:', error)
-          // Continue with original messages if context injection fails
         }
       }
 
@@ -742,11 +732,6 @@ Keep it clear and actionable.`,
         return
       }
 
-      console.log('🔧 About to call sendAIMessageStream with provider:', this.currentProvider.provider)
-      console.log('🔧 AI Messages count:', aiMessages.length)
-      console.log('🔧 AI Messages:', aiMessages)
-
-      // Check abort signal again before streaming
       if (abortSignal?.aborted) {
         throw new Error('Request was aborted')
       }
@@ -757,17 +742,14 @@ Keep it clear and actionable.`,
       let streamError: Error | null = null
 
       const handleChunk = (chunk: string) => {
-        console.log('🔧 Received chunk:', chunk)
         accumulatedText += chunk
       }
 
       const handleEnd = () => {
-        console.log('🔧 Stream ended')
         streamComplete = true
       }
 
       const handleError = (error: string) => {
-        console.log('🔧 Stream error:', error)
         streamError = new Error(error)
         streamComplete = true
       }
@@ -785,9 +767,6 @@ Keep it clear and actionable.`,
           { model: this.currentProvider.model },
         )
 
-        console.log('🔧 Stream started, waiting for chunks...')
-
-        // Process chunks as they arrive
         let lastTextLength = 0
         while (!streamComplete) {
           if (abortSignal?.aborted) {
@@ -800,7 +779,6 @@ Keep it clear and actionable.`,
 
           // If we have new text, yield it
           if (accumulatedText.length > lastTextLength) {
-            console.log('🔧 Yielding accumulated text:', accumulatedText)
             yield {
               content: [{ type: 'text' as const, text: accumulatedText }],
             }
@@ -866,7 +844,6 @@ export async function checkProviderAvailability(): Promise<Array<{ provider: str
     return providerStatus || []
   }
   catch (error) {
-    console.error('Failed to check provider availability:', error)
     return []
   }
 }

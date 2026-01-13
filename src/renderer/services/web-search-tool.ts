@@ -71,7 +71,6 @@ export class WebSearchTool {
       }
     }
     catch (error) {
-      console.error('Web search tool error:', error)
       throw new Error(`Web search failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
@@ -91,7 +90,6 @@ export class WebSearchTool {
       return !!(providerInfo?.configured && this.supportsWebSearch(targetProvider))
     }
     catch (error) {
-      console.error('Error checking web search availability:', error)
       return false
     }
   }
@@ -199,7 +197,6 @@ Results include processed content with code examples when available.`
       return 'gemini'
     }
     catch (error) {
-      console.warn('Could not determine current provider:', error)
       return 'gemini' // Default fallback
     }
   }

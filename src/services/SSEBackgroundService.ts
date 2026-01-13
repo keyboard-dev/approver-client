@@ -176,7 +176,6 @@ export class SSEBackgroundService extends EventEmitter {
             this.handleMessage(message)
           }
           catch (error) {
-            console.error('❌ Failed to handle SSE message with both methods:', error, 'Raw data:', data)
           }
         }
       }

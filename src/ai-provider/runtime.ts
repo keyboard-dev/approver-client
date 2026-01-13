@@ -146,7 +146,6 @@ export class AIRuntime {
       return authTokens
     }
     catch (error) {
-      console.error('❌ Failed to load auth tokens:', error)
       return null
     }
   }

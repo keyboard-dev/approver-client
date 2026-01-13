@@ -38,7 +38,6 @@ export const Integrations: React.FC<IntegrationsProps> = ({ onComplete }) => {
       onComplete()
     }
     catch (error) {
-      console.error('Error completing onboarding:', error)
     }
   }
 

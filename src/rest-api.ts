@@ -74,7 +74,6 @@ const JWKS = createRemoteJWKSet(new URL(`${ISSUER_URL}/oauth2/jwks`))
 
 export async function verifyBearerToken(token: string): Promise<boolean> {
   if (!token || token.trim() === '') {
-    console.error('❌ Token verification failed: Empty token')
     return false
   }
 
@@ -88,16 +87,12 @@ export async function verifyBearerToken(token: string): Promise<boolean> {
   catch (e) {
     const error = e as { code?: string, message?: string }
     if (error.code === 'ERR_JWT_EXPIRED') {
-      console.error('❌ Token verification failed: Token expired')
     }
     else if (error.code === 'ERR_JWT_CLAIM_VALIDATION_FAILED') {
-      console.error('❌ Token verification failed: Invalid issuer or claims')
     }
     else if (error.code === 'ERR_JWS_SIGNATURE_VERIFICATION_FAILED') {
-      console.error('❌ Token verification failed: Invalid signature')
     }
     else {
-      console.error('❌ Token verification error:', error.message)
     }
     return false
   }
@@ -105,7 +100,6 @@ export async function verifyBearerToken(token: string): Promise<boolean> {
 
 export async function verifyTokensMatch(tokenOne: string, tokenTwo: string): Promise<boolean> {
   if (!tokenOne || !tokenTwo || tokenOne.trim() === '' || tokenTwo.trim() === '') {
-    console.error('❌ Token match verification failed: One or both tokens are empty')
     return false
   }
 
@@ -124,21 +118,18 @@ export async function verifyTokensMatch(tokenOne: string, tokenTwo: string): Pro
     const subTwo = tokenTwoResult.payload.sub
 
     if (!subOne || !subTwo) {
-      console.error('❌ Token match verification failed: Missing sub claim in one or both tokens')
       return false
     }
 
     // Check if the subjects match
     const match = subOne === subTwo
     if (!match) {
-      console.error('❌ Token match verification failed: Subject claims do not match')
     }
 
     return match
   }
   catch (e) {
     const error = e as { message?: string }
-    console.error('❌ Token match verification error:', error.message)
     return false
   }
 }
@@ -386,7 +377,6 @@ const createStatsHandler = (getMessages: () => Message[]) => {
 const createErrorHandler = () => {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   return (err: Error, _req: Request, res: Response, _next: NextFunction) => {
-    console.error('REST API Error:', err)
     res.status(500).json({
       error: 'Internal server error',
       message: err.message,
@@ -684,7 +674,6 @@ const setupExpressApp = (deps: RestAPIServerDeps): Application => {
       `)
     }
     catch (error) {
-      console.error('❌ Connected accounts callback error:', error)
       res.status(500).json({ error: 'Internal server error' })
     }
   })
@@ -714,7 +703,6 @@ export const createRestAPIServer = (
       })
 
       server.on('error', (err: Error) => {
-        console.error('❌ REST API server error:', err)
         reject(err)
       })
     })

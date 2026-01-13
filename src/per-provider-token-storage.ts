@@ -62,8 +62,6 @@ export class PerProviderTokenStorage {
       return tokens
     }
     catch (error) {
-      console.error(`❌ Error loading OAuth tokens for ${providerId}:`, error)
-      // If decryption fails, mark as loaded but return null
       this.loadedProviders.add(providerId)
       return null
     }
@@ -82,7 +80,6 @@ export class PerProviderTokenStorage {
       fs.writeFileSync(filePath, encryptedData, { mode: 0o600 })
     }
     catch (error) {
-      console.error(`❌ Error saving OAuth tokens for ${tokens.providerId}:`, error)
       throw error
     }
   }
@@ -158,7 +155,6 @@ export class PerProviderTokenStorage {
       )
     }
     catch (error) {
-      console.error('❌ Error loading all provider tokens:', error)
     }
   }
 
@@ -205,8 +201,6 @@ export class PerProviderTokenStorage {
         }
       }
       catch (error) {
-        console.error(`❌ Failed to refresh tokens for ${providerId}:`, error)
-        // Remove invalid tokens
         return null
       }
     }
@@ -344,7 +338,6 @@ export class PerProviderTokenStorage {
             permissions = '0' + (stats.mode & parseInt('777', 8)).toString(8)
           }
           catch (error) {
-            console.error(`Error getting file stats for ${providerId}:`, error)
           }
         }
 
@@ -359,7 +352,6 @@ export class PerProviderTokenStorage {
       }
     }
     catch (error) {
-      console.error('Error scanning token files:', error)
     }
 
     return {
@@ -403,7 +395,6 @@ export class PerProviderTokenStorage {
       return !!(tokens && tokens.access_token)
     }
     catch (error) {
-      console.error('Error checking onboarding token:', error)
       return false
     }
   }
@@ -418,7 +409,6 @@ export class PerProviderTokenStorage {
       }
     }
     catch (error) {
-      console.error('Error clearing onboarding token:', error)
       throw error
     }
   }
@@ -448,7 +438,6 @@ export class PerProviderTokenStorage {
       return expiredCount
     }
     catch (error) {
-      console.error('❌ Error expiring tokens for testing:', error)
       throw error
     }
   }

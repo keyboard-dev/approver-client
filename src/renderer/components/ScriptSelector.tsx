@@ -34,7 +34,6 @@ export const ScriptSelector: React.FC<ScriptSelectorProps> = ({
         setScripts(fetchedScripts)
       }
       catch (error) {
-        console.error('Error loading scripts:', error)
         setScripts([])
       }
       finally {

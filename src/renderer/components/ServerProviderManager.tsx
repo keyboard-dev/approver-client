@@ -66,7 +66,6 @@ export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ cl
     }
 
     const handleProviderAuthError = (_event: unknown, data: ProviderAuthData) => {
-      console.error('Server provider auth error:', data)
       setError(`Authentication failed: ${data.message}`)
       // Clear all loading states
       setIsLoading({})
@@ -96,7 +95,6 @@ export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ cl
       }
     }
     catch (error) {
-      console.error('Failed to load server providers:', error)
       setError('Failed to load server providers')
     }
   }
@@ -113,8 +111,6 @@ export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ cl
       }))
     }
     catch (error) {
-      console.error(`Failed to fetch providers for server ${serverId}:`, error)
-      // Set empty array on error so UI doesn't break
       setServerProviders(prev => ({
         ...prev,
         [serverId]: [],
@@ -131,7 +127,6 @@ export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ cl
       setProviderStatus(status)
     }
     catch (error) {
-      console.error('Failed to load provider status:', error)
     }
   }
 
@@ -160,7 +155,6 @@ export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ cl
       })
     }
     catch (error) {
-      console.error('Failed to add server provider:', error)
       setError(`Failed to add server: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
     finally {
@@ -176,7 +170,6 @@ export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ cl
       await loadServerProviders()
     }
     catch (error) {
-      console.error(`Failed to remove server ${serverId}:`, error)
       setError(`Failed to remove server: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
     finally {
@@ -194,7 +187,6 @@ export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ cl
       // Don't clear loading state here - it will be cleared by the auth success/error handlers
     }
     catch (error) {
-      console.error(`Failed to start OAuth for ${serverId}/${provider}:`, error)
       setError(`Failed to start OAuth: ${error instanceof Error ? error.message : 'Unknown error'}`)
       // Only clear loading state on immediate error (not OAuth callback errors)
       setIsLoading(prev => ({ ...prev, [loadingKey]: false }))
@@ -214,7 +206,6 @@ export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ cl
       }
     }
     catch (error) {
-      console.error(`Failed to get token for ${providerId}:`, error)
       setError(`Failed to get token for ${providerId}`)
     }
   }
@@ -226,7 +217,6 @@ export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ cl
       setError(null)
     }
     catch (error) {
-      console.error(`Failed to disconnect ${providerId}:`, error)
       setError(`Failed to disconnect from ${providerId}`)
     }
   }
@@ -246,7 +236,6 @@ export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ cl
       }
     }
     catch (error) {
-      console.error(`Failed to refresh tokens for ${providerId}:`, error)
       setError(`Failed to refresh tokens for ${providerId}`)
     }
     finally {

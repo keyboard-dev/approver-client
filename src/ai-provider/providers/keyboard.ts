@@ -6,7 +6,6 @@ export class KeyboardProvider implements AIProvider {
 
   async sendMessage(messages: AIMessage[], config: AIProviderConfig, authTokens?: AuthTokens): Promise<string> {
     if (!authTokens?.access_token) {
-      console.error('🚨 No access token provided to Keyboard provider')
       throw new Error('Authentication tokens required for Keyboard AI provider')
     }
 
@@ -36,7 +35,6 @@ export class KeyboardProvider implements AIProvider {
 
     if (!response.ok) {
       const errorText = await response.text()
-      console.error('🚨 Keyboard API Error Response:', errorText)
       throw new Error(`Keyboard AI API error: ${response.status} ${response.statusText} - ${errorText}`)
     }
 
@@ -84,11 +82,6 @@ export class KeyboardProvider implements AIProvider {
       return data.response
     }
 
-    console.error('🚨 Unknown Keyboard API response format!')
-    console.error('🚨 Full response structure:', data)
-    console.error('🚨 Available keys:', Object.keys(data))
-
-    // Last resort fallbacks
     const fallbackText = data.text || data.content || data.response || data.output || data.result || 'No response received'
 
     return fallbackText

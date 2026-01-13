@@ -34,7 +34,6 @@ const AlertButton = () => {
         })
         .catch((error) => {
           // Silent failure - just log to console
-          console.log('Auto-refresh of expired providers completed with errors:', error)
         })
         .finally(() => {
           setIsAutoRefreshing(false)
@@ -52,12 +51,9 @@ const AlertButton = () => {
   const handleExpireTokensForTesting = async () => {
     try {
       const count = await window.electronAPI.expireAllTokensForTesting()
-      console.log(`🧪 Expired ${count} provider token(s) for testing. Restart the app to test auto-refresh.`)
-      // Refresh the provider status after expiring
       setGroupedProviders(getGroupedProviders())
     }
     catch (error) {
-      console.error('Failed to expire tokens:', error)
     }
   }
 

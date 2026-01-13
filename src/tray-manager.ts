@@ -93,7 +93,6 @@ export class TrayManager {
         }
       }
       catch (fsError) {
-        console.error('File system error checking primary icon:', fsError)
         iconPath = fallbackIconPath
       }
 
@@ -120,7 +119,6 @@ export class TrayManager {
             }
           }
           catch (sizeError) {
-            console.error('Error getting icon size:', sizeError)
             return this.createFallbackIcon()
           }
 
@@ -139,7 +137,6 @@ export class TrayManager {
             }
           }
           catch (resizeError) {
-            console.error('Error resizing icon:', resizeError)
             return this.createFallbackIcon()
           }
 
@@ -165,8 +162,6 @@ export class TrayManager {
               }
             }
             catch (templateError) {
-              console.error('Error setting template mode:', templateError)
-              // Continue anyway, icon should still work
             }
           }
 
@@ -177,12 +172,10 @@ export class TrayManager {
         }
       }
       catch (fileError) {
-        console.error('Error checking/loading icon file:', fileError)
         return this.createFallbackIcon()
       }
     }
     catch (generalError) {
-      console.error('General error in createTrayIcon:', generalError)
       return this.createFallbackIcon()
     }
   }
@@ -210,7 +203,6 @@ export class TrayManager {
       return badgedIcon
     }
     catch (error) {
-      console.error('Error creating notification badge:', error)
       return baseIcon
     }
   }
@@ -226,7 +218,6 @@ export class TrayManager {
 
       // Validate size is reasonable
       if (size <= 0 || size > 256) {
-        console.error('Invalid fallback icon size, using default')
         return nativeImage.createEmpty()
       }
 
@@ -244,21 +235,16 @@ export class TrayManager {
 
       // Validate fallback icon was created
       if (!fallbackIcon || fallbackIcon.isEmpty()) {
-        console.error('Fallback icon creation failed, using empty icon')
         return nativeImage.createEmpty()
       }
 
       return fallbackIcon
     }
     catch (fallbackError) {
-      console.error('Error creating fallback icon:', fallbackError)
-      // Last resort - return empty icon
       try {
         return nativeImage.createEmpty()
       }
       catch (emptyError) {
-        console.error('Even empty icon creation failed:', emptyError)
-        // This should never happen, but just in case...
         throw new Error('Complete icon system failure')
       }
     }
@@ -310,17 +296,14 @@ export class TrayManager {
       try {
         icon = this.createTrayIcon()
         if (!icon || icon.isEmpty()) {
-          console.error('Created icon is empty, attempting fallback')
           icon = this.createFallbackIcon()
         }
       }
       catch (iconError) {
-        console.error('Error creating tray icon:', iconError)
         try {
           icon = this.createFallbackIcon()
         }
         catch (fallbackError) {
-          console.error('Fallback icon creation also failed:', fallbackError)
           return // Give up rather than crash
         }
       }
@@ -330,8 +313,6 @@ export class TrayManager {
         this.tray.setImage(icon)
       }
       catch (setImageError) {
-        console.error('Error setting tray image:', setImageError)
-        // Continue to try other operations
       }
 
       // Update tooltip with pending count safely
@@ -346,8 +327,6 @@ export class TrayManager {
         }
       }
       catch (tooltipError) {
-        console.error('Error setting tooltip:', tooltipError)
-        // Continue to dock badge
       }
 
       // Update dock badge on macOS for additional visibility (with safety)
@@ -363,13 +342,9 @@ export class TrayManager {
         }
       }
       catch (dockError) {
-        console.error('Error setting dock badge:', dockError)
-        // Don't crash if dock operations fail
       }
     }
     catch (generalError) {
-      console.error('General error in updateTrayIcon:', generalError)
-      // Log but don't crash - the app should continue running
     }
   }
 
@@ -378,7 +353,6 @@ export class TrayManager {
       return this.tray?.getBounds()
     }
     catch (error) {
-      console.error('Error getting tray bounds:', error)
       return undefined
     }
   }
@@ -390,14 +364,11 @@ export class TrayManager {
           this.tray.destroy()
         }
         catch (destroyError) {
-          console.error('Error destroying tray:', destroyError)
         }
         this.tray = null
       }
     }
     catch (generalError) {
-      console.error('Error in tray destroy:', generalError)
-      // Ensure tray is nulled even if destroy fails
       this.tray = null
     }
   }

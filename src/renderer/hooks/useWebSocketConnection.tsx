@@ -51,7 +51,6 @@ export const useWebSocketConnection = (
         setIsOnboardingCompleted(completed)
       }
       catch (error) {
-        console.error('Failed to check onboarding status:', error)
       }
     }
 
@@ -68,7 +67,6 @@ export const useWebSocketConnection = (
         updateConnectionStatus(status.connected ? 'connected' : 'disconnected')
       }
       catch (error) {
-        console.error('Failed to check initial connection status:', error)
       }
     }
 
@@ -163,7 +161,6 @@ export const useWebSocketConnection = (
       }
     }
     catch (error) {
-      console.error('Failed to connect to best codespace:', error)
     }
     finally {
       setIsConnectingToCodespace(false)
@@ -177,7 +174,6 @@ export const useWebSocketConnection = (
       return success
     }
     catch (error) {
-      console.error('Failed to reconnect to executor:', error)
       return false
     }
   }, [])

@@ -61,7 +61,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, onAuthChan
       handleAuthSuccess(null, status)
     }
     catch (error) {
-      console.error('Error loading auth status:', error)
       setError('Failed to load authentication status')
     }
   }, [isSkippingAuth, handleAuthSuccess])
@@ -76,7 +75,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, onAuthChan
       // and the auth-success event will be triggered
     }
     catch (error) {
-      console.error('Error starting OAuth:', error)
       setError('Failed to start authentication')
       setIsLoading(false)
     }
@@ -109,7 +107,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, onAuthChan
       // The auth-logout event will be triggered
     }
     catch (error) {
-      console.error('Error logging out:', error)
       setError('Failed to logout')
     }
   }, [isSkippingAuth])
@@ -122,7 +119,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, onAuthChan
       _event: Electron.CrossProcessExports.IpcRendererEvent | null,
       errorData: AuthError,
     ) => {
-      console.error('Auth error:', errorData)
       setError(errorData.message)
       setIsLoading(false)
     }

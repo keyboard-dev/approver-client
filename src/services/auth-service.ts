@@ -97,7 +97,6 @@ export class AuthService {
       await shell.openExternal(data.authorization_url)
     }
     catch (error) {
-      console.error('❌ OAuth flow error:', error)
       this.notifyAuthError('Failed to start authentication')
     }
   }
@@ -128,7 +127,6 @@ export class AuthService {
       await this.exchangeCodeForTokens(code)
     }
     catch (error) {
-      console.error('OAuth callback error:', error)
       this.notifyAuthError(`Authentication failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
@@ -211,7 +209,6 @@ export class AuthService {
       this.setSseBackgroundService(sseBackgroundService)
     }
     catch (error) {
-      console.error('Token exchange error:', error)
       this.notifyAuthError(`Token exchange failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
       throw error // Re-throw to let caller handle
     }
@@ -241,7 +238,6 @@ export class AuthService {
       })
 
       if (!response.ok) {
-        console.error('❌ Token refresh failed:', response.statusText)
         return false
       }
 
@@ -262,7 +258,6 @@ export class AuthService {
       return true
     }
     catch (error) {
-      console.error('❌ Token refresh error:', error)
       return false
     }
   }
@@ -347,8 +342,6 @@ export class AuthService {
    * Notify about authentication errors
    */
   private notifyAuthError(message: string): void {
-    console.error('🔐 Auth Error:', message)
-
     this.windowManager.sendMessage('auth-error', { message })
 
     this.showNotification({
@@ -378,7 +371,6 @@ export class AuthService {
       fs.writeFileSync(this.KEYBOARD_AUTH_TOKENS, encryptedData, { mode: 0o600 })
     }
     catch (error) {
-      console.error('❌ Failed to save auth tokens:', error)
     }
   }
 
@@ -414,7 +406,6 @@ export class AuthService {
       return authTokens
     }
     catch (error) {
-      console.error('❌ Failed to load auth tokens:', error)
       return null
     }
   }
@@ -429,7 +420,6 @@ export class AuthService {
       }
     }
     catch (error) {
-      console.error('❌ Failed to clear auth tokens:', error)
     }
   }
 

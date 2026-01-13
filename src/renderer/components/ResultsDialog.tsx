@@ -30,7 +30,6 @@ export const ResultsDialog: React.FC<ResultsDialogProps> = ({ execution, isOpen,
       setTimeout(() => setCopied(false), 2000)
     }
     catch (error) {
-      console.error('Failed to copy:', error)
     }
   }
 

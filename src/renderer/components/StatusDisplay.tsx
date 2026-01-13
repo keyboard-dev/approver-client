@@ -27,7 +27,6 @@ const StatusDisplay = ({ onClick }: StatusDisplayProps) => {
         setConnectionTarget(status.target || null)
       }
       catch (error) {
-        console.error('Failed to fetch connection info:', error)
       }
     }
 
@@ -52,7 +51,6 @@ const StatusDisplay = ({ onClick }: StatusDisplayProps) => {
         setConnectionTarget(status.target || null)
       }
       catch (error) {
-        console.error('Failed to fetch connection info:', error)
       }
     }
 

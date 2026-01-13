@@ -54,7 +54,6 @@ export const Prompter: React.FC<PrompterProps> = ({ onBack }) => {
       await Promise.all(serverList.map(server => fetchProvidersForServer(server.id)))
     }
     catch (error) {
-      console.error('Error loading provider data:', error)
       setProviderError('Failed to load provider information')
     }
   }
@@ -69,7 +68,6 @@ export const Prompter: React.FC<PrompterProps> = ({ onBack }) => {
       }))
     }
     catch (error) {
-      console.error(`Failed to fetch providers for server ${serverId}:`, error)
       setServerProviders(prev => ({
         ...prev,
         [serverId]: [],
@@ -92,7 +90,6 @@ export const Prompter: React.FC<PrompterProps> = ({ onBack }) => {
         setScripts(scripts)
       }
       catch (error) {
-        console.error('Error getting scripts:', error)
         setScripts([])
       }
     }
@@ -143,7 +140,6 @@ export const Prompter: React.FC<PrompterProps> = ({ onBack }) => {
     }
 
     const handleProviderAuthError = (_event: unknown, data: unknown) => {
-      console.error('Provider auth error:', data)
       setProviderError(`${(data as { providerId: string }).providerId}: ${(data as { message?: string }).message || 'Authentication failed'}`)
       // Clear loading for both direct and server providers
       setProviderLoading((prev) => {
@@ -216,8 +212,6 @@ export const Prompter: React.FC<PrompterProps> = ({ onBack }) => {
       setShowPromptDialog(true)
     }
     catch (error) {
-      console.error('Failed to copy to clipboard:', error)
-      // Still show dialog even if clipboard fails
       setGeneratedPrompt(promptText)
       setShowPromptDialog(true)
     }
@@ -246,7 +240,6 @@ export const Prompter: React.FC<PrompterProps> = ({ onBack }) => {
       // Don't clear selection yet - wait for response
     }
     catch (error) {
-      console.error('Error sending prompt request:', error)
       setIsWaitingForResponse(false)
       alert('Error: ' + (error as Error).message)
     }
@@ -273,7 +266,6 @@ export const Prompter: React.FC<PrompterProps> = ({ onBack }) => {
         })
       }
       catch (error) {
-        console.error('Error deleting script:', error)
         alert('Failed to delete script: ' + (error as Error).message)
       }
     }
@@ -741,7 +733,6 @@ export const Prompter: React.FC<PrompterProps> = ({ onBack }) => {
                   await navigator.clipboard.writeText(generatedPrompt)
                 }
                 catch (error) {
-                  console.error('Failed to copy to clipboard:', error)
                 }
               }}
             >

@@ -120,7 +120,6 @@ export class ExecutorWebSocketClient {
 
       // Use async connect with auto-discovery
       this.connect().catch((error) => {
-        console.error('Failed to connect after setting JWT token:', error)
       })
     }
     // If token is cleared and we're connected, disconnect
@@ -139,7 +138,6 @@ export class ExecutorWebSocketClient {
 
       // Use async connect with auto-discovery
       this.connect().catch((error) => {
-        console.error('Failed to connect after setting GitHub token:', error)
       })
     }
     // If token is cleared and we're connected, disconnect
@@ -230,7 +228,6 @@ export class ExecutorWebSocketClient {
       return connectionInfo
     }
     catch (error) {
-      console.error('Failed to discover codespaces:', error)
       return []
     }
   }
@@ -238,7 +235,6 @@ export class ExecutorWebSocketClient {
   // Connect to a specific codespace
   async connectToCodespace(codespaceName: string): Promise<boolean> {
     if (!this.codespacesService) {
-      console.error('❌ Cannot connect to codespace: GitHub token required')
       return false
     }
 
@@ -248,12 +244,10 @@ export class ExecutorWebSocketClient {
       const targetCodespace = codespaces.find(cs => cs.codespace.name === codespaceName)
 
       if (!targetCodespace) {
-        console.error(`❌ Codespace ${codespaceName} not found`)
         return false
       }
 
       if (!targetCodespace.available || !targetCodespace.websocketUrl) {
-        console.error(`❌ Codespace ${codespaceName} does not have WebSocket available`)
         return false
       }
 
@@ -278,7 +272,6 @@ export class ExecutorWebSocketClient {
       return true
     }
     catch (error) {
-      console.error(`Failed to connect to codespace ${codespaceName}:`, error)
       return false
     }
   }
@@ -326,9 +319,6 @@ export class ExecutorWebSocketClient {
       return true
     }
     catch (error) {
-      console.error('Failed to connect to keyboard environment:', error)
-
-      // Fallback to legacy environment variables
       return this.connectToLegacyKeyboardEnvTarget()
     }
   }
@@ -354,7 +344,6 @@ export class ExecutorWebSocketClient {
     }
 
     if (!targetUrl) {
-      console.log('No keyboard environment target configured')
       return false
     }
 
@@ -397,7 +386,6 @@ export class ExecutorWebSocketClient {
       return sandboxes
     }
     catch (error) {
-      console.error('Failed to list keyboard environments:', error)
       return []
     }
   }
@@ -405,7 +393,6 @@ export class ExecutorWebSocketClient {
   // Connect to a specific keyboard environment
   async connectToSpecificKeyboardEnvironment(sessionId: string): Promise<boolean> {
     if (!this.keyboardEnvironmentManager) {
-      console.error('❌ Cannot connect to keyboard environment: JWT token required')
       return false
     }
 
@@ -413,7 +400,6 @@ export class ExecutorWebSocketClient {
       // Validate the environment exists and is running
       const isValid = await this.keyboardEnvironmentManager.validateEnvironment(sessionId)
       if (!isValid) {
-        console.error(`❌ Keyboard environment ${sessionId} is not available`)
         return false
       }
 
@@ -435,7 +421,6 @@ export class ExecutorWebSocketClient {
       return true
     }
     catch (error) {
-      console.error(`Failed to connect to keyboard environment ${sessionId}:`, error)
       return false
     }
   }
@@ -450,7 +435,6 @@ export class ExecutorWebSocketClient {
       await this.keyboardEnvironmentManager.cleanupExpiredEnvironments()
     }
     catch (error) {
-      console.error('Failed to cleanup keyboard environments:', error)
     }
   }
 
@@ -573,19 +557,15 @@ export class ExecutorWebSocketClient {
         // If no suitable codespace found, continue to fallback options below
       }
       catch (error) {
-        console.error('Failed to auto-discover codespace:', error)
-        // Continue to fallback options below
       }
     }
 
     // If no GitHub token available, try keyboard environment target
     if (!this.githubToken || this.executionPreference === 'keyboard-environment') {
-      console.log('No GitHub token available, trying keyboard environment target')
       try {
         return await this.connectToKeyboardEnvTarget()
       }
       catch (error) {
-        console.error('Failed to connect to keyboard environment:', error)
         return false
       }
     }
@@ -657,7 +637,6 @@ export class ExecutorWebSocketClient {
           this.onMessageReceived?.(message)
         }
         catch (error) {
-          console.error('Error parsing message from executor:', error)
         }
       })
 
@@ -698,9 +677,6 @@ export class ExecutorWebSocketClient {
           return
         }
 
-        console.error(`❌ WebSocket client error (${target.name}):`, error)
-
-        // Emit error event for non-404 errors
         this.windowManager?.sendMessage('websocket-error', {
           target: target.name || target.url,
           type: target.type,
@@ -709,7 +685,6 @@ export class ExecutorWebSocketClient {
       })
     }
     catch (error) {
-      console.error(`Failed to connect to ${target.name}:`, error)
       this.ws = null
 
       // Emit error event
@@ -766,7 +741,6 @@ export class ExecutorWebSocketClient {
       this.lastActivityTime = Date.now()
     }
     else {
-      console.error('❌ Cannot send message: WebSocket not connected')
     }
   }
 
@@ -840,7 +814,6 @@ export class ExecutorWebSocketClient {
 
       // If connection seems dead (no pong responses), don't send more pings
       if (timeSinceLastPong > 90000 && !this.connectionAliveStatus) { // 90 seconds
-        console.warn('⚠️ Connection appears dead, stopping client pings')
         return
       }
 
@@ -855,7 +828,6 @@ export class ExecutorWebSocketClient {
         }
       }
       catch (error) {
-        console.error('❌ Error sending keepalive ping:', error)
       }
     }, this.CLIENT_PING_INTERVAL)
   }
@@ -873,7 +845,6 @@ export class ExecutorWebSocketClient {
         }))
       }
       catch (error) {
-        console.error('❌ Error sending keepalive message:', error)
       }
     }
   }
@@ -979,7 +950,6 @@ export class ExecutorWebSocketClient {
       // Only attempt if we have tokens and are not connected
       if ((this.githubToken || this.keyboardEnvironmentManager) && (!this.ws || this.ws.readyState !== WebSocket.OPEN)) {
         this.connect().catch((error) => {
-          console.error('Persistent retry failed:', error)
         })
       }
     }, this.PERSISTENT_RETRY_INTERVAL)

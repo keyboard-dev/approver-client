@@ -91,7 +91,6 @@ export const WebSocketStatusDialog: React.FC<WebSocketStatusDialogProps> = ({
       setIsReconnecting(false)
     }
     catch (error) {
-      console.error('Failed to fetch connection status:', error)
     }
     finally {
       setIsLoading(false)
@@ -124,7 +123,6 @@ export const WebSocketStatusDialog: React.FC<WebSocketStatusDialogProps> = ({
       }
     }
     catch (error) {
-      console.error('Failed to connect to best codespace:', error)
     }
     finally {
       setIsReconnecting(false)
@@ -138,7 +136,6 @@ export const WebSocketStatusDialog: React.FC<WebSocketStatusDialogProps> = ({
       await fetchConnectionStatus()
     }
     catch (error) {
-      console.error('Failed to disconnect:', error)
     }
     finally {
       setIsReconnecting(false)
@@ -230,8 +227,9 @@ export const WebSocketStatusDialog: React.FC<WebSocketStatusDialogProps> = ({
                   <div className="min-w-0">
                     <div className="font-medium text-gray-700">Type</div>
                     <Badge variant="outline" className="text-xs">
-                      {connectionStatus.target.type === 'localhost' ? 'Local' : 
-                       connectionStatus.target.type === 'keyboard-env' ? 'Keyboard Environment' : 'Codespace'}
+                      {connectionStatus.target.type === 'localhost'
+                        ? 'Local'
+                        : connectionStatus.target.type === 'keyboard-env' ? 'Keyboard Environment' : 'Codespace'}
                     </Badge>
                   </div>
                 )}

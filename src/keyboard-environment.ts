@@ -174,7 +174,6 @@ export class KeyboardEnvironmentManager {
       return runningSandboxes[0] || null
     }
     catch (error) {
-      console.error('Failed to find running environment:', error)
       return null
     }
   }
@@ -183,12 +182,10 @@ export class KeyboardEnvironmentManager {
     // First try to find an existing running environment
     const existingEnvironment = await this.findRunningEnvironment()
     if (existingEnvironment) {
-      console.log(`Using existing environment: ${existingEnvironment.sessionId}`)
       return existingEnvironment
     }
 
     // Create a new environment if none exists
-    console.log('Creating new sandbox environment...')
     const createResponse = await this.createSandbox(config)
 
     // Wait for the new environment to be ready
@@ -218,15 +215,12 @@ export class KeyboardEnvironmentManager {
       for (const sandbox of expiredSandboxes) {
         try {
           await this.deleteSandbox(sandbox.sessionId)
-          console.log(`Cleaned up expired sandbox: ${sandbox.sessionId}`)
         }
         catch (error) {
-          console.error(`Failed to cleanup sandbox ${sandbox.sessionId}:`, error)
         }
       }
     }
     catch (error) {
-      console.error('Failed to cleanup expired environments:', error)
     }
   }
 

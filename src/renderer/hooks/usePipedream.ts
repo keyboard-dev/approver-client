@@ -113,7 +113,6 @@ export function usePipedream(): UsePipedreamReturn {
     }
     pollingAppSlugRef.current = null
     setConnectingApp(null)
-    console.log('[usePipedream] Stopped polling for new connections')
   }, [])
 
   const checkForNewAccount = useCallback((newAccounts: PipedreamAccount[]) => {
@@ -130,7 +129,6 @@ export function usePipedream(): UsePipedreamReturn {
     )
 
     if (newAccount) {
-      console.log(`[usePipedream] Detected new connection for ${expectedAppSlug}:`, newAccount)
       return true
     }
 
@@ -142,9 +140,6 @@ export function usePipedream(): UsePipedreamReturn {
     pollingAppSlugRef.current = appSlug
     accountsBeforePollingRef.current = accounts
 
-    console.log(`[usePipedream] Starting polling for ${appSlug}...`)
-
-    // Set up polling interval
     pollingIntervalRef.current = setInterval(async () => {
       try {
         const response = await listAccounts()
@@ -159,13 +154,11 @@ export function usePipedream(): UsePipedreamReturn {
         }
       }
       catch (error) {
-        console.error('[usePipedream] Error during polling:', error)
       }
     }, POLL_INTERVAL_MS)
 
     // Set up timeout to stop polling after max time
     pollingTimeoutRef.current = setTimeout(() => {
-      console.log(`[usePipedream] Polling timeout reached for ${appSlug}`)
       stopPolling()
     }, POLL_TIMEOUT_MS)
   }, [accounts, checkForNewAccount, stopPolling])
@@ -185,7 +178,6 @@ export function usePipedream(): UsePipedreamReturn {
     catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to load accounts'
       setAccountsError(message)
-      console.error('[usePipedream] Failed to fetch accounts:', error)
     }
     finally {
       setAccountsLoading(false)
@@ -203,7 +195,6 @@ export function usePipedream(): UsePipedreamReturn {
     catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to search apps'
       setAppsError(message)
-      console.error('[usePipedream] Failed to search apps:', error)
     }
     finally {
       setAppsLoading(false)
@@ -218,7 +209,6 @@ export function usePipedream(): UsePipedreamReturn {
       setDefaultApps(response.apps || [])
     }
     catch (error) {
-      console.error('[usePipedream] Failed to fetch default apps:', error)
     }
     finally {
       setDefaultAppsLoading(false)
@@ -238,7 +228,6 @@ export function usePipedream(): UsePipedreamReturn {
       startPolling(appSlug)
     }
     catch (error) {
-      console.error('[usePipedream] Failed to connect app:', error)
       setConnectingApp(null)
       throw error
     }
@@ -253,7 +242,6 @@ export function usePipedream(): UsePipedreamReturn {
       setAccounts(prev => prev.filter(acc => acc.id !== accountId))
     }
     catch (error) {
-      console.error('[usePipedream] Failed to disconnect account:', error)
       throw error
     }
     finally {

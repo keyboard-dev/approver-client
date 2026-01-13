@@ -44,7 +44,6 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({ children }) 
         setIsInitialized(true)
       }
       catch (error) {
-        console.error('Failed to initialize database:', error)
       }
     }
 
@@ -78,7 +77,6 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({ children }) 
         }
       }
       catch (error) {
-        console.error('Failed to notify pending count change:', error)
       }
     }, 150) // 150ms debounce delay
   }, [])
@@ -92,7 +90,6 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({ children }) 
       }
     }
     catch (error) {
-      console.error('Failed to add message:', error)
       throw error
     }
   }, [notifyPendingCountChange])
@@ -107,7 +104,6 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({ children }) 
       }
     }
     catch (error) {
-      console.error('Failed to update message:', error)
       throw error
     }
   }, [notifyPendingCountChange])
@@ -120,7 +116,6 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({ children }) 
       await notifyPendingCountChange()
     }
     catch (error) {
-      console.error('Failed to delete message:', error)
       throw error
     }
   }, [notifyPendingCountChange])
@@ -133,7 +128,6 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({ children }) 
       await notifyPendingCountChange()
     }
     catch (error) {
-      console.error('Failed to delete messages:', error)
       throw error
     }
   }, [notifyPendingCountChange])
@@ -144,7 +138,6 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({ children }) 
       await notifyPendingCountChange()
     }
     catch (error) {
-      console.error('Failed to clear messages:', error)
       throw error
     }
   }, [notifyPendingCountChange])
@@ -158,7 +151,6 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({ children }) 
       }
     }
     catch (error) {
-      console.error('Failed to add share message:', error)
       throw error
     }
   }, [notifyPendingCountChange])
@@ -173,7 +165,6 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({ children }) 
       }
     }
     catch (error) {
-      console.error('Failed to update share message:', error)
       throw error
     }
   }, [notifyPendingCountChange])
@@ -184,7 +175,6 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({ children }) 
       await notifyPendingCountChange()
     }
     catch (error) {
-      console.error('Failed to clear share messages:', error)
       throw error
     }
   }, [notifyPendingCountChange])

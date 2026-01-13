@@ -29,7 +29,6 @@ export class DatabaseService {
       const request = indexedDB.open(DB_NAME, DB_VERSION)
 
       request.onerror = () => {
-        console.error('Failed to open database:', request.error)
         reject(request.error)
       }
 

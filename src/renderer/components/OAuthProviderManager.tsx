@@ -65,7 +65,6 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
     }
 
     const handleProviderAuthError = (_event: Electron.IpcRendererEvent, data: ProviderAuthEvent) => {
-      console.error('Provider auth error:', data)
       setError(`${data.providerId}: ${data.message}`)
       setIsLoading(prev => ({ ...prev, [data.providerId]: false }))
     }
@@ -97,7 +96,6 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
       await window.electronAPI.getAvailableProviders()
     }
     catch (error) {
-      console.error('Failed to load providers:', error)
       setError('Failed to load available providers')
     }
   }
@@ -108,7 +106,6 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
       setAllProviderConfigs(allConfigs)
     }
     catch (error) {
-      console.error('Failed to load all provider configs:', error)
     }
   }
 
@@ -118,7 +115,6 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
       setProviderStatus(status)
     }
     catch (error) {
-      console.error('Failed to load provider status:', error)
     }
   }
 
@@ -128,7 +124,6 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
       setStorageInfo(info)
     }
     catch (error) {
-      console.error('Failed to load storage info:', error)
     }
   }
 
@@ -142,7 +137,6 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
       // and the provider-auth-success event will be triggered
     }
     catch (error) {
-      console.error(`Failed to start OAuth for ${providerId}:`, error)
       setError(`Failed to connect to ${providerId}`)
       setIsLoading(prev => ({ ...prev, [providerId]: false }))
     }
@@ -156,7 +150,6 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
       await loadProviderStatus()
     }
     catch (error) {
-      console.error(`Failed to disconnect ${providerId}:`, error)
       setError(`Failed to disconnect from ${providerId}`)
     }
     finally {
@@ -178,7 +171,6 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
       }
     }
     catch (error) {
-      console.error(`Failed to refresh tokens for ${providerId}:`, error)
       setError(`Failed to refresh tokens for ${providerId}`)
     }
     finally {
@@ -198,7 +190,6 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
       setError(null)
     }
     catch (error) {
-      console.error('Failed to clear all tokens:', error)
       setError('Failed to clear all tokens')
     }
   }
@@ -216,7 +207,6 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
       }
     }
     catch (error) {
-      console.error(`Failed to get token for ${providerId}:`, error)
       setError(`Failed to get token for ${providerId}`)
     }
   }
@@ -231,7 +221,6 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
       setError(null)
     }
     catch (error) {
-      console.error('Failed to save provider:', error)
       setError('Failed to save provider configuration')
       throw error // Re-throw to let the form handle it
     }
@@ -249,7 +238,6 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
       setError(null)
     }
     catch (error) {
-      console.error(`Failed to delete provider ${providerId}:`, error)
       setError(`Failed to delete provider ${providerId}`)
     }
   }
@@ -263,7 +251,6 @@ export const OAuthProviderManager: React.FC<OAuthProviderManagerProps> = ({ clas
       }
     }
     catch (error) {
-      console.error(`Failed to load provider config ${providerId}:`, error)
       setError(`Failed to load provider configuration`)
     }
   }

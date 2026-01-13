@@ -136,7 +136,6 @@ export class MCPClientService {
         error: error instanceof Error ? error.message : 'Connection failed',
       }
 
-      console.error('❌ Failed to connect to MCP server:', error)
       throw error
     }
   }
@@ -155,13 +154,11 @@ export class MCPClientService {
       this.connectionStatus = { connected: false }
     }
     catch (error) {
-      console.error('❌ Error during MCP disconnect:', error)
     }
   }
 
   async reconnect(config: MCPConnectionConfig): Promise<boolean> {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('❌ Max reconnection attempts reached')
       return false
     }
 
@@ -172,7 +169,6 @@ export class MCPClientService {
       return true
     }
     catch (error) {
-      console.error('❌ Reconnection failed:', error)
       return false
     }
   }
@@ -199,8 +195,6 @@ export class MCPClientService {
       }
     }
     catch (error) {
-      console.error('❌ Failed to discover MCP capabilities:', error)
-      // Don't throw - connection is still valid, just missing discovery
     }
   }
 
@@ -221,7 +215,6 @@ export class MCPClientService {
       } as CallToolResult
     }
     catch (error) {
-      console.error(`❌ Failed to call tool ${name}:`, error)
       throw error
     }
   }
@@ -240,7 +233,6 @@ export class MCPClientService {
       } as ReadResourceResult
     }
     catch (error) {
-      console.error(`❌ Failed to read resource ${uri}:`, error)
       throw error
     }
   }

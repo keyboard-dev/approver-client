@@ -53,9 +53,10 @@ export class ExecutionPreferenceManager {
     if (!response.ok) {
       let errorMessage = `Request failed: ${response.status}`
       try {
-        const error = await response.json() as { error?: string; message?: string }
+        const error = await response.json() as { error?: string, message?: string }
         errorMessage = error.error || error.message || errorMessage
-      } catch (e) {
+      }
+      catch (e) {
         // Ignore JSON parse errors, use default message
       }
       throw new Error(errorMessage)

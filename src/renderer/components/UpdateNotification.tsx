@@ -67,7 +67,6 @@ export const UpdateNotification: React.FC = () => {
       await window.electronAPI.checkForUpdates()
     }
     catch (error) {
-      console.error('Error checking for updates:', error)
     }
     finally {
       setIsChecking(false)
@@ -80,7 +79,6 @@ export const UpdateNotification: React.FC = () => {
       await window.electronAPI.downloadUpdate()
     }
     catch (error) {
-      console.error('Error downloading update:', error)
       setDownloading(false)
     }
   }
@@ -90,7 +88,6 @@ export const UpdateNotification: React.FC = () => {
       await window.electronAPI.quitAndInstall()
     }
     catch (error) {
-      console.error('Error installing update:', error)
     }
   }
 
@@ -258,7 +255,6 @@ export const UpdateNotification: React.FC = () => {
                   await window.electronAPI.testUpdateAvailable()
                 }
                 catch (error) {
-                  console.error('Test update available error:', error)
                 }
               }}
             >
@@ -272,7 +268,6 @@ export const UpdateNotification: React.FC = () => {
                   await window.electronAPI.testDownloadUpdate()
                 }
                 catch (error) {
-                  console.error('Test download update error:', error)
                 }
               }}
             >
@@ -286,7 +281,6 @@ export const UpdateNotification: React.FC = () => {
                   await window.electronAPI.testUpdateDownloaded()
                 }
                 catch (error) {
-                  console.error('Test update downloaded error:', error)
                 }
               }}
             >

@@ -99,8 +99,6 @@ export class ContentParser {
       }
     }
     catch (error) {
-      console.error('Content parsing error:', error)
-      // Return minimal structure on parse failure
       return {
         markdown: content,
         codeBlocks: [],

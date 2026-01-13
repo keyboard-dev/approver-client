@@ -45,7 +45,7 @@ export const AdvancedPanel: React.FC = () => {
 
   const handleChangeExecutionPreferenceSetting = useCallback(async (checked: boolean) => {
     const newPreference = checked ? 'keyboard-environment' : 'github-codespace'
-    
+
     // Execute change immediately
     const result = await window.electronAPI.setExecutionPreference(newPreference)
     if (result.success) {

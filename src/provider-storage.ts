@@ -116,7 +116,6 @@ export class ProviderStorage {
       return provider
     }
     catch (error) {
-      console.error(`❌ Error loading provider ${providerId}:`, error)
       return null
     }
   }
@@ -134,7 +133,6 @@ export class ProviderStorage {
       fs.writeFileSync(filePath, encryptedData, { mode: 0o600 })
     }
     catch (error) {
-      console.error(`❌ Error saving provider ${provider.id}:`, error)
       throw error
     }
   }
@@ -163,7 +161,6 @@ export class ProviderStorage {
       this.isLoaded = true
     }
     catch (error) {
-      console.error('❌ Error loading providers:', error)
       this.providersCache.clear()
       this.isLoaded = true
     }

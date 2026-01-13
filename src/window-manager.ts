@@ -62,7 +62,6 @@ export class WindowManager {
     // Verify session is persistent
     const windowSession = this.mainWindow.webContents.session
     if (!windowSession.isPersistent()) {
-      console.error('⚠️  Session is NOT persistent!')
     }
 
     this.mainWindow.loadFile(path.join(__dirname, '../public/index.html'))

@@ -58,7 +58,6 @@ export const MyConnectors: React.FC = () => {
     }
 
     const handleProviderAuthError = (_event: Electron.IpcRendererEvent, data: ProviderAuthEvent) => {
-      console.error('Provider auth error:', data)
       setError(`${data.providerId}: ${data.message}`)
       setIsLoading(prev => ({ ...prev, [data.providerId]: false }))
     }
@@ -89,7 +88,6 @@ export const MyConnectors: React.FC = () => {
       await window.electronAPI.getAvailableProviders()
     }
     catch (error) {
-      console.error('Failed to load providers:', error)
       setError('Failed to load available providers')
     }
   }
@@ -100,7 +98,6 @@ export const MyConnectors: React.FC = () => {
       setAllProviderConfigs(allConfigs)
     }
     catch (error) {
-      console.error('Failed to load all provider configs:', error)
     }
   }
 
@@ -110,7 +107,6 @@ export const MyConnectors: React.FC = () => {
       setProviderStatus(status)
     }
     catch (error) {
-      console.error('Failed to load provider status:', error)
     }
   }
 
@@ -120,7 +116,6 @@ export const MyConnectors: React.FC = () => {
       setStorageInfo(info)
     }
     catch (error) {
-      console.error('Failed to load storage info:', error)
     }
   }
 
@@ -139,7 +134,6 @@ export const MyConnectors: React.FC = () => {
       await loadProviderStatus()
     }
     catch (error) {
-      console.error(`Failed to disconnect ${providerId}:`, error)
       setError(`Failed to disconnect from ${providerId}`)
     }
     finally {
@@ -160,7 +154,6 @@ export const MyConnectors: React.FC = () => {
       }
     }
     catch (error) {
-      console.error(`Failed to get token for ${providerId}:`, error)
       setError(`Failed to get token for ${providerId}`)
     }
   }
@@ -197,7 +190,6 @@ export const MyConnectors: React.FC = () => {
       setError(null)
     }
     catch (error) {
-      console.error(`Failed to delete provider ${providerId}:`, error)
       setError(`Failed to delete provider ${providerId}`)
     }
   }

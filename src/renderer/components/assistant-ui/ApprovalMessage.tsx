@@ -23,13 +23,11 @@ export const ApprovalMessage: FC<ApprovalMessageProps> = ({
     <ApprovalChatMessage
       message={currentApprovalMessage}
       onApprove={async () => {
-        console.log('onApprove', currentApprovalMessage)
         if (onApproveMessage) {
           await onApproveMessage(currentApprovalMessage)
         }
       }}
       onReject={async () => {
-        console.log('onReject', currentApprovalMessage)
         if (onRejectMessage) {
           await onRejectMessage(currentApprovalMessage)
         }

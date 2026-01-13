@@ -29,7 +29,6 @@ export const GitHubOAuthButton: React.FC<GitHubOAuthButtonProps> = ({ className,
       setIsConnected(connected)
     }
     catch (error) {
-      console.error('Failed to check GitHub connection status:', error)
     }
   }
 
@@ -74,7 +73,6 @@ export const GitHubOAuthButton: React.FC<GitHubOAuthButtonProps> = ({ className,
       await checkConnectionStatus()
     }
     catch (error) {
-      console.error('Failed to start GitHub OAuth:', error)
       setError(error instanceof Error ? error.message : 'Failed to start GitHub OAuth')
     }
     finally {
@@ -93,7 +91,6 @@ export const GitHubOAuthButton: React.FC<GitHubOAuthButtonProps> = ({ className,
       await checkConnectionStatus()
     }
     catch (error) {
-      console.error('Failed to clear GitHub connection:', error)
       setError(error instanceof Error ? error.message : 'Failed to clear GitHub connection')
     }
     finally {

@@ -61,7 +61,6 @@ export const MessageDetailScreen: React.FC = () => {
       setMessage(fetchedMessage)
     }
     catch (err) {
-      console.error('Failed to fetch message:', err)
       setError('Failed to load message')
     }
     finally {
@@ -97,7 +96,6 @@ export const MessageDetailScreen: React.FC = () => {
       await fetchMessage()
     }
     catch (error) {
-      console.error('Error approving message:', error)
     }
   }
 
@@ -124,7 +122,6 @@ export const MessageDetailScreen: React.FC = () => {
       await fetchMessage()
     }
     catch (error) {
-      console.error('Error rejecting message:', error)
     }
   }
 

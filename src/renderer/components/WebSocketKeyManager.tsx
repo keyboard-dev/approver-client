@@ -46,7 +46,6 @@ const WebSocketKeyManager: React.FC<WebSocketKeyManagerProps> = ({ className = '
       loadConnectionUrl()
     }
     catch (error) {
-      console.error('Error loading key info:', error)
     }
   }
 
@@ -56,7 +55,6 @@ const WebSocketKeyManager: React.FC<WebSocketKeyManagerProps> = ({ className = '
       setConnectionUrl(url)
     }
     catch (error) {
-      console.error('Error loading connection URL:', error)
     }
   }
 
@@ -80,7 +78,6 @@ const WebSocketKeyManager: React.FC<WebSocketKeyManagerProps> = ({ className = '
       loadConnectionUrl()
     }
     catch (error) {
-      console.error('Error regenerating key:', error)
     }
     finally {
       setIsLoading(false)
@@ -96,7 +93,6 @@ const WebSocketKeyManager: React.FC<WebSocketKeyManagerProps> = ({ className = '
       setTimeout(() => setCopyStatus('idle'), 2000)
     }
     catch (error) {
-      console.error('Error copying key:', error)
       setCopyStatus('error')
       setTimeout(() => setCopyStatus('idle'), 2000)
     }
@@ -111,7 +107,6 @@ const WebSocketKeyManager: React.FC<WebSocketKeyManagerProps> = ({ className = '
       setTimeout(() => setCopyStatus('idle'), 2000)
     }
     catch (error) {
-      console.error('Error copying URL:', error)
       setCopyStatus('error')
       setTimeout(() => setCopyStatus('idle'), 2000)
     }

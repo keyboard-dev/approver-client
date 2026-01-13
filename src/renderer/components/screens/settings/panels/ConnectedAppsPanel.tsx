@@ -182,7 +182,6 @@ export const ConnectedAppsPanel: React.FC = () => {
           await disconnectAccount(account.id)
         }
         catch (error) {
-          console.error('Failed to disconnect:', error)
         }
       },
       onCancel: hidePopup,

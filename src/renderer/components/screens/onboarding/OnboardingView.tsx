@@ -149,7 +149,6 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
       onComplete?.()
     }
     catch (error) {
-      console.error('Error completing onboarding:', error)
     }
   }
 
@@ -168,17 +167,14 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
       const result = await window.electronAPI.setExecutionPreference('keyboard-environment')
 
       if (result.success) {
-        console.log('✓ Execution preference set to keyboard-environment')
       }
       else {
         const errorMsg = result.error || 'Failed to set execution preference'
-        console.error('Failed to set execution preference:', errorMsg)
         setPreferenceSetError(errorMsg)
       }
     }
     catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error'
-      console.error('Error setting execution preference:', errorMsg)
       setPreferenceSetError(errorMsg)
     }
     finally {
@@ -207,7 +203,6 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
       return false
     }
     catch (error) {
-      console.error('Error checking subscription status:', error)
       return false
     }
   }
@@ -260,7 +255,6 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
       }
     }
     catch (error) {
-      console.error('Error creating subscription checkout:', error)
       setSubscriptionError('Failed to create checkout session. Please try again.')
     }
   }

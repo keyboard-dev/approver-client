@@ -183,7 +183,6 @@ export const PipedreamPanel: React.FC<PipedreamPanelProps> = ({ isAuthenticated 
           await disconnectAccount(account.id)
         }
         catch (error) {
-          console.error('Failed to disconnect:', error)
         }
       },
       onCancel: hidePopup,

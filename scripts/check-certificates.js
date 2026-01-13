@@ -30,5 +30,4 @@ try {
   // }
 }
 catch (error) {
-  console.error('❌ Error checking certificates:', error.message)
 }

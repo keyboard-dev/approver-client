@@ -110,7 +110,6 @@ export class OAuthHttpServer {
           }
         }
         catch (error) {
-          console.error('Error handling OAuth callback:', error)
           res.writeHead(500, { 'Content-Type': 'text/plain' })
           res.end('Internal Server Error')
         }
@@ -122,7 +121,6 @@ export class OAuthHttpServer {
       })
 
       this.server.on('error', (error) => {
-        console.error('OAuth server error:', error)
         this.isRunning = false
         reject(error)
       })

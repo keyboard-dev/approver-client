@@ -210,7 +210,6 @@ USER REQUEST: ${userMessage}`
       return []
     }
     catch (error) {
-      console.error('❌ Failed to fetch user tokens:', error)
       return []
     }
   }
@@ -230,7 +229,6 @@ USER REQUEST: ${userMessage}`
       return null
     }
     catch (error) {
-      console.error('❌ Failed to fetch codespace info:', error)
       return null
     }
   }
