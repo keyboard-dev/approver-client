@@ -2302,6 +2302,82 @@ class MenuBarNotificationApp {
       return connectedApps
     })
 
+    ipcMain.handle('fetch-pipedream-accounts-detailed', async () => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return {
+            success: false,
+            error: 'Not authenticated',
+          }
+        }
+        const response = await fetch('http://localhost:4000/api/pipedream/accounts',
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          },
+        )
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+        const data = await response.json()
+        return { success: true, data }
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    ipcMain.handle('open-pipedream-connect-link', async (_event, appSlug: string) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return {
+            success: false,
+            error: 'Not authenticated',
+          }
+        }
+
+        // Get connect token from Pipedream API
+        const response = await fetch('http://localhost:4000/api/pipedream/connect-token', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ app: appSlug }),
+        })
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json() as { success: boolean, connectLinkUrl?: string, token?: string, expiresAt?: string }
+
+        if (data.connectLinkUrl) {
+          // Open the connect link URL in the system browser
+          shell.openExternal(data.connectLinkUrl)
+          return { success: true }
+        }
+        else {
+          return {
+            success: false,
+            error: 'No connect link URL returned',
+          }
+        }
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
     ipcMain.handle('fetch-pipedream-apps', async (_event, options?: {
       query?: string
       limit?: number

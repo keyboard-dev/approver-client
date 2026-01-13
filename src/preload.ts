@@ -351,6 +351,8 @@ export interface ElectronAPI {
   deleteAdditionalAccount: (accountId: string) => Promise<{ success: boolean, message?: string }>
   // Pipedream Triggers
   fetchPipedreamAccounts: () => Promise<string[]>
+  fetchPipedreamAccountsDetailed: () => Promise<{ success: boolean, data?: unknown, error?: string }>
+  openPipedreamConnectLink: (appSlug: string) => Promise<{ success: boolean, error?: string }>
   fetchPipedreamApps: (options?: {
     query?: string
     limit?: number
@@ -686,6 +688,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   fetchAdditionalConnectors: (): Promise<Array<{ id: string, name: string, description?: string, icon: string, scopes?: string[], source?: 'local' | 'pipedream' | 'custom', metadata?: Record<string, unknown> }>> => ipcRenderer.invoke('fetch-additional-connectors'),
   // Pipedream Triggers
   fetchPipedreamAccounts: (): Promise<string[]> => ipcRenderer.invoke('fetch-pipedream-accounts'),
+  fetchPipedreamAccountsDetailed: (): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('fetch-pipedream-accounts-detailed'),
+  openPipedreamConnectLink: (appSlug: string): Promise<{ success: boolean, error?: string }> => ipcRenderer.invoke('open-pipedream-connect-link', appSlug),
   fetchPipedreamApps: (options?: {
     query?: string
     limit?: number
