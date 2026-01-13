@@ -275,6 +275,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
   }
 
   const checkAppConnected = (appSlug: string): boolean => {
+    console.log("this the app connected", appSlug)
     return connectedPipedreamApps.some(app =>
       app.nameSlug.toLowerCase() === appSlug.toLowerCase(),
     )
@@ -282,6 +283,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
 
   const handleConnectApp = async (appSlug: string) => {
     try {
+      console.log("this is the app slug in handleConnectApp", appSlug)
       const response = await window.electronAPI.openPipedreamConnectLink(appSlug)
       if (response.success) {
         // Refresh connected accounts after a delay to allow OAuth completion
