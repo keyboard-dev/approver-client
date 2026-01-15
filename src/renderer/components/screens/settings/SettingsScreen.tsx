@@ -4,11 +4,10 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { AdvancedPanel } from './panels/AdvancedPanel'
 import { AICreditsPanel } from './panels/AICreditsPanel'
 import { AIProvidersPanel } from './panels/AIProvidersPanel'
-import { ComposioTriggersPanel } from './panels/ComposioTriggersPanel'
 import { ConnectorsPanel } from './panels/ConnectorsPanel'
 import { KeyPanel } from './panels/KeyPanel'
 import { NotificationPanel } from './panels/NotificationPanel'
-import { PipedreamTriggersPanel } from './panels/PipedreamTriggersPanel'
+import { TriggersPanel } from './panels/TriggersPanel'
 
 /*
  * REACT ROUTER MIGRATION NOTE:
@@ -31,8 +30,7 @@ const TABS = [
   'AI Credits',
   'Notifications',
   'Connectors',
-  'Pipedream',
-  'Composio',
+  'Triggers',
   'Advanced',
 ] as const
 
@@ -112,10 +110,8 @@ export const SettingsScreen: React.FC = () => {
         return <NotificationPanel />
       case 'Connectors':
         return <ConnectorsPanel />
-      case 'Pipedream':
-        return <PipedreamTriggersPanel />
-      case 'Composio':
-        return <ComposioTriggersPanel />
+      case 'Triggers':
+        return <TriggersPanel />
       case 'Advanced':
         return <AdvancedPanel />
       default:

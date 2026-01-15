@@ -2285,7 +2285,7 @@ class MenuBarNotificationApp {
       if (!accessToken) {
         throw new Error('Not authenticated')
       }
-      const response = await fetch('http://localhost:4000/api/pipedream/accounts',
+      const response = await fetch(`${this.OAUTH_SERVER_URL}/api/pipedream/accounts`,
         {
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -2311,7 +2311,7 @@ class MenuBarNotificationApp {
             error: 'Not authenticated',
           }
         }
-        const response = await fetch('http://localhost:4000/api/pipedream/accounts',
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/pipedream/accounts`,
           {
             headers: {
               Authorization: `Bearer ${accessToken}`,
@@ -2343,7 +2343,7 @@ class MenuBarNotificationApp {
         }
 
         // Get connect token from Pipedream API
-        const response = await fetch('http://localhost:4000/api/pipedream/connect-token', {
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/pipedream/connect-token`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${accessToken}`,
@@ -2415,7 +2415,7 @@ class MenuBarNotificationApp {
           params.set('sort_direction', options.sortDirection)
         }
 
-        const url = `http://localhost:4000/api/pipedream/apps${params.toString() ? `?${params.toString()}` : ''}`
+        const url = `${this.OAUTH_SERVER_URL}/api/pipedream/apps${params.toString() ? `?${params.toString()}` : ''}`
 
         const response = await fetch(url, {
           headers: {
@@ -2447,7 +2447,7 @@ class MenuBarNotificationApp {
             error: 'Not authenticated',
           }
         }
-        const response = await fetch(`http://localhost:4000/api/pipedream/triggers?app=${encodeURIComponent(app)}`,
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/pipedream/triggers?app=${encodeURIComponent(app)}`,
           {
             headers: {
               Authorization: `Bearer ${accessToken}`,
@@ -2500,7 +2500,7 @@ class MenuBarNotificationApp {
             : {}),
         }
 
-        const response = await fetch('http://localhost:4000/api/pipedream/deployed-triggers', {
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/pipedream/deployed-triggers`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${accessToken}`,
@@ -2537,8 +2537,8 @@ class MenuBarNotificationApp {
         }
 
         const url = includeTasks
-          ? 'http://localhost:4000/api/pipedream/deployed-triggers?include_tasks=true'
-          : 'http://localhost:4000/api/pipedream/deployed-triggers'
+          ? `${this.OAUTH_SERVER_URL}/api/pipedream/deployed-triggers?include_tasks=true`
+          : `${this.OAUTH_SERVER_URL}/api/pipedream/deployed-triggers`
 
         const response = await fetch(url, {
           method: 'GET',
@@ -2573,7 +2573,7 @@ class MenuBarNotificationApp {
           }
         }
 
-        const response = await fetch(`http://localhost:4000/api/pipedream/deployed-triggers/${triggerId}`, {
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/pipedream/deployed-triggers/${triggerId}`, {
           method: 'DELETE',
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -2607,7 +2607,7 @@ class MenuBarNotificationApp {
           }
         }
 
-        const response = await fetch('http://localhost:4000/api/pipedream/schedule-triggers', {
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/pipedream/schedule-triggers`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${accessToken}`,
@@ -2655,7 +2655,7 @@ class MenuBarNotificationApp {
           }
         }
 
-        const response = await fetch('http://localhost:4000/api/pipedream/deploy-schedule-trigger', {
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/pipedream/deploy-schedule-trigger`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${accessToken}`,
@@ -2697,7 +2697,7 @@ class MenuBarNotificationApp {
           }
         }
 
-        const response = await fetch('http://localhost:4000/api/pipedream/trigger-tasks', {
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/pipedream/trigger-tasks`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${accessToken}`,
@@ -2738,7 +2738,7 @@ class MenuBarNotificationApp {
           }
         }
 
-        const response = await fetch(`http://localhost:4000/api/pipedream/trigger-tasks/${taskId}`, {
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/pipedream/trigger-tasks/${taskId}`, {
           method: 'PUT',
           headers: {
             'Authorization': `Bearer ${accessToken}`,
@@ -2775,7 +2775,7 @@ class MenuBarNotificationApp {
         }
 
         const response = await fetch(
-          `http://localhost:4000/api/pipedream/trigger-tasks?deployed_trigger_id=${encodeURIComponent(deployedTriggerId)}&limit=${limit}`,
+          `${this.OAUTH_SERVER_URL}/api/pipedream/trigger-tasks?deployed_trigger_id=${encodeURIComponent(deployedTriggerId)}&limit=${limit}`,
           {
             method: 'GET',
             headers: {
@@ -2810,7 +2810,7 @@ class MenuBarNotificationApp {
           }
         }
 
-        const response = await fetch('http://localhost:4000/api/token-vault/user-token-status', {
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/token-vault/user-token-status`, {
           method: 'GET',
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -2850,7 +2850,7 @@ class MenuBarNotificationApp {
           }
         }
 
-        const response = await fetch('http://localhost:4000/api/token-vault/user-token', {
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/token-vault/user-token`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${accessToken}`,
@@ -2892,7 +2892,7 @@ class MenuBarNotificationApp {
           return { success: false, error: 'Not authenticated' }
         }
 
-        const response = await fetch('http://localhost:4000/api/composio/accounts/connect', {
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/composio/accounts/connect`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${accessToken}`,
@@ -2931,7 +2931,7 @@ class MenuBarNotificationApp {
         if (params?.appName) queryParams.set('appName', params.appName)
         if (params?.status) queryParams.set('status', params.status)
 
-        const url = `http://localhost:4000/api/composio/accounts${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
+        const url = `${this.OAUTH_SERVER_URL}/api/composio/accounts${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
 
         const response = await fetch(url, {
           method: 'GET',
@@ -2962,7 +2962,7 @@ class MenuBarNotificationApp {
           return { success: false, error: 'Not authenticated' }
         }
 
-        const response = await fetch(`http://localhost:4000/api/composio/accounts/${accountId}`, {
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/composio/accounts/${accountId}`, {
           method: 'GET',
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -2991,7 +2991,7 @@ class MenuBarNotificationApp {
           return { success: false, error: 'Not authenticated' }
         }
 
-        const response = await fetch(`http://localhost:4000/api/composio/accounts/${accountId}`, {
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/composio/accounts/${accountId}`, {
           method: 'DELETE',
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -3021,7 +3021,7 @@ class MenuBarNotificationApp {
           return { success: false, error: 'Not authenticated' }
         }
 
-        const response = await fetch('http://localhost:4000/api/composio/accounts/sync', {
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/composio/accounts/sync`, {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -3051,7 +3051,7 @@ class MenuBarNotificationApp {
           return { success: false, error: 'Not authenticated' }
         }
 
-        const url = `http://localhost:4000/api/composio/accounts?appName=${encodeURIComponent(appName)}`
+        const url = `${this.OAUTH_SERVER_URL}/api/composio/accounts?appName=${encodeURIComponent(appName)}`
 
         const response = await fetch(url, {
           method: 'GET',
@@ -3137,7 +3137,7 @@ class MenuBarNotificationApp {
         if (!accessToken) {
           return { success: false, error: 'Not authenticated' }
         }
-        const response = await fetch('http://localhost:4000/api/composio/triggers', {
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/composio/triggers`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${accessToken}`,
@@ -3176,10 +3176,7 @@ class MenuBarNotificationApp {
         if (params?.appName) queryParams.set('appName', params.appName)
         if (params?.status) queryParams.set('status', params.status)
 
-
-        const url = `http://localhost:4000/api/composio/triggers${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
-        console.log('url', url)
-
+        const url = `${this.OAUTH_SERVER_URL}/api/composio/triggers${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
         const response = await fetch(url, {
           method: 'GET',
           headers: {
@@ -3192,7 +3189,6 @@ class MenuBarNotificationApp {
         }
 
         const data = await response.json()
-        console.log('data', JSON.stringify(data, null, 2))
         return data
       }
       catch (error) {
@@ -3210,7 +3206,7 @@ class MenuBarNotificationApp {
           return { success: false, error: 'Not authenticated' }
         }
 
-        const response = await fetch(`http://localhost:4000/api/composio/triggers/${triggerId}`, {
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/composio/triggers/${triggerId}`, {
           method: 'GET',
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -3239,7 +3235,7 @@ class MenuBarNotificationApp {
           return { success: false, error: 'Not authenticated' }
         }
 
-        const response = await fetch(`http://localhost:4000/api/composio/triggers/${triggerId}`, {
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/composio/triggers/${triggerId}`, {
           method: 'PATCH',
           headers: {
             'Authorization': `Bearer ${accessToken}`,
@@ -3271,7 +3267,7 @@ class MenuBarNotificationApp {
           return { success: false, error: 'Not authenticated' }
         }
 
-        const response = await fetch(`http://localhost:4000/api/composio/triggers/${triggerId}/pause`, {
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/composio/triggers/${triggerId}/pause`, {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -3301,7 +3297,7 @@ class MenuBarNotificationApp {
           return { success: false, error: 'Not authenticated' }
         }
 
-        const response = await fetch(`http://localhost:4000/api/composio/triggers/${triggerId}/resume`, {
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/composio/triggers/${triggerId}/resume`, {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -3331,7 +3327,7 @@ class MenuBarNotificationApp {
           return { success: false, error: 'Not authenticated' }
         }
 
-        const response = await fetch(`http://localhost:4000/api/composio/triggers/${triggerId}`, {
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/composio/triggers/${triggerId}`, {
           method: 'DELETE',
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -3360,7 +3356,7 @@ class MenuBarNotificationApp {
         if (!accessToken) {
           return { success: false, error: 'Not authenticated' }
         }
-        const response = await fetch(`http://localhost:4000/api/composio/triggers/available/${appName}`, {
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/composio/triggers/available/${appName}`, {
           method: 'GET',
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -3388,7 +3384,7 @@ class MenuBarNotificationApp {
           return { success: false, error: 'Not authenticated' }
         }
 
-        const response = await fetch(`http://localhost:4000/api/composio/triggers/config/${triggerName}`, {
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/composio/triggers/config/${triggerName}`, {
           method: 'GET',
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -3425,7 +3421,7 @@ class MenuBarNotificationApp {
           return { success: false, error: 'Not authenticated' }
         }
 
-        const response = await fetch(`http://localhost:4000/api/composio/triggers/${triggerId}/tasks`, {
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/composio/triggers/${triggerId}/tasks`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${accessToken}`,
@@ -3457,7 +3453,7 @@ class MenuBarNotificationApp {
           return { success: false, error: 'Not authenticated' }
         }
 
-        const response = await fetch(`http://localhost:4000/api/composio/triggers/${triggerId}/tasks`, {
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/composio/triggers/${triggerId}/tasks`, {
           method: 'GET',
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -3486,7 +3482,7 @@ class MenuBarNotificationApp {
           return { success: false, error: 'Not authenticated' }
         }
 
-        const response = await fetch(`http://localhost:4000/api/composio/tasks/${taskId}`, {
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/composio/tasks/${taskId}`, {
           method: 'GET',
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -3519,7 +3515,7 @@ class MenuBarNotificationApp {
           return { success: false, error: 'Not authenticated' }
         }
 
-        const response = await fetch(`http://localhost:4000/api/composio/tasks/${taskId}`, {
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/composio/tasks/${taskId}`, {
           method: 'PATCH',
           headers: {
             'Authorization': `Bearer ${accessToken}`,
@@ -3551,7 +3547,7 @@ class MenuBarNotificationApp {
           return { success: false, error: 'Not authenticated' }
         }
 
-        const response = await fetch(`http://localhost:4000/api/composio/tasks/${taskId}`, {
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/composio/tasks/${taskId}`, {
           method: 'DELETE',
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -3598,7 +3594,7 @@ class MenuBarNotificationApp {
           queryParams.set('supportsTriggers', params.supportsTriggers.toString())
         }
 
-        const url = `http://localhost:4000/api/composio/apps${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
+        const url = `${this.OAUTH_SERVER_URL}/api/composio/apps${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
         const response = await fetch(url, {
           method: 'GET',
           headers: {
@@ -3627,7 +3623,7 @@ class MenuBarNotificationApp {
           return { success: false, error: 'Not authenticated' }
         }
 
-        const response = await fetch('http://localhost:4000/api/composio/apps/categories', {
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/composio/apps/categories`, {
           method: 'GET',
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -3656,7 +3652,7 @@ class MenuBarNotificationApp {
           return { success: false, error: 'Not authenticated' }
         }
 
-        const response = await fetch(`http://localhost:4000/api/composio/apps/${appSlug}`, {
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/composio/apps/${appSlug}`, {
           method: 'GET',
           headers: {
             Authorization: `Bearer ${accessToken}`,
