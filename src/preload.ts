@@ -441,6 +441,19 @@ export interface ElectronAPI {
   listComposioApps: (params?: { search?: string, category?: string, limit?: number, supportsTriggers?: boolean }) => Promise<{ success: boolean, data?: unknown, error?: string }>
   listComposioAppCategories: () => Promise<{ success: boolean, data?: unknown, error?: string }>
   getComposioApp: (appSlug: string) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  checkComposioAccountStatus: (appName: string) => Promise<{
+    success: boolean
+    data?: {
+      hasAccount: boolean
+      accountId?: string
+      status: string
+      isActive?: boolean
+      createdAt?: string
+      updatedAt?: string
+      message: string
+    }
+    error?: string
+  }>
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -778,6 +791,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
   listComposioApps: (params?: { search?: string, category?: string, limit?: number, supportsTriggers?: boolean }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('list-composio-apps', params),
   listComposioAppCategories: (): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('list-composio-app-categories'),
   getComposioApp: (appSlug: string): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('get-composio-app', appSlug),
+  checkComposioAccountStatus: (appName: string): Promise<{
+    success: boolean
+    data?: {
+      hasAccount: boolean
+      accountId?: string
+      status: string
+      isActive?: boolean
+      createdAt?: string
+      updatedAt?: string
+      message: string
+    }
+    error?: string
+  }> => ipcRenderer.invoke('check-composio-account-status', appName),
 } as ElectronAPI)
 
 // Extend the global Window interface

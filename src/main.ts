@@ -3043,6 +3043,79 @@ class MenuBarNotificationApp {
       }
     })
 
+    // Check connected account status for an app (used before deploying triggers)
+    ipcMain.handle('check-composio-account-status', async (_event, appName: string) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const url = `http://localhost:4000/api/composio/accounts?appName=${encodeURIComponent(appName)}`
+
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json() as {
+          success: boolean
+          data?: {
+            items: Array<{
+              id: string
+              appName: string
+              status: string
+              createdAt: string
+              updatedAt: string
+            }>
+          }
+        }
+
+        if (!data.success || !data.data?.items?.length) {
+          return {
+            success: true,
+            data: {
+              hasAccount: false,
+              status: 'not_connected',
+              message: 'No connected account found for this app',
+            },
+          }
+        }
+
+        // Get the first (most recent) account for this app
+        const account = data.data.items[0]
+        // Compare case-insensitively since API may return "ACTIVE" or "active"
+        const isActive = account.status.toLowerCase() === 'active'
+
+        return {
+          success: true,
+          data: {
+            hasAccount: true,
+            accountId: account.id,
+            status: account.status,
+            isActive,
+            createdAt: account.createdAt,
+            updatedAt: account.updatedAt,
+            message: isActive
+              ? 'Account is active and ready'
+              : `Account status is ${account.status}. Please reconnect to continue.`,
+          },
+        }
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
     // =============================================================================
     // Composio Integration - Triggers
     // =============================================================================
@@ -3103,7 +3176,9 @@ class MenuBarNotificationApp {
         if (params?.appName) queryParams.set('appName', params.appName)
         if (params?.status) queryParams.set('status', params.status)
 
+
         const url = `http://localhost:4000/api/composio/triggers${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
+        console.log('url', url)
 
         const response = await fetch(url, {
           method: 'GET',
@@ -3117,6 +3192,7 @@ class MenuBarNotificationApp {
         }
 
         const data = await response.json()
+        console.log('data', JSON.stringify(data, null, 2))
         return data
       }
       catch (error) {

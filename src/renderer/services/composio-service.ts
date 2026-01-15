@@ -271,6 +271,20 @@ export interface GetAppResponse {
   error?: string
 }
 
+export interface AccountStatusResponse {
+  success: boolean
+  data?: {
+    hasAccount: boolean
+    accountId?: string
+    status: string
+    isActive?: boolean
+    createdAt?: string
+    updatedAt?: string
+    message: string
+  }
+  error?: string
+}
+
 // =============================================================================
 // Helper Functions
 // =============================================================================
@@ -479,6 +493,14 @@ export async function getApp(appSlug: string): Promise<GetAppResponse> {
 }
 
 /**
+ * Check the connection status for a specific app.
+ * Returns whether the account exists and its status (active, inactive, error, etc.)
+ */
+export async function checkAccountStatus(appName: string): Promise<AccountStatusResponse> {
+  return window.electronAPI.checkComposioAccountStatus(appName) as Promise<AccountStatusResponse>
+}
+
+/**
  * Open the Composio connection URL in the system browser.
  */
 export async function openConnectionUrl(appName: string): Promise<void> {
@@ -504,6 +526,7 @@ export const composioService = {
   deleteConnectedAccount,
   syncConnectedAccounts,
   openConnectionUrl,
+  checkAccountStatus,
 
   // Triggers
   deployTrigger,

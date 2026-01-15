@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useState } from 'react'
 
 import {
+  checkAccountStatus,
   ComposioApp,
   ComposioConnectedAccount,
   ComposioTrigger,
@@ -22,6 +23,7 @@ import {
   pauseTrigger,
   resumeTrigger,
   syncConnectedAccounts,
+  type AccountStatusResponse,
   type ComposioAvailableTrigger,
 } from '../services/composio-service'
 
@@ -66,6 +68,11 @@ interface UseComposioState {
   pausingTriggerId: string | null
   resumingTriggerId: string | null
   deletingTriggerId: string | null
+
+  // Account status state
+  accountStatus: AccountStatusResponse['data'] | null
+  accountStatusLoading: boolean
+  accountStatusError: string | null
 }
 
 interface UseComposioActions {
@@ -92,6 +99,10 @@ interface UseComposioActions {
   clearSearch: () => void
   clearAvailableTriggers: () => void
   clearTriggerConfig: () => void
+
+  // Account status
+  checkAppAccountStatus: (appName: string) => Promise<AccountStatusResponse['data'] | null>
+  clearAccountStatus: () => void
 }
 
 export type UseComposioReturn = UseComposioState & UseComposioActions
@@ -137,6 +148,11 @@ export function useComposio(): UseComposioReturn {
   const [pausingTriggerId, setPausingTriggerId] = useState<string | null>(null)
   const [resumingTriggerId, setResumingTriggerId] = useState<string | null>(null)
   const [deletingTriggerId, setDeletingTriggerId] = useState<string | null>(null)
+
+  // Account status state
+  const [accountStatus, setAccountStatus] = useState<AccountStatusResponse['data'] | null>(null)
+  const [accountStatusLoading, setAccountStatusLoading] = useState(false)
+  const [accountStatusError, setAccountStatusError] = useState<string | null>(null)
 
   // ==========================================================================
   // Fetch Functions
@@ -186,7 +202,36 @@ export function useComposio(): UseComposioReturn {
 
     try {
       const response = await listTriggers()
-      setTriggers(response.data?.items || [])
+      // API returns triggers array with triggerName field
+      const rawTriggers = (response.data as { triggers?: unknown[] })?.triggers || []
+      const triggersData: ComposioTrigger[] = rawTriggers.map((t: unknown) => {
+        const trigger = t as {
+          id: string
+          triggerName: string
+          appName: string
+          status: 'active' | 'paused'
+          config?: Record<string, unknown>
+          connectedAccountId: string
+          triggerId?: string
+          encryptionEnabled: boolean
+          createdAt: string
+          updatedAt: string
+        }
+        return {
+          id: trigger.id,
+          name: trigger.triggerName, // Map triggerName to name
+          appName: trigger.appName,
+          appKey: trigger.appName, // Use appName as appKey
+          status: trigger.status,
+          config: trigger.config,
+          connectedAccountId: trigger.connectedAccountId,
+          composioTriggerId: trigger.triggerId,
+          encryptionEnabled: trigger.encryptionEnabled,
+          createdAt: trigger.createdAt,
+          updatedAt: trigger.updatedAt,
+        }
+      })
+      setTriggers(triggersData)
     }
     catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to load triggers'
@@ -365,6 +410,41 @@ export function useComposio(): UseComposioReturn {
   }, [])
 
   // ==========================================================================
+  // Account Status Functions
+  // ==========================================================================
+
+  const checkAppAccountStatus = useCallback(async (appName: string): Promise<AccountStatusResponse['data'] | null> => {
+    setAccountStatusLoading(true)
+    setAccountStatusError(null)
+
+    try {
+      const response = await checkAccountStatus(appName)
+      if (response.success && response.data) {
+        setAccountStatus(response.data)
+        return response.data
+      }
+      else {
+        const errorMsg = response.error || 'Failed to check account status'
+        setAccountStatusError(errorMsg)
+        return null
+      }
+    }
+    catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to check account status'
+      setAccountStatusError(message)
+      return null
+    }
+    finally {
+      setAccountStatusLoading(false)
+    }
+  }, [])
+
+  const clearAccountStatus = useCallback(() => {
+    setAccountStatus(null)
+    setAccountStatusError(null)
+  }, [])
+
+  // ==========================================================================
   // Effects
   // ==========================================================================
 
@@ -415,6 +495,9 @@ export function useComposio(): UseComposioReturn {
     pausingTriggerId,
     resumingTriggerId,
     deletingTriggerId,
+    accountStatus,
+    accountStatusLoading,
+    accountStatusError,
 
     // Actions
     refreshAccounts,
@@ -433,6 +516,8 @@ export function useComposio(): UseComposioReturn {
     clearSearch,
     clearAvailableTriggers,
     clearTriggerConfig,
+    checkAppAccountStatus,
+    clearAccountStatus,
   }
 }
 
