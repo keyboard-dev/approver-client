@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';">
+  <title>Keyboard Overlay</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: transparent;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    }
+
+    #overlay-root {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+
+    /* Drawing canvas */
+    #drawing-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    /* Toolbar container */
+    .toolbar {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 8px;
+      padding: 10px 16px;
+      background: rgba(30, 30, 30, 0.95);
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+      z-index: 1000;
+      pointer-events: auto;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .toolbar-section {
+      display: flex;
+      gap: 4px;
+      padding-right: 12px;
+      border-right: 1px solid rgba(255, 255, 255, 0.15);
+    }
+
+    .toolbar-section:last-child {
+      border-right: none;
+      padding-right: 0;
+    }
+
+    .tool-btn {
+      width: 40px;
+      height: 40px;
+      border: none;
+      border-radius: 8px;
+      background: transparent;
+      color: #fff;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s ease;
+      font-size: 18px;
+    }
+
+    .tool-btn:hover {
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    .tool-btn.active {
+      background: #3b82f6;
+      box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4);
+    }
+
+    .tool-btn svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    /* Color picker */
+    .color-picker-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .color-swatch {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      cursor: pointer;
+      transition: transform 0.15s ease;
+    }
+
+    .color-swatch:hover {
+      transform: scale(1.1);
+    }
+
+    .color-options {
+      position: absolute;
+      top: 50px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: none;
+      gap: 6px;
+      padding: 10px;
+      background: rgba(30, 30, 30, 0.95);
+      border-radius: 10px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+      flex-wrap: wrap;
+      width: 140px;
+    }
+
+    .color-options.visible {
+      display: flex;
+    }
+
+    .color-option {
+      width: 24px;
+      height: 24px;
+      border-radius: 4px;
+      border: 2px solid transparent;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .color-option:hover {
+      transform: scale(1.15);
+    }
+
+    .color-option.selected {
+      border-color: white;
+      box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.3);
+    }
+
+    /* Close button */
+    .close-btn {
+      background: #ef4444 !important;
+    }
+
+    .close-btn:hover {
+      background: #dc2626 !important;
+    }
+
+    /* Text input overlay */
+    .text-input-overlay {
+      position: fixed;
+      display: none;
+      z-index: 1001;
+    }
+
+    .text-input-overlay.visible {
+      display: block;
+    }
+
+    .text-input {
+      background: rgba(30, 30, 30, 0.95);
+      border: 2px solid #3b82f6;
+      border-radius: 8px;
+      padding: 8px 12px;
+      color: white;
+      font-size: 16px;
+      min-width: 200px;
+      outline: none;
+    }
+
+    /* Permission prompt */
+    .permission-prompt {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(30, 30, 30, 0.98);
+      padding: 30px 40px;
+      border-radius: 16px;
+      text-align: center;
+      color: white;
+      z-index: 1002;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      display: none;
+    }
+
+    .permission-prompt.visible {
+      display: block;
+    }
+
+    .permission-prompt h2 {
+      margin-bottom: 15px;
+      font-size: 20px;
+    }
+
+    .permission-prompt p {
+      color: #999;
+      margin-bottom: 20px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .permission-btn {
+      background: #3b82f6;
+      color: white;
+      border: none;
+      padding: 10px 24px;
+      border-radius: 8px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+
+    .permission-btn:hover {
+      background: #2563eb;
+    }
+
+    /* Screenshot notification */
+    .screenshot-notification {
+      position: fixed;
+      bottom: 30px;
+      right: 30px;
+      background: rgba(30, 30, 30, 0.95);
+      color: white;
+      padding: 14px 20px;
+      border-radius: 10px;
+      display: none;
+      align-items: center;
+      gap: 12px;
+      z-index: 1003;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+      animation: slideIn 0.3s ease;
+      pointer-events: auto;
+    }
+
+    .screenshot-notification.visible {
+      display: flex;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .screenshot-notification .icon {
+      font-size: 20px;
+    }
+
+    .screenshot-notification .message {
+      font-size: 14px;
+    }
+
+    /* Stroke width selector */
+    .stroke-selector {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .stroke-btn {
+      width: 32px;
+      height: 32px;
+      border: none;
+      border-radius: 6px;
+      background: transparent;
+      color: #fff;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s ease;
+      font-size: 12px;
+    }
+
+    .stroke-btn:hover {
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    .stroke-btn.active {
+      background: rgba(255, 255, 255, 0.25);
+    }
+
+    .stroke-preview {
+      width: 16px;
+      height: 16px;
+      background: white;
+      border-radius: 50%;
+    }
+  </style>
+</head>
+<body>
+  <div id="overlay-root">
+    <canvas id="drawing-canvas"></canvas>
+
+    <!-- Toolbar -->
+    <div class="toolbar" id="toolbar">
+      <!-- Drawing tools -->
+      <div class="toolbar-section">
+        <button class="tool-btn" id="btn-select" title="Select (V)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/>
+          </svg>
+        </button>
+        <button class="tool-btn active" id="btn-arrow" title="Arrow (A)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="5" y1="12" x2="19" y2="12"/>
+            <polyline points="12 5 19 12 12 19"/>
+          </svg>
+        </button>
+        <button class="tool-btn" id="btn-circle" title="Circle (C)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+          </svg>
+        </button>
+        <button class="tool-btn" id="btn-rect" title="Rectangle (R)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+          </svg>
+        </button>
+        <button class="tool-btn" id="btn-text" title="Text (T)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="4 7 4 4 20 4 20 7"/>
+            <line x1="9" y1="20" x2="15" y2="20"/>
+            <line x1="12" y1="4" x2="12" y2="20"/>
+          </svg>
+        </button>
+        <button class="tool-btn" id="btn-freehand" title="Freehand (F)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 19l7-7 3 3-7 7-3-3z"/>
+            <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/>
+            <path d="M2 2l7.586 7.586"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Stroke width -->
+      <div class="toolbar-section stroke-selector">
+        <button class="stroke-btn" id="stroke-thin" title="Thin stroke">
+          <div class="stroke-preview" style="width: 4px; height: 4px;"></div>
+        </button>
+        <button class="stroke-btn active" id="stroke-medium" title="Medium stroke">
+          <div class="stroke-preview" style="width: 8px; height: 8px;"></div>
+        </button>
+        <button class="stroke-btn" id="stroke-thick" title="Thick stroke">
+          <div class="stroke-preview" style="width: 12px; height: 12px;"></div>
+        </button>
+      </div>
+
+      <!-- Color picker -->
+      <div class="toolbar-section">
+        <div class="color-picker-wrapper">
+          <div class="color-swatch" id="current-color" style="background: #ef4444;"></div>
+          <div class="color-options" id="color-options">
+            <div class="color-option selected" style="background: #ef4444;" data-color="#ef4444"></div>
+            <div class="color-option" style="background: #f97316;" data-color="#f97316"></div>
+            <div class="color-option" style="background: #eab308;" data-color="#eab308"></div>
+            <div class="color-option" style="background: #22c55e;" data-color="#22c55e"></div>
+            <div class="color-option" style="background: #3b82f6;" data-color="#3b82f6"></div>
+            <div class="color-option" style="background: #8b5cf6;" data-color="#8b5cf6"></div>
+            <div class="color-option" style="background: #ec4899;" data-color="#ec4899"></div>
+            <div class="color-option" style="background: #ffffff;" data-color="#ffffff"></div>
+            <div class="color-option" style="background: #000000;" data-color="#000000"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="toolbar-section">
+        <button class="tool-btn" id="btn-undo" title="Undo (Cmd+Z)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="1 4 1 10 7 10"/>
+            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+          </svg>
+        </button>
+        <button class="tool-btn" id="btn-clear" title="Clear All">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Close -->
+      <div class="toolbar-section">
+        <button class="tool-btn close-btn" id="btn-close" title="Close Overlay (Escape)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Text input overlay -->
+    <div class="text-input-overlay" id="text-input-overlay">
+      <input type="text" class="text-input" id="text-input" placeholder="Type here...">
+    </div>
+
+    <!-- Permission prompt -->
+    <div class="permission-prompt" id="permission-prompt">
+      <h2>Screen Recording Permission Required</h2>
+      <p>
+        To capture screenshots, this app needs screen recording permission.<br>
+        Click the button below to grant access in System Preferences.
+      </p>
+      <button class="permission-btn" id="btn-grant-permission">Grant Permission</button>
+    </div>
+
+    <!-- Screenshot notification -->
+    <div class="screenshot-notification" id="screenshot-notification">
+      <span class="icon">&#x2714;</span>
+      <span class="message" id="notification-message">Screenshot saved!</span>
+    </div>
+  </div>
+
+  <script>
+    // Overlay Drawing Application
+    (function() {
+      'use strict';
+
+      // State
+      const state = {
+        tool: 'arrow',
+        color: '#ef4444',
+        strokeWidth: 3,
+        isDrawing: false,
+        startX: 0,
+        startY: 0,
+        annotations: [],
+        currentPath: [],
+        selectedAnnotation: null,
+        textPosition: { x: 0, y: 0 },
+        hasPermission: true,
+      };
+
+      // Elements
+      const canvas = document.getElementById('drawing-canvas');
+      const ctx = canvas.getContext('2d');
+      const toolbar = document.getElementById('toolbar');
+      const colorPicker = document.getElementById('current-color');
+      const colorOptions = document.getElementById('color-options');
+      const textInputOverlay = document.getElementById('text-input-overlay');
+      const textInput = document.getElementById('text-input');
+      const permissionPrompt = document.getElementById('permission-prompt');
+      const notification = document.getElementById('screenshot-notification');
+
+      // Initialize canvas
+      function initCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        redraw();
+      }
+
+      // Redraw all annotations
+      function redraw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        state.annotations.forEach(annotation => {
+          drawAnnotation(annotation);
+        });
+
+        // Draw current path if freehand drawing
+        if (state.tool === 'freehand' && state.isDrawing && state.currentPath.length > 1) {
+          ctx.beginPath();
+          ctx.strokeStyle = state.color;
+          ctx.lineWidth = state.strokeWidth;
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+          ctx.moveTo(state.currentPath[0].x, state.currentPath[0].y);
+          for (let i = 1; i < state.currentPath.length; i++) {
+            ctx.lineTo(state.currentPath[i].x, state.currentPath[i].y);
+          }
+          ctx.stroke();
+        }
+      }
+
+      // Draw a single annotation
+      function drawAnnotation(annotation) {
+        ctx.strokeStyle = annotation.color;
+        ctx.fillStyle = annotation.color;
+        ctx.lineWidth = annotation.strokeWidth;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        switch (annotation.type) {
+          case 'arrow':
+            drawArrow(annotation);
+            break;
+          case 'circle':
+            drawCircle(annotation);
+            break;
+          case 'rect':
+            drawRect(annotation);
+            break;
+          case 'text':
+            drawText(annotation);
+            break;
+          case 'freehand':
+            drawFreehand(annotation);
+            break;
+        }
+      }
+
+      function drawArrow(a) {
+        const headLength = 15;
+        const angle = Math.atan2(a.endY - a.startY, a.endX - a.startX);
+
+        ctx.beginPath();
+        ctx.moveTo(a.startX, a.startY);
+        ctx.lineTo(a.endX, a.endY);
+        ctx.stroke();
+
+        // Arrow head
+        ctx.beginPath();
+        ctx.moveTo(a.endX, a.endY);
+        ctx.lineTo(
+          a.endX - headLength * Math.cos(angle - Math.PI / 6),
+          a.endY - headLength * Math.sin(angle - Math.PI / 6)
+        );
+        ctx.moveTo(a.endX, a.endY);
+        ctx.lineTo(
+          a.endX - headLength * Math.cos(angle + Math.PI / 6),
+          a.endY - headLength * Math.sin(angle + Math.PI / 6)
+        );
+        ctx.stroke();
+      }
+
+      function drawCircle(a) {
+        const radiusX = Math.abs(a.endX - a.startX) / 2;
+        const radiusY = Math.abs(a.endY - a.startY) / 2;
+        const centerX = (a.startX + a.endX) / 2;
+        const centerY = (a.startY + a.endY) / 2;
+
+        ctx.beginPath();
+        ctx.ellipse(centerX, centerY, radiusX, radiusY, 0, 0, 2 * Math.PI);
+        ctx.stroke();
+      }
+
+      function drawRect(a) {
+        const x = Math.min(a.startX, a.endX);
+        const y = Math.min(a.startY, a.endY);
+        const width = Math.abs(a.endX - a.startX);
+        const height = Math.abs(a.endY - a.startY);
+
+        ctx.beginPath();
+        ctx.strokeRect(x, y, width, height);
+      }
+
+      function drawText(a) {
+        ctx.font = `${a.fontSize || 24}px -apple-system, BlinkMacSystemFont, sans-serif`;
+        ctx.fillText(a.text, a.x, a.y);
+      }
+
+      function drawFreehand(a) {
+        if (a.path.length < 2) return;
+
+        ctx.beginPath();
+        ctx.moveTo(a.path[0].x, a.path[0].y);
+        for (let i = 1; i < a.path.length; i++) {
+          ctx.lineTo(a.path[i].x, a.path[i].y);
+        }
+        ctx.stroke();
+      }
+
+      // Mouse event handlers
+      function isOverToolbar(x, y) {
+        const rect = toolbar.getBoundingClientRect();
+        const padding = 10;
+        return (
+          x >= rect.left - padding &&
+          x <= rect.right + padding &&
+          y >= rect.top - padding &&
+          y <= rect.bottom + padding
+        );
+      }
+
+      function isOverUI(x, y) {
+        // Check toolbar
+        if (isOverToolbar(x, y)) return true;
+
+        // Check color options if visible
+        if (colorOptions.classList.contains('visible')) {
+          const rect = colorOptions.getBoundingClientRect();
+          if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+            return true;
+          }
+        }
+
+        // Check text input if visible
+        if (textInputOverlay.classList.contains('visible')) {
+          const rect = textInputOverlay.getBoundingClientRect();
+          if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+            return true;
+          }
+        }
+
+        return false;
+      }
+
+      // Handle mouse movement for click-through
+      document.addEventListener('mousemove', (e) => {
+        const overUI = isOverUI(e.clientX, e.clientY);
+
+        if (overUI || state.isDrawing) {
+          window.overlayAPI.setIgnoreMouseEvents(false);
+          canvas.style.pointerEvents = state.isDrawing ? 'auto' : 'none';
+        } else if (state.tool === 'select' && !state.isDrawing) {
+          window.overlayAPI.setIgnoreMouseEvents(true, { forward: true });
+          canvas.style.pointerEvents = 'none';
+        } else {
+          window.overlayAPI.setIgnoreMouseEvents(false);
+          canvas.style.pointerEvents = 'auto';
+        }
+      });
+
+      // Mouse down - start drawing
+      document.addEventListener('mousedown', (e) => {
+        if (isOverUI(e.clientX, e.clientY)) return;
+        if (state.tool === 'select') {
+          // Capture screenshot on click
+          captureScreenshot(e.clientX, e.clientY);
+          return;
+        }
+
+        if (state.tool === 'text') {
+          // Position text input
+          state.textPosition = { x: e.clientX, y: e.clientY };
+          textInputOverlay.style.left = e.clientX + 'px';
+          textInputOverlay.style.top = e.clientY + 'px';
+          textInputOverlay.classList.add('visible');
+          textInput.value = '';
+          textInput.focus();
+          return;
+        }
+
+        state.isDrawing = true;
+        state.startX = e.clientX;
+        state.startY = e.clientY;
+
+        if (state.tool === 'freehand') {
+          state.currentPath = [{ x: e.clientX, y: e.clientY }];
+        }
+
+        canvas.style.pointerEvents = 'auto';
+        window.overlayAPI.setIgnoreMouseEvents(false);
+      });
+
+      // Mouse move - continue drawing
+      document.addEventListener('mousemove', (e) => {
+        if (!state.isDrawing) return;
+
+        if (state.tool === 'freehand') {
+          state.currentPath.push({ x: e.clientX, y: e.clientY });
+          redraw();
+        } else if (['arrow', 'circle', 'rect'].includes(state.tool)) {
+          // Preview shape
+          redraw();
+          const preview = {
+            type: state.tool,
+            color: state.color,
+            strokeWidth: state.strokeWidth,
+            startX: state.startX,
+            startY: state.startY,
+            endX: e.clientX,
+            endY: e.clientY
+          };
+          drawAnnotation(preview);
+        }
+      });
+
+      // Mouse up - finish drawing
+      document.addEventListener('mouseup', (e) => {
+        if (!state.isDrawing) return;
+        state.isDrawing = false;
+
+        if (state.tool === 'freehand' && state.currentPath.length > 1) {
+          state.annotations.push({
+            type: 'freehand',
+            color: state.color,
+            strokeWidth: state.strokeWidth,
+            path: [...state.currentPath]
+          });
+          state.currentPath = [];
+        } else if (['arrow', 'circle', 'rect'].includes(state.tool)) {
+          const annotation = {
+            type: state.tool,
+            color: state.color,
+            strokeWidth: state.strokeWidth,
+            startX: state.startX,
+            startY: state.startY,
+            endX: e.clientX,
+            endY: e.clientY
+          };
+          state.annotations.push(annotation);
+        }
+
+        redraw();
+        canvas.style.pointerEvents = 'none';
+      });
+
+      // Text input handling
+      textInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          if (textInput.value.trim()) {
+            state.annotations.push({
+              type: 'text',
+              color: state.color,
+              x: state.textPosition.x,
+              y: state.textPosition.y,
+              text: textInput.value,
+              fontSize: 24
+            });
+            redraw();
+          }
+          textInputOverlay.classList.remove('visible');
+        } else if (e.key === 'Escape') {
+          textInputOverlay.classList.remove('visible');
+        }
+      });
+
+      textInput.addEventListener('blur', () => {
+        if (textInput.value.trim()) {
+          state.annotations.push({
+            type: 'text',
+            color: state.color,
+            x: state.textPosition.x,
+            y: state.textPosition.y,
+            text: textInput.value,
+            fontSize: 24
+          });
+          redraw();
+        }
+        textInputOverlay.classList.remove('visible');
+      });
+
+      // Screenshot capture
+      async function captureScreenshot(x, y) {
+        try {
+          const filePath = await window.overlayAPI.captureScreenshot(x, y);
+          if (filePath) {
+            showNotification('Screenshot saved!');
+          }
+        } catch (error) {
+          console.error('Screenshot failed:', error);
+          showNotification('Screenshot failed');
+        }
+      }
+
+      function showNotification(message) {
+        const msgEl = document.getElementById('notification-message');
+        msgEl.textContent = message;
+        notification.classList.add('visible');
+        setTimeout(() => {
+          notification.classList.remove('visible');
+        }, 3000);
+      }
+
+      // Tool selection
+      function selectTool(tool) {
+        state.tool = tool;
+        document.querySelectorAll('.tool-btn').forEach(btn => {
+          btn.classList.remove('active');
+        });
+        document.getElementById('btn-' + tool)?.classList.add('active');
+
+        // Update canvas pointer events based on tool
+        if (tool === 'select') {
+          canvas.style.pointerEvents = 'none';
+          window.overlayAPI.setIgnoreMouseEvents(true, { forward: true });
+        } else {
+          canvas.style.pointerEvents = 'auto';
+          window.overlayAPI.setIgnoreMouseEvents(false);
+        }
+      }
+
+      // Button handlers
+      document.getElementById('btn-select').onclick = () => selectTool('select');
+      document.getElementById('btn-arrow').onclick = () => selectTool('arrow');
+      document.getElementById('btn-circle').onclick = () => selectTool('circle');
+      document.getElementById('btn-rect').onclick = () => selectTool('rect');
+      document.getElementById('btn-text').onclick = () => selectTool('text');
+      document.getElementById('btn-freehand').onclick = () => selectTool('freehand');
+
+      document.getElementById('btn-undo').onclick = () => {
+        if (state.annotations.length > 0) {
+          state.annotations.pop();
+          redraw();
+        }
+      };
+
+      document.getElementById('btn-clear').onclick = () => {
+        state.annotations = [];
+        redraw();
+      };
+
+      document.getElementById('btn-close').onclick = () => {
+        window.overlayAPI.closeOverlay();
+      };
+
+      // Color picker
+      colorPicker.onclick = (e) => {
+        e.stopPropagation();
+        colorOptions.classList.toggle('visible');
+      };
+
+      document.querySelectorAll('.color-option').forEach(option => {
+        option.onclick = (e) => {
+          e.stopPropagation();
+          const color = option.dataset.color;
+          state.color = color;
+          colorPicker.style.background = color;
+          document.querySelectorAll('.color-option').forEach(o => o.classList.remove('selected'));
+          option.classList.add('selected');
+          colorOptions.classList.remove('visible');
+        };
+      });
+
+      // Close color picker when clicking elsewhere
+      document.addEventListener('click', (e) => {
+        if (!e.target.closest('.color-picker-wrapper')) {
+          colorOptions.classList.remove('visible');
+        }
+      });
+
+      // Stroke width
+      document.getElementById('stroke-thin').onclick = () => {
+        state.strokeWidth = 2;
+        document.querySelectorAll('.stroke-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById('stroke-thin').classList.add('active');
+      };
+
+      document.getElementById('stroke-medium').onclick = () => {
+        state.strokeWidth = 3;
+        document.querySelectorAll('.stroke-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById('stroke-medium').classList.add('active');
+      };
+
+      document.getElementById('stroke-thick').onclick = () => {
+        state.strokeWidth = 5;
+        document.querySelectorAll('.stroke-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById('stroke-thick').classList.add('active');
+      };
+
+      // Keyboard shortcuts
+      document.addEventListener('keydown', (e) => {
+        // Don't handle shortcuts if typing in text input
+        if (document.activeElement === textInput) return;
+
+        switch (e.key.toLowerCase()) {
+          case 'v':
+            selectTool('select');
+            break;
+          case 'a':
+            selectTool('arrow');
+            break;
+          case 'c':
+            selectTool('circle');
+            break;
+          case 'r':
+            selectTool('rect');
+            break;
+          case 't':
+            selectTool('text');
+            break;
+          case 'f':
+            selectTool('freehand');
+            break;
+          case 'escape':
+            window.overlayAPI.closeOverlay();
+            break;
+          case 'z':
+            if (e.metaKey || e.ctrlKey) {
+              if (state.annotations.length > 0) {
+                state.annotations.pop();
+                redraw();
+              }
+            }
+            break;
+        }
+      });
+
+      // Permission handling
+      async function checkPermissions() {
+        const hasPermission = await window.overlayAPI.checkScreenPermission();
+        state.hasPermission = hasPermission;
+
+        if (!hasPermission && navigator.platform.includes('Mac')) {
+          permissionPrompt.classList.add('visible');
+        }
+      }
+
+      document.getElementById('btn-grant-permission').onclick = async () => {
+        const granted = await window.overlayAPI.requestScreenPermission();
+        if (granted) {
+          permissionPrompt.classList.remove('visible');
+          state.hasPermission = true;
+        }
+      };
+
+      // Window resize
+      window.addEventListener('resize', () => {
+        initCanvas();
+      });
+
+      // Initialize
+      initCanvas();
+      checkPermissions();
+
+      // Start with arrow tool
+      selectTool('arrow');
+    })();
+  </script>
+</body>
+</html>

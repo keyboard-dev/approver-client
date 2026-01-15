@@ -92,7 +92,7 @@ else {
 }
 
 import * as crypto from 'crypto'
-import { app, autoUpdater, BrowserWindow, ipcMain, Menu, Notification, shell } from 'electron'
+import { app, autoUpdater, BrowserWindow, globalShortcut, ipcMain, Menu, Notification, shell } from 'electron'
 import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
@@ -120,6 +120,7 @@ import { CollectionRequest, Message, ShareMessage } from './types'
 import { CODE_APPROVAL_ORDER, CodeApprovalLevel, RESPONSE_APPROVAL_ORDER, ResponseApprovalLevel } from './types/settings-types'
 import { ExecutorWebSocketClient } from './websocket-client-to-executor'
 import { WindowManager } from './window-manager'
+import { OverlayWindow } from './overlay-window'
 
 // Helper function to find assets directory reliably
 export function getAssetsPath(): string {
@@ -220,6 +221,9 @@ class MenuBarNotificationApp {
   // Executor WebSocket client
   private executorWSClient: ExecutorWebSocketClient | null = null
 
+  // Overlay window for annotations and screenshots
+  private overlayWindow: OverlayWindow | null = null
+
   // OAuth Services
   private authService!: AuthService
   private oauthService!: OAuthService
@@ -272,6 +276,23 @@ class MenuBarNotificationApp {
     // Initialize executor WebSocket client
     this.executorWSClient = new ExecutorWebSocketClient((message) => {
       this.handleExecutorMessage(message)
+    })
+
+    // Initialize overlay window for annotations and screenshots
+    this.overlayWindow = new OverlayWindow({
+      onOverlayClosed: () => {
+        // Overlay was closed by user
+      },
+      onScreenshotCaptured: (filePath: string) => {
+        // Show a native notification for screenshot saved
+        if (Notification.isSupported()) {
+          const notification = new Notification({
+            title: 'Screenshot Saved',
+            body: `Saved to ${filePath}`,
+          })
+          notification.show()
+        }
+      },
     })
 
     this.initializeApp()
@@ -411,6 +432,9 @@ class MenuBarNotificationApp {
       this.setupWebSocketServer()
       this.setupRestAPI()
       this.initializeAIProviders()
+
+      // Register global shortcut to toggle overlay (Cmd+Shift+O on macOS, Ctrl+Shift+O on others)
+      this.registerOverlayShortcut()
       // this.setupIPC()
 
       // Request notification permissions on all platforms
@@ -1101,6 +1125,12 @@ class MenuBarNotificationApp {
         { role: 'zoomOut' },
         { type: 'separator' },
         { role: 'togglefullscreen' },
+        { type: 'separator' },
+        {
+          label: 'Toggle Overlay',
+          accelerator: process.platform === 'darwin' ? 'Command+Shift+O' : 'Ctrl+Shift+O',
+          click: () => this.toggleOverlay(),
+        },
       ],
     })
 
@@ -1145,6 +1175,30 @@ class MenuBarNotificationApp {
 
     const menu = Menu.buildFromTemplate(template)
     Menu.setApplicationMenu(menu)
+  }
+
+  /**
+   * Register global keyboard shortcut to toggle overlay
+   */
+  private registerOverlayShortcut(): void {
+    const shortcut = process.platform === 'darwin' ? 'Command+Shift+O' : 'Ctrl+Shift+O'
+
+    const registered = globalShortcut.register(shortcut, () => {
+      this.toggleOverlay()
+    })
+
+    if (!registered) {
+      console.error('Failed to register overlay shortcut:', shortcut)
+    }
+  }
+
+  /**
+   * Toggle overlay visibility
+   */
+  private toggleOverlay(): void {
+    if (this.overlayWindow) {
+      this.overlayWindow.toggle()
+    }
   }
 
   private async getVersionInstallTimestamp(): Promise<number | null> {
@@ -2418,6 +2472,14 @@ class MenuBarNotificationApp {
     // Disconnect from SSE when app is shutting down
     if (this.sseBackgroundService) {
       this.sseBackgroundService.disconnect()
+    }
+
+    // Unregister global shortcuts
+    globalShortcut.unregisterAll()
+
+    // Destroy overlay window
+    if (this.overlayWindow) {
+      this.overlayWindow.destroy()
     }
 
     this.trayManager.destroy()
