@@ -454,6 +454,46 @@ export interface ElectronAPI {
     }
     error?: string
   }>
+  // Unified Triggers API
+  searchUnifiedTriggers: (appName: string) => Promise<{
+    success: boolean
+    app?: string
+    triggers?: Array<{
+      id: string
+      name: string
+      description: string
+      app: string
+      appDisplayName: string
+      source: 'composio' | 'pipedream'
+      sourceSlug: string
+      config: {
+        properties: Record<string, unknown>
+        required: string[]
+      }
+      appInfo?: {
+        logoUrl?: string
+        authType?: string
+      }
+    }>
+    sources?: {
+      composio: { available: boolean, count: number }
+      pipedream: { available: boolean, count: number }
+    }
+    error?: string
+  }>
+  listUnifiedTriggerApps: () => Promise<{
+    success: boolean
+    apps?: Array<{
+      displayName: string
+      composioSlug?: string
+      pipedreamSlug?: string
+      logoUrl?: string
+      pipedreamLogoUrl?: string
+      composioLogoUrl?: string
+    }>
+    count?: number
+    error?: string
+  }>
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -804,6 +844,43 @@ contextBridge.exposeInMainWorld('electronAPI', {
     }
     error?: string
   }> => ipcRenderer.invoke('check-composio-account-status', appName),
+  // Unified Triggers API
+  searchUnifiedTriggers: (appName: string): Promise<{
+    success: boolean
+    app?: string
+    triggers?: Array<{
+      id: string
+      name: string
+      description: string
+      app: string
+      appDisplayName: string
+      source: 'composio' | 'pipedream'
+      sourceSlug: string
+      config: {
+        properties: Record<string, unknown>
+        required: string[]
+      }
+      appInfo?: {
+        logoUrl?: string
+        authType?: string
+      }
+    }>
+    sources?: {
+      composio: { available: boolean, count: number }
+      pipedream: { available: boolean, count: number }
+    }
+    error?: string
+  }> => ipcRenderer.invoke('search-unified-triggers', appName),
+  listUnifiedTriggerApps: (): Promise<{
+    success: boolean
+    apps?: Array<{
+      displayName: string
+      composioSlug?: string
+      pipedreamSlug?: string
+    }>
+    count?: number
+    error?: string
+  }> => ipcRenderer.invoke('list-unified-trigger-apps'),
 } as ElectronAPI)
 
 // Extend the global Window interface

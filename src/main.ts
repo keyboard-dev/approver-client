@@ -3673,6 +3673,133 @@ class MenuBarNotificationApp {
         }
       }
     })
+
+    // Unified Triggers API (localhost:4000)
+    const UNIFIED_TRIGGERS_API_URL = process.env.UNIFIED_TRIGGERS_API_URL || 'http://localhost:4000'
+
+    // Search triggers across both Pipedream and Composio
+    ipcMain.handle('search-unified-triggers', async (_event, appName: string) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const response = await fetch(
+          `${UNIFIED_TRIGGERS_API_URL}/api/triggers/search?app=${encodeURIComponent(appName)}`,
+          {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${accessToken}`,
+            },
+          },
+        )
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        console.log('[search-unified-triggers] data:', JSON.stringify(data, null, 2))
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    // List all supported apps with platform mappings
+    ipcMain.handle('list-unified-trigger-apps', async () => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        // Fetch unified apps list
+        console.log("this is the access token", accessToken)
+        const response = await fetch(
+          `${UNIFIED_TRIGGERS_API_URL}/api/triggers/apps`,
+          {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${accessToken}`,
+            },
+          },
+        )
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json() as {
+          success: boolean
+          apps?: Array<{ displayName: string, composioSlug?: string, pipedreamSlug?: string, logoUrl?: string }>
+          error?: string
+        }
+
+        // Fetch Pipedream apps to get their logo URLs
+        const pipedreamAppsMap: Map<string, string> = new Map()
+        try {
+          const pipedreamResponse = await fetch(
+            `${this.OAUTH_SERVER_URL}/api/pipedream/apps?limit=200&has_triggers=true`,
+            {
+              method: 'GET',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${accessToken}`,
+              },
+            },
+          )
+          if (pipedreamResponse.ok) {
+            const pipedreamData = await pipedreamResponse.json() as {
+              success: boolean
+              apps?: Array<{ name_slug?: string, img_src?: string }>
+            }
+            if (pipedreamData.success && pipedreamData.apps) {
+              for (const app of pipedreamData.apps) {
+                if (app.name_slug && app.img_src) {
+                  pipedreamAppsMap.set(app.name_slug.toLowerCase(), app.img_src)
+                }
+              }
+            }
+          }
+        }
+        catch (err) {
+          console.log('[list-unified-trigger-apps] Failed to fetch Pipedream apps for logos:', err)
+        }
+
+        // Enrich apps with platform-specific logo URLs
+        if (data.success && data.apps) {
+          data.apps = data.apps.map((app) => {
+            const pipedreamLogoUrl = app.pipedreamSlug
+              ? pipedreamAppsMap.get(app.pipedreamSlug.toLowerCase())
+              : undefined
+
+            return {
+              ...app,
+              pipedreamLogoUrl: pipedreamLogoUrl || undefined,
+              composioLogoUrl: app.logoUrl, // Original logoUrl is likely from Composio or a fallback
+              // Update logoUrl to prefer Pipedream
+              logoUrl: pipedreamLogoUrl || app.logoUrl,
+            }
+          })
+        }
+
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
   }
 
   private handleApproveMessage(message: Message, feedback?: string): Message {

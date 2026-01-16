@@ -1,3 +1,4 @@
+/* eslint-disable custom/no-console */
 /**
  * Pipedream Service
  *
@@ -62,6 +63,44 @@ export interface DeleteAccountResponse {
 export interface CategoriesResponse {
   success: boolean
   categories: string[]
+}
+
+export interface PipedreamTriggerConfigProp {
+  name: string
+  type: string
+  label: string
+  description?: string
+  optional?: boolean
+  default?: unknown
+  options?: Array<{ label: string, value: string }>
+}
+
+export interface PipedreamTrigger {
+  key: string
+  name: string
+  version: string
+  description?: string
+  component_type: string
+  configurable_props: PipedreamTriggerConfigProp[]
+  app: {
+    id: string
+    name_slug: string
+    name: string
+    auth_type?: string
+    description?: string
+    img_src?: string
+  }
+}
+
+export interface TriggersResponse {
+  success: boolean
+  triggers: PipedreamTrigger[]
+  totalCount: number
+  pageInfo?: {
+    count: number
+    startCursor?: string
+    endCursor?: string
+  }
 }
 
 // =============================================================================
@@ -171,6 +210,40 @@ export async function listApps(
 }
 
 /**
+ * List available triggers for an app.
+ */
+export async function listTriggers(
+  app?: string,
+  query?: string,
+  limit = 50,
+): Promise<TriggersResponse> {
+  const headers = await getAuthHeaders()
+  const params = new URLSearchParams()
+  if (app) {
+    params.set('app', app)
+  }
+  if (query) {
+    params.set('q', query)
+  }
+  params.set('limit', limit.toString())
+
+  const url = `${API_BASE}/triggers${params.toString() ? `?${params.toString()}` : ''}`
+
+  console.log('[PipedreamService] listTriggers request:', { url, app, query, limit })
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers,
+  })
+
+  console.log('[PipedreamService] listTriggers response status:', response.status, response.statusText)
+
+  const result = await handleResponse<TriggersResponse>(response)
+  console.log('[PipedreamService] listTriggers parsed result:', result)
+  return result
+}
+
+/**
  * List available app categories.
  */
 export async function listCategories(): Promise<CategoriesResponse> {
@@ -215,6 +288,7 @@ export const pipedreamService = {
   getConnectToken,
   listAccounts,
   listApps,
+  listTriggers,
   listCategories,
   deleteAccount,
   openConnectLink,

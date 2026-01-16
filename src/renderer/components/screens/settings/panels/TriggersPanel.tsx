@@ -1,8 +1,15 @@
-import { AlertCircle, CheckCircle, ChevronDown, X, XCircle, Zap, Clock } from 'lucide-react'
+import { AlertCircle, CheckCircle, ChevronDown, Clock, X, XCircle, Zap } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { Script } from '../../../../../main'
 import useComposio from '../../../../hooks/useComposio'
-import { deployTrigger, type ComposioApp, type ComposioAvailableTrigger } from '../../../../services/composio-service'
+import { deployTrigger } from '../../../../services/composio-service'
+import {
+  type TriggerSource,
+  type UnifiedTrigger,
+  type UnifiedTriggerApp,
+  listUnifiedTriggerApps,
+  searchUnifiedTriggers,
+} from '../../../../services/unified-triggers-service'
 import { Button } from '../../../ui/button'
 import {
   DropdownMenu,
@@ -14,42 +21,6 @@ import {
 } from '../../../ui/dropdown-menu'
 
 // ============== TYPE DEFINITIONS ==============
-
-interface ConfigurableProp {
-  name: string
-  type: string
-  app?: string
-  label?: string
-  description?: string
-  default?: unknown
-  optional?: boolean
-  remoteOptions?: boolean
-  secret?: boolean
-  alertType?: string
-  content?: string
-  options?: string[]
-  min?: number
-  max?: number
-}
-
-interface TriggerApp {
-  id: string
-  name_slug: string
-  name: string
-  auth_type: string
-  description?: string
-  img_src?: string
-}
-
-interface PipedreamTrigger {
-  name: string
-  description: string
-  component_type: string
-  version: string
-  key: string
-  configurable_props: ConfigurableProp[]
-  app?: TriggerApp
-}
 
 interface TriggerTask {
   id?: string
@@ -75,43 +46,10 @@ interface DeployedPipedreamTrigger {
   updatedAt: string
 }
 
-interface TriggersResponse {
-  success: boolean
-  triggers?: PipedreamTrigger[]
-  totalCount?: number
-  pageInfo?: {
-    count: number
-    startCursor: string
-    endCursor: string
-  }
-}
-
 interface ScheduleTrigger {
   scheduleType: 'daily' | 'weekly' | 'custom-interval'
   label: string
   description: string
-}
-
-interface AppWithTriggers {
-  id: string
-  name: string
-  nameSlug: string
-  logoUrl?: string
-  description?: string
-}
-
-// Unified trigger type for available triggers
-type TriggerSource = 'pipedream' | 'composio'
-
-interface UnifiedAvailableTrigger {
-  source: TriggerSource
-  id: string
-  name: string
-  description: string
-  // Pipedream-specific
-  pipedreamTrigger?: PipedreamTrigger
-  // Composio-specific
-  composioTrigger?: ComposioAvailableTrigger
 }
 
 interface UnifiedDeployedTrigger {
@@ -162,30 +100,34 @@ const SourceBadge: React.FC<{ source: TriggerSource }> = ({ source }) => (
     source === 'pipedream'
       ? 'bg-orange-100 text-orange-700 border border-orange-200'
       : 'bg-purple-100 text-purple-700 border border-purple-200'
-  }`}>
+  }`}
+  >
     <Zap className="w-3 h-3" />
     {source === 'pipedream' ? 'Pipedream' : 'Composio'}
   </span>
 )
 
 // Connection status indicator
-const ConnectionStatus: React.FC<{ isConnected: boolean; isActive?: boolean }> = ({ isConnected, isActive = true }) => (
+const ConnectionStatus: React.FC<{ isConnected: boolean, isActive?: boolean }> = ({ isConnected, isActive = true }) => (
   <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs ${
     isConnected && isActive
       ? 'bg-green-50 text-green-700 border border-green-200'
       : 'bg-yellow-50 text-yellow-700 border border-yellow-200'
-  }`}>
-    {isConnected && isActive ? (
-      <>
-        <CheckCircle className="w-3 h-3" />
-        Connected
-      </>
-    ) : (
-      <>
-        <AlertCircle className="w-3 h-3" />
-        {isConnected ? 'Expired' : 'Not connected'}
-      </>
-    )}
+  }`}
+  >
+    {isConnected && isActive
+      ? (
+          <>
+            <CheckCircle className="w-3 h-3" />
+            Connected
+          </>
+        )
+      : (
+          <>
+            <AlertCircle className="w-3 h-3" />
+            {isConnected ? 'Expired' : 'Not connected'}
+          </>
+        )}
   </div>
 )
 
@@ -193,15 +135,6 @@ export const TriggersPanel: React.FC = () => {
   // ============== COMPOSIO HOOK ==============
   const {
     accounts: composioAccounts,
-    accountsLoading: composioAccountsLoading,
-    apps: composioApps,
-    appsLoading: composioAppsLoading,
-    availableTriggers: composioAvailableTriggers,
-    availableTriggersLoading: composioAvailableTriggersLoading,
-    triggerConfig: composioTriggerConfig,
-    triggerConfigLoading: composioTriggerConfigLoading,
-    accountStatus: composioAccountStatus,
-    accountStatusLoading: composioAccountStatusLoading,
     triggers: composioDeployedTriggers,
     triggersLoading: composioTriggersLoading,
     pausingTriggerId: composioPausingTriggerId,
@@ -209,18 +142,14 @@ export const TriggersPanel: React.FC = () => {
     deletingTriggerId: composioDeletingTriggerId,
     refreshAccounts: refreshComposioAccounts,
     connectApp: connectComposioApp,
-    disconnectAccount: disconnectComposioAccount,
-    fetchAppsWithTriggers: fetchComposioAppsWithTriggers,
-    fetchAvailableTriggers: fetchComposioAvailableTriggers,
-    clearAvailableTriggers: clearComposioAvailableTriggers,
-    fetchTriggerConfig: fetchComposioTriggerConfig,
-    clearTriggerConfig: clearComposioTriggerConfig,
     checkAppAccountStatus: checkComposioAccountStatus,
     clearAccountStatus: clearComposioAccountStatus,
     refreshTriggers: refreshComposioTriggers,
     pauseTriggerAction: pauseComposioTrigger,
     resumeTriggerAction: resumeComposioTrigger,
     deleteTriggerAction: deleteComposioTrigger,
+    accountStatus: composioAccountStatus,
+    accountStatusLoading: composioAccountStatusLoading,
   } = useComposio()
 
   // ============== LOCAL STATE ==============
@@ -229,13 +158,17 @@ export const TriggersPanel: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Pipedream triggers state
-  const [pipedreamTriggers, setPipedreamTriggers] = useState<PipedreamTrigger[]>([])
+  // Unified triggers state
+  const [unifiedAvailableTriggers, setUnifiedAvailableTriggers] = useState<UnifiedTrigger[]>([])
+  const [composioTriggerCount, setComposioTriggerCount] = useState(0)
+  const [pipedreamTriggerCount, setPipedreamTriggerCount] = useState(0)
+
+  // Pipedream deployed triggers state
   const [deployedPipedreamTriggers, setDeployedPipedreamTriggers] = useState<DeployedPipedreamTrigger[]>([])
   const [isLoadingPipedreamDeployed, setIsLoadingPipedreamDeployed] = useState(false)
 
-  // Popular apps (from Pipedream)
-  const [appsWithTriggers, setAppsWithTriggers] = useState<AppWithTriggers[]>([])
+  // Unified apps list
+  const [unifiedApps, setUnifiedApps] = useState<UnifiedTriggerApp[]>([])
   const [isLoadingApps, setIsLoadingApps] = useState(false)
 
   // Connected accounts (Pipedream)
@@ -248,8 +181,8 @@ export const TriggersPanel: React.FC = () => {
   const [tokenError, setTokenError] = useState<string | null>(null)
 
   // Selected trigger state (unified)
-  const [selectedUnifiedTrigger, setSelectedUnifiedTrigger] = useState<UnifiedAvailableTrigger | null>(null)
-  const [selectedApp, setSelectedApp] = useState<{ name: string; slug: string; logoUrl?: string; source?: TriggerSource } | null>(null)
+  const [selectedUnifiedTrigger, setSelectedUnifiedTrigger] = useState<UnifiedTrigger | null>(null)
+  const [selectedApp, setSelectedApp] = useState<{ name: string, slug: string, logoUrl?: string, source?: TriggerSource } | null>(null)
 
   // Modals
   const [showConfigModal, setShowConfigModal] = useState(false)
@@ -286,9 +219,6 @@ export const TriggersPanel: React.FC = () => {
 
   // ============== UNIFIED DATA ==============
 
-  // Combine available triggers from both sources
-  const [unifiedAvailableTriggers, setUnifiedAvailableTriggers] = useState<UnifiedAvailableTrigger[]>([])
-
   // Combine deployed triggers from both sources
   const unifiedDeployedTriggers: UnifiedDeployedTrigger[] = [
     ...deployedPipedreamTriggers.map(t => ({
@@ -318,14 +248,13 @@ export const TriggersPanel: React.FC = () => {
   useEffect(() => {
     checkTokenStatus()
     refreshComposioAccounts()
-    fetchComposioAppsWithTriggers()
+    loadUnifiedApps()
   }, [])
 
   useEffect(() => {
     if (isTokenStored === true) {
       loadDeployedPipedreamTriggers()
       loadTaskOptions()
-      loadAppsWithTriggers()
       loadConnectedPipedreamAccounts()
     }
     refreshComposioTriggers()
@@ -341,13 +270,16 @@ export const TriggersPanel: React.FC = () => {
       if (response.success && response.data) {
         const data = response.data as { stored: boolean }
         setIsTokenStored(data.stored)
-      } else {
+      }
+      else {
         throw new Error(response.error || 'Failed to check token status')
       }
-    } catch (err) {
+    }
+    catch (err) {
       setIsTokenStored(false)
       setTokenError(err instanceof Error ? err.message : 'Failed to check token status')
-    } finally {
+    }
+    finally {
       setIsCheckingToken(false)
     }
   }
@@ -360,51 +292,35 @@ export const TriggersPanel: React.FC = () => {
       if (response.success) {
         setIsTokenStored(true)
         setTokenError(null)
-      } else {
+      }
+      else {
         throw new Error(response.error || 'Failed to store token')
       }
-    } catch (err) {
+    }
+    catch (err) {
       setTokenError(err instanceof Error ? err.message : 'Failed to store refresh token')
       throw err
-    } finally {
+    }
+    finally {
       setIsStoringToken(false)
     }
   }
 
   // ============== LOAD FUNCTIONS ==============
 
-  const loadAppsWithTriggers = async () => {
+  const loadUnifiedApps = async () => {
     setIsLoadingApps(true)
     try {
-      const response = await window.electronAPI.fetchPipedreamApps({
-        hasTriggers: true,
-        limit: 12,
-        sortKey: 'featured_weight',
-        sortDirection: 'desc',
-      })
-
-      if (response.success && response.data) {
-        const data = response.data as { apps: Array<{
-          id: string
-          name: string
-          nameSlug: string
-          logoUrl?: string
-          description?: string
-        }> }
-
-        const apps: AppWithTriggers[] = data.apps.map(app => ({
-          id: app.id,
-          name: app.name,
-          nameSlug: app.nameSlug,
-          logoUrl: app.logoUrl,
-          description: app.description,
-        }))
-
-        setAppsWithTriggers(apps)
+      const response = await listUnifiedTriggerApps()
+      if (response.success && response.apps) {
+        // Take first 12 apps for popular apps display
+        setUnifiedApps(response.apps.slice(0, 12))
       }
-    } catch {
+    }
+    catch {
       // Silent fail - apps grid is optional
-    } finally {
+    }
+    finally {
       setIsLoadingApps(false)
     }
   }
@@ -427,7 +343,8 @@ export const TriggersPanel: React.FC = () => {
 
         setConnectedPipedreamApps(connectedApps)
       }
-    } catch {
+    }
+    catch {
       // Silent fail
     }
   }
@@ -440,9 +357,11 @@ export const TriggersPanel: React.FC = () => {
         const data = response.data as { triggers: DeployedPipedreamTrigger[] }
         setDeployedPipedreamTriggers(data.triggers || [])
       }
-    } catch {
+    }
+    catch {
       // Silently fail
-    } finally {
+    }
+    finally {
       setIsLoadingPipedreamDeployed(false)
     }
   }
@@ -460,16 +379,19 @@ export const TriggersPanel: React.FC = () => {
 
       if (accountsResponse.success && Array.isArray(accountsResponse.accounts)) {
         setAvailableCredentials(accountsResponse.accounts)
-      } else {
+      }
+      else {
         setAvailableCredentials([])
       }
 
       setAvailablePipedreamAccounts(Array.isArray(pipedreamAppNames) ? pipedreamAppNames : [])
-    } catch {
+    }
+    catch {
       setAvailableScripts([])
       setAvailableCredentials([])
       setAvailablePipedreamAccounts([])
-    } finally {
+    }
+    finally {
       setIsLoadingOptions(false)
     }
   }
@@ -482,10 +404,10 @@ export const TriggersPanel: React.FC = () => {
     )
   }
 
-  const checkComposioAppConnected = (appSlug: string): { connected: boolean; active: boolean } => {
+  const checkComposioAppConnected = (appSlug: string): { connected: boolean, active: boolean } => {
     const account = composioAccounts.find(acc =>
-      acc.appName?.toLowerCase() === appSlug.toLowerCase() ||
-      acc.toolkit?.slug?.toLowerCase() === appSlug.toLowerCase()
+      acc.appName?.toLowerCase() === appSlug.toLowerCase()
+      || acc.toolkit?.slug?.toLowerCase() === appSlug.toLowerCase(),
     )
     return {
       connected: !!account,
@@ -495,8 +417,8 @@ export const TriggersPanel: React.FC = () => {
 
   // ============== SEARCH / POPULAR APP CLICK ==============
 
-  const handleSearch = async (searchAppSlug?: string) => {
-    const searchApp = searchAppSlug || appName.trim()
+  const handleSearch = async (searchAppName?: string) => {
+    const searchApp = searchAppName || appName.trim()
     if (!searchApp) {
       setError('Please enter an app name')
       return
@@ -504,170 +426,99 @@ export const TriggersPanel: React.FC = () => {
 
     setIsLoading(true)
     setError(null)
-    setPipedreamTriggers([])
     setUnifiedAvailableTriggers([])
-    clearComposioAvailableTriggers()
+    setComposioTriggerCount(0)
+    setPipedreamTriggerCount(0)
 
     try {
-      // Fetch from both sources in parallel
-      const [pipedreamResponse] = await Promise.all([
-        isTokenStored ? window.electronAPI.fetchPipedreamTriggers(searchApp) : Promise.resolve({ success: false }),
-        fetchComposioAvailableTriggers(searchApp),
-      ])
+      const response = await searchUnifiedTriggers(searchApp)
 
-      const unified: UnifiedAvailableTrigger[] = []
-
-      // Process Pipedream triggers
-      if (pipedreamResponse.success && pipedreamResponse.data) {
-        const data = pipedreamResponse.data as TriggersResponse
-        if (data.triggers && data.triggers.length > 0) {
-          const compatibleTriggers = data.triggers.filter((trigger) => {
-            const requiresApiKey = trigger.configurable_props.some(
-              prop => prop.name === 'pipedreamApiKey' && !prop.optional,
-            )
-            return !requiresApiKey
-          })
-          setPipedreamTriggers(compatibleTriggers)
-
-          unified.push(...compatibleTriggers.map(t => ({
-            source: 'pipedream' as TriggerSource,
-            id: t.key,
-            name: t.name,
-            description: t.description,
-            pipedreamTrigger: t,
-          })))
+      if (response.success && response.triggers) {
+        setUnifiedAvailableTriggers(response.triggers)
+        if (response.sources) {
+          setComposioTriggerCount(response.sources.composio?.count || 0)
+          setPipedreamTriggerCount(response.sources.pipedream?.count || 0)
         }
+      }
+      else {
+        setError(response.error || 'Failed to search triggers')
       }
 
       // Set selected app for the modal
       setSelectedApp({
-        name: searchApp,
+        name: response.app || searchApp,
         slug: searchApp,
       })
 
       // Show the triggers modal
       setShowTriggersModal(true)
-
-    } catch (err) {
+    }
+    catch (err) {
       setError(err instanceof Error ? err.message : 'An unexpected error occurred')
-    } finally {
+    }
+    finally {
       setIsLoading(false)
     }
   }
 
-  // Update unified triggers when composio triggers load
-  useEffect(() => {
-    if (composioAvailableTriggers.length > 0 && showTriggersModal) {
-      setUnifiedAvailableTriggers(prev => {
-        const pipedreamTriggers = prev.filter(t => t.source === 'pipedream')
-        const composioTriggers = composioAvailableTriggers.map(t => ({
-          source: 'composio' as TriggerSource,
-          id: t.slug,
-          name: t.name,
-          description: t.description || '',
-          composioTrigger: t,
-        }))
-        return [...pipedreamTriggers, ...composioTriggers]
-      })
-    }
-  }, [composioAvailableTriggers, showTriggersModal])
-
-  // Combine pipedream triggers with unified when modal is shown
-  useEffect(() => {
-    if (pipedreamTriggers.length > 0 && showTriggersModal) {
-      setUnifiedAvailableTriggers(prev => {
-        const composioTriggers = prev.filter(t => t.source === 'composio')
-        const pdTriggers = pipedreamTriggers.map(t => ({
-          source: 'pipedream' as TriggerSource,
-          id: t.key,
-          name: t.name,
-          description: t.description,
-          pipedreamTrigger: t,
-        }))
-        return [...pdTriggers, ...composioTriggers]
-      })
-    }
-  }, [pipedreamTriggers, showTriggersModal])
-
-  const handlePopularAppClick = (app: AppWithTriggers) => {
-    setAppName(app.nameSlug)
-    handleSearch(app.nameSlug)
+  const handlePopularAppClick = (app: UnifiedTriggerApp) => {
+    setAppName(app.displayName)
+    handleSearch(app.displayName)
   }
 
   // ============== TRIGGER CLICK HANDLERS ==============
 
-  const handleUnifiedTriggerClick = async (trigger: UnifiedAvailableTrigger) => {
+  const handleUnifiedTriggerClick = async (trigger: UnifiedTrigger) => {
+    const appSlugToCheck = trigger.sourceSlug || selectedApp?.slug || appName
+
     if (trigger.source === 'pipedream') {
-      handlePipedreamTriggerClick(trigger)
-    } else {
-      handleComposioTriggerClick(trigger)
+      // Check Pipedream connection
+      if (!checkPipedreamAppConnected(appSlugToCheck)) {
+        setPromptAppName(trigger.appDisplayName || appSlugToCheck)
+        setPromptSource('pipedream')
+        setShowConnectPrompt(true)
+        setShowTriggersModal(false)
+        return
+      }
     }
-  }
-
-  const handlePipedreamTriggerClick = (trigger: UnifiedAvailableTrigger) => {
-    if (!trigger.pipedreamTrigger) return
-
-    const appSlugToCheck = extractAppName(selectedApp?.slug || appName)
-    if (!checkPipedreamAppConnected(appSlugToCheck)) {
-      setPromptAppName(trigger.pipedreamTrigger.app?.name || appSlugToCheck)
-      setPromptSource('pipedream')
-      setShowConnectPrompt(true)
-      setShowTriggersModal(false)
-      return
+    else {
+      // Check Composio connection
+      const status = await checkComposioAccountStatus(appSlugToCheck)
+      if (!status || !status.hasAccount || !status.isActive) {
+        setSelectedUnifiedTrigger(trigger)
+        setPromptAppName(trigger.appDisplayName || appSlugToCheck)
+        setPromptSource('composio')
+        setShowTriggersModal(false)
+        setShowAccountStatusModal(true)
+        return
+      }
     }
 
+    // Connection is active - proceed to config modal
     setSelectedUnifiedTrigger(trigger)
     setShowConfigModal(true)
     setShowTriggersModal(false)
-    setConfigValues({})
-    setDeploySuccess(null)
-    setError(null)
-    setTasks([])
-    setShowTasksSection(false)
-    loadTaskOptions()
-  }
-
-  const handleComposioTriggerClick = async (trigger: UnifiedAvailableTrigger) => {
-    if (!trigger.composioTrigger || !selectedApp) return
-
-    const appSlug = selectedApp.slug
-
-    // Check account status first
-    const status = await checkComposioAccountStatus(appSlug)
-
-    if (!status || !status.hasAccount || !status.isActive) {
-      setSelectedUnifiedTrigger(trigger)
-      setPromptAppName(selectedApp.name)
-      setPromptSource('composio')
-      setShowTriggersModal(false)
-      setShowAccountStatusModal(true)
-      return
-    }
-
-    // Account is active - proceed to config modal
-    setSelectedUnifiedTrigger(trigger)
-    setShowConfigModal(true)
-    setShowTriggersModal(false)
-
-    setTasks([])
-    setShowTasksSection(false)
-    loadTaskOptions()
-
-    await fetchComposioTriggerConfig(trigger.composioTrigger.slug)
 
     // Set default values from config schema
-    if (trigger.composioTrigger.config?.properties) {
+    if (trigger.config?.properties) {
       const defaults: Record<string, unknown> = {}
-      Object.entries(trigger.composioTrigger.config.properties).forEach(([key, value]) => {
+      Object.entries(trigger.config.properties).forEach(([key, value]) => {
         const propValue = value as { default?: unknown }
         if (propValue.default !== undefined) {
           defaults[key] = propValue.default
         }
       })
       setConfigValues(defaults)
-    } else {
+    }
+    else {
       setConfigValues({})
     }
+
+    setDeploySuccess(null)
+    setError(null)
+    setTasks([])
+    setShowTasksSection(false)
+    loadTaskOptions()
   }
 
   // ============== CONNECT HANDLERS ==============
@@ -679,10 +530,12 @@ export const TriggersPanel: React.FC = () => {
         setTimeout(() => {
           loadConnectedPipedreamAccounts()
         }, 2000)
-      } else {
+      }
+      else {
         setError(response.error || 'Failed to open connect link')
       }
-    } catch (err) {
+    }
+    catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to initiate connection')
     }
   }
@@ -691,7 +544,8 @@ export const TriggersPanel: React.FC = () => {
     try {
       await connectComposioApp(appSlug)
       await refreshComposioAccounts()
-    } catch (err) {
+    }
+    catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to connect account')
     }
   }
@@ -704,12 +558,14 @@ export const TriggersPanel: React.FC = () => {
       if (promptSource === 'composio') {
         await connectComposioApp(selectedApp.slug)
         await refreshComposioAccounts()
-      } else {
+      }
+      else {
         await handleConnectPipedreamApp(selectedApp.slug)
       }
       setShowAccountStatusModal(false)
       clearComposioAccountStatus()
-    } catch (err) {
+    }
+    catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to reconnect account')
     }
   }
@@ -727,99 +583,69 @@ export const TriggersPanel: React.FC = () => {
     }))
   }
 
-  const getUserConfigurableProps = (props: ConfigurableProp[]): ConfigurableProp[] => {
-    const systemTypes = [
-      'app', '$.service.db', '$.interface.timer', '$.interface.http', '$.interface.apphook', 'alert',
-    ]
-    const systemPropNames = ['pipedreamApiKey', 'db', 'http']
-
-    return props.filter((prop) => {
-      if (systemTypes.includes(prop.type)) return false
-      if (systemPropNames.includes(prop.name)) return false
-      if (!prop.description && !prop.label) return false
-      return true
-    })
-  }
-
-  const getAlertProps = (props: ConfigurableProp[]): ConfigurableProp[] => {
-    return props.filter(prop => prop.type === 'alert' && prop.content)
-  }
-
-  const buildConfiguredProps = (
-    props: ConfigurableProp[],
-    userValues: Record<string, unknown>,
-    currentAppSlug: string,
-  ): Record<string, unknown> => {
-    const result: Record<string, unknown> = {}
-
-    for (const [key, value] of Object.entries(userValues)) {
-      const prop = props.find(p => p.name === key)
-      const shouldBeArray = prop && (
-        prop.type.endsWith('[]') ||
-        prop.type.includes('[]') ||
-        (prop.label && prop.label.includes('[]')) ||
-        (prop.description && prop.description.includes('[]'))
-      )
-
-      if (shouldBeArray && typeof value === 'string' && value.length > 0) {
-        result[key] = [value]
-      } else {
-        result[key] = value
-      }
-    }
-
-    const appProp = props.find(p => p.type === 'app')
-    if (appProp) {
-      const appName = currentAppSlug.replace(/_v\d+$/, '')
-      result[appProp.name] = `{{connect.${appName}}}`
-    }
-
-    return result
-  }
-
   const handleDeploy = async () => {
     if (!selectedUnifiedTrigger) return
 
     if (selectedUnifiedTrigger.source === 'pipedream') {
       await handleDeployPipedream()
-    } else {
+    }
+    else {
       await handleDeployComposio()
     }
   }
 
   const handleDeployPipedream = async () => {
-    if (!selectedUnifiedTrigger?.pipedreamTrigger) return
-
-    const trigger = selectedUnifiedTrigger.pipedreamTrigger
+    if (!selectedUnifiedTrigger) return
 
     setIsDeploying(true)
     setError(null)
     setDeploySuccess(null)
 
     try {
-      const appSlugToCheck = extractAppName(selectedApp?.slug || appName)
+      const appSlugToCheck = selectedUnifiedTrigger.sourceSlug || selectedApp?.slug || appName
       if (!checkPipedreamAppConnected(appSlugToCheck)) {
-        setPromptAppName(trigger.app?.name || appSlugToCheck)
+        setPromptAppName(selectedUnifiedTrigger.appDisplayName || appSlugToCheck)
         setPromptSource('pipedream')
         setShowConnectPrompt(true)
         setIsDeploying(false)
         return
       }
 
-      const userConfigurableProps = getUserConfigurableProps(trigger.configurable_props)
-      const requiredProps = userConfigurableProps.filter(prop => !prop.optional)
-      const missingProps = requiredProps.filter((prop) => {
-        const value = configValues[prop.name]
+      // Check required fields
+      const required = selectedUnifiedTrigger.config?.required || []
+      const missingProps = required.filter((prop) => {
+        const value = configValues[prop]
         return value === undefined || value === null || value === ''
       })
 
       if (missingProps.length > 0) {
-        setError(`Please fill in all required fields: ${missingProps.map(p => p.label || p.name).join(', ')}`)
+        const propLabels = missingProps.map((prop) => {
+          const propConfig = selectedUnifiedTrigger.config?.properties?.[prop]
+          return (propConfig as { title?: string })?.title || prop
+        })
+        setError(`Please fill in all required fields: ${propLabels.join(', ')}`)
         return
       }
 
-      const currentAppSlug = selectedApp?.slug || appName
-      const configuredProps = buildConfiguredProps(trigger.configurable_props, configValues, currentAppSlug)
+      const currentAppSlug = selectedUnifiedTrigger.sourceSlug || selectedApp?.slug || appName
+
+      // Build configured props with app placeholder
+      const configuredProps: Record<string, unknown> = { ...configValues }
+      const appNameClean = extractAppName(currentAppSlug)
+      // Add the app connection placeholder if needed
+      if (selectedUnifiedTrigger.config?.properties) {
+        const hasAppProp = Object.entries(selectedUnifiedTrigger.config.properties).some(
+          ([, value]) => (value as { type?: string }).type === 'app',
+        )
+        if (hasAppProp) {
+          const appPropName = Object.entries(selectedUnifiedTrigger.config.properties).find(
+            ([, value]) => (value as { type?: string }).type === 'app',
+          )?.[0]
+          if (appPropName) {
+            configuredProps[appPropName] = `{{connect.${appNameClean}}}`
+          }
+        }
+      }
 
       const tasksToSend = tasks.map(task => ({
         keyboard_shortcut_ids: task.keyboard_shortcut_ids || [],
@@ -829,8 +655,8 @@ export const TriggersPanel: React.FC = () => {
       }))
 
       const response = await window.electronAPI.deployPipedreamTrigger({
-        componentKey: trigger.key,
-        appName: extractAppName(currentAppSlug),
+        componentKey: selectedUnifiedTrigger.id,
+        appName: appNameClean,
         appSlug: currentAppSlug,
         configuredProps,
         tasks: tasksToSend,
@@ -842,25 +668,27 @@ export const TriggersPanel: React.FC = () => {
           handleCloseConfigModal()
           loadDeployedPipedreamTriggers()
         }, 2000)
-      } else {
+      }
+      else {
         setError(response.error || 'Failed to deploy trigger')
       }
-    } catch (err) {
+    }
+    catch (err) {
       setError(err instanceof Error ? err.message : 'An unexpected error occurred')
-    } finally {
+    }
+    finally {
       setIsDeploying(false)
     }
   }
 
   const handleDeployComposio = async () => {
-    if (!selectedUnifiedTrigger?.composioTrigger || !selectedApp) return
+    if (!selectedUnifiedTrigger || !selectedApp) return
 
-    const trigger = selectedUnifiedTrigger.composioTrigger
-    const appSlug = selectedApp.slug
+    const appSlug = selectedUnifiedTrigger.sourceSlug || selectedApp.slug
 
     const connectedAccount = composioAccounts.find(acc =>
-      acc.appName?.toLowerCase() === appSlug.toLowerCase() ||
-      acc.toolkit?.slug?.toLowerCase() === appSlug.toLowerCase()
+      acc.appName?.toLowerCase() === appSlug.toLowerCase()
+      || acc.toolkit?.slug?.toLowerCase() === appSlug.toLowerCase(),
     )
 
     if (!connectedAccount) {
@@ -884,7 +712,7 @@ export const TriggersPanel: React.FC = () => {
 
       const response = await deployTrigger({
         connectedAccountId: connectedAccount.id,
-        triggerName: trigger.slug,
+        triggerName: selectedUnifiedTrigger.id,
         appName: appSlug,
         config: configValues,
         encryptionEnabled: true,
@@ -897,12 +725,15 @@ export const TriggersPanel: React.FC = () => {
           handleCloseConfigModal()
           refreshComposioTriggers()
         }, 2000)
-      } else {
+      }
+      else {
         setError(response.error || 'Failed to deploy trigger')
       }
-    } catch (err) {
+    }
+    catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to deploy trigger')
-    } finally {
+    }
+    finally {
       setIsDeploying(false)
     }
   }
@@ -917,13 +748,16 @@ export const TriggersPanel: React.FC = () => {
         const response = await window.electronAPI.deleteDeployedPipedreamTrigger(trigger.id)
         if (response.success) {
           await loadDeployedPipedreamTriggers()
-        } else {
+        }
+        else {
           alert(`Failed to delete trigger: ${response.error || 'Unknown error'}`)
         }
-      } else {
+      }
+      else {
         await deleteComposioTrigger(trigger.id)
       }
-    } catch (err) {
+    }
+    catch (err) {
       alert(`Failed to delete trigger: ${err instanceof Error ? err.message : 'Unknown error'}`)
     }
   }
@@ -934,10 +768,12 @@ export const TriggersPanel: React.FC = () => {
     try {
       if (trigger.status === 'active') {
         await pauseComposioTrigger(trigger.id)
-      } else {
+      }
+      else {
         await resumeComposioTrigger(trigger.id)
       }
-    } catch (err) {
+    }
+    catch (err) {
       alert(`Failed to ${trigger.status === 'active' ? 'pause' : 'resume'} trigger: ${err instanceof Error ? err.message : 'Unknown error'}`)
     }
   }
@@ -952,14 +788,13 @@ export const TriggersPanel: React.FC = () => {
     setError(null)
     setTasks([])
     setShowTasksSection(false)
-    clearComposioTriggerConfig()
   }
 
   const handleCloseTriggersModal = () => {
     setShowTriggersModal(false)
-    setPipedreamTriggers([])
     setUnifiedAvailableTriggers([])
-    clearComposioAvailableTriggers()
+    setComposioTriggerCount(0)
+    setPipedreamTriggerCount(0)
   }
 
   // ============== SCHEDULE TRIGGER HANDLERS ==============
@@ -1038,12 +873,15 @@ export const TriggersPanel: React.FC = () => {
           handleCloseScheduleModal()
           loadDeployedPipedreamTriggers()
         }, 2000)
-      } else {
+      }
+      else {
         setError(response.error || 'Failed to deploy schedule trigger')
       }
-    } catch (err) {
+    }
+    catch (err) {
       setError(err instanceof Error ? err.message : 'An unexpected error occurred')
-    } finally {
+    }
+    finally {
       setIsDeploying(false)
     }
   }
@@ -1102,150 +940,38 @@ export const TriggersPanel: React.FC = () => {
 
   // ============== RENDER CONFIG INPUT ==============
 
-  const renderConfigInput = (prop: ConfigurableProp) => {
-    const value = configValues[prop.name]
+  const renderConfigInput = (propName: string, propConfig: Record<string, unknown>) => {
+    const value = configValues[propName]
+    const type = propConfig.type as string
+    const enumValues = propConfig.enum as string[] | undefined
+    const options = propConfig.options as Array<{ label: string, value: string }> | undefined
 
-    if (prop.type === 'string[]' && prop.options && prop.options.length > 0) {
-      const selectedValues = Array.isArray(value) ? value : []
-      return (
-        <div className="space-y-2">
-          <div className="flex flex-wrap gap-2">
-            {prop.options.map((option) => {
-              const isSelected = selectedValues.includes(option)
-              return (
-                <button
-                  key={option}
-                  type="button"
-                  onClick={() => {
-                    const newValues = isSelected
-                      ? selectedValues.filter(v => v !== option)
-                      : [...selectedValues, option]
-                    handleConfigChange(prop.name, newValues)
-                  }}
-                  className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${
-                    isSelected
-                      ? 'bg-[#171717] text-white border-[#171717]'
-                      : 'bg-white text-[#737373] border-[#E5E5E5] hover:border-[#171717]'
-                  }`}
-                >
-                  {option}
-                </button>
-              )
-            })}
-          </div>
-          {selectedValues.length > 0 && (
-            <p className="text-xs text-[#737373]">
-              Selected: {selectedValues.join(', ')}
-            </p>
-          )}
-        </div>
-      )
-    }
-
-    switch (prop.type) {
-      case 'string':
-        return (
-          <input
-            type="text"
-            value={(value as string) || ''}
-            onChange={e => handleConfigChange(prop.name, e.target.value)}
-            placeholder={prop.default ? String(prop.default) : ''}
-            className="w-full px-3 py-2 border border-[#E5E5E5] rounded focus:outline-none focus:ring-2 focus:ring-[#171717]"
-          />
-        )
-      case 'string[]':
-        return (
-          <input
-            type="text"
-            value={Array.isArray(value) ? value.join(', ') : ''}
-            onChange={e => handleConfigChange(prop.name, e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
-            placeholder="Enter comma-separated values"
-            className="w-full px-3 py-2 border border-[#E5E5E5] rounded focus:outline-none focus:ring-2 focus:ring-[#171717]"
-          />
-        )
-      case 'integer[]':
-        return (
-          <input
-            type="text"
-            value={Array.isArray(value) ? value.join(', ') : ''}
-            onChange={(e) => {
-              const values = e.target.value
-                .split(',')
-                .map(s => s.trim())
-                .filter(Boolean)
-                .map(s => parseInt(s, 10))
-                .filter(n => !isNaN(n))
-              handleConfigChange(prop.name, values)
-            }}
-            placeholder="Enter comma-separated numbers (e.g., 0, 1, 2)"
-            className="w-full px-3 py-2 border border-[#E5E5E5] rounded focus:outline-none focus:ring-2 focus:ring-[#171717]"
-          />
-        )
-      case 'boolean':
-        return (
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={(value as boolean) || false}
-              onChange={e => handleConfigChange(prop.name, e.target.checked)}
-              className="w-4 h-4"
-            />
-            <span className="text-sm text-[#737373]">
-              {prop.default !== undefined ? `Default: ${String(prop.default)}` : 'Enable'}
-            </span>
-          </label>
-        )
-      case 'integer':
-      case 'number':
-        return (
-          <div className="space-y-1">
-            <input
-              type="number"
-              value={(value as number) ?? (prop.default as number) ?? ''}
-              onChange={e => handleConfigChange(prop.name, e.target.value ? parseInt(e.target.value, 10) : undefined)}
-              placeholder={prop.default !== undefined ? String(prop.default) : ''}
-              min={prop.min}
-              max={prop.max}
-              className="w-full px-3 py-2 border border-[#E5E5E5] rounded focus:outline-none focus:ring-2 focus:ring-[#171717]"
-            />
-            {(prop.min !== undefined || prop.max !== undefined) && (
-              <p className="text-xs text-[#737373]">
-                {prop.min !== undefined && `Min: ${prop.min}`}
-                {prop.min !== undefined && prop.max !== undefined && ' | '}
-                {prop.max !== undefined && `Max: ${prop.max}`}
-              </p>
-            )}
-          </div>
-        )
-      default:
-        return (
-          <input
-            type="text"
-            value={value ? String(value) : ''}
-            onChange={e => handleConfigChange(prop.name, e.target.value)}
-            placeholder={prop.default ? String(prop.default) : ''}
-            className="w-full px-3 py-2 border border-[#E5E5E5] rounded focus:outline-none focus:ring-2 focus:ring-[#171717]"
-          />
-        )
-    }
-  }
-
-  // Render Composio config input
-  const renderComposioConfigInput = (key: string, schema: Record<string, unknown>) => {
-    const value = configValues[key]
-    const type = schema.type as string
-    const enumValues = schema.enum as string[] | undefined
-
+    // Handle enum/options
     if (enumValues && enumValues.length > 0) {
       return (
         <select
           value={(value as string) || ''}
-          onChange={e => handleConfigChange(key, e.target.value)}
+          onChange={e => handleConfigChange(propName, e.target.value)}
           className="w-full px-3 py-2 border border-[#E5E5E5] rounded focus:outline-none focus:ring-2 focus:ring-[#171717]"
         >
           <option value="">Select...</option>
           {enumValues.map(opt => (
             <option key={opt} value={opt}>{opt}</option>
+          ))}
+        </select>
+      )
+    }
+
+    if (options && options.length > 0) {
+      return (
+        <select
+          value={(value as string) || ''}
+          onChange={e => handleConfigChange(propName, e.target.value)}
+          className="w-full px-3 py-2 border border-[#E5E5E5] rounded focus:outline-none focus:ring-2 focus:ring-[#171717]"
+        >
+          <option value="">Select...</option>
+          {options.map(opt => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
           ))}
         </select>
       )
@@ -1258,7 +984,7 @@ export const TriggersPanel: React.FC = () => {
             <input
               type="checkbox"
               checked={(value as boolean) || false}
-              onChange={e => handleConfigChange(key, e.target.checked)}
+              onChange={e => handleConfigChange(propName, e.target.checked)}
               className="w-4 h-4"
             />
             <span className="text-sm text-[#737373]">Enable</span>
@@ -1270,8 +996,19 @@ export const TriggersPanel: React.FC = () => {
           <input
             type="number"
             value={(value as number) ?? ''}
-            onChange={e => handleConfigChange(key, e.target.value ? parseFloat(e.target.value) : undefined)}
-            placeholder={schema.default !== undefined ? String(schema.default) : ''}
+            onChange={e => handleConfigChange(propName, e.target.value ? parseFloat(e.target.value) : undefined)}
+            placeholder={propConfig.default !== undefined ? String(propConfig.default) : ''}
+            className="w-full px-3 py-2 border border-[#E5E5E5] rounded focus:outline-none focus:ring-2 focus:ring-[#171717]"
+          />
+        )
+      case 'array':
+      case 'string[]':
+        return (
+          <input
+            type="text"
+            value={Array.isArray(value) ? value.join(', ') : ''}
+            onChange={e => handleConfigChange(propName, e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
+            placeholder="Enter comma-separated values"
             className="w-full px-3 py-2 border border-[#E5E5E5] rounded focus:outline-none focus:ring-2 focus:ring-[#171717]"
           />
         )
@@ -1280,8 +1017,8 @@ export const TriggersPanel: React.FC = () => {
           <input
             type="text"
             value={(value as string) || ''}
-            onChange={e => handleConfigChange(key, e.target.value)}
-            placeholder={schema.default !== undefined ? String(schema.default) : ''}
+            onChange={e => handleConfigChange(propName, e.target.value)}
+            placeholder={propConfig.default !== undefined ? String(propConfig.default) : ''}
             className="w-full px-3 py-2 border border-[#E5E5E5] rounded focus:outline-none focus:ring-2 focus:ring-[#171717]"
           />
         )
@@ -1300,7 +1037,10 @@ export const TriggersPanel: React.FC = () => {
       {taskList.map((task, index) => (
         <div key={index} className="p-4 border border-[#E5E5E5] rounded-lg bg-white">
           <div className="flex items-center justify-between mb-3">
-            <span className="font-semibold text-sm">Task {index + 1}</span>
+            <span className="font-semibold text-sm">
+              Task
+              {index + 1}
+            </span>
             <button onClick={() => removeFn(index)} className="text-red-600 hover:text-red-700 text-sm">
               Remove
             </button>
@@ -1355,10 +1095,13 @@ export const TriggersPanel: React.FC = () => {
                     return (
                       <span key={id} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">
                         {script?.name || id}
-                        <X className="h-3 w-3 cursor-pointer hover:text-blue-900" onClick={() => {
-                          const newIds = (task.keyboard_shortcut_ids || []).filter(i => i !== id)
-                          updateFn(index, 'keyboard_shortcut_ids', newIds)
-                        }} />
+                        <X
+                          className="h-3 w-3 cursor-pointer hover:text-blue-900"
+                          onClick={() => {
+                            const newIds = (task.keyboard_shortcut_ids || []).filter(i => i !== id)
+                            updateFn(index, 'keyboard_shortcut_ids', newIds)
+                          }}
+                        />
                       </span>
                     )
                   })}
@@ -1414,10 +1157,13 @@ export const TriggersPanel: React.FC = () => {
                     return (
                       <span key={id} className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded text-xs">
                         {cred?.connection || id}
-                        <X className="h-3 w-3 cursor-pointer hover:text-green-900" onClick={() => {
-                          const newCreds = (task.cloud_credentials || []).filter(i => i !== id)
-                          updateFn(index, 'cloud_credentials', newCreds)
-                        }} />
+                        <X
+                          className="h-3 w-3 cursor-pointer hover:text-green-900"
+                          onClick={() => {
+                            const newCreds = (task.cloud_credentials || []).filter(i => i !== id)
+                            updateFn(index, 'cloud_credentials', newCreds)
+                          }}
+                        />
                       </span>
                     )
                   })}
@@ -1465,13 +1211,16 @@ export const TriggersPanel: React.FC = () => {
               </DropdownMenu>
               {task.pipedream_proxy_apps && task.pipedream_proxy_apps.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-2">
-                  {task.pipedream_proxy_apps.map((appNameItem) => (
+                  {task.pipedream_proxy_apps.map(appNameItem => (
                     <span key={appNameItem} className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs">
                       {appNameItem}
-                      <X className="h-3 w-3 cursor-pointer hover:text-purple-900" onClick={() => {
-                        const newApps = (task.pipedream_proxy_apps || []).filter(name => name !== appNameItem)
-                        updateFn(index, 'pipedream_proxy_apps', newApps)
-                      }} />
+                      <X
+                        className="h-3 w-3 cursor-pointer hover:text-purple-900"
+                        onClick={() => {
+                          const newApps = (task.pipedream_proxy_apps || []).filter(name => name !== appNameItem)
+                          updateFn(index, 'pipedream_proxy_apps', newApps)
+                        }}
+                      />
                     </span>
                   ))}
                 </div>
@@ -1494,7 +1243,10 @@ export const TriggersPanel: React.FC = () => {
       ))}
 
       <button onClick={addFn} className="text-sm text-blue-600 hover:text-blue-700">
-        + Add {taskList.length > 0 ? 'Another ' : ''}Task
+        + Add
+        {' '}
+        {taskList.length > 0 ? 'Another ' : ''}
+        Task
       </button>
     </div>
   )
@@ -1530,7 +1282,8 @@ export const TriggersPanel: React.FC = () => {
               onClick={async () => {
                 try {
                   await storeRefreshToken()
-                } catch {
+                }
+                catch {
                   // Error handled in storeRefreshToken
                 }
               }}
@@ -1589,22 +1342,21 @@ export const TriggersPanel: React.FC = () => {
                 ))}
               </div>
             </div>
-          ) : appsWithTriggers.length > 0 && (
+          ) : unifiedApps.length > 0 && (
             <div className="mb-6">
               <h4 className="text-sm font-semibold text-[#171717] mb-3">Popular Apps with Triggers</h4>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {appsWithTriggers.map(app => {
-                  const pipedreamConnected = checkPipedreamAppConnected(app.nameSlug)
-                  const composioStatus = checkComposioAppConnected(app.nameSlug)
+                {unifiedApps.map((app) => {
+                  const pipedreamConnected = app.pipedreamSlug ? checkPipedreamAppConnected(app.pipedreamSlug) : false
+                  const composioStatus = app.composioSlug ? checkComposioAppConnected(app.composioSlug) : { connected: false, active: false }
                   const isConnected = pipedreamConnected || composioStatus.connected
 
                   return (
                     <button
-                      key={app.id}
+                      key={app.displayName}
                       onClick={() => handlePopularAppClick(app)}
                       disabled={isLoading}
                       className="flex items-center gap-2 p-3 border border-[#E5E5E5] rounded-lg hover:border-[#171717] hover:shadow-sm transition-all bg-white disabled:opacity-50 disabled:cursor-not-allowed relative"
-                      title={app.description}
                     >
                       {/* Connection indicator */}
                       {isConnected && (
@@ -1613,22 +1365,30 @@ export const TriggersPanel: React.FC = () => {
                         </div>
                       )}
                       <div className="w-6 h-6 flex-shrink-0">
-                        {app.logoUrl ? (
-                          <img
-                            src={app.logoUrl}
-                            alt={app.name}
-                            className="w-full h-full object-contain"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).style.display = 'none'
-                            }}
-                          />
-                        ) : (
-                          <div className="w-full h-full bg-[#F5F5F5] rounded flex items-center justify-center text-[#737373] text-xs font-bold">
-                            {app.name.charAt(0)}
-                          </div>
-                        )}
+                        {/* Prefer Pipedream logo, fallback to Composio, then generic logoUrl */}
+                        {(app.pipedreamLogoUrl || app.composioLogoUrl || app.logoUrl)
+                          ? (
+                              <img
+                                src={app.pipedreamLogoUrl || app.composioLogoUrl || app.logoUrl}
+                                alt={app.displayName}
+                                className="w-full h-full object-contain rounded"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).style.display = 'none'
+                                  const parent = (e.target as HTMLImageElement).parentElement
+                                  if (parent) {
+                                    parent.classList.add('bg-[#F5F5F5]', 'flex', 'items-center', 'justify-center', 'text-[#737373]', 'text-xs', 'font-bold')
+                                    parent.textContent = app.displayName.charAt(0)
+                                  }
+                                }}
+                              />
+                            )
+                          : (
+                              <div className="w-full h-full bg-[#F5F5F5] rounded flex items-center justify-center text-[#737373] text-xs font-bold">
+                                {app.displayName.charAt(0)}
+                              </div>
+                            )}
                       </div>
-                      <span className="text-sm font-medium text-[#171717] truncate">{app.name}</span>
+                      <span className="text-sm font-medium text-[#171717] truncate">{app.displayName}</span>
                     </button>
                   )
                 })}
@@ -1645,7 +1405,7 @@ export const TriggersPanel: React.FC = () => {
                 value={appName}
                 onChange={e => setAppName(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Enter app name (e.g., slack, github, stripe)"
+                placeholder="Enter app name (e.g., slack, github, google sheets)"
                 className="flex-1 px-4 py-2 border border-[#E5E5E5] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#171717]"
                 disabled={isLoading}
               />
@@ -1672,7 +1432,9 @@ export const TriggersPanel: React.FC = () => {
         <div className="px-6 pb-6 border-b border-[#E5E5E5]">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-semibold text-[#171717]">
-              Deployed Triggers ({unifiedDeployedTriggers.length})
+              Deployed Triggers (
+              {unifiedDeployedTriggers.length}
+              )
             </h3>
             <button
               onClick={() => {
@@ -1709,11 +1471,19 @@ export const TriggersPanel: React.FC = () => {
                       </span>
                     </div>
                     <div className="flex gap-3 text-xs text-[#737373] flex-wrap">
-                      <span>App: {trigger.appName}</span>
-                      <span>Deployed: {new Date(trigger.createdAt).toLocaleDateString()}</span>
+                      <span>
+                        App:
+                        {trigger.appName}
+                      </span>
+                      <span>
+                        Deployed:
+                        {new Date(trigger.createdAt).toLocaleDateString()}
+                      </span>
                       {trigger.pipedreamTrigger?.tasks && trigger.pipedreamTrigger.tasks.length > 0 && (
                         <span className="text-blue-600">
-                          Tasks: {trigger.pipedreamTrigger.tasks.length}
+                          Tasks:
+                          {' '}
+                          {trigger.pipedreamTrigger.tasks.length}
                         </span>
                       )}
                     </div>
@@ -1752,10 +1522,29 @@ export const TriggersPanel: React.FC = () => {
             <div className="p-6 border-b border-[#E5E5E5] flex items-start justify-between">
               <div className="flex-1">
                 <h3 className="text-xl font-bold text-[#171717] mb-2">
-                  Available Triggers for {selectedApp?.name}
+                  Available Triggers for
+                  {' '}
+                  {selectedApp?.name}
                 </h3>
                 <p className="text-sm text-[#737373]">
-                  {unifiedAvailableTriggers.length} trigger{unifiedAvailableTriggers.length !== 1 ? 's' : ''} found from Pipedream and Composio
+                  {unifiedAvailableTriggers.length}
+                  {' '}
+                  trigger
+                  {unifiedAvailableTriggers.length !== 1 ? 's' : ''}
+                  {' '}
+                  found
+                  {composioTriggerCount > 0 && pipedreamTriggerCount > 0 && (
+                    <>
+                      {' '}
+                      (
+                      {composioTriggerCount}
+                      {' '}
+                      Composio,
+                      {pipedreamTriggerCount}
+                      {' '}
+                      Pipedream)
+                    </>
+                  )}
                 </p>
               </div>
               <button
@@ -1767,25 +1556,25 @@ export const TriggersPanel: React.FC = () => {
             </div>
 
             <div className="flex-1 overflow-y-auto p-6">
-              {(isLoading || composioAvailableTriggersLoading) && (
+              {isLoading && (
                 <div className="flex items-center justify-center py-8">
                   <div className="text-[#737373]">Loading triggers...</div>
                 </div>
               )}
 
-              {!isLoading && !composioAvailableTriggersLoading && unifiedAvailableTriggers.length === 0 && (
+              {!isLoading && unifiedAvailableTriggers.length === 0 && (
                 <div className="text-center py-8 text-[#737373]">
                   No triggers found for this app
                 </div>
               )}
 
-              {!isLoading && !composioAvailableTriggersLoading && unifiedAvailableTriggers.length > 0 && (
+              {!isLoading && unifiedAvailableTriggers.length > 0 && (
                 <div className="space-y-3">
-                  {unifiedAvailableTriggers.map(trigger => {
+                  {unifiedAvailableTriggers.map((trigger) => {
                     // Connection status
-                    const appSlug = selectedApp?.slug || ''
-                    const pipedreamConnected = checkPipedreamAppConnected(appSlug)
-                    const composioStatus = checkComposioAppConnected(appSlug)
+                    const appSlug = trigger.sourceSlug || selectedApp?.slug || ''
+                    const pipedreamConnected = trigger.source === 'pipedream' ? checkPipedreamAppConnected(appSlug) : false
+                    const composioStatus = trigger.source === 'composio' ? checkComposioAppConnected(appSlug) : { connected: false, active: false }
                     const isConnected = trigger.source === 'pipedream' ? pipedreamConnected : composioStatus.connected
                     const isActive = trigger.source === 'pipedream' ? true : composioStatus.active
 
@@ -1796,12 +1585,38 @@ export const TriggersPanel: React.FC = () => {
                         className="w-full text-left p-4 border border-[#E5E5E5] rounded-lg hover:border-[#171717] hover:shadow-sm transition-all"
                       >
                         <div className="flex items-start justify-between gap-4">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1 flex-wrap">
-                              <h4 className="font-semibold text-[#171717]">{trigger.name}</h4>
-                              <SourceBadge source={trigger.source} />
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            {/* App Logo */}
+                            <div className="w-10 h-10 flex-shrink-0">
+                              {trigger.appInfo?.logoUrl
+                                ? (
+                                    <img
+                                      src={trigger.appInfo.logoUrl}
+                                      alt={trigger.appDisplayName}
+                                      className="w-full h-full object-contain rounded"
+                                      onError={(e) => {
+                                        (e.target as HTMLImageElement).style.display = 'none'
+                                        const parent = (e.target as HTMLImageElement).parentElement
+                                        if (parent) {
+                                          parent.classList.add('bg-[#F5F5F5]', 'flex', 'items-center', 'justify-center', 'text-[#737373]', 'text-sm', 'font-bold')
+                                          parent.textContent = trigger.appDisplayName?.charAt(0) || trigger.app?.charAt(0) || '?'
+                                        }
+                                      }}
+                                    />
+                                  )
+                                : (
+                                    <div className="w-full h-full bg-[#F5F5F5] rounded flex items-center justify-center text-[#737373] text-sm font-bold">
+                                      {trigger.appDisplayName?.charAt(0) || trigger.app?.charAt(0) || '?'}
+                                    </div>
+                                  )}
                             </div>
-                            <p className="text-sm text-[#737373] mb-2 line-clamp-2">{trigger.description}</p>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                <h4 className="font-semibold text-[#171717]">{trigger.name}</h4>
+                                <SourceBadge source={trigger.source} />
+                              </div>
+                              <p className="text-sm text-[#737373] mb-2 line-clamp-2">{trigger.description}</p>
+                            </div>
                           </div>
                           <div className="flex flex-col items-end gap-2 flex-shrink-0">
                             <ConnectionStatus isConnected={isConnected} isActive={isActive} />
@@ -1830,12 +1645,38 @@ export const TriggersPanel: React.FC = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[80vh] m-4 flex flex-col">
             <div className="p-6 border-b border-[#E5E5E5] flex items-start justify-between">
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-2">
-                  <h3 className="text-xl font-bold text-[#171717]">{selectedUnifiedTrigger.name}</h3>
-                  <SourceBadge source={selectedUnifiedTrigger.source} />
+              <div className="flex items-center gap-4 flex-1">
+                {/* App Logo */}
+                <div className="w-12 h-12 flex-shrink-0">
+                  {selectedUnifiedTrigger.appInfo?.logoUrl
+                    ? (
+                        <img
+                          src={selectedUnifiedTrigger.appInfo.logoUrl}
+                          alt={selectedUnifiedTrigger.appDisplayName}
+                          className="w-full h-full object-contain rounded"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none'
+                            const parent = (e.target as HTMLImageElement).parentElement
+                            if (parent) {
+                              parent.classList.add('bg-[#F5F5F5]', 'flex', 'items-center', 'justify-center', 'text-[#737373]', 'text-lg', 'font-bold')
+                              parent.textContent = selectedUnifiedTrigger.appDisplayName?.charAt(0) || selectedUnifiedTrigger.app?.charAt(0) || '?'
+                            }
+                          }}
+                        />
+                      )
+                    : (
+                        <div className="w-full h-full bg-[#F5F5F5] rounded flex items-center justify-center text-[#737373] text-lg font-bold">
+                          {selectedUnifiedTrigger.appDisplayName?.charAt(0) || selectedUnifiedTrigger.app?.charAt(0) || '?'}
+                        </div>
+                      )}
                 </div>
-                <p className="text-sm text-[#737373]">{selectedUnifiedTrigger.description}</p>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <h3 className="text-xl font-bold text-[#171717]">{selectedUnifiedTrigger.name}</h3>
+                    <SourceBadge source={selectedUnifiedTrigger.source} />
+                  </div>
+                  <p className="text-sm text-[#737373]">{selectedUnifiedTrigger.description}</p>
+                </div>
               </div>
               <button onClick={handleCloseConfigModal} className="text-[#737373] hover:text-[#171717] ml-4">
                 <X className="w-6 h-6" />
@@ -1862,125 +1703,64 @@ export const TriggersPanel: React.FC = () => {
                   <div>
                     <p className="text-sm font-semibold text-amber-900 mb-1">Transparency Notice</p>
                     <p className="text-sm text-amber-800">
-                      Webhook events will be processed through {selectedUnifiedTrigger.source === 'pipedream' ? "Pipedream's" : "Composio's"} service before reaching our service.
+                      Webhook events will be processed through
+                      {' '}
+                      {selectedUnifiedTrigger.source === 'pipedream' ? 'Pipedream\'s' : 'Composio\'s'}
+                      {' '}
+                      service before reaching our service.
                     </p>
                   </div>
                 </div>
               </div>
 
               {/* Configuration */}
-              {selectedUnifiedTrigger.source === 'pipedream' && selectedUnifiedTrigger.pipedreamTrigger && (() => {
-                const userConfigProps = getUserConfigurableProps(selectedUnifiedTrigger.pipedreamTrigger.configurable_props)
-                const alertProps = getAlertProps(selectedUnifiedTrigger.pipedreamTrigger.configurable_props)
+              {selectedUnifiedTrigger.config?.properties && Object.keys(selectedUnifiedTrigger.config.properties).length > 0 && (
+                <div className="mb-6">
+                  <h4 className="font-semibold text-[#171717] mb-3">Configuration</h4>
+                  <div className="space-y-4">
+                    {Object.entries(selectedUnifiedTrigger.config.properties).map(([key, propConfig]) => {
+                      const config = propConfig as Record<string, unknown>
+                      // Skip app-type props and system props
+                      if (config.type === 'app' || key === 'db' || key === 'http' || key === 'pipedreamApiKey') {
+                        return null
+                      }
 
-                return (
-                  <>
-                    {alertProps.length > 0 && (
-                      <div className="mb-6 space-y-3">
-                        {alertProps.map((prop, index) => (
-                          <div
-                            key={`alert-${index}`}
-                            className={`p-4 rounded-lg border ${
-                              prop.alertType === 'warning'
-                                ? 'bg-yellow-50 border-yellow-200 text-yellow-800'
-                                : 'bg-blue-50 border-blue-200 text-blue-800'
-                            }`}
-                          >
-                            <p className="text-sm">{prop.content}</p>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                      const isRequired = selectedUnifiedTrigger.config?.required?.includes(key)
 
-                    {userConfigProps.length > 0 && (
-                      <div className="mb-6">
-                        <h4 className="font-semibold text-[#171717] mb-3">Configuration</h4>
-                        <div className="space-y-4">
-                          {userConfigProps.map((prop, index) => (
-                            <div key={`${prop.name}-${index}`} className="p-4 border border-[#E5E5E5] rounded-lg">
-                              <div className="flex items-start justify-between mb-2">
-                                <div className="flex items-center gap-2">
-                                  <span className="font-semibold text-[#171717]">{prop.label || prop.name}</span>
-                                  {!prop.optional && (
-                                    <span className="text-xs text-red-600 px-2 py-0.5 bg-red-50 rounded">Required</span>
-                                  )}
-                                </div>
-                                <span className="text-xs font-mono text-[#737373] px-2 py-1 bg-[#F5F5F5] rounded">
-                                  {prop.type}
-                                </span>
-                              </div>
-                              {prop.description && (
-                                <p className="text-sm text-[#737373] mb-3">{prop.description}</p>
+                      return (
+                        <div key={key} className="p-4 border border-[#E5E5E5] rounded-lg">
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-[#171717]">{(config.title as string) || key}</span>
+                              {isRequired && (
+                                <span className="text-xs text-red-600 px-2 py-0.5 bg-red-50 rounded">Required</span>
                               )}
-                              {renderConfigInput(prop)}
                             </div>
-                          ))}
+                            <span className="text-xs font-mono text-[#737373] px-2 py-1 bg-[#F5F5F5] rounded">
+                              {config.type as string}
+                            </span>
+                          </div>
+                          {config.description && (
+                            <p className="text-sm text-[#737373] mb-3">{config.description as string}</p>
+                          )}
+                          {renderConfigInput(key, config)}
                         </div>
-                      </div>
-                    )}
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
 
-                    {userConfigProps.length === 0 && alertProps.length === 0 && (
-                      <div className="mb-6 p-4 bg-[#F5F5F5] rounded-lg text-center">
-                        <p className="text-sm text-[#737373]">
-                          No configuration needed. This trigger uses default settings.
-                        </p>
-                      </div>
-                    )}
-                  </>
-                )
-              })()}
-
-              {selectedUnifiedTrigger.source === 'composio' && (() => {
-                const configSchema = composioTriggerConfig as Record<string, unknown> | null
-                const properties = configSchema?.properties as Record<string, Record<string, unknown>> | undefined
-                const required = (configSchema?.required as string[]) || []
-
-                return (
-                  <>
-                    {composioTriggerConfigLoading && (
-                      <div className="mb-6 text-center text-[#737373]">Loading configuration...</div>
-                    )}
-
-                    {!composioTriggerConfigLoading && properties && Object.keys(properties).length > 0 && (
-                      <div className="mb-6">
-                        <h4 className="font-semibold text-[#171717] mb-3">Configuration</h4>
-                        <div className="space-y-4">
-                          {Object.entries(properties).map(([key, schema]) => {
-                            const isRequired = required.includes(key)
-                            return (
-                              <div key={key} className="p-4 border border-[#E5E5E5] rounded-lg">
-                                <div className="flex items-start justify-between mb-2">
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-semibold text-[#171717]">{(schema.title as string) || key}</span>
-                                    {isRequired && (
-                                      <span className="text-xs text-red-600 px-2 py-0.5 bg-red-50 rounded">Required</span>
-                                    )}
-                                  </div>
-                                  <span className="text-xs font-mono text-[#737373] px-2 py-1 bg-[#F5F5F5] rounded">
-                                    {schema.type as string}
-                                  </span>
-                                </div>
-                                {schema.description && (
-                                  <p className="text-sm text-[#737373] mb-3">{schema.description as string}</p>
-                                )}
-                                {renderComposioConfigInput(key, schema)}
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                    {!composioTriggerConfigLoading && (!properties || Object.keys(properties).length === 0) && (
-                      <div className="mb-6 p-4 bg-[#F5F5F5] rounded-lg text-center">
-                        <p className="text-sm text-[#737373]">
-                          No configuration needed. This trigger uses default settings.
-                        </p>
-                      </div>
-                    )}
-                  </>
-                )
-              })()}
+              {(!selectedUnifiedTrigger.config?.properties || Object.keys(selectedUnifiedTrigger.config.properties).filter((k) => {
+                const c = selectedUnifiedTrigger.config?.properties?.[k] as Record<string, unknown> | undefined
+                return c?.type !== 'app' && k !== 'db' && k !== 'http' && k !== 'pipedreamApiKey'
+              }).length === 0) && (
+                <div className="mb-6 p-4 bg-[#F5F5F5] rounded-lg text-center">
+                  <p className="text-sm text-[#737373]">
+                    No configuration needed. This trigger uses default settings.
+                  </p>
+                </div>
+              )}
 
               {/* Tasks Section */}
               <div className="mt-6">
@@ -2024,9 +1804,20 @@ export const TriggersPanel: React.FC = () => {
       {showConnectPrompt && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full m-4 p-6">
-            <h3 className="text-lg font-bold text-[#171717] mb-4">Connect {promptAppName}</h3>
+            <h3 className="text-lg font-bold text-[#171717] mb-4">
+              Connect
+              {promptAppName}
+            </h3>
             <p className="text-sm text-[#737373] mb-6">
-              You need to connect your {promptAppName} account {promptSource === 'pipedream' ? 'via Pipedream' : 'via Composio'} before deploying this trigger.
+              You need to connect your
+              {' '}
+              {promptAppName}
+              {' '}
+              account
+              {' '}
+              {promptSource === 'pipedream' ? 'via Pipedream' : 'via Composio'}
+              {' '}
+              before deploying this trigger.
             </p>
             <div className="flex gap-3 justify-end">
               <button
@@ -2042,7 +1833,8 @@ export const TriggersPanel: React.FC = () => {
                 onClick={async () => {
                   if (promptSource === 'pipedream') {
                     await handleConnectPipedreamApp(extractAppName(selectedApp?.slug || appName))
-                  } else {
+                  }
+                  else {
                     await handleConnectComposioApp(selectedApp?.slug || appName)
                   }
                   setShowConnectPrompt(false)
@@ -2061,13 +1853,17 @@ export const TriggersPanel: React.FC = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full m-4 p-6">
             <div className="flex items-center gap-3 mb-4">
-              {composioAccountStatus.isActive ? (
-                <CheckCircle className="w-8 h-8 text-green-500" />
-              ) : composioAccountStatus.hasAccount ? (
-                <AlertCircle className="w-8 h-8 text-yellow-500" />
-              ) : (
-                <XCircle className="w-8 h-8 text-red-500" />
-              )}
+              {composioAccountStatus.isActive
+                ? (
+                    <CheckCircle className="w-8 h-8 text-green-500" />
+                  )
+                : composioAccountStatus.hasAccount
+                  ? (
+                      <AlertCircle className="w-8 h-8 text-yellow-500" />
+                    )
+                  : (
+                      <XCircle className="w-8 h-8 text-red-500" />
+                    )}
               <h3 className="text-lg font-bold text-[#171717]">
                 {composioAccountStatus.isActive
                   ? 'Account Active'
@@ -2123,7 +1919,11 @@ export const TriggersPanel: React.FC = () => {
             <div className="p-6 border-b border-[#E5E5E5] flex items-start justify-between">
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-2">
-                  <h3 className="text-xl font-bold text-[#171717]">{selectedScheduleTrigger.label} Schedule Trigger</h3>
+                  <h3 className="text-xl font-bold text-[#171717]">
+                    {selectedScheduleTrigger.label}
+                    {' '}
+                    Schedule Trigger
+                  </h3>
                   <SourceBadge source="pipedream" />
                 </div>
                 <p className="text-sm text-[#737373]">{selectedScheduleTrigger.description}</p>
@@ -2178,7 +1978,9 @@ export const TriggersPanel: React.FC = () => {
                         </div>
                       </div>
                       <div className="text-xs text-blue-700 bg-blue-100 px-2 py-1 rounded">
-                        Cron: <span className="font-mono">{buildCronExpression('daily')}</span>
+                        Cron:
+                        {' '}
+                        <span className="font-mono">{buildCronExpression('daily')}</span>
                       </div>
                     </div>
                   )}
@@ -2227,7 +2029,9 @@ export const TriggersPanel: React.FC = () => {
                         </div>
                       </div>
                       <div className="text-xs text-blue-700 bg-blue-100 px-2 py-1 rounded">
-                        Cron: <span className="font-mono">{buildCronExpression('weekly')}</span>
+                        Cron:
+                        {' '}
+                        <span className="font-mono">{buildCronExpression('weekly')}</span>
                       </div>
                     </div>
                   )}
@@ -2251,7 +2055,9 @@ export const TriggersPanel: React.FC = () => {
                         </select>
                       </div>
                       <div className="text-xs text-blue-700 bg-blue-100 px-2 py-1 rounded">
-                        Cron: <span className="font-mono">{buildCronExpression('custom-interval')}</span>
+                        Cron:
+                        {' '}
+                        <span className="font-mono">{buildCronExpression('custom-interval')}</span>
                       </div>
                     </div>
                   )}
@@ -2259,7 +2065,9 @@ export const TriggersPanel: React.FC = () => {
 
                 <div>
                   <label className="block text-sm font-semibold text-[#171717] mb-2">
-                    Label <span className="text-red-600">*</span>
+                    Label
+                    {' '}
+                    <span className="text-red-600">*</span>
                   </label>
                   <input
                     type="text"

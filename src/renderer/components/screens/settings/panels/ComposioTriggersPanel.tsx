@@ -1,7 +1,10 @@
-import { AlertCircle, CheckCircle, ChevronDown, X, XCircle } from 'lucide-react'
+/* eslint-disable custom/no-console */
+import { AlertCircle, CheckCircle, ChevronDown, Search, X, XCircle } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { Script } from '../../../../../main'
 import useComposio from '../../../../hooks/useComposio'
+import { type CombinedApp } from '../../../../services/combined-apps-service'
+import { type CombinedTrigger } from '../../../../services/combined-triggers-service'
 import { deployTrigger, type ComposioApp, type ComposioAvailableTrigger } from '../../../../services/composio-service'
 import { Button } from '../../../ui/button'
 import {
@@ -12,6 +15,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '../../../ui/dropdown-menu'
+import CombinedAppSearchModal from './CombinedAppSearchModal'
 
 interface ComposioTask {
   keyboardShortcutIds?: string[]
@@ -65,6 +69,7 @@ export const ComposioTriggersPanel: React.FC = () => {
 
   const [selectedApp, setSelectedApp] = useState<ComposioApp | null>(null)
   const [selectedTrigger, setSelectedTrigger] = useState<ComposioAvailableTrigger | null>(null)
+  const [showCombinedAppSearch, setShowCombinedAppSearch] = useState(false)
   const [showAccountModal, setShowAccountModal] = useState(false)
   const [showTriggersModal, setShowTriggersModal] = useState(false)
   const [showConfigModal, setShowConfigModal] = useState(false)
@@ -102,6 +107,46 @@ export const ComposioTriggersPanel: React.FC = () => {
       setSelectedApp(app)
       setShowTriggersModal(true)
       await fetchAvailableTriggers(appSlug)
+    }
+  }
+
+  const handleCombinedTriggerSelect = async (trigger: CombinedTrigger, combinedApp: CombinedApp) => {
+    setShowCombinedAppSearch(false)
+
+    // Handle Pipedream triggers
+    if (trigger.platform === 'pipedream') {
+      // TODO: Implement Pipedream trigger configuration
+      alert(`Pipedream trigger "${trigger.name}" selected. Pipedream trigger configuration coming soon!`)
+      return
+    }
+
+    // Handle Composio triggers
+    if (trigger.composioData && combinedApp.composioData) {
+      setSelectedApp(combinedApp.composioData)
+      setSelectedTrigger(trigger.composioData)
+      setShowConfigModal(true)
+
+      // Reset tasks and load options
+      setTasks([])
+      setShowTasksSection(false)
+      loadTaskOptions()
+
+      await fetchTriggerConfig(trigger.composioData.slug)
+
+      // Set default values from config schema
+      if (trigger.composioData.config?.properties) {
+        const defaults: Record<string, unknown> = {}
+        Object.entries(trigger.composioData.config.properties).forEach(([key, value]) => {
+          const propValue = value as { default?: unknown }
+          if (propValue.default !== undefined) {
+            defaults[key] = propValue.default
+          }
+        })
+        setConfigValues(defaults)
+      }
+    }
+    else {
+      alert('Could not find trigger data')
     }
   }
 
@@ -343,6 +388,18 @@ export const ComposioTriggersPanel: React.FC = () => {
         <p className="text-[#737373] mb-6">
           Connect your accounts and configure triggers. Composio integrates with 250+ apps.
         </p>
+
+        {/* Combined App Search Button */}
+        <Button
+          onClick={() => {
+            console.log('[ComposioTriggersPanel] Search button clicked, opening CombinedAppSearchModal')
+            setShowCombinedAppSearch(true)
+          }}
+          className="w-full mb-6 flex items-center justify-center gap-2"
+        >
+          <Search className="w-4 h-4" />
+          Search for App (Composio & Pipedream)
+        </Button>
 
         <div className="flex gap-3 mb-6">
           <input
@@ -1376,6 +1433,13 @@ export const ComposioTriggersPanel: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Combined App Search Modal */}
+      <CombinedAppSearchModal
+        isOpen={showCombinedAppSearch}
+        onClose={() => setShowCombinedAppSearch(false)}
+        onSelectTrigger={handleCombinedTriggerSelect}
+      />
     </div>
   )
 }
