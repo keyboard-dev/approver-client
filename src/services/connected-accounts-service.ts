@@ -1,4 +1,3 @@
-import fetch from 'node-fetch'
 import type { TokenResult } from './external-token-source'
 
 export interface InitiateConnectionRequest {

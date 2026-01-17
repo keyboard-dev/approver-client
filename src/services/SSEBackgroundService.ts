@@ -17,6 +17,20 @@ export interface SSEMessage {
   data?: CodespaceData
 }
 
+// Valid SSE message types
+const VALID_MESSAGE_TYPES: ReadonlySet<string> = new Set([
+  'connected',
+  'codespace_online',
+  'codespace_offline',
+  'codespace_updated',
+  'ping',
+])
+
+// Type guard to validate SSE message type
+function isValidMessageType(type: unknown): type is SSEMessage['type'] {
+  return typeof type === 'string' && VALID_MESSAGE_TYPES.has(type)
+}
+
 export interface SSEServiceOptions {
   serverUrl: string
   maxReconnectAttempts?: number
@@ -123,16 +137,45 @@ export class SSEBackgroundService extends EventEmitter {
         buffer = lines.pop() || ''
 
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6).trim()
-            if (data) {
-              try {
-                const parsedData: SSEMessage = JSON.parse(data)
-                this.handleMessage(parsedData)
+          if (!line.startsWith('data: ')) {
+            continue
+          }
+
+          const data = line.slice(6).trim()
+          if (!data) {
+            continue
+          }
+
+          try {
+            // Try to parse as JSON first
+            let message: SSEMessage
+            try {
+              const parsed = JSON.parse(data)
+
+              // If parsed is not a string, use it as-is (object)
+              if (typeof parsed !== 'string') {
+                message = parsed
               }
-              catch (error) {
+              // If parsed is a string, validate it's a valid type
+              else if (!isValidMessageType(parsed)) {
+                throw new Error(`Invalid SSE message type: "${parsed}"`)
+              }
+              // Valid string type
+              else {
+                message = { type: parsed }
               }
             }
+            catch {
+              // Treat unparseable data as a plain string type (expected behavior)
+              if (!isValidMessageType(data)) {
+                throw new Error(`Invalid SSE message type: "${data}"`)
+              }
+              message = { type: data }
+            }
+
+            this.handleMessage(message)
+          }
+          catch (error) {
           }
         }
       }

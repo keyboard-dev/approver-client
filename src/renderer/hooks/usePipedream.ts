@@ -5,7 +5,7 @@
  * Handles fetching accounts, apps, connecting, and disconnecting.
  */
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import {
   deleteAccount,
@@ -15,6 +15,13 @@ import {
   PipedreamAccount,
   PipedreamApp,
 } from '../services/pipedream-service'
+
+// =============================================================================
+// Constants
+// =============================================================================
+
+const POLL_INTERVAL_MS = 3000 // 3 seconds - standard for OAuth callback detection
+const POLL_TIMEOUT_MS = 120000 // 120 seconds (2 minutes) - typical OAuth flow completion time
 
 // =============================================================================
 // Types
@@ -85,6 +92,77 @@ export function usePipedream(): UsePipedreamReturn {
   const [connectingApp, setConnectingApp] = useState<string | null>(null)
   const [disconnectingAccountId, setDisconnectingAccountId] = useState<string | null>(null)
 
+  // Polling state (using refs to avoid dependency issues in effects)
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const pollingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const pollingAppSlugRef = useRef<string | null>(null)
+  const accountsBeforePollingRef = useRef<PipedreamAccount[]>([])
+
+  // ==========================================================================
+  // Polling Functions
+  // ==========================================================================
+
+  const stopPolling = useCallback(() => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current)
+      pollingIntervalRef.current = null
+    }
+    if (pollingTimeoutRef.current) {
+      clearTimeout(pollingTimeoutRef.current)
+      pollingTimeoutRef.current = null
+    }
+    pollingAppSlugRef.current = null
+    setConnectingApp(null)
+  }, [])
+
+  const checkForNewAccount = useCallback((newAccounts: PipedreamAccount[]) => {
+    const expectedAppSlug = pollingAppSlugRef.current
+    if (!expectedAppSlug) {
+      return false
+    }
+
+    // Check if there's a new account for the app we're trying to connect
+    const previousAccounts = accountsBeforePollingRef.current
+    const newAccount = newAccounts.find(
+      acc => acc.app.nameSlug === expectedAppSlug
+        && !previousAccounts.some(prev => prev.id === acc.id),
+    )
+
+    if (newAccount) {
+      return true
+    }
+
+    return false
+  }, [])
+
+  const startPolling = useCallback((appSlug: string) => {
+    // Store the app we're waiting for and current accounts
+    pollingAppSlugRef.current = appSlug
+    accountsBeforePollingRef.current = accounts
+
+    pollingIntervalRef.current = setInterval(async () => {
+      try {
+        const response = await listAccounts()
+        const newAccounts = response.accounts || []
+
+        // Update accounts state
+        setAccounts(newAccounts)
+
+        // Check if we found the new account
+        if (checkForNewAccount(newAccounts)) {
+          stopPolling()
+        }
+      }
+      catch (error) {
+      }
+    }, POLL_INTERVAL_MS)
+
+    // Set up timeout to stop polling after max time
+    pollingTimeoutRef.current = setTimeout(() => {
+      stopPolling()
+    }, POLL_TIMEOUT_MS)
+  }, [accounts, checkForNewAccount, stopPolling])
+
   // ==========================================================================
   // Fetch Functions
   // ==========================================================================
@@ -146,16 +224,14 @@ export function usePipedream(): UsePipedreamReturn {
 
     try {
       await openConnectLink(appSlug)
-      // Note: The OAuth flow happens in an external browser.
-      // User should refresh accounts after completing the flow.
+      // Start polling to detect when the OAuth flow completes
+      startPolling(appSlug)
     }
     catch (error) {
+      setConnectingApp(null)
       throw error
     }
-    finally {
-      setConnectingApp(null)
-    }
-  }, [])
+  }, [startPolling])
 
   const disconnectAccount = useCallback(async (accountId: string) => {
     setDisconnectingAccountId(accountId)
@@ -195,6 +271,13 @@ export function usePipedream(): UsePipedreamReturn {
     refreshAccounts()
     fetchDefaultApps()
   }, [refreshAccounts, fetchDefaultApps])
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      stopPolling()
+    }
+  }, [stopPolling])
 
   // Debounced search
   useEffect(() => {

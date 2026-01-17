@@ -58,34 +58,38 @@ export const Integrations: React.FC<IntegrationsProps> = ({ onComplete }) => {
   // ===========================================================================
 
   return (
-    <div className="flex flex-col h-full w-full py-[3.88rem] items-center">
+    <div className="flex flex-col h-full w-full py-[50px] items-center">
       <div className="flex flex-col items-start h-full max-w-[800px] justify-between px-[100px]">
-        <div className="flex w-full flex-col items-start gap-[1.5rem]">
+        <div className="flex w-full flex-col items-start gap-[40px]">
           {/* Header */}
-          <div className="flex w-full flex-col items-start gap-[0.63rem] pb-[1.25rem] border-b border-neutral-200">
-            <div className="text-[1.38rem] font-semibold">
-              Do you have any apps you want to connect?
+          <div className="flex w-full flex-col items-start gap-[10px] pb-[20px] border-b border-[#e5e5e5]">
+            <div className="text-[22px] font-semibold text-[#171717]">
+              Connect your apps
             </div>
-            <div className="text-[#A5A5A5] text-[14px]">
-              You can also do this later in the app.
+            <div className="text-[#a5a5a5] text-[14px] font-medium">
+              You can always adjust these later.
             </div>
 
             <div className="flex w-full justify-center py-[5px]">
-              <ProgressIndicator progress={3} />
+              <ProgressIndicator progress={3} totalSteps={4} />
             </div>
           </div>
 
           {/* Connectors Content */}
-          <div className="w-full">
-            <ConnectorsContent maxConnectorsHeight="280px" />
+          <div className="w-full flex-1 min-h-0 flex flex-col gap-[15px]">
+            <ConnectorsContent
+              maxConnectorsHeight="280px"
+              showDescription
+              showDocsLink
+            />
           </div>
 
           {/* Buttons */}
-          <div className="flex gap-[5px] justify-end w-full">
+          <div className="flex gap-[5px] justify-end max-w-[400px] w-full">
             <ButtonDesigned
               variant="clear"
               onClick={handleComplete}
-              className="px-[16px] py-[8px] text-[14px]"
+              className="px-3 py-1 text-[14px]"
             >
               Skip
             </ButtonDesigned>
@@ -93,7 +97,7 @@ export const Integrations: React.FC<IntegrationsProps> = ({ onComplete }) => {
             <ButtonDesigned
               variant="clear"
               onClick={handleComplete}
-              className="px-[16px] py-[8px] text-[14px]"
+              className="px-3 py-1 text-[14px]"
               hasBorder
             >
               Complete

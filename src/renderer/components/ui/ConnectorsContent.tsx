@@ -6,17 +6,14 @@
  * Used by ConnectorsPanel (settings) and Integrations (onboarding).
  */
 
-import { RefreshCw, Search, Trash2, X } from 'lucide-react'
+import { ExternalLink, Search, X } from 'lucide-react'
 import React, { useMemo, useState } from 'react'
 
 import squaresIconUrl from '../../../../assets/icon-squares.svg'
-import { AdditionalConnectedAccount, useAdditionalConnectedAccounts } from '../../hooks/useAdditionalConnectedAccounts'
-import { useCustomIntegrations } from '../../hooks/useCustomIntegrations'
 import { KeyboardApiProvider, useKeyboardApiConnectors } from '../../hooks/useKeyboardApiConnectors'
 import { usePipedream } from '../../hooks/usePipedream'
 import { usePopup } from '../../hooks/usePopup'
-import { PipedreamAccount, PipedreamApp } from '../../services/pipedream-service'
-import { ButtonDesigned } from './ButtonDesigned'
+import { PipedreamAccount } from '../../services/pipedream-service'
 
 // =============================================================================
 // Types
@@ -27,7 +24,13 @@ export interface ConnectorsContentProps {
   maxConnectorsHeight?: string
   /** Additional className for the container */
   className?: string
+  /** Show "Local apps are managed by..." description text */
+  showDescription?: boolean
+  /** Show "See our docs..." link at bottom */
+  showDocsLink?: boolean
 }
+
+type FilterType = 'all' | 'local' | 'pipedream'
 
 // =============================================================================
 // Tag Component
@@ -40,369 +43,118 @@ interface SourceTagProps {
 }
 
 export const SourceTag: React.FC<SourceTagProps> = ({ source }) => {
-  const styles = source === 'local'
-    ? 'bg-[#E5EFF4] text-[#5093B7] border-[#5093B7]'
-    : source === 'pipedream'
-      ? 'bg-[#F3E8FF] text-[#9333EA] border-[#9333EA]'
-      : 'bg-[#FFF4E5] text-[#D97706] border-[#D97706]'
+  const label = source === 'local' ? 'Local' : 'Pipedream'
 
   return (
-    <span className={`text-[10px] px-1.5 py-0.5 rounded border ${styles}`}>
-      {source}
+    <span className="bg-[#f0f0f0] text-black text-[14px] font-medium px-2 py-1 rounded-full">
+      {label}
     </span>
   )
 }
 
 // =============================================================================
-// Local Connector Card
+// Filter Tabs Component
 // =============================================================================
 
-interface LocalConnectorCardProps {
-  provider: KeyboardApiProvider
-  isAuthenticated: boolean
+interface FilterTabsProps {
+  activeFilter: FilterType
+  onFilterChange: (filter: FilterType) => void
+}
+
+const FilterTabs: React.FC<FilterTabsProps> = ({ activeFilter, onFilterChange }) => {
+  const tabs: { id: FilterType, label: string }[] = [
+    { id: 'all', label: 'All' },
+    { id: 'local', label: 'Local' },
+    { id: 'pipedream', label: 'Pipedream' },
+  ]
+
+  return (
+    <div className="flex items-center">
+      {tabs.map(tab => (
+        <button
+          key={tab.id}
+          onClick={() => onFilterChange(tab.id)}
+          className={`px-2 py-1 text-[14px] font-medium rounded-full transition-colors ${
+            activeFilter === tab.id
+              ? 'bg-[#f0f0f0] text-black'
+              : 'text-[#a5a5a5] hover:text-[#737373]'
+          }`}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+// =============================================================================
+// Connector Row Component (Unified design for all connector types)
+// =============================================================================
+
+interface ConnectorRowProps {
+  icon: string
+  name: string
+  source: SourceType
+  isConnected: boolean
   isConnecting: boolean
   isDisconnecting: boolean
+  disabled?: boolean
   onConnect: () => void
   onDisconnect: () => void
 }
 
-const LocalConnectorCard: React.FC<LocalConnectorCardProps> = ({
-  provider,
-  isAuthenticated,
+const ConnectorRow: React.FC<ConnectorRowProps> = ({
+  icon,
+  name,
+  source,
+  isConnected,
   isConnecting,
   isDisconnecting,
+  disabled = false,
   onConnect,
   onDisconnect,
 }) => {
   return (
-    <div className="flex items-center justify-between p-3 border border-[#E5E5E5] rounded-lg hover:border-[#CCC] transition-colors">
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-lg border border-[#E5E5E5] flex items-center justify-center overflow-hidden bg-white">
+    <div className="flex items-center gap-[10px] w-full">
+      {/* Left section: Icon + Name (dimmed if not connected) */}
+      <div className={`flex-1 flex items-center gap-[10px] ${!isConnected ? 'opacity-50' : ''}`}>
+        <div className="bg-white border border-[#e5e5e5] rounded-[4px] p-[5px] flex items-center">
           <img
-            src={provider.icon}
-            alt={provider.name}
+            src={icon}
+            alt={name}
             className="w-6 h-6 object-contain"
             onError={(e) => {
               (e.target as HTMLImageElement).src = squaresIconUrl
             }}
           />
         </div>
-        <div className="flex items-center gap-2">
-          <div className="font-medium text-[#171717]">{provider.name}</div>
-          <SourceTag source="local" />
-        </div>
+        <span className="font-medium text-[14px] text-[#171717]">{name}</span>
       </div>
-      {isAuthenticated
+
+      {/* Middle: Source Tag */}
+      <SourceTag source={source} />
+
+      {/* Right: Action Button */}
+      {isConnected
         ? (
-            <ButtonDesigned
-              variant="clear"
-              className="px-3 py-2 text-[#D23535] hover:bg-[#FEE] shrink-0"
+            <button
+              className="px-3 py-1 text-[14px] font-medium text-[#d23535] hover:bg-[#FEE2E2] rounded-[4px] transition-colors disabled:opacity-50"
               disabled={isDisconnecting}
               onClick={onDisconnect}
             >
-              {isDisconnecting
-                ? <RefreshCw className="w-4 h-4 animate-spin" />
-                : <Trash2 className="w-4 h-4" />}
-            </ButtonDesigned>
+              {isDisconnecting ? 'Disconnecting...' : 'Disconnect'}
+            </button>
           )
         : (
-            <ButtonDesigned
-              variant="clear"
-              hasBorder
-              className="px-4 py-2 shrink-0"
-              disabled={isConnecting || !provider.configured}
+            <button
+              className="flex items-center gap-1 px-3 py-1 bg-white border border-[#e5e5e5] rounded-[4px] text-[14px] font-medium text-[#171717] hover:border-[#ccc] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isConnecting || disabled}
               onClick={onConnect}
             >
+              <ExternalLink className="w-4 h-4" />
               {isConnecting ? 'Connecting...' : 'Connect'}
-            </ButtonDesigned>
+            </button>
           )}
-    </div>
-  )
-}
-
-// =============================================================================
-// Pipedream App Card
-// =============================================================================
-
-interface PipedreamAppCardProps {
-  app: PipedreamApp
-  isConnecting: boolean
-  onConnect: () => void
-}
-
-const PipedreamAppCard: React.FC<PipedreamAppCardProps> = ({ app, isConnecting, onConnect }) => {
-  return (
-    <div className="flex items-center justify-between p-3 border border-[#E5E5E5] rounded-lg hover:border-[#CCC] transition-colors">
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-lg border border-[#E5E5E5] flex items-center justify-center overflow-hidden bg-white">
-          {app.logoUrl
-            ? (
-                <img
-                  src={app.logoUrl}
-                  alt={app.name}
-                  className="w-6 h-6 object-contain"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = squaresIconUrl
-                  }}
-                />
-              )
-            : (
-                <img src={squaresIconUrl} alt={app.name} className="w-6 h-6" />
-              )}
-        </div>
-        <div>
-          <div className="flex items-center gap-2">
-            <div className="font-medium text-[#171717]">{app.name}</div>
-            <SourceTag source="pipedream" />
-          </div>
-          {app.description && (
-            <div className="text-sm text-[#737373] line-clamp-1 max-w-[300px]">
-              {app.description}
-            </div>
-          )}
-        </div>
-      </div>
-      <ButtonDesigned
-        variant="clear"
-        hasBorder
-        className="px-4 py-2 shrink-0"
-        disabled={isConnecting}
-        onClick={onConnect}
-      >
-        {isConnecting ? 'Connecting...' : 'Connect'}
-      </ButtonDesigned>
-    </div>
-  )
-}
-
-// =============================================================================
-// Custom Integration Card
-// =============================================================================
-
-interface CustomIntegrationCardProps {
-  integration: {
-    id: string
-    name: string
-    description?: string
-    icon: string
-    source?: 'local' | 'pipedream' | 'custom'
-  }
-  isConnecting: boolean
-  onConnect: () => void
-}
-
-const CustomIntegrationCard: React.FC<CustomIntegrationCardProps> = ({
-  integration,
-  isConnecting,
-  onConnect,
-}) => {
-  return (
-    <div className="flex items-center justify-between p-3 border border-[#E5E5E5] rounded-lg hover:border-[#CCC] transition-colors">
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-lg border border-[#E5E5E5] flex items-center justify-center overflow-hidden bg-white">
-          <img
-            src={integration.icon}
-            alt={integration.name}
-            className="w-6 h-6 object-contain"
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = squaresIconUrl
-            }}
-          />
-        </div>
-        <div>
-          <div className="flex items-center gap-2">
-            <div className="font-medium text-[#171717]">{integration.name}</div>
-            <SourceTag source={integration.source || 'custom'} />
-          </div>
-          {integration.description && (
-            <div className="text-sm text-[#737373] line-clamp-1 max-w-[300px]">
-              {integration.description}
-            </div>
-          )}
-        </div>
-      </div>
-      <ButtonDesigned
-        variant="clear"
-        hasBorder
-        className="px-4 py-2 shrink-0"
-        disabled={isConnecting}
-        onClick={onConnect}
-      >
-        {isConnecting ? 'Connecting...' : 'Connect'}
-      </ButtonDesigned>
-    </div>
-  )
-}
-
-// =============================================================================
-// Connected Local Account Card
-// =============================================================================
-
-interface ConnectedLocalAccountCardProps {
-  provider: KeyboardApiProvider
-  email?: string
-  isDisconnecting: boolean
-  onDisconnect: () => void
-}
-
-const ConnectedLocalAccountCard: React.FC<ConnectedLocalAccountCardProps> = ({
-  provider,
-  email,
-  isDisconnecting,
-  onDisconnect,
-}) => {
-  return (
-    <div className="flex items-center justify-between p-3 border border-[#E5E5E5] rounded-lg">
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-lg border border-[#E5E5E5] flex items-center justify-center overflow-hidden bg-white">
-          <img
-            src={provider.icon}
-            alt={provider.name}
-            className="w-6 h-6 object-contain"
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = squaresIconUrl
-            }}
-          />
-        </div>
-        <div>
-          <div className="flex items-center gap-2">
-            <div className="font-medium text-[#171717]">{provider.name}</div>
-            <SourceTag source="local" />
-          </div>
-          {email && (
-            <div className="text-sm text-[#737373]">{email}</div>
-          )}
-        </div>
-      </div>
-      <ButtonDesigned
-        variant="clear"
-        className="px-3 py-2 text-[#D23535] hover:bg-[#FEE] shrink-0"
-        disabled={isDisconnecting}
-        onClick={onDisconnect}
-      >
-        {isDisconnecting
-          ? <RefreshCw className="w-4 h-4 animate-spin" />
-          : <Trash2 className="w-4 h-4" />}
-      </ButtonDesigned>
-    </div>
-  )
-}
-
-// =============================================================================
-// Connected Pipedream Account Card
-// =============================================================================
-
-interface ConnectedPipedreamAccountCardProps {
-  account: PipedreamAccount
-  isDisconnecting: boolean
-  onDisconnect: () => void
-}
-
-const ConnectedPipedreamAccountCard: React.FC<ConnectedPipedreamAccountCardProps> = ({
-  account,
-  isDisconnecting,
-  onDisconnect,
-}) => {
-  return (
-    <div className="flex items-center justify-between p-3 border border-[#E5E5E5] rounded-lg">
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-lg border border-[#E5E5E5] flex items-center justify-center overflow-hidden bg-white">
-          {account.app.logoUrl
-            ? (
-                <img
-                  src={account.app.logoUrl}
-                  alt={account.app.name}
-                  className="w-6 h-6 object-contain"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = squaresIconUrl
-                  }}
-                />
-              )
-            : (
-                <img src={squaresIconUrl} alt={account.app.name} className="w-6 h-6" />
-              )}
-        </div>
-        <div>
-          <div className="flex items-center gap-2">
-            <div className="font-medium text-[#171717]">{account.app.name}</div>
-            <SourceTag source="pipedream" />
-          </div>
-          <div className="text-sm text-[#737373]">
-            {account.name}
-            {!account.healthy && (
-              <span className="ml-2 text-[#D23535]">• Needs reconnection</span>
-            )}
-          </div>
-        </div>
-      </div>
-      <ButtonDesigned
-        variant="clear"
-        className="px-3 py-2 text-[#D23535] hover:bg-[#FEE] shrink-0"
-        disabled={isDisconnecting}
-        onClick={onDisconnect}
-      >
-        {isDisconnecting
-          ? <RefreshCw className="w-4 h-4 animate-spin" />
-          : <Trash2 className="w-4 h-4" />}
-      </ButtonDesigned>
-    </div>
-  )
-}
-
-// =============================================================================
-// Additional Connected Account Card
-// =============================================================================
-
-interface ConnectedAdditionalAccountCardProps {
-  account: AdditionalConnectedAccount
-  isDisconnecting: boolean
-  onDisconnect: () => void
-}
-
-const ConnectedAdditionalAccountCard: React.FC<ConnectedAdditionalAccountCardProps> = ({
-  account,
-  isDisconnecting,
-  onDisconnect,
-}) => {
-  return (
-    <div className="flex items-center justify-between p-3 border border-[#E5E5E5] rounded-lg">
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-lg border border-[#E5E5E5] flex items-center justify-center overflow-hidden bg-white">
-          {account.icon
-            ? (
-                <img
-                  src={account.icon}
-                  alt={account.displayName}
-                  className="w-6 h-6 object-contain"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = squaresIconUrl
-                  }}
-                />
-              )
-            : (
-                <img src={squaresIconUrl} alt={account.displayName} className="w-6 h-6" />
-              )}
-        </div>
-        <div>
-          <div className="flex items-center gap-2">
-            <div className="font-medium text-[#171717]">{account.displayName}</div>
-            <SourceTag source="cloud" />
-          </div>
-          <div className="text-sm text-[#737373]">
-            {account.access_type}
-          </div>
-        </div>
-      </div>
-      <ButtonDesigned
-        variant="clear"
-        className="px-3 py-2 text-[#D23535] hover:bg-[#FEE] shrink-0"
-        disabled={isDisconnecting}
-        onClick={onDisconnect}
-      >
-        {isDisconnecting
-          ? <RefreshCw className="w-4 h-4 animate-spin" />
-          : <Trash2 className="w-4 h-4" />}
-      </ButtonDesigned>
     </div>
   )
 }
@@ -414,6 +166,8 @@ const ConnectedAdditionalAccountCard: React.FC<ConnectedAdditionalAccountCardPro
 export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
   maxConnectorsHeight = '400px',
   className = '',
+  showDescription = false,
+  showDocsLink = false,
 }) => {
   const { showPopup, hidePopup } = usePopup()
 
@@ -427,14 +181,11 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
     disconnectingProviderId,
     connectProvider,
     disconnectProvider,
-    refreshStatus: refreshLocalStatus,
   } = useKeyboardApiConnectors()
 
   // Pipedream connectors
   const {
     accounts: pipedreamAccounts,
-    accountsLoading: pipedreamAccountsLoading,
-    accountsError: pipedreamAccountsError,
     apps: pipedreamApps,
     appsLoading: pipedreamAppsLoading,
     appsError: pipedreamAppsError,
@@ -442,7 +193,6 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
     defaultAppsLoading: pipedreamDefaultAppsLoading,
     connectingApp,
     disconnectingAccountId,
-    refreshAccounts: refreshPipedreamAccounts,
     connectApp,
     disconnectAccount,
     setSearchQuery: setPipedreamSearchQuery,
@@ -451,48 +201,54 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
 
   const [searchQuery, setSearchQuery] = useState('')
   const [connectError, setConnectError] = useState<string | null>(null)
-
-  // Custom integrations
-  const {
-    filteredIntegrations: customIntegrations,
-    loading: customIntegrationsLoading,
-    error: customIntegrationsError,
-    connectingIntegrationId,
-    connectIntegration,
-  } = useCustomIntegrations(searchQuery)
-
-  // Additional connected accounts (from Token Vault)
-  const {
-    accounts: additionalAccounts,
-    accountsLoading: additionalAccountsLoading,
-    accountsError: additionalAccountsError,
-    disconnectingAccountId: disconnectingAdditionalAccountId,
-    refreshAccounts: refreshAdditionalAccounts,
-    disconnectAccount: disconnectAdditionalAccount,
-  } = useAdditionalConnectedAccounts()
+  const [filterType, setFilterType] = useState<FilterType>('all')
 
   // ==========================================================================
   // Computed Values
   // ==========================================================================
 
-  // Filter local providers based on search
+  // Filter local providers based on search and filter type
   const filteredLocalProviders = useMemo(() => {
-    if (!searchQuery.trim()) {
-      return localProviders
+    // Hide local if pipedream filter is active
+    if (filterType === 'pipedream') {
+      return []
     }
-    const query = searchQuery.toLowerCase()
-    return localProviders.filter(provider =>
-      provider.name.toLowerCase().includes(query),
-    )
-  }, [localProviders, searchQuery])
 
-  // Get connected local accounts (providers with authenticated status)
-  const connectedLocalAccounts = useMemo(() => {
-    return localProviders.filter(provider => providerStatus[provider.id]?.authenticated)
-  }, [localProviders, providerStatus])
+    let providers = localProviders
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase()
+      providers = providers.filter(provider =>
+        provider.name.toLowerCase().includes(query),
+      )
+    }
+    return providers
+  }, [localProviders, searchQuery, filterType])
 
-  // Total connected accounts count
-  const totalConnectedCount = connectedLocalAccounts.length + pipedreamAccounts.length + additionalAccounts.length
+  // Filter Pipedream apps based on filter type
+  const filteredPipedreamApps = useMemo(() => {
+    // Hide pipedream if local filter is active
+    if (filterType === 'local') {
+      return []
+    }
+    return pipedreamApps
+  }, [pipedreamApps, filterType])
+
+  // Filter Pipedream default apps based on filter type
+  const filteredPipedreamDefaultApps = useMemo(() => {
+    // Hide pipedream if local filter is active
+    if (filterType === 'local') {
+      return []
+    }
+    return pipedreamDefaultApps
+  }, [pipedreamDefaultApps, filterType])
+
+  // Filter Pipedream accounts based on filter type
+  const filteredPipedreamAccounts = useMemo(() => {
+    if (filterType === 'local') {
+      return []
+    }
+    return pipedreamAccounts
+  }, [pipedreamAccounts, filterType])
 
   // ==========================================================================
   // Handlers
@@ -528,7 +284,8 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
         try {
           await disconnectProvider(provider.id)
         }
-        catch (error) {
+        catch {
+          // Error handled by disconnect function
         }
       },
       onCancel: hidePopup,
@@ -555,7 +312,8 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
         try {
           await disconnectAccount(account.id)
         }
-        catch (error) {
+        catch {
+          // Error handled by disconnect function
         }
       },
       onCancel: hidePopup,
@@ -570,7 +328,8 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
         try {
           await disconnectAdditionalAccount(account.id)
         }
-        catch (error) {
+        catch {
+          // Error handled by disconnect function
         }
       },
       onCancel: hidePopup,
@@ -603,209 +362,182 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
   // ==========================================================================
 
   const isSearching = searchQuery.trim().length > 0
-  const showPipedreamResults = isSearching && pipedreamApps.length > 0
-  const showPipedreamDefaults = !isSearching && pipedreamDefaultApps.length > 0
-  const totalAvailableCount = filteredLocalProviders.length + pipedreamApps.length + customIntegrations.length
+  const showPipedreamResults = isSearching && filteredPipedreamApps.length > 0
+  const showPipedreamDefaults = !isSearching && filteredPipedreamDefaultApps.length > 0
 
   return (
-    <div className={`flex flex-col gap-4 ${className}`}>
-      {/* Search Section */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#737373]" />
-        <input
-          type="text"
-          placeholder="Search connectors (Google, Slack, Notion...)"
-          value={searchQuery}
-          onChange={e => handleSearchChange(e.target.value)}
-          className="w-full pl-10 pr-10 py-2.5 border border-[#E5E5E5] rounded-lg focus:outline-none focus:border-[#5093B7] focus:ring-1 focus:ring-[#5093B7] text-sm"
-        />
-        {searchQuery && (
-          <button
-            onClick={handleClearSearch}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-[#737373] hover:text-[#171717]"
-          >
-            <X className="w-4 h-4" />
-          </button>
+    <div className={`flex flex-col gap-[15px] ${className}`}>
+      {/* Filter Tabs and Search Row */}
+      <div className="flex flex-col gap-[10px]">
+        <div className="flex items-center justify-between">
+          <FilterTabs activeFilter={filterType} onFilterChange={setFilterType} />
+          <div className="relative w-[276px]">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-[#737373]" />
+            <input
+              type="text"
+              placeholder="Search app name..."
+              value={searchQuery}
+              onChange={e => handleSearchChange(e.target.value)}
+              className="w-full h-8 pl-8 pr-8 py-2 bg-white border border-[#e5e5e5] rounded-[5px] text-[14px] font-medium text-[#171717] placeholder:text-[#737373] focus:outline-none focus:border-[#a5a5a5]"
+            />
+            {searchQuery && (
+              <button
+                onClick={handleClearSearch}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-[#737373] hover:text-[#171717]"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Description Text */}
+        {showDescription && (
+          <p className="text-[14px] font-medium text-[#a5a5a5]">
+            Local apps are managed by Keyboard. Pipedream apps are powered by
+            {' '}
+            <button
+              className="underline decoration-solid hover:text-[#737373]"
+              onClick={() => window.electronAPI.openExternalUrl('https://pipedream.com/')}
+            >
+              Pipedream
+            </button>
+            .
+          </p>
         )}
       </div>
 
       {/* Error Display */}
-      {(connectError || localError || pipedreamAppsError || customIntegrationsError) && (
+      {(connectError || localError || pipedreamAppsError) && (
         <div className="p-3 bg-[#FEE] border border-[#D23535] rounded-lg text-[#D23535] text-sm">
-          {connectError || localError || pipedreamAppsError || customIntegrationsError}
+          {connectError || localError || pipedreamAppsError}
         </div>
       )}
 
-      {/* Available Connectors Section */}
-      <div>
-        <div className="text-sm font-medium mb-2 text-[#737373]">
-          {localLoading || customIntegrationsLoading
-            ? 'Loading connectors...'
-            : isSearching
-              ? `${totalAvailableCount} connector${totalAvailableCount !== 1 ? 's' : ''} found`
-              : 'Available Connectors'}
-        </div>
-
-        <div
-          className="flex flex-col gap-2 overflow-y-auto"
-          style={{ maxHeight: maxConnectorsHeight }}
-        >
-          {/* Local Connectors (always show first) */}
-          {filteredLocalProviders.map((provider) => {
-            const isAuthenticated = providerStatus[provider.id]?.authenticated
-            return (
-              <LocalConnectorCard
-                key={`local-${provider.id}`}
-                provider={provider}
-                isAuthenticated={isAuthenticated || false}
-                isConnecting={connectingProviderId === provider.id}
-                isDisconnecting={disconnectingProviderId === provider.id}
-                onConnect={() => handleConnectLocal(provider.id)}
-                onDisconnect={() => handleDisconnectLocal(provider)}
-              />
-            )
-          })}
-
-          {/* Custom Integrations (always show after local providers) */}
-          {customIntegrations.map(integration => (
-            <CustomIntegrationCard
-              key={`custom-${integration.id}`}
-              integration={integration}
-              isConnecting={connectingIntegrationId === integration.id}
-              onConnect={() => handleConnectCustom(integration.id)}
-            />
-          ))}
-
-          {/* Pipedream Apps (search results or defaults) */}
-          {isSearching
-            ? (
-                <>
-                  {pipedreamAppsLoading && (
-                    <div className="text-center py-4 text-[#737373]">
-                      Searching Pipedream apps...
-                    </div>
-                  )}
-                  {showPipedreamResults && pipedreamApps.map(app => (
-                    <PipedreamAppCard
-                      key={`pipedream-${app.id}`}
-                      app={app}
-                      isConnecting={connectingApp === app.nameSlug}
-                      onConnect={() => handleConnectPipedream(app.nameSlug)}
-                    />
-                  ))}
-                  {!pipedreamAppsLoading && pipedreamApps.length === 0 && filteredLocalProviders.length === 0 && customIntegrations.length === 0 && (
-                    <div className="text-center py-6 text-[#737373]">
-                      No connectors found for "
-                      {searchQuery}
-                      "
-                    </div>
-                  )}
-                </>
-              )
-            : (
-                <>
-                  {/* Show Pipedream default apps when not searching */}
-                  {pipedreamDefaultAppsLoading && (
-                    <div className="text-center py-4 text-[#737373]">
-                      Loading more apps...
-                    </div>
-                  )}
-                  {showPipedreamDefaults && (
-                    <>
-                      <div className="text-xs text-[#A3A3A3] mt-2 mb-1">More apps via Pipedream</div>
-                      {pipedreamDefaultApps.map(app => (
-                        <PipedreamAppCard
-                          key={`pipedream-default-${app.id}`}
-                          app={app}
-                          isConnecting={connectingApp === app.nameSlug}
-                          onConnect={() => handleConnectPipedream(app.nameSlug)}
-                        />
-                      ))}
-                    </>
-                  )}
-                </>
-              )}
-        </div>
-      </div>
-
-      {/* Divider */}
-      {totalConnectedCount > 0 && (
-        <div className="h-px bg-[#E5E5E5]" />
-      )}
-
-      {/* Connected Accounts Section */}
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <div className="text-sm font-medium text-[#737373]">
-            Connected Accounts (
-            {totalConnectedCount}
-            )
-          </div>
-          <button
-            onClick={handleRefreshAll}
-            disabled={localLoading || pipedreamAccountsLoading || additionalAccountsLoading}
-            className="text-[#737373] hover:text-[#171717] disabled:opacity-50"
-          >
-            <RefreshCw className={`w-4 h-4 ${(localLoading || pipedreamAccountsLoading || additionalAccountsLoading) ? 'animate-spin' : ''}`} />
-          </button>
-        </div>
-
-        {(pipedreamAccountsError || additionalAccountsError) && (
-          <div className="p-3 bg-[#FEE] border border-[#D23535] rounded-lg text-[#D23535] text-sm mb-2">
-            {pipedreamAccountsError || additionalAccountsError}
+      {/* Unified Connectors List (bordered container) */}
+      <div
+        className="border border-[#e5e5e5] rounded-[6px] p-[15px] flex flex-col gap-[10px] overflow-y-auto"
+        style={{ maxHeight: maxConnectorsHeight }}
+      >
+        {/* Loading State */}
+        {localLoading && (
+          <div className="text-center py-4 text-[#737373]">
+            Loading connectors...
           </div>
         )}
 
-        {(localLoading || pipedreamAccountsLoading || additionalAccountsLoading) && totalConnectedCount === 0
-          ? (
-              <div className="text-center py-8 text-[#737373]">
-                Loading connected accounts...
+        {/* Local Connectors */}
+        {filteredLocalProviders.map((provider) => {
+          const isAuthenticated = providerStatus[provider.id]?.authenticated || false
+          return (
+            <ConnectorRow
+              key={`local-${provider.id}`}
+              icon={provider.icon}
+              name={provider.name}
+              source="local"
+              isConnected={isAuthenticated}
+              isConnecting={connectingProviderId === provider.id}
+              isDisconnecting={disconnectingProviderId === provider.id}
+              disabled={!provider.configured}
+              onConnect={() => handleConnectLocal(provider.id)}
+              onDisconnect={() => handleDisconnectLocal(provider)}
+            />
+          )
+        })}
+
+        {/* Connected Pipedream Accounts */}
+        {filteredPipedreamAccounts.map(account => (
+          <ConnectorRow
+            key={`pipedream-connected-${account.id}`}
+            icon={account.app.logoUrl || squaresIconUrl}
+            name={account.app.name}
+            source="pipedream"
+            isConnected={true}
+            isConnecting={false}
+            isDisconnecting={disconnectingAccountId === account.id}
+            onConnect={() => {}}
+            onDisconnect={() => handleDisconnectPipedream(account)}
+          />
+        ))}
+
+        {/* Pipedream Apps (search results) */}
+        {isSearching && (
+          <>
+            {pipedreamAppsLoading && (
+              <div className="text-center py-4 text-[#737373]">
+                Searching Pipedream apps...
               </div>
-            )
-          : totalConnectedCount === 0
-            ? (
-                <div className="text-center py-8 border border-dashed border-[#E5E5E5] rounded-lg">
-                  <div className="text-[#737373] mb-2">No connected accounts yet</div>
-                  <div className="text-sm text-[#A3A3A3]">
-                    Connect a connector above to get started
-                  </div>
-                </div>
-              )
-            : (
-                <div className="flex flex-col gap-2">
-                  {/* Connected Local Accounts (show first) */}
-                  {connectedLocalAccounts.map(provider => (
-                    <ConnectedLocalAccountCard
-                      key={`connected-local-${provider.id}`}
-                      provider={provider}
-                      email={providerStatus[provider.id]?.user?.email}
-                      isDisconnecting={disconnectingProviderId === provider.id}
-                      onDisconnect={() => handleDisconnectLocal(provider)}
-                    />
-                  ))}
+            )}
+            {showPipedreamResults && filteredPipedreamApps.map(app => (
+              <ConnectorRow
+                key={`pipedream-${app.id}`}
+                icon={app.logoUrl || squaresIconUrl}
+                name={app.name}
+                source="pipedream"
+                isConnected={false}
+                isConnecting={connectingApp === app.nameSlug}
+                isDisconnecting={false}
+                onConnect={() => handleConnectPipedream(app.nameSlug)}
+                onDisconnect={() => {}}
+              />
+            ))}
+            {!pipedreamAppsLoading && filteredPipedreamApps.length === 0 && filteredLocalProviders.length === 0 && (
+              <div className="text-center py-6 text-[#737373]">
+                No connectors found for "
+                {searchQuery}
+                "
+              </div>
+            )}
+          </>
+        )}
 
-                  {/* Connected Pipedream Accounts */}
-                  {pipedreamAccounts.map(account => (
-                    <ConnectedPipedreamAccountCard
-                      key={`connected-pipedream-${account.id}`}
-                      account={account}
-                      isDisconnecting={disconnectingAccountId === account.id}
-                      onDisconnect={() => handleDisconnectPipedream(account)}
-                    />
-                  ))}
+        {/* Pipedream Default Apps (when not searching) */}
+        {!isSearching && (
+          <>
+            {pipedreamDefaultAppsLoading && (
+              <div className="text-center py-4 text-[#737373]">
+                Loading more apps...
+              </div>
+            )}
+            {showPipedreamDefaults && filteredPipedreamDefaultApps.map(app => (
+              <ConnectorRow
+                key={`pipedream-default-${app.id}`}
+                icon={app.logoUrl || squaresIconUrl}
+                name={app.name}
+                source="pipedream"
+                isConnected={false}
+                isConnecting={connectingApp === app.nameSlug}
+                isDisconnecting={false}
+                onConnect={() => handleConnectPipedream(app.nameSlug)}
+                onDisconnect={() => {}}
+              />
+            ))}
+          </>
+        )}
 
-                  {/* Connected Additional Accounts (Token Vault) */}
-                  {additionalAccounts.map(account => (
-                    <ConnectedAdditionalAccountCard
-                      key={`connected-additional-${account.id}`}
-                      account={account}
-                      isDisconnecting={disconnectingAdditionalAccountId === account.id}
-                      onDisconnect={() => handleDisconnectAdditional(account)}
-                    />
-                  ))}
-                </div>
-              )}
+        {/* Empty State */}
+        {!localLoading && filteredLocalProviders.length === 0 && filteredPipedreamAccounts.length === 0 && !showPipedreamResults && !showPipedreamDefaults && (
+          <div className="text-center py-6 text-[#737373]">
+            No connectors available
+          </div>
+        )}
       </div>
+
+      {/* Docs Link */}
+      {showDocsLink && (
+        <p className="text-[14px] font-medium text-[#a5a5a5]">
+          See our
+          {' '}
+          <button
+            className="font-semibold text-[#171717] hover:underline"
+            onClick={() => window.electronAPI.openExternalUrl('https://docs.keyboard.dev/')}
+          >
+            docs
+          </button>
+          {' '}
+          to learn how to connect any app.
+        </p>
+      )}
     </div>
   )
 }
