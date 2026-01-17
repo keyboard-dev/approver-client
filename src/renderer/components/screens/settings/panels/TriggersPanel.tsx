@@ -1048,7 +1048,7 @@ export const TriggersPanel: React.FC = () => {
 
           <div className="space-y-3">
             {/* Keyboard Shortcuts */}
-            <div>
+            {/* <div>
               <label className="text-xs text-[#737373] mb-2 block">Keyboard Shortcuts</label>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -1107,10 +1107,10 @@ export const TriggersPanel: React.FC = () => {
                   })}
                 </div>
               )}
-            </div>
+            </div> */}
 
             {/* Cloud Credentials */}
-            <div>
+            {/* <div>
               <label className="text-xs text-[#737373] mb-2 block">Cloud Credentials</label>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -1169,7 +1169,7 @@ export const TriggersPanel: React.FC = () => {
                   })}
                 </div>
               )}
-            </div>
+            </div> */}
 
             {/* Pipedream Proxy Apps */}
             <div>
