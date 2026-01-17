@@ -57,7 +57,6 @@ export const AIProvidersPanel: React.FC = () => {
       setProviderStatus(status)
     }
     catch (error) {
-      console.error('Failed to load AI provider status:', error)
     }
   }
 
@@ -125,7 +124,6 @@ export const AIProvidersPanel: React.FC = () => {
       setDeleteConfirmation(null)
     }
     catch (error) {
-      console.error('Failed to delete API key:', error)
     }
   }
 

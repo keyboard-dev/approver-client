@@ -172,7 +172,6 @@ export class ToolCacheService {
       }
     }
     catch (error) {
-      console.warn('Failed to load tool cache from storage:', error)
     }
   }
 
@@ -185,7 +184,6 @@ export class ToolCacheService {
       localStorage.setItem(this.storageKey, JSON.stringify(data))
     }
     catch (error) {
-      console.warn('Failed to save tool cache to storage:', error)
     }
   }
 }

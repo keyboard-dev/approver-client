@@ -98,7 +98,6 @@ export class SubscriptionsService {
         }
         catch (cacheError) {
           // If cache read fails, continue to API call
-          console.warn('Failed to read cached payment status:', cacheError)
         }
       }
 
@@ -139,7 +138,6 @@ export class SubscriptionsService {
         }
         catch (cacheError) {
           // Log but don't fail if cache write fails
-          console.warn('Failed to cache payment status:', cacheError)
         }
       }
 

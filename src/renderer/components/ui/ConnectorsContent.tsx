@@ -529,7 +529,6 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
           await disconnectProvider(provider.id)
         }
         catch (error) {
-          console.error('Failed to disconnect:', error)
         }
       },
       onCancel: hidePopup,
@@ -557,7 +556,6 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
           await disconnectAccount(account.id)
         }
         catch (error) {
-          console.error('Failed to disconnect:', error)
         }
       },
       onCancel: hidePopup,
@@ -573,7 +571,6 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
           await disconnectAdditionalAccount(account.id)
         }
         catch (error) {
-          console.error('Failed to disconnect:', error)
         }
       },
       onCancel: hidePopup,

@@ -80,7 +80,6 @@ export const ChatApprovalMessage: React.FC<ChatApprovalMessageProps> = ({
       await onApprove(id)
     }
     catch (error) {
-      console.error('Failed to approve message:', error)
     }
     finally {
       setIsApproving(false)
@@ -93,7 +92,6 @@ export const ChatApprovalMessage: React.FC<ChatApprovalMessageProps> = ({
       await onReject(id)
     }
     catch (error) {
-      console.error('Failed to reject message:', error)
     }
     finally {
       setIsRejecting(false)

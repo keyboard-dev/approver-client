@@ -3675,7 +3675,7 @@ class MenuBarNotificationApp {
     })
 
     // Unified Triggers API (localhost:4000)
-    const UNIFIED_TRIGGERS_API_URL = process.env.UNIFIED_TRIGGERS_API_URL || 'http://localhost:4000'
+    const UNIFIED_TRIGGERS_API_URL = process.env.UNIFIED_TRIGGERS_API_URL || `https://api.keyboard.dev`
 
     // Search triggers across both Pipedream and Composio
     ipcMain.handle('search-unified-triggers', async (_event, appName: string) => {
@@ -3701,7 +3701,6 @@ class MenuBarNotificationApp {
         }
 
         const data = await response.json()
-        console.log('[search-unified-triggers] data:', JSON.stringify(data, null, 2))
         return data
       }
       catch (error) {
@@ -3721,7 +3720,6 @@ class MenuBarNotificationApp {
         }
 
         // Fetch unified apps list
-        console.log("this is the access token", accessToken)
         const response = await fetch(
           `${UNIFIED_TRIGGERS_API_URL}/api/triggers/apps`,
           {
@@ -3771,7 +3769,6 @@ class MenuBarNotificationApp {
           }
         }
         catch (err) {
-          console.log('[list-unified-trigger-apps] Failed to fetch Pipedream apps for logos:', err)
         }
 
         // Enrich apps with platform-specific logo URLs

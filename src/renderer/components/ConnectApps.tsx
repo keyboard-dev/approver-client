@@ -45,7 +45,6 @@ export const ConnectApps: React.FC<ConnectAppsProps> = ({ onComplete }) => {
       onComplete()
     }
     catch (error) {
-      console.error('Error completing onboarding:', error)
     }
   }
 

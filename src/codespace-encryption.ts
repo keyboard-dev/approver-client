@@ -150,13 +150,12 @@ export async function encryptWithCodespaceKey(
       }
       else {
         const environmentType = executionPreference === 'keyboard-environment' ? 'sandbox' : 'codespace'
-        
+
         throw new Error(`No suitable ${environmentType} found for encryption and no manual URL provided`)
       }
     }
-    
+
     const key = await fetchPublicKey(finalConfig)
-    
 
     const encrypted = publicEncrypt(
       {
@@ -166,7 +165,6 @@ export async function encryptWithCodespaceKey(
       },
       Buffer.from(data, 'utf8'),
     )
-    
 
     return encrypted.toString('base64')
   }

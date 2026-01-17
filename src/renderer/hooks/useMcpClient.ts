@@ -59,7 +59,6 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
         setAccessToken(token || null)
       }
       catch (err) {
-        console.error('Failed to get access token for MCP client:', err)
         setError('Failed to get authentication token')
         setState('failed')
       }
@@ -80,7 +79,6 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
       }
     }
     catch (err) {
-      console.error('Error during MCP cleanup:', err)
     }
   }, [])
 
@@ -91,12 +89,10 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
 
     try {
       // Discover tools
-      console.log('🔍 Discovering tools...')
       const toolsResponse = await client.listTools()
       setTools(toolsResponse.tools || [])
 
       // Discover resources
-      console.log('🔍 Discovering resources...')
       const resourcesResponse = await client.listResources()
       setResources(resourcesResponse.resources || [])
 
@@ -109,8 +105,6 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
       // })))
     }
     catch (err) {
-      console.error('❌ Failed to discover MCP capabilities:', err)
-      // Don't fail the entire connection for discovery issues
     }
   }, [])
 
@@ -154,7 +148,6 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
 
       // Set up error handlers
       transport.onerror = (error) => {
-        console.error('Transport error:', error)
         setError(error.message)
         setState('failed')
       }
@@ -190,7 +183,6 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
         })
       }
       catch (notificationError) {
-        console.warn('Failed to set up notification handlers:', notificationError)
       }
 
       // Discover capabilities
@@ -200,7 +192,6 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
       setState('ready')
     }
     catch (err) {
-      console.error('❌ Failed to connect to MCP server:', err)
       setError(err instanceof Error ? err.message : 'Connection failed')
       setState('failed')
       throw err
@@ -221,7 +212,6 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
     hasConnectedRef.current = true
 
     connect(accessToken, options.serverUrl).catch((err) => {
-      console.error('Connection failed:', err)
       hasConnectedRef.current = false // Reset on failure so retry can work
     })
   }, [accessToken, options.serverUrl, connect])
@@ -257,7 +247,6 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
       return await Promise.race([toolPromise, timeoutPromise]) as CallToolResult
     }
     catch (err) {
-      console.error(`Failed to call tool ${name}:`, err)
       throw err
     }
   }, [state, options.timeout])
@@ -273,7 +262,6 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
       return await client.readResource({ uri })
     }
     catch (err) {
-      console.error(`Failed to read resource ${uri}:`, err)
       throw err
     }
   }, [state])
@@ -295,7 +283,6 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
       }
     }
     catch (err) {
-      console.error(`Failed to get prompt ${name}:`, err)
       throw err
     }
   }, [state])
@@ -305,7 +292,6 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
     if (isConnectingRef.current) return
 
     if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
-      console.error('❌ Max reconnection attempts reached')
       setError(`Max reconnection attempts (${maxReconnectAttempts}) reached`)
       return
     }
@@ -318,7 +304,6 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
       hasConnectedRef.current = false // Reset connection tracking for retry
 
       connect(accessToken, options.serverUrl).catch((err) => {
-        console.error('Reconnection failed:', err)
         hasConnectedRef.current = false
       })
     }

@@ -128,10 +128,8 @@ export function useMCPIntegration(
 
   // Log status for debugging
   if (availableTools.length === 0) {
-    console.warn('⚠️ No tools available from MCP client or cache. User needs initial connection to mcp.keyboard.dev')
   }
   else if (mcpClient.tools.length === 0 && availableTools.length > 0) {
-    console.log('🔄 Using cached tools while MCP client reconnects')
   }
 
   const integrationState: MCPIntegrationState = {
@@ -247,17 +245,6 @@ export function useMCPIntegration(
 
       const errorType = isConnectionError ? 'Connection Error' : 'Execution Error'
 
-      console.error(`❌ ${errorType} for keyboard.dev-ability ${functionName}:`, error)
-      console.error('❌ Error details:', {
-        type: errorType,
-        name: error instanceof Error ? error.name : 'Unknown',
-        message: errorMessage,
-        mcpClientState: mcpClient.state,
-        toolCached: toolCacheService.hasValidTool(functionName),
-        stack: error instanceof Error ? error.stack : 'No stack trace',
-      })
-
-      // Update execution with error
       if (executionId) {
         executionTracker?.updateExecution(executionId, {
           status: 'error',

@@ -100,7 +100,6 @@ export function usePipedream(): UsePipedreamReturn {
     catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to load accounts'
       setAccountsError(message)
-      console.error('[usePipedream] Failed to fetch accounts:', error)
     }
     finally {
       setAccountsLoading(false)
@@ -118,7 +117,6 @@ export function usePipedream(): UsePipedreamReturn {
     catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to search apps'
       setAppsError(message)
-      console.error('[usePipedream] Failed to search apps:', error)
     }
     finally {
       setAppsLoading(false)
@@ -133,7 +131,6 @@ export function usePipedream(): UsePipedreamReturn {
       setDefaultApps(response.apps || [])
     }
     catch (error) {
-      console.error('[usePipedream] Failed to fetch default apps:', error)
     }
     finally {
       setDefaultAppsLoading(false)
@@ -153,7 +150,6 @@ export function usePipedream(): UsePipedreamReturn {
       // User should refresh accounts after completing the flow.
     }
     catch (error) {
-      console.error('[usePipedream] Failed to connect app:', error)
       throw error
     }
     finally {
@@ -170,7 +166,6 @@ export function usePipedream(): UsePipedreamReturn {
       setAccounts(prev => prev.filter(acc => acc.id !== accountId))
     }
     catch (error) {
-      console.error('[usePipedream] Failed to disconnect account:', error)
       throw error
     }
     finally {

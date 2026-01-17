@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from '../../../../../components/ui/dialog'
 import type { CreditsBalance } from '../../../../../preload'
 

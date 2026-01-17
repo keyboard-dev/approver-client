@@ -46,7 +46,6 @@ const EncryptionKeyManager: React.FC<EncryptionKeyManagerProps> = ({ className =
       setKeyInfo(info)
     }
     catch (error) {
-      console.error('Error loading encryption key info:', error)
     }
   }
 
@@ -71,7 +70,6 @@ const EncryptionKeyManager: React.FC<EncryptionKeyManagerProps> = ({ className =
       }))
     }
     catch (error) {
-      console.error('Error regenerating encryption key:', error)
       alert('Failed to regenerate encryption key. Check console for details.')
     }
     finally {
@@ -88,7 +86,6 @@ const EncryptionKeyManager: React.FC<EncryptionKeyManagerProps> = ({ className =
       setTimeout(() => setCopyStatus('idle'), 2000)
     }
     catch (error) {
-      console.error('Error copying key:', error)
       setCopyStatus('error')
       setTimeout(() => setCopyStatus('idle'), 2000)
     }

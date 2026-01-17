@@ -167,7 +167,6 @@ export const AbilityExecutionPanel: React.FC<AbilityExecutionPanelProps> = ({
                   className="w-full text-xs"
                   onClick={() => {
                     // Clear executions - we can add this functionality later
-                    console.log('Clear executions clicked')
                   }}
                 >
                   Clear History

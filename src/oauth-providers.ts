@@ -103,7 +103,6 @@ export class OAuthProviderManager {
 
     // Load server providers and initialize built-in providers
     this.initialize().catch((error: unknown) => {
-      console.error('❌ Failed to initialize OAuth provider manager:', error)
     })
   }
 
@@ -165,7 +164,6 @@ export class OAuthProviderManager {
       fs.writeFileSync(this.SERVER_PROVIDERS_FILE, encryptedData, { mode: 0o600 })
     }
     catch (error) {
-      console.error('❌ Error saving server providers:', error)
       throw error
     }
   }
@@ -388,7 +386,6 @@ export class OAuthProviderManager {
         return await this.refreshTokensDirect(providerId, refreshToken, provider)
       }
       catch (error) {
-        console.debug(`Direct token refresh failed for provider ${providerId}, falling back to server refresh:`, error)
       }
     }
 
@@ -584,7 +581,6 @@ export class OAuthProviderManager {
       return data.providers
     }
     catch (error) {
-      console.error(`❌ Failed to fetch providers from ${server.name}:`, error)
       throw error
     }
   }
@@ -618,7 +614,6 @@ export class OAuthProviderManager {
         permissions = '0' + (stats.mode & parseInt('777', 8)).toString(8)
       }
       catch (error) {
-        console.error('Error getting server provider storage file stats:', error)
       }
     }
 
@@ -694,7 +689,6 @@ export class OAuthProviderManager {
       }
     }
     catch (error) {
-      console.error(`❌ Failed to fetch authorization URL from ${server.name}:`, error)
       throw error
     }
   }
@@ -775,7 +769,6 @@ export class OAuthProviderManager {
       }
     }
     catch (error) {
-      console.error(`❌ Token exchange failed with ${server.name}:`, error)
       throw error
     }
   }

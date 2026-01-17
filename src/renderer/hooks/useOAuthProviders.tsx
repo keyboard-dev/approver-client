@@ -65,7 +65,6 @@ export const OAuthProvidersProvider: React.FC<OAuthProvidersProviderProps> = ({ 
       Object.keys(filteredStatus).forEach(id => availableProviderIds.current.add(id))
     }
     catch (error) {
-      console.error('Error fetching provider statuses:', error)
       setError('Failed to load OAuth provider statuses')
     }
     finally {
@@ -89,7 +88,6 @@ export const OAuthProvidersProvider: React.FC<OAuthProvidersProviderProps> = ({ 
       return success
     }
     catch (error) {
-      console.error(`Error refreshing provider ${providerId}:`, error)
       setError(`Failed to refresh ${providerId}`)
       return false
     }
@@ -108,7 +106,6 @@ export const OAuthProvidersProvider: React.FC<OAuthProvidersProviderProps> = ({ 
       return true
     }
     catch (error) {
-      console.error(`Error reconnecting provider ${providerId}:`, error)
       setError(`Failed to reconnect ${providerId}`)
       return false
     }
@@ -165,8 +162,6 @@ export const OAuthProvidersProvider: React.FC<OAuthProvidersProviderProps> = ({ 
       return { success: 0, failed: 0 }
     }
 
-    console.log('🔄 Manually refreshing expired providers:', expiredProviders.map(p => p.providerId))
-
     let successCount = 0
     let failedCount = 0
 
@@ -175,23 +170,18 @@ export const OAuthProvidersProvider: React.FC<OAuthProvidersProviderProps> = ({ 
       try {
         const success = await refreshProvider(provider.providerId)
         if (success) {
-          console.log(`✅ Successfully refreshed ${provider.providerId}`)
           successCount++
         }
         else {
-          console.log(`❌ Failed to refresh ${provider.providerId} (no refresh token or not supported)`)
           failedCount++
         }
       }
       catch (error) {
-        console.error(`❌ Error refreshing ${provider.providerId}:`, error)
         failedCount++
       }
     })
 
     await Promise.all(refreshPromises)
-
-    console.log(`🔄 Manual refresh complete: ${successCount} succeeded, ${failedCount} failed`)
 
     return { success: successCount, failed: failedCount }
   }, [getGroupedProviders, refreshProvider])
@@ -235,7 +225,6 @@ export const OAuthProvidersProvider: React.FC<OAuthProvidersProviderProps> = ({ 
     _event: IpcRendererEvent,
     data: ProviderAuthErrorData,
   ) => {
-    console.error(`Provider ${data.providerId} auth error:`, data.error)
     setError(`Authentication error for ${data.providerId}: ${data.error}`)
   }, [])
 

@@ -58,9 +58,6 @@ export const useGlobalWebSocketListeners = () => {
         // The message is already saved to DB, and route-specific components can query it
       }
       catch (error) {
-        console.error('Failed to save message to database:', error)
-        // Still attempt navigation for Security Evaluation Request and code response approval as fallback
-        // BUT only if we're not on the home route where chat mode might be active
         if (MESSAGE_TYPES_WITH_NAVIGATION.includes(message.title)) {
           if (location.pathname !== '/') {
             navigate(`/messages/${message.id}`)
@@ -82,7 +79,6 @@ export const useGlobalWebSocketListeners = () => {
         // Note: Not navigating here - let route-specific components handle display
       }
       catch (error) {
-        console.error('Failed to save share message to database:', error)
       }
     }
 
@@ -98,7 +94,6 @@ export const useGlobalWebSocketListeners = () => {
         // Note: Not navigating here - let route-specific components handle display
       }
       catch (error) {
-        console.error('Failed to save share message to database:', error)
       }
     }
 

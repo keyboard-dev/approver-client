@@ -119,7 +119,6 @@ export class AnthropicProvider implements AIProvider {
       }
     }
     catch (error) {
-      console.error('Anthropic web search error:', error)
       throw new Error(`Anthropic web search failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
@@ -199,8 +198,6 @@ Example format:
         })
       }
       catch (error) {
-        console.warn(`Failed to enhance Anthropic search result ${result.url}:`, error)
-        // Fall back to basic result
         enhancedResults.push({
           title: result.title,
           url: result.url,
@@ -231,7 +228,6 @@ Example format:
         }
       }
       catch (e) {
-        console.warn('Failed to parse JSON from Claude search response:', e)
       }
     }
 

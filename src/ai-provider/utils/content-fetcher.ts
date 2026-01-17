@@ -60,7 +60,6 @@ export class ContentFetcher {
           }
         }
         catch (error) {
-          console.warn(`Failed to fetch ${format.type} from ${format.url}:`, error)
           continue
         }
       }
@@ -68,7 +67,6 @@ export class ContentFetcher {
       throw new Error('All content format attempts failed')
     }
     catch (error) {
-      console.error('Content fetching failed:', error)
       throw error
     }
   }
@@ -224,7 +222,6 @@ export class ContentFetcher {
       return `# API Documentation\n\n\`\`\`json\n${JSON.stringify(docs, null, 2)}\n\`\`\``
     }
     catch (error) {
-      console.warn('Failed to parse JSON docs:', error)
       return jsonContent
     }
   }

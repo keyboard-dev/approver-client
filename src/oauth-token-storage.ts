@@ -65,8 +65,6 @@ export class OAuthTokenStorage {
       this.isLoaded = true
     }
     catch (error) {
-      console.error('❌ Error loading OAuth tokens:', error)
-      // If decryption fails, start fresh (could be due to key rotation)
       this.tokensCache = {}
       this.isLoaded = true
     }
@@ -84,7 +82,6 @@ export class OAuthTokenStorage {
       fs.writeFileSync(this.TOKENS_FILE, encryptedData, { mode: 0o600 })
     }
     catch (error) {
-      console.error('❌ Error saving OAuth tokens:', error)
       throw error
     }
   }
@@ -168,8 +165,6 @@ export class OAuthTokenStorage {
           return newTokens.access_token
         }
         catch (error) {
-          console.error(`❌ Failed to refresh tokens for ${providerId}:`, error)
-          // Remove invalid tokens
           await this.removeTokens(providerId)
           return null
         }
@@ -258,7 +253,6 @@ export class OAuthTokenStorage {
         permissions = '0' + (stats.mode & parseInt('777', 8)).toString(8)
       }
       catch (error) {
-        console.error('Error getting file stats:', error)
       }
     }
 

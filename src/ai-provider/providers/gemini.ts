@@ -22,13 +22,6 @@ export class GeminiProvider implements AIProvider {
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => 'Unable to read error response')
-      console.error('❌ Gemini API Error:', {
-        status: response.status,
-        statusText: response.statusText,
-        url: response.url,
-        errorBody: errorText,
-      })
-
       if (response.status === 503) {
         throw new Error(`Gemini service unavailable (503). This may be due to invalid request format or temporary service issues. Error: ${errorText}`)
       }
@@ -59,13 +52,6 @@ export class GeminiProvider implements AIProvider {
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => 'Unable to read error response')
-      console.error('❌ Gemini Streaming API Error:', {
-        status: response.status,
-        statusText: response.statusText,
-        url: response.url,
-        errorBody: errorText,
-      })
-
       if (response.status === 503) {
         throw new Error(`Gemini service unavailable (503). This may be due to invalid request format or temporary service issues. Error: ${errorText}`)
       }
@@ -128,7 +114,6 @@ export class GeminiProvider implements AIProvider {
       }
     }
     catch (error) {
-      console.error('Gemini web search error:', error)
       throw new Error(`Gemini web search failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
@@ -220,8 +205,6 @@ export class GeminiProvider implements AIProvider {
         })
       }
       catch (error) {
-        console.warn(`Failed to enhance result ${result.url}:`, error)
-        // Fall back to basic result
         enhancedResults.push({
           title: result.title,
           url: result.url,
@@ -278,7 +261,6 @@ export class GeminiProvider implements AIProvider {
         }
       }
       catch (e) {
-        console.warn('Failed to parse JSON from Gemini search response:', e)
       }
     }
 

@@ -131,8 +131,6 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
         }
       }
       catch (error) {
-        console.error('Failed to load provider status:', error)
-        // Fallback to MCP if other providers fail
         setAvailableProviders(['mcp'])
         setSelectedProvider('mcp')
         setSelectedModel('mcp-tools')
@@ -154,11 +152,9 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
     const tryConnect = async () => {
       if (connectionStatus === 'disconnected') {
         try {
-          console.log('🔄 Attempting to auto-connect to codespace...')
           await connectToBestCodespace()
         }
         catch (error) {
-          console.error('Failed to connect to codespace:', error)
         }
       }
     }
@@ -170,11 +166,9 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
     const tryConnect = async () => {
       if ((authStatus.authenticated || isSkippingAuth) && connectionStatus === 'disconnected') {
         try {
-          console.log('🔄 Attempting to auto-connect to codespace...')
           await connectToBestCodespace()
         }
         catch (error) {
-          console.error('Failed to connect to codespace:', error)
         }
       }
     }

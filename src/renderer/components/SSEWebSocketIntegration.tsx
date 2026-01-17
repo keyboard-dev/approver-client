@@ -21,45 +21,31 @@ export const SSEWebSocketIntegration: React.FC<SSEWebSocketIntegrationProps> = (
 
   // Handle codespace online events from SSE
   const handleCodespaceOnline = useCallback((codespace: CodespaceData) => {
-    console.log('🚀 SSE: Codespace online, attempting WebSocket connection:', codespace.name)
-
     if (executorClientRef.current) {
       // Attempt to connect to the codespace WebSocket
       executorClientRef.current.connectFromSSEEvent(codespace)
         .then((success) => {
           if (success) {
-            console.log('✅ SSE: Successfully connected to codespace WebSocket:', codespace.name)
           }
           else {
-            console.log('⏸️ SSE: Connection attempt declined (staying with current connection):', codespace.name)
           }
         })
         .catch((error) => {
-          console.error('❌ SSE: Error connecting to codespace WebSocket:', error)
         })
     }
     else {
-      console.warn('⚠️ No executor client available for SSE-triggered connection')
     }
   }, [])
 
   // Handle codespace offline events from SSE
   const handleCodespaceOffline = useCallback((codespace: CodespaceData) => {
-    console.log('🔽 SSE: Codespace offline:', codespace.name)
-
-    // If the current connection is to this codespace, we might want to disconnect
-    // or attempt to reconnect to localhost/other codespaces
     if (executorClientRef.current) {
       const connectionInfo = executorClientRef.current.getConnectionInfo()
       if (connectionInfo.connected
         && connectionInfo.target?.type === 'codespace'
         && connectionInfo.target?.codespaceName === codespace.name) {
-        console.log('🔌 Current codespace went offline, falling back to auto-discovery')
-
-        // Trigger reconnection which will auto-discover available options
         executorClientRef.current.reconnect()
           .catch((error) => {
-            console.error('❌ Error during reconnection after codespace offline:', error)
           })
       }
     }
@@ -75,7 +61,6 @@ export const SSEWebSocketIntegration: React.FC<SSEWebSocketIntegrationProps> = (
   // Log SSE connection state changes for debugging
   useEffect(() => {
     if (sseState.lastEvent) {
-      console.log('🔔 SSE Event last event')
     }
   }, [sseState.lastEvent])
 

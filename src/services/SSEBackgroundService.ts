@@ -56,7 +56,6 @@ export class SSEBackgroundService extends EventEmitter {
 
   async connect(): Promise<void> {
     if (!this.authToken) {
-      console.warn('Cannot connect to SSE: No auth token available')
       return
     }
 
@@ -96,7 +95,6 @@ export class SSEBackgroundService extends EventEmitter {
         return
       }
 
-      console.error('❌ SSE connection error:', error)
       this.isConnected = false
       this.stopHeartbeat()
       this.emit('error', error)
@@ -133,7 +131,6 @@ export class SSEBackgroundService extends EventEmitter {
                 this.handleMessage(parsedData)
               }
               catch (error) {
-                console.error('❌ Failed to parse SSE message:', error, 'Raw data:', data)
               }
             }
           }
@@ -197,7 +194,6 @@ export class SSEBackgroundService extends EventEmitter {
       }, delay)
     }
     else {
-      console.error('❌ SSE max reconnection attempts reached')
       this.emit('max-reconnect-attempts-reached')
     }
   }

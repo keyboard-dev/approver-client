@@ -44,6 +44,5 @@ try {
   fs.unlinkSync(path.join(__dirname, 'temp-compile.js'))
 }
 catch (error) {
-  console.error('Error compiling renderer:', error)
   process.exit(1)
 }

@@ -116,7 +116,6 @@ export const useCustomIntegrations = (searchQuery: string): UseCustomIntegration
       }
     }
     catch (error) {
-      console.error('Failed to connect integration:', error)
       setState(prev => ({
         ...prev,
         error: error instanceof Error ? error.message : 'Failed to connect',

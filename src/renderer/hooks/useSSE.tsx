@@ -113,7 +113,6 @@ export const useSSE = (
             sseServiceRef.current.setAuthToken(token)
           }
         }).catch((error) => {
-          console.error('Failed to get OAuth token for SSE:', error)
         })
       }
       else {
@@ -146,7 +145,6 @@ export const useSSE = (
       return token
     }
     catch (error) {
-      console.error('Error getting OAuth token for SSE:', error)
       return null
     }
   }, [])

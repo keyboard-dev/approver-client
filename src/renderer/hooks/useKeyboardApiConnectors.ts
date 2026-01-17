@@ -119,7 +119,6 @@ export function useKeyboardApiConnectors(): UseKeyboardApiConnectorsReturn {
       }
     }
     catch (error) {
-      console.error('[useKeyboardApiConnectors] Failed to fetch providers:', error)
       setProvidersError(error instanceof Error ? error.message : 'Failed to load providers')
       // Fallback to default providers
       setProviders([
@@ -139,7 +138,6 @@ export function useKeyboardApiConnectors(): UseKeyboardApiConnectorsReturn {
       setProviderStatus(status)
     }
     catch (error) {
-      console.error('[useKeyboardApiConnectors] Failed to load provider status:', error)
     }
   }, [])
 
@@ -156,7 +154,6 @@ export function useKeyboardApiConnectors(): UseKeyboardApiConnectorsReturn {
       // Note: Auth success/error will be handled by the event listeners
     }
     catch (error) {
-      console.error(`[useKeyboardApiConnectors] Failed to start OAuth for ${providerId}:`, error)
       setProvidersError(`Failed to start OAuth: ${error instanceof Error ? error.message : 'Unknown error'}`)
       setConnectingProviderId(null)
     }
@@ -171,7 +168,6 @@ export function useKeyboardApiConnectors(): UseKeyboardApiConnectorsReturn {
       await refreshStatus()
     }
     catch (error) {
-      console.error(`[useKeyboardApiConnectors] Failed to disconnect ${providerId}:`, error)
       setProvidersError(`Failed to disconnect from ${providerId}`)
     }
     finally {
@@ -198,7 +194,6 @@ export function useKeyboardApiConnectors(): UseKeyboardApiConnectorsReturn {
     }
 
     const handleProviderAuthError = (_event: unknown, data: { providerId: string, message?: string }) => {
-      console.error('[useKeyboardApiConnectors] Provider auth error:', data)
       setProvidersError(`Authentication failed: ${data.message || 'Unknown error'}`)
       setConnectingProviderId(null)
     }

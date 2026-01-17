@@ -42,7 +42,6 @@ export function useMessagesQuery(): UseMessagesQueryResult {
       setShareMessages(shareMsgs)
     }
     catch (err) {
-      console.error('Failed to fetch messages:', err)
       setError(err instanceof Error ? err : new Error('Failed to fetch messages'))
     }
     finally {

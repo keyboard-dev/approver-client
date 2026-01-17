@@ -142,7 +142,6 @@ export class IterativeWebSearch {
         fetchedContent.push(content)
       }
       catch (error) {
-        console.warn(`Failed to fetch ${rankedUrls[i]}:`, error)
       }
     }
 
@@ -418,7 +417,6 @@ Return just the refined search query (no explanation needed).`
       }
     }
     catch (e) {
-      console.warn('Failed to parse URLs from AI response:', e)
     }
 
     // Fallback: extract URLs from text
@@ -435,7 +433,6 @@ Return just the refined search query (no explanation needed).`
       }
     }
     catch (e) {
-      console.warn('Failed to parse ranked URLs:', e)
     }
     return []
   }
@@ -448,7 +445,6 @@ Return just the refined search query (no explanation needed).`
       }
     }
     catch (e) {
-      console.warn('Failed to parse code assessment:', e)
     }
     return { hasExecutableCode: false, executableExamples: [] }
   }

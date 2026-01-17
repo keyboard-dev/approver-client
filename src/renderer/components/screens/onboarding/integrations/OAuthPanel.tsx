@@ -55,7 +55,6 @@ export const OAuthPanel: React.FC = () => {
     }
 
     const handleProviderAuthError = (_event: unknown, data: { providerId: string, message?: string }) => {
-      console.error('Provider auth error:', data)
       setError(`Authentication failed: ${data.message || 'Unknown error'}`)
       setIsLoading(prev => ({ ...prev, [data.providerId]: false }))
     }
@@ -114,8 +113,6 @@ export const OAuthPanel: React.FC = () => {
       }
     }
     catch (error) {
-      console.error('Failed to fetch providers:', error)
-      // Fallback to default providers
       setProviders([
         { id: 'google', name: 'Google', icon: getProviderIcon(undefined, 'google'), configured: true, scopes: [] },
         { id: 'github', name: 'GitHub', icon: getProviderIcon(undefined, 'github'), configured: true, scopes: [] },
@@ -133,7 +130,6 @@ export const OAuthPanel: React.FC = () => {
       setProviderStatus(status)
     }
     catch (error) {
-      console.error('Failed to load provider status:', error)
     }
   }
 
@@ -151,7 +147,6 @@ export const OAuthPanel: React.FC = () => {
       await window.electronAPI.startServerProviderOAuth(serverId, providerId)
     }
     catch (error) {
-      console.error(`Failed to start OAuth for ${providerId}:`, error)
       setError(`Failed to start OAuth: ${error instanceof Error ? error.message : 'Unknown error'}`)
       setIsLoading(prev => ({ ...prev, [providerId]: false }))
     }
