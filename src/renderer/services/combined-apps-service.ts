@@ -1,4 +1,3 @@
-/* eslint-disable custom/no-console */
 /**
  * Combined Apps Service
  *
@@ -62,18 +61,9 @@ function mergeApps(
 ): CombinedApp[] {
   const appsMap = new Map<string, CombinedApp>()
 
-  console.log('[CombinedApps] Merging apps - Composio count:', composioApps.length, 'Pipedream count:', pipedreamApps.length)
-
-  // Add Composio apps
   for (const composioApp of composioApps) {
     const normalizedId = normalizeAppName(composioApp.name)
     const composioSlug = composioApp.slug || composioApp.name
-    console.log('[CombinedApps] Adding Composio app:', {
-      name: composioApp.name,
-      normalizedId,
-      slug: composioApp.slug,
-      computedSlug: composioSlug,
-    })
     const app: CombinedApp = {
       id: normalizedId,
       name: composioApp.name,
@@ -92,27 +82,12 @@ function mergeApps(
     const normalizedId = normalizeAppName(pipedreamApp.name)
     const existingApp = appsMap.get(normalizedId)
 
-    console.log('[CombinedApps] Processing Pipedream app:', {
-      name: pipedreamApp.name,
-      normalizedId,
-      nameSlug: pipedreamApp.nameSlug,
-      hasExistingComposioApp: !!existingApp,
-    })
-
     if (existingApp) {
       // Merge with existing Composio app
       existingApp.platforms.push('pipedream')
       existingApp.pipedreamSlug = pipedreamApp.nameSlug
       existingApp.pipedreamData = pipedreamApp
 
-      console.log('[CombinedApps] Merged app now has:', {
-        name: existingApp.name,
-        platforms: existingApp.platforms,
-        composioSlug: existingApp.composioSlug,
-        pipedreamSlug: existingApp.pipedreamSlug,
-      })
-
-      // Use Pipedream logo if Composio doesn't have one
       if (!existingApp.logo && pipedreamApp.logoUrl) {
         existingApp.logo = pipedreamApp.logoUrl
       }
@@ -144,7 +119,6 @@ function mergeApps(
 
   // Convert map to array and sort by name
   const result = Array.from(appsMap.values()).sort((a, b) => a.name.localeCompare(b.name))
-  console.log('[CombinedApps] Final merged apps count:', result.length)
   return result
 }
 

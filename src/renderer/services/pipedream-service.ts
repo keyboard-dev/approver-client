@@ -1,4 +1,3 @@
-/* eslint-disable custom/no-console */
 /**
  * Pipedream Service
  *
@@ -229,17 +228,12 @@ export async function listTriggers(
 
   const url = `${API_BASE}/triggers${params.toString() ? `?${params.toString()}` : ''}`
 
-  console.log('[PipedreamService] listTriggers request:', { url, app, query, limit })
-
   const response = await fetch(url, {
     method: 'GET',
     headers,
   })
 
-  console.log('[PipedreamService] listTriggers response status:', response.status, response.statusText)
-
   const result = await handleResponse<TriggersResponse>(response)
-  console.log('[PipedreamService] listTriggers parsed result:', result)
   return result
 }
 

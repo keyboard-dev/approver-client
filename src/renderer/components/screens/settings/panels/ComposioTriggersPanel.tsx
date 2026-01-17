@@ -1,4 +1,3 @@
-/* eslint-disable custom/no-console */
 import { AlertCircle, CheckCircle, ChevronDown, Search, X, XCircle } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { Script } from '../../../../../main'
@@ -392,7 +391,6 @@ export const ComposioTriggersPanel: React.FC = () => {
         {/* Combined App Search Button */}
         <Button
           onClick={() => {
-            console.log('[ComposioTriggersPanel] Search button clicked, opening CombinedAppSearchModal')
             setShowCombinedAppSearch(true)
           }}
           className="w-full mb-6 flex items-center justify-center gap-2"

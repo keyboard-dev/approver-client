@@ -1,4 +1,3 @@
-/* eslint-disable custom/no-console */
 /**
  * Combined Triggers Service
  *
@@ -172,29 +171,13 @@ export async function fetchCombinedTriggers(
   const errors: string[] = []
 
   // DEBUG: Log the app data
-  console.log('[CombinedTriggers] Fetching triggers for app:', {
-    name: app.name,
-    id: app.id,
-    platforms: app.platforms,
-    composioSlug: app.composioSlug,
-    pipedreamSlug: app.pipedreamSlug,
-  })
-
-  // Build promises for parallel fetching
   const promises: Promise<void>[] = []
 
   // Fetch from Composio if app is available there
   if (app.composioSlug && app.platforms.includes('composio')) {
-    console.log('[CombinedTriggers] Fetching Composio triggers with slug:', app.composioSlug)
     promises.push(
       composioService.listAvailableTriggers(app.composioSlug)
         .then((response) => {
-          console.log('[CombinedTriggers] Composio response:', {
-            success: response.success,
-            dataLength: response.data?.length,
-            error: response.error,
-            rawResponse: response,
-          })
           if (response.success && response.data) {
             for (const trigger of response.data) {
               triggers.push(normalizeComposioTrigger(trigger, app.composioSlug!))
@@ -203,27 +186,18 @@ export async function fetchCombinedTriggers(
           }
         })
         .catch((err) => {
-          console.error('[CombinedTriggers] Composio error:', err)
           errors.push(`Composio: ${err instanceof Error ? err.message : 'Failed to fetch triggers'}`)
         }),
     )
   }
   else {
-    console.log('[CombinedTriggers] Skipping Composio - slug:', app.composioSlug, 'platforms:', app.platforms)
   }
 
   // Fetch from Pipedream if app is available there
   if (app.pipedreamSlug && app.platforms.includes('pipedream')) {
-    console.log('[CombinedTriggers] Fetching Pipedream triggers with slug:', app.pipedreamSlug)
     promises.push(
       pipedreamService.listTriggers(app.pipedreamSlug)
         .then((response) => {
-          console.log('[CombinedTriggers] Pipedream response:', {
-            success: response.success,
-            triggersLength: response.triggers?.length,
-            totalCount: response.totalCount,
-            rawResponse: response,
-          })
           if (response.success && response.triggers) {
             for (const trigger of response.triggers) {
               triggers.push(normalizePipedreamTrigger(trigger))
@@ -232,26 +206,16 @@ export async function fetchCombinedTriggers(
           }
         })
         .catch((err) => {
-          console.error('[CombinedTriggers] Pipedream error:', err)
           errors.push(`Pipedream: ${err instanceof Error ? err.message : 'Failed to fetch triggers'}`)
         }),
     )
   }
   else {
-    console.log('[CombinedTriggers] Skipping Pipedream - slug:', app.pipedreamSlug, 'platforms:', app.platforms)
   }
 
   // Wait for all requests to complete
   await Promise.all(promises)
 
-  console.log('[CombinedTriggers] Final result:', {
-    totalTriggers: triggers.length,
-    composioCount,
-    pipedreamCount,
-    errors,
-  })
-
-  // Sort triggers by name
   triggers.sort((a, b) => a.name.localeCompare(b.name))
 
   return {
