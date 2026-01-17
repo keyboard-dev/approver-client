@@ -124,7 +124,10 @@
     "vite": "^6.1.7"
   },
   "overrides": {
-    "prismjs": "^1.30.0"
+    "prismjs": "^1.30.0",
+    "diff": "^8.0.3",
+    "tar": "^7.5.3",
+    "tmp": "^0.2.4"
   },
   "build": {
     "appId": "dev.keyboard.desktop",
