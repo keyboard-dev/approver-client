@@ -3,6 +3,7 @@ import React, { useState } from 'react'
 import { Footer } from '../../Footer'
 import { ButtonDesigned } from '../../ui/ButtonDesigned'
 import { Input } from '../../ui/input'
+import { ExplainerDiagram } from './ExplainerDiagram'
 import { ProgressIndicator } from './ProgressIndicator'
 
 interface McpSetupProps {
@@ -60,6 +61,9 @@ export const McpSetup: React.FC<McpSetupProps> = ({ onNext }) => {
               <ProgressIndicator progress={1} />
             </div>
           </div>
+
+          {/* Explainer Diagram */}
+          <ExplainerDiagram type="mcp-connection" />
 
           <div
             className="flex flex-col items-start gap-[1.5rem] w-full"
