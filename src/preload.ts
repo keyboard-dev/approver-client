@@ -4,6 +4,7 @@ import { ServerProviderInfo } from './oauth-providers'
 import { OAuthProviderConfig } from './provider-storage'
 import { CodespaceInfo, CollectionRequest, Message, ShareMessage } from './types'
 import { CodeApprovalLevel, ResponseApprovalLevel } from './types/settings-types'
+import { SecurityPolicy } from './types/security-policy'
 
 export interface AuthStatus {
   authenticated: boolean
@@ -494,6 +495,13 @@ export interface ElectronAPI {
     count?: number
     error?: string
   }>
+
+  // Security Policy management
+  getSecurityPolicies: () => Promise<SecurityPolicy[]>
+  getSecurityPolicy: (id: string) => Promise<SecurityPolicy | null>
+  createSecurityPolicy: (policy: Omit<SecurityPolicy, 'id' | 'createdAt' | 'updatedAt'>) => Promise<SecurityPolicy>
+  updateSecurityPolicy: (id: string, updates: Partial<SecurityPolicy>) => Promise<SecurityPolicy | null>
+  deleteSecurityPolicy: (id: string) => Promise<boolean>
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -881,6 +889,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     count?: number
     error?: string
   }> => ipcRenderer.invoke('list-unified-trigger-apps'),
+
+  // Security Policy API
+  getSecurityPolicies: (): Promise<SecurityPolicy[]> => ipcRenderer.invoke('security-policy:get-all'),
+  getSecurityPolicy: (id: string): Promise<SecurityPolicy | null> => ipcRenderer.invoke('security-policy:get', id),
+  createSecurityPolicy: (policy: Omit<SecurityPolicy, 'id' | 'createdAt' | 'updatedAt'>): Promise<SecurityPolicy> =>
+    ipcRenderer.invoke('security-policy:create', policy),
+  updateSecurityPolicy: (id: string, updates: Partial<SecurityPolicy>): Promise<SecurityPolicy | null> =>
+    ipcRenderer.invoke('security-policy:update', id, updates),
+  deleteSecurityPolicy: (id: string): Promise<boolean> => ipcRenderer.invoke('security-policy:delete', id),
 } as ElectronAPI)
 
 // Extend the global Window interface

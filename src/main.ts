@@ -118,6 +118,7 @@ import { PaymentStatusResponse, SubscriptionCheckoutResponse, subscriptionsServi
 import { TrayManager } from './tray-manager'
 import { CollectionRequest, Message, ShareMessage } from './types'
 import { CODE_APPROVAL_ORDER, CodeApprovalLevel, RESPONSE_APPROVAL_ORDER, ResponseApprovalLevel } from './types/settings-types'
+import { SecurityPolicy } from './types/security-policy'
 import { ExecutorWebSocketClient } from './websocket-client-to-executor'
 import { WindowManager } from './window-manager'
 
@@ -216,6 +217,10 @@ class MenuBarNotificationApp {
   private fullCodeExecution: boolean = false
   private readonly SETTINGS_FILE = path.join(os.homedir(), '.keyboard-mcp-settings')
   private readonly FULL_CODE_EXECUTION_FILE = path.join(os.homedir(), '.keyboard-mcp', 'full-code-execution')
+
+  // Security policy management
+  private securityPolicies: Map<string, SecurityPolicy> = new Map()
+  private readonly SECURITY_POLICIES_FILE = path.join(os.homedir(), '.keyboard-mcp', 'security-policies.json')
 
   // Executor WebSocket client
   private executorWSClient: ExecutorWebSocketClient | null = null
@@ -319,6 +324,9 @@ class MenuBarNotificationApp {
 
       // Initialize app settings
       await this.initializeSettings()
+
+      // Initialize security policies
+      await this.initializeSecurityPolicies()
 
       // Initialize version timestamp tracking
       await this.getVersionInstallTimestamp()
@@ -1017,6 +1025,109 @@ class MenuBarNotificationApp {
       settingsFile: this.SETTINGS_FILE,
       updatedAt,
     }
+  }
+
+  // Security Policy Management Methods
+  private async initializeSecurityPolicies(): Promise<void> {
+    try {
+      // Ensure .keyboard-mcp directory exists
+      if (!fs.existsSync(this.STORAGE_DIR)) {
+        fs.mkdirSync(this.STORAGE_DIR, { recursive: true, mode: 0o700 })
+      }
+
+      // Try to load existing policies
+      if (fs.existsSync(this.SECURITY_POLICIES_FILE)) {
+        const policiesData = fs.readFileSync(this.SECURITY_POLICIES_FILE, 'utf8')
+        const parsedPolicies = JSON.parse(policiesData)
+
+        if (Array.isArray(parsedPolicies)) {
+          this.securityPolicies.clear()
+          parsedPolicies.forEach((policy: SecurityPolicy) => {
+            if (policy.id) {
+              this.securityPolicies.set(policy.id, policy)
+            }
+          })
+        }
+      }
+    }
+    catch (error) {
+      console.error('Error initializing security policies:', error)
+      this.securityPolicies.clear()
+    }
+  }
+
+  private async saveSecurityPolicies(): Promise<void> {
+    try {
+      // Ensure .keyboard-mcp directory exists
+      if (!fs.existsSync(this.STORAGE_DIR)) {
+        fs.mkdirSync(this.STORAGE_DIR, { recursive: true, mode: 0o700 })
+      }
+
+      const policiesArray = Array.from(this.securityPolicies.values())
+      fs.writeFileSync(
+        this.SECURITY_POLICIES_FILE,
+        JSON.stringify(policiesArray, null, 2),
+        { mode: 0o600 },
+      )
+    }
+    catch (error) {
+      console.error('Error saving security policies:', error)
+      throw error
+    }
+  }
+
+  private async getSecurityPolicies(): Promise<SecurityPolicy[]> {
+    return Array.from(this.securityPolicies.values())
+  }
+
+  private async getSecurityPolicy(id: string): Promise<SecurityPolicy | null> {
+    return this.securityPolicies.get(id) || null
+  }
+
+  private async createSecurityPolicy(policy: Omit<SecurityPolicy, 'id' | 'createdAt' | 'updatedAt'>): Promise<SecurityPolicy> {
+    const id = crypto.randomBytes(16).toString('hex')
+    const now = Date.now()
+
+    const newPolicy: SecurityPolicy = {
+      ...policy,
+      id,
+      createdAt: now,
+      updatedAt: now,
+    }
+
+    this.securityPolicies.set(id, newPolicy)
+    await this.saveSecurityPolicies()
+
+    return newPolicy
+  }
+
+  private async updateSecurityPolicy(id: string, updates: Partial<SecurityPolicy>): Promise<SecurityPolicy | null> {
+    const existingPolicy = this.securityPolicies.get(id)
+    if (!existingPolicy) {
+      return null
+    }
+
+    const updatedPolicy: SecurityPolicy = {
+      ...existingPolicy,
+      ...updates,
+      id, // Ensure ID cannot be changed
+      createdAt: existingPolicy.createdAt, // Ensure createdAt cannot be changed
+      updatedAt: Date.now(),
+    }
+
+    this.securityPolicies.set(id, updatedPolicy)
+    await this.saveSecurityPolicies()
+
+    return updatedPolicy
+  }
+
+  private async deleteSecurityPolicy(id: string): Promise<boolean> {
+    const existed = this.securityPolicies.has(id)
+    if (existed) {
+      this.securityPolicies.delete(id)
+      await this.saveSecurityPolicies()
+    }
+    return existed
   }
 
   private checkForUpdates(): void {
@@ -1841,6 +1952,27 @@ class MenuBarNotificationApp {
 
     ipcMain.handle('get-full-code-execution', (): boolean => {
       return this.fullCodeExecution
+    })
+
+    // Security Policy IPC handlers
+    ipcMain.handle('security-policy:get-all', async (): Promise<SecurityPolicy[]> => {
+      return await this.getSecurityPolicies()
+    })
+
+    ipcMain.handle('security-policy:get', async (_event, id: string): Promise<SecurityPolicy | null> => {
+      return await this.getSecurityPolicy(id)
+    })
+
+    ipcMain.handle('security-policy:create', async (_event, policy: Omit<SecurityPolicy, 'id' | 'createdAt' | 'updatedAt'>): Promise<SecurityPolicy> => {
+      return await this.createSecurityPolicy(policy)
+    })
+
+    ipcMain.handle('security-policy:update', async (_event, id: string, updates: Partial<SecurityPolicy>): Promise<SecurityPolicy | null> => {
+      return await this.updateSecurityPolicy(id, updates)
+    })
+
+    ipcMain.handle('security-policy:delete', async (_event, id: string): Promise<boolean> => {
+      return await this.deleteSecurityPolicy(id)
     })
 
     ipcMain.handle('get-assets-path', (): string => {
