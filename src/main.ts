@@ -2177,6 +2177,19 @@ class MenuBarNotificationApp {
           if (accessToken) {
             this.executionPreferenceManager.setJwtToken(accessToken)
             await this.executionPreferenceManager.updatePreference(preference)
+
+            // Update the local WebSocket client preference and disconnect
+            // so it reconnects with the new preference
+            if (this.executorWSClient) {
+              this.executorWSClient.setExecutionPreference(preference)
+              this.executorWSClient.disconnect()
+            }
+
+            // Also disconnect SSE so it can reconnect with the new environment
+            if (this.sseBackgroundService) {
+              this.sseBackgroundService.disconnect()
+            }
+
             return { success: true }
           }
 
