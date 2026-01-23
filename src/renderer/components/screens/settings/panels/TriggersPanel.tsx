@@ -1,8 +1,8 @@
-import { AlertCircle, CheckCircle, ChevronDown, Clock, X, XCircle, Zap } from 'lucide-react'
+import { AlertCircle, CheckCircle, ChevronDown, Clock, Eye, X, XCircle, Zap } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { Script } from '../../../../../main'
 import useComposio from '../../../../hooks/useComposio'
-import { deployTrigger } from '../../../../services/composio-service'
+import { deployTrigger, listTriggerTasks } from '../../../../services/composio-service'
 import {
   type TriggerSource,
   type UnifiedTrigger,
@@ -190,6 +190,10 @@ export const TriggersPanel: React.FC = () => {
   const [showScheduleModal, setShowScheduleModal] = useState(false)
   const [showConnectPrompt, setShowConnectPrompt] = useState(false)
   const [showAccountStatusModal, setShowAccountStatusModal] = useState(false)
+  const [showViewTasksModal, setShowViewTasksModal] = useState(false)
+  const [viewingTasksTrigger, setViewingTasksTrigger] = useState<UnifiedDeployedTrigger | null>(null)
+  const [viewingTasks, setViewingTasks] = useState<TriggerTask[]>([])
+  const [isLoadingViewTasks, setIsLoadingViewTasks] = useState(false)
   const [promptAppName, setPromptAppName] = useState('')
   const [promptSource, setPromptSource] = useState<TriggerSource>('pipedream')
 
@@ -776,6 +780,86 @@ export const TriggersPanel: React.FC = () => {
     catch (err) {
       alert(`Failed to ${trigger.status === 'active' ? 'pause' : 'resume'} trigger: ${err instanceof Error ? err.message : 'Unknown error'}`)
     }
+  }
+
+  // ============== VIEW TASKS HANDLER ==============
+
+  const handleViewTasks = async (trigger: UnifiedDeployedTrigger) => {
+    setViewingTasksTrigger(trigger)
+    setShowViewTasksModal(true)
+    setIsLoadingViewTasks(true)
+    setViewingTasks([])
+
+    try {
+      if (trigger.source === 'pipedream' && trigger.pipedreamTrigger?.tasks) {
+        // For Pipedream, tasks are already included in the trigger
+        setViewingTasks(trigger.pipedreamTrigger.tasks)
+      }
+      else if (trigger.source === 'composio') {
+        // For Composio, fetch tasks from API
+        console.log("this is the trigger", trigger)
+        const response = await listTriggerTasks(trigger.id)
+        console.log("this is the response", response)
+
+        if (response.success) {
+          // Handle different possible response structures
+          type TaskData = {
+            id?: string
+            deployedTriggerId?: string
+            keyboardShortcutIds?: string[]
+            keyboard_shortcut_ids?: string[]
+            cloudCredentials?: string[]
+            cloud_credentials?: string[]
+            ask?: string
+            createdAt?: string
+            updatedAt?: string
+          }
+
+          let tasksArray: TaskData[] = []
+
+          // Check various possible response structures
+          const data = response.data as { items?: TaskData[], tasks?: TaskData[] } | TaskData[] | undefined
+          if (data) {
+            if (Array.isArray(data)) {
+              // data is directly an array
+              tasksArray = data
+            }
+            else if (Array.isArray(data.items)) {
+              // data.items is an array
+              tasksArray = data.items
+            }
+            else if (Array.isArray(data.tasks)) {
+              // data.tasks is an array
+              tasksArray = data.tasks
+            }
+          }
+
+          // Map to TriggerTask format (handle both camelCase and snake_case)
+          const mappedTasks: TriggerTask[] = tasksArray.map(t => ({
+            id: t.id,
+            deployedTriggerId: t.deployedTriggerId,
+            keyboard_shortcut_ids: t.keyboardShortcutIds || t.keyboard_shortcut_ids,
+            cloud_credentials: t.cloudCredentials || t.cloud_credentials,
+            ask: t.ask,
+            createdAt: t.createdAt,
+            updatedAt: t.updatedAt,
+          }))
+          setViewingTasks(mappedTasks)
+        }
+      }
+    }
+    catch {
+      // Error loading tasks - silent fail, empty tasks array shown
+    }
+    finally {
+      setIsLoadingViewTasks(false)
+    }
+  }
+
+  const handleCloseViewTasksModal = () => {
+    setShowViewTasksModal(false)
+    setViewingTasksTrigger(null)
+    setViewingTasks([])
   }
 
   // ============== MODAL HANDLERS ==============
@@ -1489,6 +1573,13 @@ export const TriggersPanel: React.FC = () => {
                     </div>
                   </div>
                   <div className="flex gap-2 ml-3">
+                    <button
+                      onClick={() => handleViewTasks(trigger)}
+                      className="text-xs px-3 py-1 border border-blue-200 text-blue-600 rounded hover:bg-blue-50 transition-colors flex items-center gap-1"
+                    >
+                      <Eye className="w-3 h-3" />
+                      View Task
+                    </button>
                     {trigger.source === 'composio' && (
                       <button
                         onClick={() => handlePauseResumeTrigger(trigger)}
@@ -2113,6 +2204,143 @@ export const TriggersPanel: React.FC = () => {
                 className="px-6 py-2 bg-[#171717] text-white rounded-lg hover:bg-[#404040] transition-colors disabled:bg-[#A3A3A3]"
               >
                 {isDeploying ? 'Deploying...' : deploySuccess ? 'Deployed!' : 'Deploy Schedule'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Tasks Modal */}
+      {showViewTasksModal && viewingTasksTrigger && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] m-4 flex flex-col">
+            <div className="p-6 border-b border-[#E5E5E5] flex items-start justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <h3 className="text-xl font-bold text-[#171717]">
+                    Tasks for
+                    {' '}
+                    {viewingTasksTrigger.name}
+                  </h3>
+                  <SourceBadge source={viewingTasksTrigger.source} />
+                </div>
+                <p className="text-sm text-[#737373]">
+                  App:
+                  {' '}
+                  {viewingTasksTrigger.appName}
+                </p>
+              </div>
+              <button
+                onClick={handleCloseViewTasksModal}
+                className="text-[#737373] hover:text-[#171717] ml-4"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6">
+              {isLoadingViewTasks
+                ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="text-[#737373]">Loading tasks...</div>
+                    </div>
+                  )
+                : viewingTasks.length === 0
+                  ? (
+                      <div className="text-center py-8 text-[#737373]">
+                        No tasks configured for this trigger
+                      </div>
+                    )
+                  : (
+                      <div className="space-y-4">
+                        {viewingTasks.map((task, index) => (
+                          <div
+                            key={task.id || index}
+                            className="p-4 border border-[#E5E5E5] rounded-lg bg-[#FAFAFA]"
+                          >
+                            <div className="flex items-center justify-between mb-3">
+                              <span className="font-semibold text-sm text-[#171717]">
+                                Task
+                                {' '}
+                                {index + 1}
+                              </span>
+                              {task.createdAt && (
+                                <span className="text-xs text-[#737373]">
+                                  Created:
+                                  {' '}
+                                  {new Date(task.createdAt).toLocaleDateString()}
+                                </span>
+                              )}
+                            </div>
+
+                            {task.ask && (
+                              <div className="mb-3">
+                                <div className="text-xs font-medium text-[#737373] mb-1">AI Prompt:</div>
+                                <div className="p-2 bg-white border border-[#E5E5E5] rounded text-sm text-[#171717]">
+                                  {task.ask}
+                                </div>
+                              </div>
+                            )}
+
+                            {task.keyboard_shortcut_ids && task.keyboard_shortcut_ids.length > 0 && (
+                              <div className="mb-3">
+                                <div className="text-xs font-medium text-[#737373] mb-1">Keyboard Shortcuts:</div>
+                                <div className="flex flex-wrap gap-1">
+                                  {task.keyboard_shortcut_ids.map((id, idx) => (
+                                    <span
+                                      key={idx}
+                                      className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded"
+                                    >
+                                      {id}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {task.cloud_credentials && task.cloud_credentials.length > 0 && (
+                              <div className="mb-3">
+                                <div className="text-xs font-medium text-[#737373] mb-1">Cloud Credentials:</div>
+                                <div className="flex flex-wrap gap-1">
+                                  {task.cloud_credentials.map((cred, idx) => (
+                                    <span
+                                      key={idx}
+                                      className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded"
+                                    >
+                                      {cred}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {task.pipedream_proxy_apps && task.pipedream_proxy_apps.length > 0 && (
+                              <div>
+                                <div className="text-xs font-medium text-[#737373] mb-1">Pipedream Proxy Apps:</div>
+                                <div className="flex flex-wrap gap-1">
+                                  {task.pipedream_proxy_apps.map((app, idx) => (
+                                    <span
+                                      key={idx}
+                                      className="px-2 py-1 bg-orange-100 text-orange-700 text-xs rounded"
+                                    >
+                                      {app}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+            </div>
+
+            <div className="p-4 border-t border-[#E5E5E5] flex justify-end">
+              <button
+                onClick={handleCloseViewTasksModal}
+                className="px-4 py-2 text-sm text-[#737373] hover:text-[#171717] transition-colors"
+              >
+                Close
               </button>
             </div>
           </div>
