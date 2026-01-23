@@ -3150,6 +3150,8 @@ class MenuBarNotificationApp {
         if (!accessToken) {
           return { success: false, error: 'Not authenticated' }
         }
+
+        console.log('config', config)
         const response = await fetch(`${this.OAUTH_SERVER_URL}/api/composio/triggers`, {
           method: 'POST',
           headers: {
@@ -3520,6 +3522,7 @@ class MenuBarNotificationApp {
     ipcMain.handle('update-composio-trigger-task', async (_event, taskId: string, updates: {
       keyboardShortcutIds?: string[]
       cloudCredentials?: string[]
+      pipedreamProxyApps?: string[]
       ask?: string
     }) => {
       try {

@@ -436,7 +436,7 @@ export interface ElectronAPI {
   createComposioTriggerTask: (triggerId: string, task: { keyboardShortcutIds?: string[], cloudCredentials?: string[], ask?: string }) => Promise<{ success: boolean, data?: unknown, error?: string }>
   listComposioTriggerTasks: (triggerId: string) => Promise<{ success: boolean, data?: unknown, error?: string }>
   getComposioTriggerTask: (taskId: string) => Promise<{ success: boolean, data?: unknown, error?: string }>
-  updateComposioTriggerTask: (taskId: string, updates: { keyboardShortcutIds?: string[], cloudCredentials?: string[], ask?: string }) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  updateComposioTriggerTask: (taskId: string, updates: { keyboardShortcutIds?: string[], cloudCredentials?: string[], pipedreamProxyApps?: string[], ask?: string }) => Promise<{ success: boolean, data?: unknown, error?: string }>
   deleteComposioTriggerTask: (taskId: string) => Promise<{ success: boolean, error?: string }>
   listComposioApps: (params?: { search?: string, category?: string, limit?: number, supportsTriggers?: boolean }) => Promise<{ success: boolean, data?: unknown, error?: string }>
   listComposioAppCategories: () => Promise<{ success: boolean, data?: unknown, error?: string }>
@@ -826,7 +826,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   createComposioTriggerTask: (triggerId: string, task: { keyboardShortcutIds?: string[], cloudCredentials?: string[], ask?: string }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('create-composio-trigger-task', triggerId, task),
   listComposioTriggerTasks: (triggerId: string): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('list-composio-trigger-tasks', triggerId),
   getComposioTriggerTask: (taskId: string): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('get-composio-trigger-task', taskId),
-  updateComposioTriggerTask: (taskId: string, updates: { keyboardShortcutIds?: string[], cloudCredentials?: string[], ask?: string }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('update-composio-trigger-task', taskId, updates),
+  updateComposioTriggerTask: (taskId: string, updates: { keyboardShortcutIds?: string[], cloudCredentials?: string[], pipedreamProxyApps?: string[], ask?: string }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('update-composio-trigger-task', taskId, updates),
   deleteComposioTriggerTask: (taskId: string): Promise<{ success: boolean, error?: string }> => ipcRenderer.invoke('delete-composio-trigger-task', taskId),
   listComposioApps: (params?: { search?: string, category?: string, limit?: number, supportsTriggers?: boolean }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('list-composio-apps', params),
   listComposioAppCategories: (): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('list-composio-app-categories'),
