@@ -218,9 +218,8 @@ class MenuBarNotificationApp {
   private readonly SETTINGS_FILE = path.join(os.homedir(), '.keyboard-mcp-settings')
   private readonly FULL_CODE_EXECUTION_FILE = path.join(os.homedir(), '.keyboard-mcp', 'full-code-execution')
 
-  // Security policy management
-  private securityPolicies: Map<string, SecurityPolicy> = new Map()
-  private readonly SECURITY_POLICIES_FILE = path.join(os.homedir(), '.keyboard-mcp', 'security-policies.json')
+  // Security policy management - now uses API
+  private readonly SECURITY_POLICY_API_URL = `https://api.keyboard.dev`
 
   // Executor WebSocket client
   private executorWSClient: ExecutorWebSocketClient | null = null
@@ -1027,107 +1026,127 @@ class MenuBarNotificationApp {
     }
   }
 
-  // Security Policy Management Methods
+  // Security Policy Management Methods - API-based (single policy per user)
   private async initializeSecurityPolicies(): Promise<void> {
+    // No local initialization needed - policies are stored on the server via API
+  }
+
+  /**
+   * Get the user's security policy from the API
+   * Returns null if no policy exists
+   */
+  private async getSecurityPolicy(): Promise<SecurityPolicy | null> {
     try {
-      // Ensure .keyboard-mcp directory exists
-      if (!fs.existsSync(this.STORAGE_DIR)) {
-        fs.mkdirSync(this.STORAGE_DIR, { recursive: true, mode: 0o700 })
+      const accessToken = await this.authService.getValidAccessToken()
+      if (!accessToken) {
+        return null
       }
 
-      // Try to load existing policies
-      if (fs.existsSync(this.SECURITY_POLICIES_FILE)) {
-        const policiesData = fs.readFileSync(this.SECURITY_POLICIES_FILE, 'utf8')
-        const parsedPolicies = JSON.parse(policiesData)
+      const response = await fetch(`${this.SECURITY_POLICY_API_URL}/api/user/policies`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      })
 
-        if (Array.isArray(parsedPolicies)) {
-          this.securityPolicies.clear()
-          parsedPolicies.forEach((policy: SecurityPolicy) => {
-            if (policy.id) {
-              this.securityPolicies.set(policy.id, policy)
-            }
-          })
-        }
-      }
-    }
-    catch (error) {
-      console.error('Error initializing security policies:', error)
-      this.securityPolicies.clear()
-    }
-  }
-
-  private async saveSecurityPolicies(): Promise<void> {
-    try {
-      // Ensure .keyboard-mcp directory exists
-      if (!fs.existsSync(this.STORAGE_DIR)) {
-        fs.mkdirSync(this.STORAGE_DIR, { recursive: true, mode: 0o700 })
+      if (!response.ok) {
+        return null
       }
 
-      const policiesArray = Array.from(this.securityPolicies.values())
-      fs.writeFileSync(
-        this.SECURITY_POLICIES_FILE,
-        JSON.stringify(policiesArray, null, 2),
-        { mode: 0o600 },
-      )
+      const data = await response.json() as { success: boolean, policy: SecurityPolicy | null }
+      return data.policy || null
     }
-    catch (error) {
-      console.error('Error saving security policies:', error)
-      throw error
-    }
-  }
-
-  private async getSecurityPolicies(): Promise<SecurityPolicy[]> {
-    return Array.from(this.securityPolicies.values())
-  }
-
-  private async getSecurityPolicy(id: string): Promise<SecurityPolicy | null> {
-    return this.securityPolicies.get(id) || null
-  }
-
-  private async createSecurityPolicy(policy: Omit<SecurityPolicy, 'id' | 'createdAt' | 'updatedAt'>): Promise<SecurityPolicy> {
-    const id = crypto.randomBytes(16).toString('hex')
-    const now = Date.now()
-
-    const newPolicy: SecurityPolicy = {
-      ...policy,
-      id,
-      createdAt: now,
-      updatedAt: now,
-    }
-
-    this.securityPolicies.set(id, newPolicy)
-    await this.saveSecurityPolicies()
-
-    return newPolicy
-  }
-
-  private async updateSecurityPolicy(id: string, updates: Partial<SecurityPolicy>): Promise<SecurityPolicy | null> {
-    const existingPolicy = this.securityPolicies.get(id)
-    if (!existingPolicy) {
+    catch {
       return null
     }
-
-    const updatedPolicy: SecurityPolicy = {
-      ...existingPolicy,
-      ...updates,
-      id, // Ensure ID cannot be changed
-      createdAt: existingPolicy.createdAt, // Ensure createdAt cannot be changed
-      updatedAt: Date.now(),
-    }
-
-    this.securityPolicies.set(id, updatedPolicy)
-    await this.saveSecurityPolicies()
-
-    return updatedPolicy
   }
 
-  private async deleteSecurityPolicy(id: string): Promise<boolean> {
-    const existed = this.securityPolicies.has(id)
-    if (existed) {
-      this.securityPolicies.delete(id)
-      await this.saveSecurityPolicies()
+  /**
+   * Create a new security policy for the user
+   * Fails if a policy already exists (use update instead)
+   */
+  private async createSecurityPolicy(policy: Omit<SecurityPolicy, 'id' | 'createdAt' | 'updatedAt' | 'created_by' | 'user_id'>): Promise<SecurityPolicy> {
+    const accessToken = await this.authService.getValidAccessToken()
+    if (!accessToken) {
+      throw new Error('No access token available for security policy API')
     }
-    return existed
+
+    const response = await fetch(`${this.SECURITY_POLICY_API_URL}/api/user/policies`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(policy),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({})) as { message?: string }
+      throw new Error(errorData.message || `Failed to create security policy: ${response.status}`)
+    }
+
+    const data = await response.json() as { success: boolean, policy: SecurityPolicy }
+    return data.policy
+  }
+
+  /**
+   * Update the user's existing security policy
+   * Supports partial updates
+   */
+  private async updateSecurityPolicy(updates: Partial<SecurityPolicy>): Promise<SecurityPolicy | null> {
+    const accessToken = await this.authService.getValidAccessToken()
+    if (!accessToken) {
+      throw new Error('No access token available for security policy API')
+    }
+
+    const response = await fetch(`${this.SECURITY_POLICY_API_URL}/api/user/policies`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(updates),
+    })
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        return null
+      }
+      const errorData = await response.json().catch(() => ({})) as { message?: string }
+      throw new Error(errorData.message || `Failed to update security policy: ${response.status}`)
+    }
+
+    const data = await response.json() as { success: boolean, policy: SecurityPolicy }
+    return data.policy
+  }
+
+  /**
+   * Delete the user's security policy
+   */
+  private async deleteSecurityPolicy(): Promise<boolean> {
+    const accessToken = await this.authService.getValidAccessToken()
+    if (!accessToken) {
+      throw new Error('No access token available for security policy API')
+    }
+
+    const response = await fetch(`${this.SECURITY_POLICY_API_URL}/api/user/policies`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+    })
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        return false
+      }
+      const errorData = await response.json().catch(() => ({})) as { message?: string }
+      throw new Error(errorData.message || `Failed to delete security policy: ${response.status}`)
+    }
+
+    return true
   }
 
   private checkForUpdates(): void {
@@ -1954,25 +1973,21 @@ class MenuBarNotificationApp {
       return this.fullCodeExecution
     })
 
-    // Security Policy IPC handlers
-    ipcMain.handle('security-policy:get-all', async (): Promise<SecurityPolicy[]> => {
-      return await this.getSecurityPolicies()
+    // Security Policy IPC handlers (single policy per user via API)
+    ipcMain.handle('security-policy:get', async (): Promise<SecurityPolicy | null> => {
+      return await this.getSecurityPolicy()
     })
 
-    ipcMain.handle('security-policy:get', async (_event, id: string): Promise<SecurityPolicy | null> => {
-      return await this.getSecurityPolicy(id)
-    })
-
-    ipcMain.handle('security-policy:create', async (_event, policy: Omit<SecurityPolicy, 'id' | 'createdAt' | 'updatedAt'>): Promise<SecurityPolicy> => {
+    ipcMain.handle('security-policy:create', async (_event, policy: Omit<SecurityPolicy, 'id' | 'createdAt' | 'updatedAt' | 'created_by' | 'user_id'>): Promise<SecurityPolicy> => {
       return await this.createSecurityPolicy(policy)
     })
 
-    ipcMain.handle('security-policy:update', async (_event, id: string, updates: Partial<SecurityPolicy>): Promise<SecurityPolicy | null> => {
-      return await this.updateSecurityPolicy(id, updates)
+    ipcMain.handle('security-policy:update', async (_event, updates: Partial<SecurityPolicy>): Promise<SecurityPolicy | null> => {
+      return await this.updateSecurityPolicy(updates)
     })
 
-    ipcMain.handle('security-policy:delete', async (_event, id: string): Promise<boolean> => {
-      return await this.deleteSecurityPolicy(id)
+    ipcMain.handle('security-policy:delete', async (): Promise<boolean> => {
+      return await this.deleteSecurityPolicy()
     })
 
     ipcMain.handle('get-assets-path', (): string => {

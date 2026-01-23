@@ -496,12 +496,11 @@ export interface ElectronAPI {
     error?: string
   }>
 
-  // Security Policy management
-  getSecurityPolicies: () => Promise<SecurityPolicy[]>
-  getSecurityPolicy: (id: string) => Promise<SecurityPolicy | null>
-  createSecurityPolicy: (policy: Omit<SecurityPolicy, 'id' | 'createdAt' | 'updatedAt'>) => Promise<SecurityPolicy>
-  updateSecurityPolicy: (id: string, updates: Partial<SecurityPolicy>) => Promise<SecurityPolicy | null>
-  deleteSecurityPolicy: (id: string) => Promise<boolean>
+  // Security Policy management (single policy per user via API)
+  getSecurityPolicy: () => Promise<SecurityPolicy | null>
+  createSecurityPolicy: (policy: Omit<SecurityPolicy, 'id' | 'createdAt' | 'updatedAt' | 'created_by' | 'user_id'>) => Promise<SecurityPolicy>
+  updateSecurityPolicy: (updates: Partial<SecurityPolicy>) => Promise<SecurityPolicy | null>
+  deleteSecurityPolicy: () => Promise<boolean>
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -890,14 +889,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     error?: string
   }> => ipcRenderer.invoke('list-unified-trigger-apps'),
 
-  // Security Policy API
-  getSecurityPolicies: (): Promise<SecurityPolicy[]> => ipcRenderer.invoke('security-policy:get-all'),
-  getSecurityPolicy: (id: string): Promise<SecurityPolicy | null> => ipcRenderer.invoke('security-policy:get', id),
-  createSecurityPolicy: (policy: Omit<SecurityPolicy, 'id' | 'createdAt' | 'updatedAt'>): Promise<SecurityPolicy> =>
+  // Security Policy API (single policy per user)
+  getSecurityPolicy: (): Promise<SecurityPolicy | null> => ipcRenderer.invoke('security-policy:get'),
+  createSecurityPolicy: (policy: Omit<SecurityPolicy, 'id' | 'createdAt' | 'updatedAt' | 'created_by' | 'user_id'>): Promise<SecurityPolicy> =>
     ipcRenderer.invoke('security-policy:create', policy),
-  updateSecurityPolicy: (id: string, updates: Partial<SecurityPolicy>): Promise<SecurityPolicy | null> =>
-    ipcRenderer.invoke('security-policy:update', id, updates),
-  deleteSecurityPolicy: (id: string): Promise<boolean> => ipcRenderer.invoke('security-policy:delete', id),
+  updateSecurityPolicy: (updates: Partial<SecurityPolicy>): Promise<SecurityPolicy | null> =>
+    ipcRenderer.invoke('security-policy:update', updates),
+  deleteSecurityPolicy: (): Promise<boolean> => ipcRenderer.invoke('security-policy:delete'),
 } as ElectronAPI)
 
 // Extend the global Window interface

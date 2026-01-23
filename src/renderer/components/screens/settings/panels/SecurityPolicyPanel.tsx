@@ -1,28 +1,91 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { SecurityPolicy, HttpMethod, ApiPathRule } from '../../../../../types/security-policy'
-import { ButtonDesigned } from '../../../ui/ButtonDesigned'
-import { Trash2, Plus, Edit2, Save, X } from 'lucide-react'
+import { Button } from '../../../ui/button'
+import { Input } from '../../../ui/input'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../../../ui/dialog'
+import { Trash2, Plus, Save, RefreshCw } from 'lucide-react'
 
-interface EditingPolicy {
-  policy: Partial<SecurityPolicy>
-  isNew: boolean
+// Dialog state types
+interface AddItemDialogState {
+  open: boolean
+  type: 'domain' | 'package' | 'binary' | null
+  value: string
+}
+
+interface AddApiPathDialogState {
+  open: boolean
+  domain: string
+  path: string
+  method: HttpMethod
+  allow: boolean
 }
 
 export const SecurityPolicyPanel: React.FC = () => {
-  const [policies, setPolicies] = useState<SecurityPolicy[]>([])
+  const [policy, setPolicy] = useState<SecurityPolicy | null>(null)
+  const [editingPolicy, setEditingPolicy] = useState<Partial<SecurityPolicy> | null>(null)
   const [loading, setLoading] = useState(true)
-  const [editingPolicy, setEditingPolicy] = useState<EditingPolicy | null>(null)
-  const [selectedPolicyId, setSelectedPolicyId] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [isNew, setIsNew] = useState(false)
 
-  // Load policies on mount
-  const loadPolicies = useCallback(async () => {
+  // Dialog states
+  const [addItemDialog, setAddItemDialog] = useState<AddItemDialogState>({
+    open: false,
+    type: null,
+    value: '',
+  })
+
+  const [addApiPathDialog, setAddApiPathDialog] = useState<AddApiPathDialogState>({
+    open: false,
+    domain: '',
+    path: '/*',
+    method: 'GET',
+    allow: true,
+  })
+
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+
+  // Load policy on mount
+  const loadPolicy = useCallback(async () => {
     setLoading(true)
     try {
-      const loadedPolicies = await window.electronAPI.getSecurityPolicies()
-      setPolicies(loadedPolicies)
+      const loadedPolicy = await window.electronAPI.getSecurityPolicy()
+      setPolicy(loadedPolicy)
+      if (loadedPolicy) {
+        setEditingPolicy({ ...loadedPolicy })
+        setIsNew(false)
+      }
+      else {
+        // No policy exists, start in create mode
+        setEditingPolicy({
+          name: 'My Security Policy',
+          tier: 'custom',
+          allowedDomains: [],
+          apiPathRules: {},
+          allowedPackages: [],
+          allowedBinaries: [],
+        })
+        setIsNew(true)
+      }
     }
     catch (error) {
-      console.error('Failed to load security policies:', error)
+      console.error('Failed to load security policy:', error)
+      // Start in create mode on error
+      setEditingPolicy({
+        name: 'My Security Policy',
+        tier: 'custom',
+        allowedDomains: [],
+        apiPathRules: {},
+        allowedPackages: [],
+        allowedBinaries: [],
+      })
+      setIsNew(true)
     }
     finally {
       setLoading(false)
@@ -30,70 +93,72 @@ export const SecurityPolicyPanel: React.FC = () => {
   }, [])
 
   useEffect(() => {
-    loadPolicies()
-  }, [loadPolicies])
-
-  // Create new policy
-  const handleCreateNew = () => {
-    setEditingPolicy({
-      policy: {
-        name: 'New Policy',
-        tier: 'custom',
-        allowedDomains: [],
-        apiPathRules: {},
-        allowedPackages: [],
-        allowedBinaries: [],
-      },
-      isNew: true,
-    })
-    setSelectedPolicyId(null)
-  }
-
-  // Edit existing policy
-  const handleEdit = (policy: SecurityPolicy) => {
-    setEditingPolicy({
-      policy: { ...policy },
-      isNew: false,
-    })
-    setSelectedPolicyId(policy.id || null)
-  }
+    loadPolicy()
+  }, [loadPolicy])
 
   // Save policy (create or update)
   const handleSave = async () => {
-    if (!editingPolicy) return
+    if (!editingPolicy || !editingPolicy.name?.trim()) {
+      alert('Policy name is required')
+      return
+    }
 
+    setSaving(true)
     try {
-      if (editingPolicy.isNew) {
+      // Console.log the finished policy as requested
+      console.log('Saving Security Policy:', JSON.stringify(editingPolicy, null, 2))
+
+      let savedPolicy: SecurityPolicy | null
+      if (isNew) {
         // Create new policy
-        await window.electronAPI.createSecurityPolicy(editingPolicy.policy as Omit<SecurityPolicy, 'id' | 'createdAt' | 'updatedAt'>)
+        savedPolicy = await window.electronAPI.createSecurityPolicy({
+          name: editingPolicy.name,
+          tier: editingPolicy.tier || 'custom',
+          allowedDomains: editingPolicy.allowedDomains || [],
+          apiPathRules: editingPolicy.apiPathRules || {},
+          allowedPackages: editingPolicy.allowedPackages || [],
+          allowedBinaries: editingPolicy.allowedBinaries || [],
+        })
+        console.log('Created Security Policy:', savedPolicy)
       }
-      else if (selectedPolicyId) {
+      else {
         // Update existing policy
-        await window.electronAPI.updateSecurityPolicy(selectedPolicyId, editingPolicy.policy)
+        savedPolicy = await window.electronAPI.updateSecurityPolicy(editingPolicy)
+        console.log('Updated Security Policy:', savedPolicy)
       }
 
-      // Reload policies and clear editing state
-      await loadPolicies()
-      setEditingPolicy(null)
-      setSelectedPolicyId(null)
+      if (savedPolicy) {
+        setPolicy(savedPolicy)
+        setEditingPolicy({ ...savedPolicy })
+        setIsNew(false)
+      }
     }
     catch (error) {
       console.error('Failed to save policy:', error)
-      alert('Failed to save policy. Please try again.')
+      alert(`Failed to save policy: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+    finally {
+      setSaving(false)
     }
   }
 
   // Delete policy
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this policy?')) return
-
+  const handleDelete = async () => {
     try {
-      await window.electronAPI.deleteSecurityPolicy(id)
-      await loadPolicies()
-      if (selectedPolicyId === id) {
-        setSelectedPolicyId(null)
-        setEditingPolicy(null)
+      const deleted = await window.electronAPI.deleteSecurityPolicy()
+      if (deleted) {
+        setPolicy(null)
+        setEditingPolicy({
+          name: 'My Security Policy',
+          tier: 'custom',
+          allowedDomains: [],
+          apiPathRules: {},
+          allowedPackages: [],
+          allowedBinaries: [],
+        })
+        setIsNew(true)
       }
+      setDeleteConfirmOpen(false)
     }
     catch (error) {
       console.error('Failed to delete policy:', error)
@@ -101,10 +166,21 @@ export const SecurityPolicyPanel: React.FC = () => {
     }
   }
 
-  // Cancel editing
-  const handleCancel = () => {
-    setEditingPolicy(null)
-    setSelectedPolicyId(null)
+  // Reset changes
+  const handleReset = () => {
+    if (policy) {
+      setEditingPolicy({ ...policy })
+    }
+    else {
+      setEditingPolicy({
+        name: 'My Security Policy',
+        tier: 'custom',
+        allowedDomains: [],
+        apiPathRules: {},
+        allowedPackages: [],
+        allowedBinaries: [],
+      })
+    }
   }
 
   // Update editing policy fields
@@ -112,57 +188,91 @@ export const SecurityPolicyPanel: React.FC = () => {
     if (!editingPolicy) return
     setEditingPolicy({
       ...editingPolicy,
-      policy: {
-        ...editingPolicy.policy,
-        [field]: value,
-      },
+      [field]: value,
     })
   }
 
-  // Add item to array field (domains, packages, binaries)
-  const addArrayItem = (field: 'allowedDomains' | 'allowedPackages' | 'allowedBinaries') => {
-    const value = prompt(`Enter ${field === 'allowedDomains' ? 'domain' : field === 'allowedPackages' ? 'package' : 'binary'}:`)
-    if (!value || !editingPolicy) return
+  // Open add item dialog
+  const openAddItemDialog = (type: 'domain' | 'package' | 'binary') => {
+    setAddItemDialog({
+      open: true,
+      type,
+      value: '',
+    })
+  }
 
-    const currentArray = (editingPolicy.policy[field] as string[]) || []
-    updatePolicyField(field, [...currentArray, value])
+  // Handle add item dialog submit
+  const handleAddItemSubmit = () => {
+    if (!addItemDialog.value.trim() || !editingPolicy || !addItemDialog.type) return
+
+    const fieldMap = {
+      domain: 'allowedDomains',
+      package: 'allowedPackages',
+      binary: 'allowedBinaries',
+    } as const
+
+    const field = fieldMap[addItemDialog.type]
+    const currentArray = (editingPolicy[field] as string[]) || []
+    updatePolicyField(field, [...currentArray, addItemDialog.value.trim()])
+
+    setAddItemDialog({ open: false, type: null, value: '' })
   }
 
   // Remove item from array field
   const removeArrayItem = (field: 'allowedDomains' | 'allowedPackages' | 'allowedBinaries', index: number) => {
     if (!editingPolicy) return
-    const currentArray = (editingPolicy.policy[field] as string[]) || []
+    const currentArray = (editingPolicy[field] as string[]) || []
     updatePolicyField(field, currentArray.filter((_, i) => i !== index))
   }
 
-  // Add API path rule
-  const addApiPathRule = () => {
-    const domain = prompt('Enter domain (e.g., api.stripe.com):')
-    if (!domain || !editingPolicy) return
+  // Open add API path dialog
+  const openAddApiPathDialog = () => {
+    setAddApiPathDialog({
+      open: true,
+      domain: '',
+      path: '/*',
+      method: 'GET',
+      allow: true,
+    })
+  }
 
-    const path = prompt('Enter path (e.g., /v1/products):') || '/*'
-    const method = (prompt('Enter HTTP method (GET, POST, etc., or * for all):') || 'GET').toUpperCase() as HttpMethod
-    const allow = confirm('Allow this endpoint? (OK = Allow, Cancel = Block)')
+  // Handle add API path dialog submit
+  const handleAddApiPathSubmit = () => {
+    if (!addApiPathDialog.domain.trim() || !editingPolicy) return
 
-    const currentRules = editingPolicy.policy.apiPathRules || {}
-    const domainRules = currentRules[domain] || []
+    const currentRules = editingPolicy.apiPathRules || {}
+    const domainRules = currentRules[addApiPathDialog.domain] || []
 
     updatePolicyField('apiPathRules', {
       ...currentRules,
-      [domain]: [...domainRules, { method, path, allow }],
+      [addApiPathDialog.domain]: [
+        ...domainRules,
+        {
+          method: addApiPathDialog.method,
+          path: addApiPathDialog.path || '/*',
+          allow: addApiPathDialog.allow,
+        },
+      ],
+    })
+
+    setAddApiPathDialog({
+      open: false,
+      domain: '',
+      path: '/*',
+      method: 'GET',
+      allow: true,
     })
   }
 
   // Remove API path rule
   const removeApiPathRule = (domain: string, index: number) => {
     if (!editingPolicy) return
-    const currentRules = editingPolicy.policy.apiPathRules || {}
+    const currentRules = editingPolicy.apiPathRules || {}
     const domainRules = currentRules[domain] || []
 
     const updatedDomainRules = domainRules.filter((_, i) => i !== index)
 
     if (updatedDomainRules.length === 0) {
-      // Remove domain entirely if no rules left
       const { [domain]: _, ...remainingRules } = currentRules
       updatePolicyField('apiPathRules', remainingRules)
     }
@@ -174,54 +284,104 @@ export const SecurityPolicyPanel: React.FC = () => {
     }
   }
 
+  const getDialogTitle = () => {
+    switch (addItemDialog.type) {
+      case 'domain': return 'Add Domain'
+      case 'package': return 'Add Package'
+      case 'binary': return 'Add Binary'
+      default: return 'Add Item'
+    }
+  }
+
+  const getDialogDescription = () => {
+    switch (addItemDialog.type) {
+      case 'domain': return 'Enter the domain that should be allowed (e.g., api.github.com)'
+      case 'package': return 'Enter the npm package name (e.g., axios)'
+      case 'binary': return 'Enter the binary name (e.g., ffmpeg)'
+      default: return ''
+    }
+  }
+
+  const getDialogPlaceholder = () => {
+    switch (addItemDialog.type) {
+      case 'domain': return 'api.example.com'
+      case 'package': return 'package-name'
+      case 'binary': return 'binary-name'
+      default: return ''
+    }
+  }
+
   if (loading) {
     return (
       <div className="grow shrink min-w-0 h-full py-[0.5rem] flex items-center justify-center">
-        <div className="text-[#737373]">Loading security policies...</div>
+        <div className="text-[#737373]">Loading security policy...</div>
       </div>
     )
   }
 
-  // If editing a policy
-  if (editingPolicy) {
-    return (
-      <div className="grow shrink min-w-0 h-full py-[0.5rem] flex flex-col gap-[0.63rem] overflow-auto">
-        <div className="text-[1.13rem] px-[0.94rem] flex items-center justify-between">
-          <span>{editingPolicy.isNew ? 'Create New Policy' : 'Edit Policy'}</span>
-          <div className="flex gap-[0.5rem]">
-            <ButtonDesigned
-              onClick={handleSave}
-              className="flex items-center gap-[0.25rem] px-[0.75rem] py-[0.38rem] text-[0.88rem]"
+  return (
+    <div className="grow shrink min-w-0 h-full py-[0.5rem] flex flex-col gap-[0.63rem] overflow-auto">
+      <div className="text-[1.13rem] px-[0.94rem] flex items-center justify-between">
+        <span>{isNew ? 'Create Security Policy' : 'Security Policy'}</span>
+        <div className="flex gap-[0.5rem]">
+          {!isNew && (
+            <Button
+              onClick={handleReset}
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-[0.25rem]"
+              disabled={saving}
             >
-              <Save className="w-4 h-4" />
-              Save
-            </ButtonDesigned>
-            <ButtonDesigned
-              onClick={handleCancel}
-              className="flex items-center gap-[0.25rem] px-[0.75rem] py-[0.38rem] text-[0.88rem] bg-gray-300 hover:bg-gray-400"
+              <RefreshCw className="w-4 h-4" />
+              Reset
+            </Button>
+          )}
+          <Button
+            onClick={handleSave}
+            size="sm"
+            className="flex items-center gap-[0.25rem]"
+            disabled={saving || !editingPolicy?.name?.trim()}
+          >
+            <Save className="w-4 h-4" />
+            {saving ? 'Saving...' : (isNew ? 'Create' : 'Save')}
+          </Button>
+          {!isNew && (
+            <Button
+              onClick={() => setDeleteConfirmOpen(true)}
+              variant="destructive"
+              size="sm"
+              className="flex items-center gap-[0.25rem]"
+              disabled={saving}
             >
-              <X className="w-4 h-4" />
-              Cancel
-            </ButtonDesigned>
-          </div>
+              <Trash2 className="w-4 h-4" />
+              Delete
+            </Button>
+          )}
         </div>
+      </div>
 
+      <div className="text-[0.88rem] text-[#737373] px-[0.94rem]">
+        Configure your security policy for the 4-layer security system: Domain Control, Language Control, API Path Control, and Package Control.
+        {isNew && ' You can have one security policy per account.'}
+      </div>
+
+      {editingPolicy && (
         <div className="p-[0.94rem] border border-[#E5E5E5] rounded-[0.38rem] flex flex-col gap-[1rem]">
           {/* Basic Info */}
           <div className="flex flex-col gap-[0.5rem]">
             <div className="font-semibold">Basic Information</div>
             <div className="flex gap-[0.5rem]">
-              <input
+              <Input
                 type="text"
                 placeholder="Policy Name"
-                value={editingPolicy.policy.name || ''}
+                value={editingPolicy.name || ''}
                 onChange={(e) => updatePolicyField('name', e.target.value)}
-                className="flex-1 px-[0.5rem] py-[0.38rem] border border-[#E5E5E5] rounded-[0.25rem]"
+                className="flex-1"
               />
               <select
-                value={editingPolicy.policy.tier || 'custom'}
+                value={editingPolicy.tier || 'custom'}
                 onChange={(e) => updatePolicyField('tier', e.target.value)}
-                className="px-[0.5rem] py-[0.38rem] border border-[#E5E5E5] rounded-[0.25rem]"
+                className="px-[0.5rem] py-[0.38rem] border border-input rounded-md bg-background text-sm"
               >
                 <option value="free">Free Tier</option>
                 <option value="pro">Pro Tier</option>
@@ -240,24 +400,28 @@ export const SecurityPolicyPanel: React.FC = () => {
               Which external domains can be accessed via HTTP requests
             </div>
             <div className="flex flex-col gap-[0.25rem]">
-              {(editingPolicy.policy.allowedDomains || []).map((domain, index) => (
+              {(editingPolicy.allowedDomains || []).map((domain, index) => (
                 <div key={index} className="flex items-center gap-[0.5rem] px-[0.5rem] py-[0.25rem] bg-gray-50 rounded">
                   <span className="flex-1 text-[0.88rem]">{domain}</span>
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     onClick={() => removeArrayItem('allowedDomains', index)}
-                    className="text-red-500 hover:text-red-700"
+                    className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
                   >
                     <Trash2 className="w-4 h-4" />
-                  </button>
+                  </Button>
                 </div>
               ))}
-              <ButtonDesigned
-                onClick={() => addArrayItem('allowedDomains')}
-                className="flex items-center gap-[0.25rem] px-[0.5rem] py-[0.25rem] text-[0.88rem] w-fit"
+              <Button
+                onClick={() => openAddItemDialog('domain')}
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-[0.25rem] w-fit"
               >
                 <Plus className="w-4 h-4" />
                 Add Domain
-              </ButtonDesigned>
+              </Button>
             </div>
           </div>
 
@@ -270,7 +434,7 @@ export const SecurityPolicyPanel: React.FC = () => {
               Fine-grained control over which API endpoints can be called
             </div>
             <div className="flex flex-col gap-[0.5rem]">
-              {Object.entries(editingPolicy.policy.apiPathRules || {}).map(([domain, rules]) => (
+              {Object.entries(editingPolicy.apiPathRules || {}).map(([domain, rules]) => (
                 <div key={domain} className="border border-[#E5E5E5] rounded p-[0.5rem]">
                   <div className="font-medium text-[0.88rem] mb-[0.25rem]">{domain}</div>
                   {rules.map((rule: ApiPathRule, index: number) => (
@@ -282,23 +446,27 @@ export const SecurityPolicyPanel: React.FC = () => {
                         {rule.method}
                       </span>
                       <span className="flex-1 text-[0.88rem] font-mono">{rule.path}</span>
-                      <button
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         onClick={() => removeApiPathRule(domain, index)}
-                        className="text-red-500 hover:text-red-700"
+                        className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
                       >
                         <Trash2 className="w-4 h-4" />
-                      </button>
+                      </Button>
                     </div>
                   ))}
                 </div>
               ))}
-              <ButtonDesigned
-                onClick={addApiPathRule}
-                className="flex items-center gap-[0.25rem] px-[0.5rem] py-[0.25rem] text-[0.88rem] w-fit"
+              <Button
+                onClick={openAddApiPathDialog}
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-[0.25rem] w-fit"
               >
                 <Plus className="w-4 h-4" />
                 Add API Path Rule
-              </ButtonDesigned>
+              </Button>
             </div>
           </div>
 
@@ -311,24 +479,28 @@ export const SecurityPolicyPanel: React.FC = () => {
               Which npm packages are available for use
             </div>
             <div className="flex flex-col gap-[0.25rem]">
-              {(editingPolicy.policy.allowedPackages || []).map((pkg, index) => (
+              {(editingPolicy.allowedPackages || []).map((pkg, index) => (
                 <div key={index} className="flex items-center gap-[0.5rem] px-[0.5rem] py-[0.25rem] bg-gray-50 rounded">
                   <span className="flex-1 text-[0.88rem] font-mono">{pkg}</span>
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     onClick={() => removeArrayItem('allowedPackages', index)}
-                    className="text-red-500 hover:text-red-700"
+                    className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
                   >
                     <Trash2 className="w-4 h-4" />
-                  </button>
+                  </Button>
                 </div>
               ))}
-              <ButtonDesigned
-                onClick={() => addArrayItem('allowedPackages')}
-                className="flex items-center gap-[0.25rem] px-[0.5rem] py-[0.25rem] text-[0.88rem] w-fit"
+              <Button
+                onClick={() => openAddItemDialog('package')}
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-[0.25rem] w-fit"
               >
                 <Plus className="w-4 h-4" />
                 Add Package
-              </ButtonDesigned>
+              </Button>
             </div>
           </div>
 
@@ -341,100 +513,153 @@ export const SecurityPolicyPanel: React.FC = () => {
               Which system binaries are available for execution
             </div>
             <div className="flex flex-col gap-[0.25rem]">
-              {(editingPolicy.policy.allowedBinaries || []).map((binary, index) => (
+              {(editingPolicy.allowedBinaries || []).map((binary, index) => (
                 <div key={index} className="flex items-center gap-[0.5rem] px-[0.5rem] py-[0.25rem] bg-gray-50 rounded">
                   <span className="flex-1 text-[0.88rem] font-mono">{binary}</span>
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     onClick={() => removeArrayItem('allowedBinaries', index)}
-                    className="text-red-500 hover:text-red-700"
+                    className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
                   >
                     <Trash2 className="w-4 h-4" />
-                  </button>
+                  </Button>
                 </div>
               ))}
-              <ButtonDesigned
-                onClick={() => addArrayItem('allowedBinaries')}
-                className="flex items-center gap-[0.25rem] px-[0.5rem] py-[0.25rem] text-[0.88rem] w-fit"
+              <Button
+                onClick={() => openAddItemDialog('binary')}
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-[0.25rem] w-fit"
               >
                 <Plus className="w-4 h-4" />
                 Add Binary
-              </ButtonDesigned>
+              </Button>
             </div>
           </div>
         </div>
-      </div>
-    )
-  }
+      )}
 
-  // List view
-  return (
-    <div className="grow shrink min-w-0 h-full py-[0.5rem] flex flex-col gap-[0.63rem]">
-      <div className="text-[1.13rem] px-[0.94rem] flex items-center justify-between">
-        <span>Security Policies</span>
-        <ButtonDesigned
-          onClick={handleCreateNew}
-          className="flex items-center gap-[0.25rem] px-[0.75rem] py-[0.38rem] text-[0.88rem]"
-        >
-          <Plus className="w-4 h-4" />
-          Create New Policy
-        </ButtonDesigned>
-      </div>
-
-      <div className="p-[0.94rem] border border-[#E5E5E5] rounded-[0.38rem] flex flex-col gap-[0.5rem]">
-        <div className="text-[0.88rem] text-[#737373] mb-[0.5rem]">
-          Configure security policies for your 4-layer security system: Domain Control, Language Control, API Path Control, and Package Control.
-        </div>
-
-        {policies.length === 0 ? (
-          <div className="text-center py-[2rem] text-[#737373]">
-            No security policies configured yet. Create your first policy to get started.
+      {/* Add Item Dialog (Domain, Package, Binary) */}
+      <Dialog open={addItemDialog.open} onOpenChange={(open) => setAddItemDialog({ ...addItemDialog, open })}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{getDialogTitle()}</DialogTitle>
+            <DialogDescription>{getDialogDescription()}</DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Input
+              placeholder={getDialogPlaceholder()}
+              value={addItemDialog.value}
+              onChange={(e) => setAddItemDialog({ ...addItemDialog, value: e.target.value })}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleAddItemSubmit()
+                }
+              }}
+              autoFocus
+            />
           </div>
-        ) : (
-          <div className="flex flex-col gap-[0.5rem]">
-            {policies.map((policy) => (
-              <div
-                key={policy.id}
-                className="p-[0.75rem] border border-[#E5E5E5] rounded-[0.25rem] hover:border-[#A3A3A3] transition-colors"
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddItemDialog({ open: false, type: null, value: '' })}>
+              Cancel
+            </Button>
+            <Button onClick={handleAddItemSubmit} disabled={!addItemDialog.value.trim()}>
+              Add
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add API Path Rule Dialog */}
+      <Dialog open={addApiPathDialog.open} onOpenChange={(open) => setAddApiPathDialog({ ...addApiPathDialog, open })}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add API Path Rule</DialogTitle>
+            <DialogDescription>
+              Configure an API path rule for fine-grained endpoint control
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium">Domain</label>
+              <Input
+                placeholder="api.example.com"
+                value={addApiPathDialog.domain}
+                onChange={(e) => setAddApiPathDialog({ ...addApiPathDialog, domain: e.target.value })}
+                autoFocus
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium">Path</label>
+              <Input
+                placeholder="/v1/products/*"
+                value={addApiPathDialog.path}
+                onChange={(e) => setAddApiPathDialog({ ...addApiPathDialog, path: e.target.value })}
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium">HTTP Method</label>
+              <select
+                value={addApiPathDialog.method}
+                onChange={(e) => setAddApiPathDialog({ ...addApiPathDialog, method: e.target.value as HttpMethod })}
+                className="px-[0.5rem] py-[0.5rem] border border-input rounded-md bg-background text-sm"
               >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-[0.5rem] mb-[0.25rem]">
-                      <span className="font-semibold">{policy.name || 'Untitled Policy'}</span>
-                      {policy.tier && (
-                        <span className="px-[0.38rem] py-[0.13rem] bg-blue-100 text-blue-800 rounded text-[0.75rem] uppercase">
-                          {policy.tier}
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-[0.88rem] text-[#737373] flex gap-[1rem]">
-                      <span>{policy.allowedDomains.length} domains</span>
-                      <span>{Object.keys(policy.apiPathRules).length} API rules</span>
-                      <span>{policy.allowedPackages.length} packages</span>
-                      <span>{policy.allowedBinaries.length} binaries</span>
-                    </div>
-                  </div>
-                  <div className="flex gap-[0.5rem]">
-                    <button
-                      onClick={() => handleEdit(policy)}
-                      className="p-[0.38rem] text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded"
-                      title="Edit policy"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => policy.id && handleDelete(policy.id)}
-                      className="p-[0.38rem] text-red-600 hover:text-red-800 hover:bg-red-50 rounded"
-                      title="Delete policy"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
+                <option value="GET">GET</option>
+                <option value="POST">POST</option>
+                <option value="PUT">PUT</option>
+                <option value="PATCH">PATCH</option>
+                <option value="DELETE">DELETE</option>
+                <option value="HEAD">HEAD</option>
+                <option value="OPTIONS">OPTIONS</option>
+                <option value="*">* (All Methods)</option>
+              </select>
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium">Action</label>
+              <select
+                value={addApiPathDialog.allow ? 'allow' : 'block'}
+                onChange={(e) => setAddApiPathDialog({ ...addApiPathDialog, allow: e.target.value === 'allow' })}
+                className="px-[0.5rem] py-[0.5rem] border border-input rounded-md bg-background text-sm"
+              >
+                <option value="allow">Allow</option>
+                <option value="block">Block</option>
+              </select>
+            </div>
           </div>
-        )}
-      </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setAddApiPathDialog({ open: false, domain: '', path: '/*', method: 'GET', allow: true })}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleAddApiPathSubmit} disabled={!addApiPathDialog.domain.trim()}>
+              Add Rule
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Security Policy</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete your security policy? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDelete}>
+              Delete Policy
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -57,9 +57,35 @@ export interface SecurityPolicy {
   /** Layer 4: Package Control - Allowed system binaries */
   allowedBinaries: string[];
 
+  /** User who created this policy */
+  created_by?: string;
+  /** User ID this policy belongs to */
+  user_id?: string;
+  /** Whether this is an organization-level policy */
+  org_policy?: boolean;
+  /** Organization ID if applicable */
+  org?: string | null;
+  /** Team ID if applicable */
+  team?: string | null;
+
   /** Metadata */
   createdAt?: number;
   updatedAt?: number;
+}
+
+/**
+ * Input type for creating/updating security policies via API
+ */
+export interface SecurityPolicyInput {
+  name?: string;
+  tier?: string;
+  allowedDomains?: string[];
+  apiPathRules?: ApiPathRules;
+  allowedPackages?: string[];
+  allowedBinaries?: string[];
+  org_policy?: boolean;
+  org?: string | null;
+  team?: string | null;
 }
 
 /**
