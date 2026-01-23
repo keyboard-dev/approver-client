@@ -18,12 +18,10 @@ export class AIChatAdapter implements ChatModelAdapter {
   private currentProvider: AIProviderSelection = { provider: 'openai', model: 'gpt-3.5-turbo', mcpEnabled: false }
   private mcpIntegration: ReturnType<typeof useMCPIntegration> | null = null
   private setToolExecutionState?: (isExecuting: boolean, toolName?: string) => void
-  private attempts = 5
   private maxAgenticIterations = 10
   private onTaskProgress?: (progress: { step: number, totalSteps: number, currentAction: string, isComplete: boolean }) => void
   private pingInterval: NodeJS.Timeout | null = null
   private isToolsExecuting = false
-  private selectedScripts: Script[] = []
 
   constructor(provider: string = 'openai', model?: string, mcpEnabled: boolean = false) {
     this.currentProvider = { provider, model, mcpEnabled }
@@ -55,7 +53,6 @@ export class AIChatAdapter implements ChatModelAdapter {
   }
 
   setSelectedScripts(scripts: Script[]) {
-    this.selectedScripts = scripts
     contextService.setSelectedScripts(scripts)
   }
 
@@ -114,7 +111,7 @@ export class AIChatAdapter implements ChatModelAdapter {
 
   private preContextPrompt(aiMessages: AIMessage[]) {
     aiMessages[aiMessages.length - 1].content += `
-      
+
       When you are ready to call an ability, please use the following JSON format:
       \`\`\`json
       {
@@ -151,6 +148,51 @@ export class AIChatAdapter implements ChatModelAdapter {
     const lowerResponse = response.toLowerCase()
     return completionIndicators.some(indicator => lowerResponse.includes(indicator))
       || !this.hasMoreAbilityCallsInResponse(response)
+  }
+
+  async classifyQueryComplexity(aiMessages: AIMessage[]): Promise<'simple' | 'agentic'> {
+    try {
+      const classificationSystemPrompt = `You are a query classifier. Your task is to classify whether the LAST user message in the conversation requires external tools/actions or is a simple conversational question.
+
+Use the conversation history for context, but base your classification decision on the LAST user message only.
+
+REQUIRES TOOLS (respond "agentic"):
+- Fetching real-time data (weather, prices, news)
+- Running code or scripts
+- Web searches or API calls
+- File operations or system tasks
+- Anything needing external data sources
+
+SIMPLE CONVERSATION (respond "simple"):
+- General knowledge questions
+- Explanations or definitions
+- Opinions or advice
+- Math that can be done mentally
+- Questions about the AI itself
+
+Respond with only one word: "simple" or "agentic"`
+
+      // Filter to only user and assistant messages, preserving the conversation flow
+      const conversationMessages = aiMessages
+        .filter(m => m.role === 'user' || m.role === 'assistant')
+        .map(m => ({ role: m.role, content: m.content }))
+
+      const response = await window.electronAPI.sendAIMessage(
+        'keyboard',
+        [
+          { role: 'system', content: classificationSystemPrompt },
+          ...conversationMessages,
+        ],
+        { model: 'claude-haiku-4-5-20251001' },
+      )
+
+      const classification = response.toLowerCase().trim()
+      return classification === 'simple' ? 'simple' : 'agentic'
+    }
+    catch (error) {
+      // On error, default to agentic (safer to have tools available)
+      return 'agentic'
+    }
   }
 
   private hasMoreAbilityCallsInResponse(response: string): boolean {
@@ -578,83 +620,6 @@ ${analysisResponse}`
     }
   }
 
-  private formatAbilityResultsAsJSON(abilitiesRan: string): string {
-    try {
-      // Parse the ability results and format as clean JSON
-      const lines = abilitiesRan.split('\n').filter(line => line.trim())
-      const results = []
-
-      for (const line of lines) {
-        const match = line.match(/^(\d+)\.\s*(.+):\s*(.+)$/)
-        if (match) {
-          const [, index, ability, result] = match
-          results.push({
-            step: parseInt(index),
-            ability: ability.trim(),
-            result: result.trim(),
-            timestamp: new Date().toISOString(),
-          })
-        }
-        else {
-          // Fallback for non-standard format
-          results.push({
-            raw_output: line.trim(),
-            timestamp: new Date().toISOString(),
-          })
-        }
-      }
-
-      return JSON.stringify({ execution_results: results }, null, 2)
-    }
-    catch {
-      // Fallback to simple JSON structure
-      return JSON.stringify({
-        execution_results: [
-          {
-            raw_output: abilitiesRan,
-            error: 'Failed to parse structured results',
-            timestamp: new Date().toISOString(),
-          },
-        ],
-      }, null, 2)
-    }
-  }
-
-  private async getAbilityResultsAnalysis(finalResponse: string, abilitiesRan: string, originalRequest: string): Promise<string> {
-    try {
-      const analysisPrompt = [{
-        role: 'user' as const,
-        content: `Please analyze the following execution results and provide a clear summary:
-
-**Original Request:** ${originalRequest}
-
-**AI Response:** ${finalResponse}
-
-**Execution Results:**
-${abilitiesRan}
-
-Provide a concise analysis covering:
-1. What was accomplished
-2. Key results or outputs
-3. Whether the original request was fully satisfied
-4. Any important findings or next steps
-
-Keep it clear and actionable.`,
-      }]
-
-      const analysis = await window.electronAPI.sendAIMessage(
-        this.currentProvider.provider,
-        analysisPrompt,
-        { model: this.currentProvider.model },
-      )
-
-      return analysis
-    }
-    catch (error) {
-      return `**Summary**: ${abilitiesRan.split('\n').length} abilities were executed. See detailed results above.`
-    }
-  }
-
   async* run({ messages, abortSignal }: { messages: readonly Array<{ role: string, content: Array<{ type: string, text?: string }> }>, abortSignal?: AbortSignal }) {
     try {
       // Convert assistant-ui messages to our AI provider format
@@ -726,10 +691,17 @@ Keep it clear and actionable.`,
       // Handle keyboard.dev ability calling if enabled
       const abilitiesAvailable = this.mcpIntegration?.functions || []
       if (this.currentProvider.mcpEnabled && abilitiesAvailable.length > 0) {
-        for await (const result of this.handleWithAbilityCalling(aiMessages, abortSignal)) {
-          yield result
+        // Classify query complexity first to route simple queries to fast streaming response
+        const queryType = await this.classifyQueryComplexity(aiMessages)
+
+        if (queryType === 'agentic') {
+          // Complex query - use tool-calling workflow
+          for await (const result of this.handleWithAbilityCalling(aiMessages, abortSignal)) {
+            yield result
+          }
+          return
         }
-        return
+        // Simple query - fall through to regular streaming response below
       }
 
       if (abortSignal?.aborted) {
