@@ -117,6 +117,7 @@ import { CodespaceData, SSEBackgroundService } from './services/SSEBackgroundSer
 import { PaymentStatusResponse, SubscriptionCheckoutResponse, subscriptionsService } from './services/subscriptions-service'
 import { TrayManager } from './tray-manager'
 import { CollectionRequest, Message, ShareMessage } from './types'
+
 import { CODE_APPROVAL_ORDER, CodeApprovalLevel, RESPONSE_APPROVAL_ORDER, ResponseApprovalLevel } from './types/settings-types'
 import { ExecutorWebSocketClient } from './websocket-client-to-executor'
 import { WindowManager } from './window-manager'
@@ -2104,6 +2105,38 @@ class MenuBarNotificationApp {
       }
       catch (error) {
         throw new Error(`Failed to perform web search with ${provider}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      }
+    })
+
+    // General web search using the new /api/ai/inference endpoint with webSearch enabled
+    ipcMain.handle('web-search-general', async (_event, query: string) => {
+      try {
+        const authTokens = this.authService.getAuthTokens()
+        const accessToken = authTokens?.access_token || ''
+
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/ai/inference`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-5-20250929',
+            messages: [{ role: 'user', content: query }],
+            webSearch: true,
+            webSearchMaxUses: 3,
+          }),
+        })
+
+        if (!response.ok) {
+          const errorText = await response.text()
+          throw new Error(`API error: ${response.status} - ${errorText}`)
+        }
+
+        return response.json()
+      }
+      catch (error) {
+        throw new Error(`Failed to perform general web search: ${error instanceof Error ? error.message : 'Unknown error'}`)
       }
     })
 

@@ -110,6 +110,20 @@ export interface UpdateInfo {
   releaseNotes?: string
 }
 
+export interface WebSearchGeneralCitation {
+  type: 'web_search_result'
+  url: string
+  title: string
+}
+
+export interface WebSearchGeneralResponse {
+  content: Array<{
+    type: 'text'
+    text: string
+    citations?: WebSearchGeneralCitation[]
+  }>
+}
+
 export interface CreditsBalance {
   success: true
   balance_cents: number
@@ -336,6 +350,7 @@ export interface ElectronAPI {
   onAIStreamError: (callback: (error: string) => void) => void
   removeAIStreamListeners: () => void
   webSearch: (provider: string, query: string, company: string) => Promise<unknown>
+  webSearchGeneral: (query: string) => Promise<WebSearchGeneralResponse>
   getUserTokens: () => Promise<{ tokensAvailable?: string[], error?: string }>
   getCodespaceInfo: () => Promise<CodespaceInfo>
   // Credits balance
@@ -726,6 +741,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.removeAllListeners('ai-stream-error')
   },
   webSearch: (provider: string, query: string, company: string): Promise<unknown> => ipcRenderer.invoke('web-search', provider, query, company),
+  webSearchGeneral: (query: string): Promise<WebSearchGeneralResponse> => ipcRenderer.invoke('web-search-general', query),
   getUserTokens: (): Promise<{ tokensAvailable?: string[], error?: string }> => ipcRenderer.invoke('get-user-tokens'),
   getCodespaceInfo: (): Promise<CodespaceInfo> => ipcRenderer.invoke('get-codespace-info'),
   // Credits balance

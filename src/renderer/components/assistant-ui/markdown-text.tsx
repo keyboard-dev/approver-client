@@ -173,14 +173,23 @@ const defaultComponents = memoizeMarkdownComponents({
       {...props}
     />
   ),
-  a: ({ className, ...props }) => (
+  a: ({ className, href, children, ...props }) => (
     <a
+      href={href}
       className={cn(
-        'aui-md-a font-medium text-primary underline underline-offset-4',
+        'aui-md-a font-medium text-primary underline underline-offset-4 cursor-pointer',
         className,
       )}
+      onClick={(e) => {
+        e.preventDefault()
+        if (href) {
+          window.electronAPI.openExternalUrl(href)
+        }
+      }}
       {...props}
-    />
+    >
+      {children}
+    </a>
   ),
   blockquote: ({ className, ...props }) => (
     <blockquote

@@ -1,7 +1,7 @@
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
 import { useMcpClient } from '../hooks/useMcpClient'
 import { AbilityDiscoveryService, type AbilitySearchResult } from './ability-discovery'
-import { ResultProcessorService, type ProcessingOptions } from './result-processor'
+import { ResultProcessorService } from './result-processor'
 import { toolCacheService } from './tool-cache-service'
 import { webSearchTool } from './web-search-tool'
 
@@ -162,7 +162,6 @@ export function useMCPIntegration(
   const executeAbilityCall = async (
     functionName: string,
     args: Record<string, unknown>,
-    processingOptions?: ProcessingOptions,
   ) => {
     // Start execution tracking
     const executionId = executionTracker?.addExecution(functionName, args, typeof args.provider === 'string' ? args.provider : undefined)
