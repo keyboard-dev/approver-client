@@ -417,28 +417,39 @@ Respond with only one word: "simple" or "agentic"`
         }
       }
 
-      const selectedTools = this.preContextPrompt([{ role: 'user', content: toolChoiceResponse }])
+      // Check if the first response already contains ability calls
+      // This fixes the regression where the AI produces ability JSON in the first response
+      // but the code previously made an unnecessary second call that could lose the abilities
+      const firstResponseAbilityCalls = this.foundAbilityCallsInResponse(toolChoiceResponse)
 
-      // Show transition indicator before next API call
-      accumulatedResponse += '\n\n⏳ _Preparing next step..._'
-      yield {
-        content: [{ type: 'text' as const, text: accumulatedResponse }],
-      }
-
-      // Stream the tool selection and planning response
       let response = ''
-      for await (const update of this.streamAIResponseWithProgress(
-        selectedTools,
-        '🎯 **Planning tool execution...**',
-        accumulatedResponse.replace('\n\n⏳ _Preparing next step..._', ''),  // Remove transition indicator
-        abortSignal,
-      )) {
+      if (firstResponseAbilityCalls.length > 0) {
+        // First response already has ability calls - use it directly, skip second AI call
+        response = toolChoiceResponse
+      } else {
+        // No abilities in first response - make second call to plan tool execution
+        const selectedTools = this.preContextPrompt([{ role: 'user', content: toolChoiceResponse }])
+
+        // Show transition indicator before next API call
+        accumulatedResponse += '\n\n⏳ _Preparing next step..._'
         yield {
-          content: [{ type: 'text' as const, text: update.text }],
+          content: [{ type: 'text' as const, text: accumulatedResponse }],
         }
-        if (update.isComplete) {
-          response = update.text.split('🎯 **Planning tool execution...**\n')[1] || ''
-          accumulatedResponse = update.text
+
+        // Stream the tool selection and planning response
+        for await (const update of this.streamAIResponseWithProgress(
+          selectedTools,
+          '🎯 **Planning tool execution...**',
+          accumulatedResponse.replace('\n\n⏳ _Preparing next step..._', ''),  // Remove transition indicator
+          abortSignal,
+        )) {
+          yield {
+            content: [{ type: 'text' as const, text: update.text }],
+          }
+          if (update.isComplete) {
+            response = update.text.split('🎯 **Planning tool execution...**\n')[1] || ''
+            accumulatedResponse = update.text
+          }
         }
       }
 
@@ -567,7 +578,11 @@ Respond with only one word: "simple" or "agentic"`
             }
 
             abilitiesRan += `\n\n🚀 **${abilityName}** executed`
-            abilitiesRan += `\n**Result ${executionResult}`
+            // Properly serialize the result - executionResult is an object
+            const resultString = typeof executionResult === 'object'
+              ? JSON.stringify(executionResult, null, 2)
+              : String(executionResult)
+            abilitiesRan += `\n**Result:** ${resultString}`
 
             if (abortSignal?.aborted) {
               throw new Error('Request was aborted')
