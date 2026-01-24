@@ -151,27 +151,35 @@ export class AIChatAdapter implements ChatModelAdapter {
       || !this.hasMoreAbilityCallsInResponse(response)
   }
 
-  async classifyQueryComplexity(aiMessages: AIMessage[]): Promise<'simple' | 'agentic'> {
+  async classifyQueryComplexity(aiMessages: AIMessage[]): Promise<'simple' | 'web-search' | 'agentic'> {
     try {
       const classificationSystemPrompt = `You are a query classifier. Your task is to classify whether the LAST user message in the conversation requires external tools/actions or is a simple conversational question.
 
 Use the conversation history for context, but base your classification decision on the LAST user message only.
 
-REQUIRES TOOLS (respond "agentic"):
-- Fetching real-time data (weather, prices, news)
+WEB SEARCH ONLY (respond "web-search"):
+- Questions about current events, recent news, or what's happening now
+- Questions needing up-to-date information (latest prices, current weather, recent announcements)
+- Questions about recent developments, updates, or changes
+- "What's new in...", "Latest...", "Current...", "Recent..." type questions
+- Any question where the answer likely changed recently or needs fresh data
+
+REQUIRES OTHER TOOLS (respond "agentic"):
 - Running code or scripts
-- Web searches or API calls
+- API calls to specific services (not general web search)
 - File operations or system tasks
-- Anything needing external data sources
+- Complex multi-step tasks
+- Creating, modifying, or managing resources
 
 SIMPLE CONVERSATION (respond "simple"):
-- General knowledge questions
+- General knowledge questions (facts that don't change frequently)
 - Explanations or definitions
 - Opinions or advice
 - Math that can be done mentally
 - Questions about the AI itself
+- Historical facts or established concepts
 
-Respond with only one word: "simple" or "agentic"`
+Respond with only one word: "simple", "web-search", or "agentic"`
 
       // Filter to only user and assistant messages, preserving the conversation flow
       const conversationMessages = aiMessages
@@ -188,11 +196,111 @@ Respond with only one word: "simple" or "agentic"`
       )
 
       const classification = response.toLowerCase().trim()
-      return classification === 'simple' ? 'simple' : 'agentic'
+      console.log('[classifyQueryComplexity] Haiku raw response:', response)
+      console.log('[classifyQueryComplexity] Parsed classification:', classification)
+
+      if (classification === 'simple') return 'simple'
+      if (classification === 'web-search') return 'web-search'
+      return 'agentic'
     }
     catch (error) {
+      console.error('[classifyQueryComplexity] Error:', error)
       // On error, default to agentic (safer to have tools available)
       return 'agentic'
+    }
+  }
+
+  private async* handleWebSearch(aiMessages: AIMessage[], abortSignal?: AbortSignal): AsyncGenerator<{ content: [{ type: 'text', text: string }] }, void, unknown> {
+    const lastUserMessage = aiMessages[aiMessages.length - 1]
+    const userQuery = lastUserMessage?.content || ''
+
+    // Get current date for context
+    const now = new Date()
+    const currentDate = now.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    })
+
+    let accumulatedResponse = `🔍 **Searching the web...**\n_Current date: ${currentDate}_`
+    yield {
+      content: [{ type: 'text' as const, text: accumulatedResponse }],
+    }
+
+    try {
+      this.updateToolExecutionState(true, 'web-search')
+
+      // Check for abort before API call
+      if (abortSignal?.aborted) {
+        throw new Error('Request was aborted')
+      }
+
+      console.log('[handleWebSearch] Calling web-search-general with query:', userQuery)
+
+      // Call the new general web search endpoint
+      const searchResult = await window.electronAPI.webSearchGeneral(userQuery)
+
+      console.log('[handleWebSearch] Search result:', searchResult)
+
+      accumulatedResponse += '\n\n✅ **Search complete!**'
+      yield {
+        content: [{ type: 'text' as const, text: accumulatedResponse }],
+      }
+
+      // Extract the text response and citations from the result
+      // The response structure is: { response: { content: [...] } }
+      const contentArray = (searchResult as any).response?.content || searchResult.content || []
+
+      // Concatenate all text blocks and collect all citations
+      let responseText = ''
+      const allCitations: Array<{ url: string, title: string }> = []
+      const seenUrls = new Set<string>()
+
+      for (const item of contentArray) {
+        if (item.type === 'text' && item.text) {
+          responseText += item.text
+          // Collect citations from each text block
+          if (item.citations && Array.isArray(item.citations)) {
+            for (const citation of item.citations) {
+              // Deduplicate citations by URL
+              if (citation.url && !seenUrls.has(citation.url)) {
+                seenUrls.add(citation.url)
+                allCitations.push({ url: citation.url, title: citation.title || citation.url })
+              }
+            }
+          }
+        }
+      }
+
+      if (!responseText) {
+        responseText = 'No results found.'
+      }
+
+      // Format the response with citations
+      let formattedResponse = `${accumulatedResponse}\n\n---\n\n${responseText}`
+
+      // Add sources section if there are citations
+      if (allCitations.length > 0) {
+        formattedResponse += '\n\n---\n\n**Sources:**'
+        for (const citation of allCitations) {
+          formattedResponse += `\n- [${citation.title}](${citation.url})`
+        }
+      }
+
+      yield {
+        content: [{ type: 'text' as const, text: formattedResponse }],
+      }
+    }
+    catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      accumulatedResponse += `\n\n❌ **Search failed:** ${errorMessage}`
+      yield {
+        content: [{ type: 'text' as const, text: accumulatedResponse }],
+      }
+    }
+    finally {
+      this.updateToolExecutionState(false)
     }
   }
 
@@ -519,14 +627,8 @@ Respond with only one word: "simple" or "agentic"`
           try {
             this.updateToolExecutionState(true, abilityName)
 
-            const processingOptions = {
-              maxTokens: 300,
-              contextKeywords: this.extractKeywords(originalUserMessage.content),
-              filterSensitiveData: true,
-            }
-
             // Execute the ability with periodic UI updates
-            const executionPromise = this.mcpIntegration.executeAbilityCall(abilityName, parameters, processingOptions)
+            const executionPromise = this.mcpIntegration.executeAbilityCall(abilityName, parameters)
             
             // Yield periodic progress updates while waiting for execution
             let executionComplete = false
@@ -780,12 +882,23 @@ ${analysisResponse}`
 
       // Handle keyboard.dev ability calling if enabled
       const abilitiesAvailable = this.mcpIntegration?.functions || []
+      console.log('[run] mcpEnabled:', this.currentProvider.mcpEnabled, 'abilitiesAvailable:', abilitiesAvailable.length)
+
       if (this.currentProvider.mcpEnabled && abilitiesAvailable.length > 0) {
-        // Classify query complexity first to route simple queries to fast streaming response
+        // Classify query complexity first to route to appropriate handler
         const queryType = await this.classifyQueryComplexity(aiMessages)
+        console.log('[run] Query type classification result:', queryType)
+
+        if (queryType === 'web-search') {
+          // Web search query - use streamlined web search workflow with current date context
+          for await (const result of this.handleWebSearch(aiMessages, abortSignal)) {
+            yield result
+          }
+          return
+        }
 
         if (queryType === 'agentic') {
-          // Complex query - use tool-calling workflow
+          // Complex query - use full tool-calling workflow
           for await (const result of this.handleWithAbilityCalling(aiMessages, abortSignal)) {
             yield result
           }
