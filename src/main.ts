@@ -3151,7 +3151,6 @@ class MenuBarNotificationApp {
           return { success: false, error: 'Not authenticated' }
         }
 
-        console.log('config', config)
         const response = await fetch(`${this.OAUTH_SERVER_URL}/api/composio/triggers`, {
           method: 'POST',
           headers: {

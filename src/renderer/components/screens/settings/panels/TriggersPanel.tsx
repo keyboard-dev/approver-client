@@ -1,4 +1,4 @@
-import { AlertCircle, CheckCircle, ChevronDown, Clock, Eye, X, XCircle, Zap } from 'lucide-react'
+import { AlertCircle, CheckCircle, ChevronDown, Clock, Eye, Link, Loader2, Unlink, X, XCircle, Zap } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { Script } from '../../../../../main'
 import useComposio from '../../../../hooks/useComposio'
@@ -140,8 +140,10 @@ export const TriggersPanel: React.FC = () => {
     pausingTriggerId: composioPausingTriggerId,
     resumingTriggerId: composioResumingTriggerId,
     deletingTriggerId: composioDeletingTriggerId,
+    disconnectingAccountId: composioDisconnectingAccountId,
     refreshAccounts: refreshComposioAccounts,
     connectApp: connectComposioApp,
+    disconnectAccount: disconnectComposioAccount,
     checkAppAccountStatus: checkComposioAccountStatus,
     clearAccountStatus: clearComposioAccountStatus,
     refreshTriggers: refreshComposioTriggers,
@@ -800,10 +802,7 @@ export const TriggersPanel: React.FC = () => {
       }
       else if (trigger.source === 'composio') {
         // For Composio, fetch tasks from API
-        console.log("this is the trigger", trigger)
         const response = await listTriggerTasks(trigger.id)
-        console.log("this is the response", response)
-
         if (response.success) {
           // Handle different possible response structures
           type TaskData = {
@@ -1703,6 +1702,73 @@ export const TriggersPanel: React.FC = () => {
                 <X className="w-6 h-6" />
               </button>
             </div>
+
+            {/* Connected Accounts Section */}
+            {selectedApp && (
+              <div className="px-6 py-3 border-b border-[#E5E5E5] bg-[#FAFAFA]">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-[#525252]">Connected Accounts</span>
+                  <div className="flex items-center gap-2">
+                    {(() => {
+                      const appSlug = selectedApp.slug || ''
+                      const connectedAccount = composioAccounts.find(acc =>
+                        acc.appName?.toLowerCase() === appSlug.toLowerCase()
+                        || acc.toolkit?.slug?.toLowerCase() === appSlug.toLowerCase(),
+                      )
+
+                      if (connectedAccount) {
+                        const isDisconnecting = composioDisconnectingAccountId === connectedAccount.id
+                        return (
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full flex items-center gap-1">
+                              <CheckCircle className="w-3 h-3" />
+                              {connectedAccount.appName || appSlug}
+                            </span>
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation()
+                                if (confirm(`Disconnect ${connectedAccount.appName || appSlug}?`)) {
+                                  await disconnectComposioAccount(connectedAccount.id)
+                                  await refreshComposioAccounts()
+                                }
+                              }}
+                              disabled={isDisconnecting}
+                              className="text-xs text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-2 py-1 rounded flex items-center gap-1 disabled:opacity-50"
+                            >
+                              {isDisconnecting
+                                ? (
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                  )
+                                : (
+                                    <Unlink className="w-3 h-3" />
+                                  )}
+                              Disconnect
+                            </button>
+                          </div>
+                        )
+                      }
+                      else {
+                        return (
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation()
+                              await connectComposioApp(appSlug)
+                              await refreshComposioAccounts()
+                            }}
+                            className="text-xs text-[#171717] hover:text-[#171717] bg-[#171717]/10 hover:bg-[#171717]/20 px-2 py-1 rounded flex items-center gap-1"
+                          >
+                            <Link className="w-3 h-3" />
+                            Connect
+                            {' '}
+                            {selectedApp.name}
+                          </button>
+                        )
+                      }
+                    })()}
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="flex-1 overflow-y-auto p-6">
               {isLoading && (
