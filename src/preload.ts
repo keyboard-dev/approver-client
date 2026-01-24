@@ -4,6 +4,7 @@ import { ServerProviderInfo } from './oauth-providers'
 import { OAuthProviderConfig } from './provider-storage'
 import { CodespaceInfo, CollectionRequest, Message, ShareMessage } from './types'
 import { CodeApprovalLevel, ResponseApprovalLevel } from './types/settings-types'
+import { SecurityPolicy } from './types/security-policy'
 
 export interface AuthStatus {
   authenticated: boolean
@@ -108,6 +109,20 @@ export interface UpdateInfo {
   releaseDate?: string
   releaseName?: string
   releaseNotes?: string
+}
+
+export interface WebSearchGeneralCitation {
+  type: 'web_search_result'
+  url: string
+  title: string
+}
+
+export interface WebSearchGeneralResponse {
+  content: Array<{
+    type: 'text'
+    text: string
+    citations?: WebSearchGeneralCitation[]
+  }>
 }
 
 export interface CreditsBalance {
@@ -336,6 +351,7 @@ export interface ElectronAPI {
   onAIStreamError: (callback: (error: string) => void) => void
   removeAIStreamListeners: () => void
   webSearch: (provider: string, query: string, company: string) => Promise<unknown>
+  webSearchGeneral: (query: string) => Promise<WebSearchGeneralResponse>
   getUserTokens: () => Promise<{ tokensAvailable?: string[], error?: string }>
   getCodespaceInfo: () => Promise<CodespaceInfo>
   // Credits balance
@@ -494,6 +510,12 @@ export interface ElectronAPI {
     count?: number
     error?: string
   }>
+
+  // Security Policy management (single policy per user via API)
+  getSecurityPolicy: () => Promise<SecurityPolicy | null>
+  createSecurityPolicy: (policy: Omit<SecurityPolicy, 'id' | 'createdAt' | 'updatedAt' | 'created_by' | 'user_id'>) => Promise<SecurityPolicy>
+  updateSecurityPolicy: (updates: Partial<SecurityPolicy>) => Promise<SecurityPolicy | null>
+  deleteSecurityPolicy: () => Promise<boolean>
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -726,6 +748,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.removeAllListeners('ai-stream-error')
   },
   webSearch: (provider: string, query: string, company: string): Promise<unknown> => ipcRenderer.invoke('web-search', provider, query, company),
+  webSearchGeneral: (query: string): Promise<WebSearchGeneralResponse> => ipcRenderer.invoke('web-search-general', query),
   getUserTokens: (): Promise<{ tokensAvailable?: string[], error?: string }> => ipcRenderer.invoke('get-user-tokens'),
   getCodespaceInfo: (): Promise<CodespaceInfo> => ipcRenderer.invoke('get-codespace-info'),
   // Credits balance
@@ -881,6 +904,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     count?: number
     error?: string
   }> => ipcRenderer.invoke('list-unified-trigger-apps'),
+
+  // Security Policy API (single policy per user)
+  getSecurityPolicy: (): Promise<SecurityPolicy | null> => ipcRenderer.invoke('security-policy:get'),
+  createSecurityPolicy: (policy: Omit<SecurityPolicy, 'id' | 'createdAt' | 'updatedAt' | 'created_by' | 'user_id'>): Promise<SecurityPolicy> =>
+    ipcRenderer.invoke('security-policy:create', policy),
+  updateSecurityPolicy: (updates: Partial<SecurityPolicy>): Promise<SecurityPolicy | null> =>
+    ipcRenderer.invoke('security-policy:update', updates),
+  deleteSecurityPolicy: (): Promise<boolean> => ipcRenderer.invoke('security-policy:delete'),
 } as ElectronAPI)
 
 // Extend the global Window interface

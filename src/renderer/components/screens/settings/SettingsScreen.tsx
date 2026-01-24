@@ -7,6 +7,7 @@ import { AIProvidersPanel } from './panels/AIProvidersPanel'
 import { ConnectorsPanel } from './panels/ConnectorsPanel'
 import { KeyPanel } from './panels/KeyPanel'
 import { NotificationPanel } from './panels/NotificationPanel'
+import { SecurityPolicyPanel } from './panels/SecurityPolicyPanel'
 import { TriggersPanel } from './panels/TriggersPanel'
 
 /*
@@ -26,6 +27,7 @@ import { TriggersPanel } from './panels/TriggersPanel'
 const TABS = [
   'WebSocket',
   'Security',
+  'Security Policies',
   'AI Providers',
   'AI Credits',
   'Notifications',
@@ -102,6 +104,8 @@ export const SettingsScreen: React.FC = () => {
           />
         )
       }
+      case 'Security Policies':
+        return <SecurityPolicyPanel />
       case 'AI Providers':
         return <AIProvidersPanel />
       case 'AI Credits':

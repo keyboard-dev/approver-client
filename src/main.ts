@@ -117,7 +117,9 @@ import { CodespaceData, SSEBackgroundService } from './services/SSEBackgroundSer
 import { PaymentStatusResponse, SubscriptionCheckoutResponse, subscriptionsService } from './services/subscriptions-service'
 import { TrayManager } from './tray-manager'
 import { CollectionRequest, Message, ShareMessage } from './types'
+
 import { CODE_APPROVAL_ORDER, CodeApprovalLevel, RESPONSE_APPROVAL_ORDER, ResponseApprovalLevel } from './types/settings-types'
+import { SecurityPolicy } from './types/security-policy'
 import { ExecutorWebSocketClient } from './websocket-client-to-executor'
 import { WindowManager } from './window-manager'
 
@@ -216,6 +218,9 @@ class MenuBarNotificationApp {
   private fullCodeExecution: boolean = false
   private readonly SETTINGS_FILE = path.join(os.homedir(), '.keyboard-mcp-settings')
   private readonly FULL_CODE_EXECUTION_FILE = path.join(os.homedir(), '.keyboard-mcp', 'full-code-execution')
+
+  // Security policy management - now uses API
+  private readonly SECURITY_POLICY_API_URL = `https://api.keyboard.dev`
 
   // Executor WebSocket client
   private executorWSClient: ExecutorWebSocketClient | null = null
@@ -319,6 +324,9 @@ class MenuBarNotificationApp {
 
       // Initialize app settings
       await this.initializeSettings()
+
+      // Initialize security policies
+      await this.initializeSecurityPolicies()
 
       // Initialize version timestamp tracking
       await this.getVersionInstallTimestamp()
@@ -1017,6 +1025,129 @@ class MenuBarNotificationApp {
       settingsFile: this.SETTINGS_FILE,
       updatedAt,
     }
+  }
+
+  // Security Policy Management Methods - API-based (single policy per user)
+  private async initializeSecurityPolicies(): Promise<void> {
+    // No local initialization needed - policies are stored on the server via API
+  }
+
+  /**
+   * Get the user's security policy from the API
+   * Returns null if no policy exists
+   */
+  private async getSecurityPolicy(): Promise<SecurityPolicy | null> {
+    try {
+      const accessToken = await this.authService.getValidAccessToken()
+      if (!accessToken) {
+        return null
+      }
+
+      const response = await fetch(`${this.SECURITY_POLICY_API_URL}/api/user/policies`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (!response.ok) {
+        return null
+      }
+
+      const data = await response.json() as { success: boolean, policy: SecurityPolicy | null }
+      return data.policy || null
+    }
+    catch {
+      return null
+    }
+  }
+
+  /**
+   * Create a new security policy for the user
+   * Fails if a policy already exists (use update instead)
+   */
+  private async createSecurityPolicy(policy: Omit<SecurityPolicy, 'id' | 'createdAt' | 'updatedAt' | 'created_by' | 'user_id'>): Promise<SecurityPolicy> {
+    const accessToken = await this.authService.getValidAccessToken()
+    if (!accessToken) {
+      throw new Error('No access token available for security policy API')
+    }
+
+    const response = await fetch(`${this.SECURITY_POLICY_API_URL}/api/user/policies`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(policy),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({})) as { message?: string }
+      throw new Error(errorData.message || `Failed to create security policy: ${response.status}`)
+    }
+
+    const data = await response.json() as { success: boolean, policy: SecurityPolicy }
+    return data.policy
+  }
+
+  /**
+   * Update the user's existing security policy
+   * Supports partial updates
+   */
+  private async updateSecurityPolicy(updates: Partial<SecurityPolicy>): Promise<SecurityPolicy | null> {
+    const accessToken = await this.authService.getValidAccessToken()
+    if (!accessToken) {
+      throw new Error('No access token available for security policy API')
+    }
+
+    const response = await fetch(`${this.SECURITY_POLICY_API_URL}/api/user/policies`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(updates),
+    })
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        return null
+      }
+      const errorData = await response.json().catch(() => ({})) as { message?: string }
+      throw new Error(errorData.message || `Failed to update security policy: ${response.status}`)
+    }
+
+    const data = await response.json() as { success: boolean, policy: SecurityPolicy }
+    return data.policy
+  }
+
+  /**
+   * Delete the user's security policy
+   */
+  private async deleteSecurityPolicy(): Promise<boolean> {
+    const accessToken = await this.authService.getValidAccessToken()
+    if (!accessToken) {
+      throw new Error('No access token available for security policy API')
+    }
+
+    const response = await fetch(`${this.SECURITY_POLICY_API_URL}/api/user/policies`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+    })
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        return false
+      }
+      const errorData = await response.json().catch(() => ({})) as { message?: string }
+      throw new Error(errorData.message || `Failed to delete security policy: ${response.status}`)
+    }
+
+    return true
   }
 
   private checkForUpdates(): void {
@@ -1843,6 +1974,23 @@ class MenuBarNotificationApp {
       return this.fullCodeExecution
     })
 
+    // Security Policy IPC handlers (single policy per user via API)
+    ipcMain.handle('security-policy:get', async (): Promise<SecurityPolicy | null> => {
+      return await this.getSecurityPolicy()
+    })
+
+    ipcMain.handle('security-policy:create', async (_event, policy: Omit<SecurityPolicy, 'id' | 'createdAt' | 'updatedAt' | 'created_by' | 'user_id'>): Promise<SecurityPolicy> => {
+      return await this.createSecurityPolicy(policy)
+    })
+
+    ipcMain.handle('security-policy:update', async (_event, updates: Partial<SecurityPolicy>): Promise<SecurityPolicy | null> => {
+      return await this.updateSecurityPolicy(updates)
+    })
+
+    ipcMain.handle('security-policy:delete', async (): Promise<boolean> => {
+      return await this.deleteSecurityPolicy()
+    })
+
     ipcMain.handle('get-assets-path', (): string => {
       return getAssetsPath()
     })
@@ -2104,6 +2252,38 @@ class MenuBarNotificationApp {
       }
       catch (error) {
         throw new Error(`Failed to perform web search with ${provider}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      }
+    })
+
+    // General web search using the new /api/ai/inference endpoint with webSearch enabled
+    ipcMain.handle('web-search-general', async (_event, query: string) => {
+      try {
+        const authTokens = this.authService.getAuthTokens()
+        const accessToken = authTokens?.access_token || ''
+
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/ai/inference`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-5-20250929',
+            messages: [{ role: 'user', content: query }],
+            webSearch: true,
+            webSearchMaxUses: 3,
+          }),
+        })
+
+        if (!response.ok) {
+          const errorText = await response.text()
+          throw new Error(`API error: ${response.status} - ${errorText}`)
+        }
+
+        return response.json()
+      }
+      catch (error) {
+        throw new Error(`Failed to perform general web search: ${error instanceof Error ? error.message : 'Unknown error'}`)
       }
     })
 
