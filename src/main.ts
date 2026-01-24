@@ -117,6 +117,7 @@ import { CodespaceData, SSEBackgroundService } from './services/SSEBackgroundSer
 import { PaymentStatusResponse, SubscriptionCheckoutResponse, subscriptionsService } from './services/subscriptions-service'
 import { TrayManager } from './tray-manager'
 import { CollectionRequest, Message, ShareMessage } from './types'
+
 import { CODE_APPROVAL_ORDER, CodeApprovalLevel, RESPONSE_APPROVAL_ORDER, ResponseApprovalLevel } from './types/settings-types'
 import { ExecutorWebSocketClient } from './websocket-client-to-executor'
 import { WindowManager } from './window-manager'

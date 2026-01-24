@@ -1,6 +1,9 @@
 import { AuthTokens } from '../../types'
 import { AIMessage, AIProvider, AIProviderConfig } from '../index'
 
+// API URL - configurable via environment variable for local development
+const KEYBOARD_API_URL = process.env.KEYBOARD_API_URL || 'https://api.keyboard.dev'
+
 export class KeyboardProvider implements AIProvider {
   name = 'keyboard'
 
@@ -12,7 +15,7 @@ export class KeyboardProvider implements AIProvider {
     const systemMessage = messages.find(m => m.role === 'system')
     const messagesWithoutSystem = messages.filter(m => m.role !== 'system')
 
-    const url = 'https://api.keyboard.dev/api/ai/inference'
+    const url = `${KEYBOARD_API_URL}/api/ai/inference`
     const requestBody = {
       model: config.model || 'claude-sonnet-4-5-20250929',
       system: systemMessage?.content,
@@ -95,7 +98,7 @@ export class KeyboardProvider implements AIProvider {
     const systemMessage = messages.find(m => m.role === 'system')
     const messagesWithoutSystem = messages.filter(m => m.role !== 'system')
 
-    const url = 'https://api.keyboard.dev/api/ai/inference'
+    const url = `${KEYBOARD_API_URL}/api/ai/inference`
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -130,7 +133,6 @@ export class KeyboardProvider implements AIProvider {
     try {
       while (true) {
         const { done, value } = await reader.read()
-        //
         if (done) break
 
         buffer += decoder.decode(value, { stream: true })
