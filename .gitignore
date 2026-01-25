@@ -2,6 +2,7 @@ node_modules
 dist
 dist-build
 dist-react
+dist-universal
 .env
 .env.local
 .env.development.local
