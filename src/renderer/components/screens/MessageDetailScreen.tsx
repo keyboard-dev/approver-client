@@ -77,25 +77,34 @@ export const MessageDetailScreen: React.FC = () => {
   const handleApprove = async () => {
     if (!message) return
 
+    console.log('[MessageDetailScreen] handleApprove called for message:', message.id, message.title)
     try {
       // 1. Update database
+      console.log('[MessageDetailScreen] Updating database status to approved...')
       await updateMessage(message.id, {
         status: 'approved',
       })
+      console.log('[MessageDetailScreen] Database updated successfully')
 
       // 2. Fetch the updated message from database
+      console.log('[MessageDetailScreen] Fetching updated message from database...')
       const updatedMessage = await databaseService.getMessage(message.id)
       if (!updatedMessage) {
         throw new Error('Failed to fetch updated message')
       }
+      console.log('[MessageDetailScreen] Updated message fetched:', updatedMessage.status)
 
       // 3. Notify main process to forward response to WebSocket
+      console.log('[MessageDetailScreen] Sending response to main process via electronAPI...')
       await window.electronAPI.sendMessageResponse(updatedMessage)
+      console.log('[MessageDetailScreen] Response sent to main process successfully')
 
       // 4. Refresh the message to show updated status
       await fetchMessage()
+      console.log('[MessageDetailScreen] handleApprove completed successfully')
     }
     catch (error) {
+      console.error('[MessageDetailScreen] handleApprove error:', error)
     }
   }
 
@@ -103,25 +112,34 @@ export const MessageDetailScreen: React.FC = () => {
   const handleReject = async () => {
     if (!message) return
 
+    console.log('[MessageDetailScreen] handleReject called for message:', message.id, message.title)
     try {
       // 1. Update database
+      console.log('[MessageDetailScreen] Updating database status to rejected...')
       await updateMessage(message.id, {
         status: 'rejected',
       })
+      console.log('[MessageDetailScreen] Database updated successfully')
 
       // 2. Fetch the updated message from database
+      console.log('[MessageDetailScreen] Fetching updated message from database...')
       const updatedMessage = await databaseService.getMessage(message.id)
       if (!updatedMessage) {
         throw new Error('Failed to fetch updated message')
       }
+      console.log('[MessageDetailScreen] Updated message fetched:', updatedMessage.status)
 
       // 3. Notify main process to forward response to WebSocket
+      console.log('[MessageDetailScreen] Sending response to main process via electronAPI...')
       await window.electronAPI.sendMessageResponse(updatedMessage)
+      console.log('[MessageDetailScreen] Response sent to main process successfully')
 
       // 4. Refresh the message to show updated status
       await fetchMessage()
+      console.log('[MessageDetailScreen] handleReject completed successfully')
     }
     catch (error) {
+      console.error('[MessageDetailScreen] handleReject error:', error)
     }
   }
 

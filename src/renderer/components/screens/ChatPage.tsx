@@ -35,6 +35,11 @@ export const ChatPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(!!messageId) // Only show loading if we're expecting a message
   const [error, setError] = useState<string | null>(null)
 
+  // Debug: Track approvalMessage state changes
+  useEffect(() => {
+    console.log('[ChatPage] approvalMessage state changed:', approvalMessage ? `${approvalMessage.id} (${approvalMessage.status})` : 'null')
+  }, [approvalMessage])
+
   // Helper function to fetch/refresh approval message
   const fetchApprovalMessage = async () => {
     if (!messageId) {
@@ -78,78 +83,106 @@ export const ChatPage: React.FC = () => {
   useEffect(() => {
     const handleChatApprovalMessage = (event: CustomEvent<Message>) => {
       const message = event.detail
+      console.log('[ChatPage] chat-approval-message event received:', message.id, message.title, message.status)
+      console.log('[ChatPage] codespaceResponse present:', !!message.codespaceResponse)
       if (authStatus.authenticated || isSkippingAuth) {
+        console.log('[ChatPage] Setting approvalMessage state...')
         setApprovalMessage(message)
       }
       else {
+        console.log('[ChatPage] Not authenticated, ignoring message')
       }
     }
 
     // Add event listener
+    console.log('[ChatPage] Adding chat-approval-message event listener')
     window.addEventListener('chat-approval-message', handleChatApprovalMessage as EventListener)
 
     // Cleanup on unmount
     return () => {
+      console.log('[ChatPage] Removing chat-approval-message event listener')
       window.removeEventListener('chat-approval-message', handleChatApprovalMessage as EventListener)
     }
   }, [authStatus.authenticated, isSkippingAuth])
 
   // Approve message handler (same pattern as MessageDetailScreen)
   const handleApprove = async (message: Message) => {
+    console.log('[ChatPage] handleApprove called for message:', message.id, message.title)
     try {
       // 1. Update database
+      console.log('[ChatPage] Updating database status to approved...')
       await updateMessage(message.id, {
         status: 'approved',
       })
+      console.log('[ChatPage] Database updated successfully')
 
       // 2. Fetch the updated message from database
+      console.log('[ChatPage] Fetching updated message from database...')
       const updatedMessage = await databaseService.getMessage(message.id)
       if (!updatedMessage) {
         throw new Error('Failed to fetch updated message')
       }
+      console.log('[ChatPage] Updated message fetched:', updatedMessage.status)
 
       // 3. Notify main process to forward response to WebSocket
+      console.log('[ChatPage] Sending response to main process via electronAPI...')
       await window.electronAPI.sendMessageResponse(updatedMessage)
+      console.log('[ChatPage] Response sent to main process successfully')
 
       // 4. Clear the approval message from chat interface
       setApprovalMessage(null)
+      console.log('[ChatPage] Approval message cleared from UI')
 
       // 5. Refresh the message to show updated status
       await fetchApprovalMessage()
+      console.log('[ChatPage] handleApprove completed successfully')
     }
     catch (error) {
+      console.error('[ChatPage] handleApprove error:', error)
     }
   }
 
   // Reject message handler (same pattern as MessageDetailScreen)
   const handleReject = async (message: Message) => {
+    console.log('[ChatPage] handleReject called for message:', message.id, message.title)
     try {
       // 1. Update database
+      console.log('[ChatPage] Updating database status to rejected...')
       await updateMessage(message.id, {
         status: 'rejected',
       })
+      console.log('[ChatPage] Database updated successfully')
 
       // 2. Fetch the updated message from database
+      console.log('[ChatPage] Fetching updated message from database...')
       const updatedMessage = await databaseService.getMessage(message.id)
       if (!updatedMessage) {
         throw new Error('Failed to fetch updated message')
       }
+      console.log('[ChatPage] Updated message fetched:', updatedMessage.status)
 
       // 3. Notify main process to forward response to WebSocket
+      console.log('[ChatPage] Sending response to main process via electronAPI...')
       await window.electronAPI.sendMessageResponse(updatedMessage)
+      console.log('[ChatPage] Response sent to main process successfully')
 
       // 4. Clear the approval message from chat interface
       setApprovalMessage(null)
+      console.log('[ChatPage] Approval message cleared from UI')
 
       // 5. Refresh the message to show updated status
       await fetchApprovalMessage()
+      console.log('[ChatPage] handleReject completed successfully')
     }
     catch (error) {
+      console.error('[ChatPage] handleReject error:', error)
     }
   }
 
   // Clear approval message handler
   const handleClearApprovalMessage = () => {
+    console.log('[ChatPage] handleClearApprovalMessage called - clearing approvalMessage')
+    console.trace('[ChatPage] Stack trace for clear:')
     setApprovalMessage(null)
   }
 
