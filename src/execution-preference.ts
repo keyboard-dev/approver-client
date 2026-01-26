@@ -66,7 +66,13 @@ export class ExecutionPreferenceManager {
   }
 
   async getPreference(): Promise<ExecutionPreference> {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/e22b8f57-7dc7-467c-b52e-3fdd1fecc3f1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'execution-preference.ts:68',message:'getPreference called',data:{baseUrl:this.baseUrl,hasToken:!!this.jwtToken},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H4'})}).catch(()=>{});
+    // #endregion
     const response = await this.request('GET', '/api/user/preference') as PreferenceResponse
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/e22b8f57-7dc7-467c-b52e-3fdd1fecc3f1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'execution-preference.ts:69',message:'getPreference response',data:{success:response.success,preference:response.preference},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H4'})}).catch(()=>{});
+    // #endregion
     if (!response.success) {
       throw new Error(response.error || 'Failed to retrieve user preference')
     }

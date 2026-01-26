@@ -33,7 +33,7 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
   const [state, setState] = useState<UseMcpClientResult['state']>('discovering')
   const [tools, setTools] = useState<Tool[]>([])
   const [resources, setResources] = useState<Resource[]>([])
-  const [prompts, setPrompts] = useState<Array<{ name: string, description?: string }>>([])
+  const [prompts] = useState<Array<{ name: string, description?: string }>>([])
   const [error, setError] = useState<string | undefined>()
   const [accessToken, setAccessToken] = useState<string | null>(null)
 
@@ -120,14 +120,50 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
       // Clean up any existing connections
       await cleanup()
 
-      // Create the transport with proper authentication headers
+      // Create the transport with proper authentication headers and custom fetch with timeout
       const url = new URL(serverUrl)
+
+      // Create a custom fetch implementation with timeout support
+      // CRITICAL: SSE (Server-Sent Events) connections must NOT timeout - they're long-lived streams
+      // Only apply timeout to POST requests (tool executions), not GET requests (SSE streams)
+      const fetchWithTimeout: typeof fetch = async (input, init) => {
+        const method = init?.method?.toUpperCase() || 'GET'
+
+        // SSE streams use GET and should never timeout - they need to stay open indefinitely
+        // Only POST requests (tool calls) should have a timeout
+        const shouldApplyTimeout = method === 'POST'
+        const timeout = 900000 // 15 minutes for tool execution
+
+        if (!shouldApplyTimeout) {
+          // For SSE GET requests: no timeout, let the stream stay open
+          return await fetch(input, init)
+        }
+
+        // For POST requests: apply timeout using AbortController
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), timeout)
+
+        try {
+          const response = await fetch(input, {
+            ...init,
+            signal: controller.signal,
+          })
+          clearTimeout(timeoutId)
+          return response
+        }
+        catch (error) {
+          clearTimeout(timeoutId)
+          throw error
+        }
+      }
+
       const transport = new StreamableHTTPClientTransport(url, {
         requestInit: {
           headers: {
             Authorization: 'Bearer ' + token,
           },
         },
+        fetch: fetchWithTimeout,
       })
 
       transportRef.current = transport
@@ -211,7 +247,7 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
 
     hasConnectedRef.current = true
 
-    connect(accessToken, options.serverUrl).catch((err) => {
+    connect(accessToken, options.serverUrl).catch(() => {
       hasConnectedRef.current = false // Reset on failure so retry can work
     })
   }, [accessToken, options.serverUrl, connect])
@@ -229,7 +265,6 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
     }
 
     // Note: Removed state check for resilient execution - let the transport handle the HTTP call
-
     try {
       // Add timeout wrapper for long-running tools like run-code
       const timeout = options.timeout || 300000 // Default 5 minutes
@@ -244,7 +279,8 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
         arguments: args,
       })
 
-      return await Promise.race([toolPromise, timeoutPromise]) as CallToolResult
+      const result = await Promise.race([toolPromise, timeoutPromise]) as CallToolResult
+      return result
     }
     catch (err) {
       throw err
@@ -303,7 +339,7 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
       setError(undefined)
       hasConnectedRef.current = false // Reset connection tracking for retry
 
-      connect(accessToken, options.serverUrl).catch((err) => {
+      connect(accessToken, options.serverUrl).catch(() => {
         hasConnectedRef.current = false
       })
     }

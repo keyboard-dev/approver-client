@@ -118,8 +118,8 @@ import { PaymentStatusResponse, SubscriptionCheckoutResponse, subscriptionsServi
 import { TrayManager } from './tray-manager'
 import { CollectionRequest, Message, ShareMessage } from './types'
 
-import { CODE_APPROVAL_ORDER, CodeApprovalLevel, RESPONSE_APPROVAL_ORDER, ResponseApprovalLevel } from './types/settings-types'
 import { SecurityPolicy } from './types/security-policy'
+import { CODE_APPROVAL_ORDER, CodeApprovalLevel, RESPONSE_APPROVAL_ORDER, ResponseApprovalLevel } from './types/settings-types'
 import { ExecutorWebSocketClient } from './websocket-client-to-executor'
 import { WindowManager } from './window-manager'
 
@@ -278,6 +278,9 @@ class MenuBarNotificationApp {
     this.executorWSClient = new ExecutorWebSocketClient((message) => {
       this.handleExecutorMessage(message)
     })
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/e22b8f57-7dc7-467c-b52e-3fdd1fecc3f1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'main.ts:278',message:'ExecutorWebSocketClient created',data:{timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H4'})}).catch(()=>{});
+    // #endregion
 
     this.initializeApp()
   }
@@ -516,13 +519,42 @@ class MenuBarNotificationApp {
    */
   private async initializeExecutionPreferenceManager(): Promise<void> {
     try {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/e22b8f57-7dc7-467c-b52e-3fdd1fecc3f1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'main.ts:517',message:'initializeExecutionPreferenceManager called',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H4'})}).catch(()=>{});
+      // #endregion
       // Get valid access token for the execution preference manager
       const accessToken = await this.authService.getValidAccessToken()
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/e22b8f57-7dc7-467c-b52e-3fdd1fecc3f1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'main.ts:520',message:'Got access token',data:{hasAccessToken:!!accessToken},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H4'})}).catch(()=>{});
+      // #endregion
       if (accessToken) {
         this.executionPreferenceManager = new ExecutionPreferenceManager({
           jwtToken: accessToken,
           baseUrl: this.OAUTH_SERVER_URL,
         })
+
+        // CRITICAL FIX: Fetch and apply execution preference immediately after initialization
+        try {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/e22b8f57-7dc7-467c-b52e-3fdd1fecc3f1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'main.ts:535',message:'Fetching execution preference after manager init',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'FIX'})}).catch(()=>{});
+          // #endregion
+          const preference = await this.executionPreferenceManager.getPreference()
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/e22b8f57-7dc7-467c-b52e-3fdd1fecc3f1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'main.ts:536',message:'Fetched preference, setting on ExecutorWebSocketClient',data:{preference:preference,hasExecutorWSClient:!!this.executorWSClient},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'FIX'})}).catch(()=>{});
+          // #endregion
+          if (this.executorWSClient) {
+            this.executorWSClient.setExecutionPreference(preference)
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/e22b8f57-7dc7-467c-b52e-3fdd1fecc3f1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'main.ts:537',message:'Successfully set execution preference on ExecutorWebSocketClient',data:{preference:preference},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'FIX'})}).catch(()=>{});
+            // #endregion
+          }
+        }
+        catch (prefError) {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/e22b8f57-7dc7-467c-b52e-3fdd1fecc3f1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'main.ts:538',message:'Error fetching/setting execution preference',data:{error:prefError instanceof Error ? prefError.message : String(prefError)},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'FIX'})}).catch(()=>{});
+          // #endregion
+          // Silently fail - will use default preference
+        }
       }
     }
     catch (error) {
@@ -694,7 +726,13 @@ class MenuBarNotificationApp {
     })
     // Handle codespace coming online - auto-connect to it
     sseService.on('codespace-online', async (data: CodespaceData) => {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/e22b8f57-7dc7-467c-b52e-3fdd1fecc3f1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'main.ts:697-701',message:'SSE codespace-online event',data:{hasExecutionPreferenceManager:!!this.executionPreferenceManager},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H5'})}).catch(()=>{});
+      // #endregion
       const preference = await this.executionPreferenceManager.getPreference()
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/e22b8f57-7dc7-467c-b52e-3fdd1fecc3f1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'main.ts:697',message:'Got execution preference in codespace-online',data:{preference:preference},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H5'})}).catch(()=>{});
+      // #endregion
       this.executorWSClient?.setExecutionPreference(preference)
       await this.authService.getValidAccessToken()
       await this.connectToExecutorWithToken()
