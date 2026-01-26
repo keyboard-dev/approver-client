@@ -1,6 +1,7 @@
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
 import { useMcpClient } from '../hooks/useMcpClient'
 import { AbilityDiscoveryService, type AbilitySearchResult } from './ability-discovery'
+import { registerPendingCall, removePendingCall } from './pending-tool-calls'
 import { ResultProcessorService } from './result-processor'
 import { toolCacheService } from './tool-cache-service'
 import { webSearchTool } from './web-search-tool'
@@ -214,7 +215,47 @@ export function useMCPIntegration(
       const { name, args: abilityArgs } = prepareMCPAbilityCall(functionName, args)
 
       const startTime = performance.now()
-      const result = await mcpClient.callTool(name, abilityArgs)
+
+      // For tools that require approval (run-code), use a race mechanism
+      // This allows approvals to resolve the call even if MCP server is slow/stuck
+      const toolsRequiringApproval = ['run-code']
+      let result: CallToolResult
+      let pendingCallId: string | null = null
+
+      if (toolsRequiringApproval.includes(name)) {
+        // Register a pending call that can be resolved by approval
+        const pending = registerPendingCall(name)
+        pendingCallId = pending.id
+        console.log(`[MCPIntegration] Registered pending call ${pendingCallId} for ${name}`)
+
+        // Race between MCP HTTP response and pending call resolution from approval
+        try {
+          result = await Promise.race([
+            mcpClient.callTool(name, abilityArgs).then((mcpResult) => {
+              console.log(`[MCPIntegration] MCP server responded first for ${name}`)
+              // MCP responded first, remove the pending call
+              removePendingCall(pendingCallId!)
+              return mcpResult
+            }),
+            pending.promise.then((approvalResult) => {
+              console.log(`[MCPIntegration] Approval resolved first for ${name}`)
+              return approvalResult
+            }),
+          ])
+        }
+        catch (raceError) {
+          // Clean up pending call on error
+          if (pendingCallId) {
+            removePendingCall(pendingCallId)
+          }
+          throw raceError
+        }
+      }
+      else {
+        // Normal tool call without race mechanism
+        result = await mcpClient.callTool(name, abilityArgs)
+      }
+
       const callTime = Math.round(performance.now() - startTime)
 
       // Update execution with success

@@ -1,3 +1,4 @@
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { Clock } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -6,6 +7,7 @@ import { useAuth } from '../../hooks/useAuth'
 import { useWebSocketConnection } from '../../hooks/useWebSocketConnection'
 import { useDatabase } from '../../providers/DatabaseProvider'
 import { databaseService } from '../../services/database-service'
+import { resolvePendingCall } from '../../services/pending-tool-calls'
 import { AssistantUIChat } from '../AssistantUIChat'
 import { Card, CardContent } from '../ui/card'
 
@@ -129,11 +131,53 @@ export const ChatPage: React.FC = () => {
       await window.electronAPI.sendMessageResponse(updatedMessage)
       console.log('[ChatPage] Response sent to main process successfully')
 
-      // 4. Clear the approval message from chat interface
+      // 4. If this is a code response approval with codespaceResponse, resolve the pending tool call
+      //    This enables the fallback mechanism where the approval can complete the stuck MCP tool call
+      if (message.title === 'code response approval' && message.codespaceResponse) {
+        console.log('[ChatPage] Attempting to resolve pending run-code call with codespaceResponse...')
+        console.log('[ChatPage] codespaceResponse:', message.codespaceResponse)
+
+        // Extract the execution result from codespaceResponse
+        // The structure is { data: { stdout?, stderr?, ...other } }
+        const responseData = message.codespaceResponse.data || message.codespaceResponse
+
+        // Build a human-readable result text
+        let resultText = ''
+        if (responseData.stdout) {
+          resultText += `Output:\n${responseData.stdout}\n`
+        }
+        if (responseData.stderr) {
+          resultText += `Errors:\n${responseData.stderr}\n`
+        }
+        if (!resultText) {
+          // Fallback to JSON if no stdout/stderr
+          resultText = JSON.stringify(responseData, null, 2)
+        }
+
+        // Convert codespaceResponse to CallToolResult format
+        const toolResult: CallToolResult = {
+          content: [
+            {
+              type: 'text',
+              text: resultText,
+            },
+          ],
+        }
+
+        const resolved = resolvePendingCall('run-code', toolResult)
+        if (resolved) {
+          console.log('[ChatPage] Successfully resolved pending run-code call')
+        }
+        else {
+          console.log('[ChatPage] No pending run-code call found to resolve')
+        }
+      }
+
+      // 5. Clear the approval message from chat interface
       setApprovalMessage(null)
       console.log('[ChatPage] Approval message cleared from UI')
 
-      // 5. Refresh the message to show updated status
+      // 6. Refresh the message to show updated status
       await fetchApprovalMessage()
       console.log('[ChatPage] handleApprove completed successfully')
     }
