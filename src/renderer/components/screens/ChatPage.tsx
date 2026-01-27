@@ -1,3 +1,4 @@
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { Clock } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -6,6 +7,7 @@ import { useAuth } from '../../hooks/useAuth'
 import { useWebSocketConnection } from '../../hooks/useWebSocketConnection'
 import { useDatabase } from '../../providers/DatabaseProvider'
 import { databaseService } from '../../services/database-service'
+import { resolvePendingCall } from '../../services/pending-tool-calls'
 import { AssistantUIChat } from '../AssistantUIChat'
 import { Card, CardContent } from '../ui/card'
 
@@ -34,6 +36,11 @@ export const ChatPage: React.FC = () => {
   const [approvalMessage, setApprovalMessage] = useState<Message | null>(null)
   const [isLoading, setIsLoading] = useState(!!messageId) // Only show loading if we're expecting a message
   const [error, setError] = useState<string | null>(null)
+
+  // Debug: Track approvalMessage state changes
+  useEffect(() => {
+    console.log('[ChatPage] approvalMessage state changed:', approvalMessage ? `${approvalMessage.id} (${approvalMessage.status})` : 'null')
+  }, [approvalMessage])
 
   // Helper function to fetch/refresh approval message
   const fetchApprovalMessage = async () => {
@@ -78,78 +85,148 @@ export const ChatPage: React.FC = () => {
   useEffect(() => {
     const handleChatApprovalMessage = (event: CustomEvent<Message>) => {
       const message = event.detail
+      console.log('[ChatPage] chat-approval-message event received:', message.id, message.title, message.status)
+      console.log('[ChatPage] codespaceResponse present:', !!message.codespaceResponse)
       if (authStatus.authenticated || isSkippingAuth) {
+        console.log('[ChatPage] Setting approvalMessage state...')
         setApprovalMessage(message)
       }
       else {
+        console.log('[ChatPage] Not authenticated, ignoring message')
       }
     }
 
     // Add event listener
+    console.log('[ChatPage] Adding chat-approval-message event listener')
     window.addEventListener('chat-approval-message', handleChatApprovalMessage as EventListener)
 
     // Cleanup on unmount
     return () => {
+      console.log('[ChatPage] Removing chat-approval-message event listener')
       window.removeEventListener('chat-approval-message', handleChatApprovalMessage as EventListener)
     }
   }, [authStatus.authenticated, isSkippingAuth])
 
   // Approve message handler (same pattern as MessageDetailScreen)
   const handleApprove = async (message: Message) => {
+    console.log('[ChatPage] handleApprove called for message:', message.id, message.title)
     try {
       // 1. Update database
+      console.log('[ChatPage] Updating database status to approved...')
       await updateMessage(message.id, {
         status: 'approved',
       })
+      console.log('[ChatPage] Database updated successfully')
 
       // 2. Fetch the updated message from database
+      console.log('[ChatPage] Fetching updated message from database...')
       const updatedMessage = await databaseService.getMessage(message.id)
       if (!updatedMessage) {
         throw new Error('Failed to fetch updated message')
       }
+      console.log('[ChatPage] Updated message fetched:', updatedMessage.status)
 
       // 3. Notify main process to forward response to WebSocket
+      console.log('[ChatPage] Sending response to main process via electronAPI...')
       await window.electronAPI.sendMessageResponse(updatedMessage)
+      console.log('[ChatPage] Response sent to main process successfully')
 
-      // 4. Clear the approval message from chat interface
+      // 4. If this is a code response approval with codespaceResponse, resolve the pending tool call
+      //    This enables the fallback mechanism where the approval can complete the stuck MCP tool call
+      if (message.title === 'code response approval' && message.codespaceResponse) {
+        console.log('[ChatPage] Attempting to resolve pending run-code call with codespaceResponse...')
+        console.log('[ChatPage] codespaceResponse:', message.codespaceResponse)
+
+        // Extract the execution result from codespaceResponse
+        // The structure is { data: { stdout?, stderr?, ...other } }
+        const responseData = message.codespaceResponse.data || message.codespaceResponse
+
+        // Build a human-readable result text
+        let resultText = ''
+        if (responseData.stdout) {
+          resultText += `Output:\n${responseData.stdout}\n`
+        }
+        if (responseData.stderr) {
+          resultText += `Errors:\n${responseData.stderr}\n`
+        }
+        if (!resultText) {
+          // Fallback to JSON if no stdout/stderr
+          resultText = JSON.stringify(responseData, null, 2)
+        }
+
+        // Convert codespaceResponse to CallToolResult format
+        const toolResult: CallToolResult = {
+          content: [
+            {
+              type: 'text',
+              text: resultText,
+            },
+          ],
+        }
+
+        const resolved = resolvePendingCall('run-code', toolResult)
+        if (resolved) {
+          console.log('[ChatPage] Successfully resolved pending run-code call')
+        }
+        else {
+          console.log('[ChatPage] No pending run-code call found to resolve')
+        }
+      }
+
+      // 5. Clear the approval message from chat interface
       setApprovalMessage(null)
+      console.log('[ChatPage] Approval message cleared from UI')
 
-      // 5. Refresh the message to show updated status
+      // 6. Refresh the message to show updated status
       await fetchApprovalMessage()
+      console.log('[ChatPage] handleApprove completed successfully')
     }
     catch (error) {
+      console.error('[ChatPage] handleApprove error:', error)
     }
   }
 
   // Reject message handler (same pattern as MessageDetailScreen)
   const handleReject = async (message: Message) => {
+    console.log('[ChatPage] handleReject called for message:', message.id, message.title)
     try {
       // 1. Update database
+      console.log('[ChatPage] Updating database status to rejected...')
       await updateMessage(message.id, {
         status: 'rejected',
       })
+      console.log('[ChatPage] Database updated successfully')
 
       // 2. Fetch the updated message from database
+      console.log('[ChatPage] Fetching updated message from database...')
       const updatedMessage = await databaseService.getMessage(message.id)
       if (!updatedMessage) {
         throw new Error('Failed to fetch updated message')
       }
+      console.log('[ChatPage] Updated message fetched:', updatedMessage.status)
 
       // 3. Notify main process to forward response to WebSocket
+      console.log('[ChatPage] Sending response to main process via electronAPI...')
       await window.electronAPI.sendMessageResponse(updatedMessage)
+      console.log('[ChatPage] Response sent to main process successfully')
 
       // 4. Clear the approval message from chat interface
       setApprovalMessage(null)
+      console.log('[ChatPage] Approval message cleared from UI')
 
       // 5. Refresh the message to show updated status
       await fetchApprovalMessage()
+      console.log('[ChatPage] handleReject completed successfully')
     }
     catch (error) {
+      console.error('[ChatPage] handleReject error:', error)
     }
   }
 
   // Clear approval message handler
   const handleClearApprovalMessage = () => {
+    console.log('[ChatPage] handleClearApprovalMessage called - clearing approvalMessage')
+    console.trace('[ChatPage] Stack trace for clear:')
     setApprovalMessage(null)
   }
 

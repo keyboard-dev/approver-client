@@ -1,6 +1,7 @@
 import { CodespaceInfo, Script } from '../../types'
 import { generatePlanningToken, toolsToAbilities } from './ability-tools'
 import type { MCPAbilityFunction } from './mcp-tool-integration'
+import type { PipedreamAccount } from './pipedream-service'
 
 export interface UserTokensResponse {
   tokensAvailable?: string[]
@@ -12,6 +13,7 @@ export interface EnhancedContext {
   userTokens: string[]
   codespaceInfo: CodespaceInfo | null
   selectedScripts: Script[]
+  pipedreamAccounts: PipedreamAccount[]
   timestamp: number
 }
 
@@ -68,10 +70,11 @@ export class ContextService {
     // Generate new planning token
     const planningToken = generatePlanningToken()
 
-    // Fetch user tokens in parallel
-    const [userTokens, codespaceInfo] = await Promise.allSettled([
+    // Fetch user tokens, codespace info, and pipedream accounts in parallel
+    const [userTokens, codespaceInfo, pipedreamAccounts] = await Promise.allSettled([
       this.fetchUserTokens(),
       this.fetchCodespaceInfo(),
+      this.fetchPipedreamAccounts(),
     ])
 
     const context: EnhancedContext = {
@@ -79,6 +82,7 @@ export class ContextService {
       userTokens: userTokens.status === 'fulfilled' ? userTokens.value : [],
       codespaceInfo: codespaceInfo.status === 'fulfilled' ? codespaceInfo.value : null,
       selectedScripts: this.selectedScripts,
+      pipedreamAccounts: pipedreamAccounts.status === 'fulfilled' ? pipedreamAccounts.value : [],
       timestamp: Date.now(),
     }
 
@@ -148,6 +152,26 @@ ${JSON.stringify(additionalToolsList, null, 2)}
 Note: These are additional MCP tools beyond the core keyboard abilities. You can call these using the same JSON format.`
       : ''
 
+    // Build Pipedream connected accounts section
+    const pipedreamAccountsList = context.pipedreamAccounts.length > 0
+      ? context.pipedreamAccounts.map(account => ({
+          accountId: account.id,
+          accountName: account.name,
+          appName: account.app.name,
+          appSlug: account.app.nameSlug,
+          healthy: account.healthy,
+        }))
+      : []
+
+    const pipedreamAccountsSection = pipedreamAccountsList.length > 0
+      ? `
+
+PIPEDREAM CONNECTED ACCOUNTS:
+${JSON.stringify(pipedreamAccountsList, null, 2)}
+
+Note: Use the accountId when making API calls that require a connected account reference (e.g., for Pipedream triggers or actions that need account authentication).`
+      : ''
+
     return `You are a helpful AI assistant with access to a secure code execution environment.  Any code you will try to execute will also be reviewed by a human before execution so you can execute and write code with confidence.
 
 This is a real planning token to pass the run-code ability.  Make sure to use it when calling the run-code ability.
@@ -177,7 +201,7 @@ API RESEARCH GUIDANCE:
 - Only after you tried to use the web-search ability, and it didn't work, then you can use the run-code ability to execute code but the idea is to use the web-search ability first.
 
 Full abilities description and schema:
-${abilitiesList}${additionalToolsSection}
+${abilitiesList}${additionalToolsSection}${pipedreamAccountsSection}
 
 INSTRUCTIONS:
 - You can execute abilities directly using JSON format: {"ability": "ability-name", "parameters": {...}}
@@ -230,6 +254,25 @@ USER REQUEST: ${userMessage}`
     }
     catch (error) {
       return null
+    }
+  }
+
+  /**
+   * Fetch Pipedream connected accounts
+   */
+  private async fetchPipedreamAccounts(): Promise<PipedreamAccount[]> {
+    try {
+      const response = await window.electronAPI?.fetchPipedreamAccountsDetailed?.()
+      if (response?.success && response?.data) {
+        const data = response.data as { accounts?: PipedreamAccount[] }
+        if (data.accounts) {
+          return data.accounts
+        }
+      }
+      return []
+    }
+    catch {
+      return []
     }
   }
 
