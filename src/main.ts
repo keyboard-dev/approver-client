@@ -118,8 +118,8 @@ import { PaymentStatusResponse, SubscriptionCheckoutResponse, subscriptionsServi
 import { TrayManager } from './tray-manager'
 import { CollectionRequest, Message, ShareMessage } from './types'
 
-import { CODE_APPROVAL_ORDER, CodeApprovalLevel, RESPONSE_APPROVAL_ORDER, ResponseApprovalLevel } from './types/settings-types'
 import { SecurityPolicy } from './types/security-policy'
+import { CODE_APPROVAL_ORDER, CodeApprovalLevel, RESPONSE_APPROVAL_ORDER, ResponseApprovalLevel } from './types/settings-types'
 import { ExecutorWebSocketClient } from './websocket-client-to-executor'
 import { WindowManager } from './window-manager'
 
@@ -523,6 +523,17 @@ class MenuBarNotificationApp {
           jwtToken: accessToken,
           baseUrl: this.OAUTH_SERVER_URL,
         })
+
+        // CRITICAL FIX: Fetch and apply execution preference immediately after initialization
+        try {
+          const preference = await this.executionPreferenceManager.getPreference()
+          if (this.executorWSClient) {
+            this.executorWSClient.setExecutionPreference(preference)
+          }
+        }
+        catch (prefError) {
+          // Silently fail - will use default preference
+        }
       }
     }
     catch (error) {
