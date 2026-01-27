@@ -2395,6 +2395,19 @@ class MenuBarNotificationApp {
           if (accessToken) {
             this.executionPreferenceManager.setJwtToken(accessToken)
             await this.executionPreferenceManager.updatePreference(preference)
+
+            // Update the local WebSocket client preference and disconnect
+            // so it reconnects with the new preference
+            if (this.executorWSClient) {
+              this.executorWSClient.setExecutionPreference(preference)
+              this.executorWSClient.disconnect()
+            }
+
+            // Also disconnect SSE so it can reconnect with the new environment
+            if (this.sseBackgroundService) {
+              this.sseBackgroundService.disconnect()
+            }
+
             return { success: true }
           }
 
@@ -3355,6 +3368,7 @@ class MenuBarNotificationApp {
         if (!accessToken) {
           return { success: false, error: 'Not authenticated' }
         }
+
         const response = await fetch(`${this.OAUTH_SERVER_URL}/api/composio/triggers`, {
           method: 'POST',
           headers: {
@@ -3725,6 +3739,7 @@ class MenuBarNotificationApp {
     ipcMain.handle('update-composio-trigger-task', async (_event, taskId: string, updates: {
       keyboardShortcutIds?: string[]
       cloudCredentials?: string[]
+      pipedreamProxyApps?: string[]
       ask?: string
     }) => {
       try {

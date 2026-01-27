@@ -264,28 +264,19 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
       throw new Error('MCP client is not available')
     }
 
-    // Note: Removed state check for resilient execution - let the transport handle the HTTP call
     try {
-      // Add timeout wrapper for long-running tools like run-code
+      // Pass timeout directly to SDK to override the 60-second default
       const timeout = options.timeout || 300000 // Default 5 minutes
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => {
-          reject(new Error(`Tool '${name}' timed out after ${timeout}ms`))
-        }, timeout)
-      })
-
-      const toolPromise = client.callTool({
+      return await client.callTool({
         name,
         arguments: args,
-      })
-
-      const result = await Promise.race([toolPromise, timeoutPromise]) as CallToolResult
-      return result
+      }, undefined, { timeout })
     }
     catch (err) {
+      console.error('Error calling tool', err)
       throw err
     }
-  }, [state, options.timeout])
+  }, [options.timeout])
 
   // Resource reading function
   const readResource = useCallback(async (uri: string): Promise<ReadResourceResult> => {
