@@ -16,7 +16,7 @@ env:
 
 jobs:
   build-macos:
-    runs-on: macos-13
+    runs-on: macos-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
       artifact_name: ${{ steps.version.outputs.artifact_name }}
