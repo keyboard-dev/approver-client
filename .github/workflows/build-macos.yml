@@ -94,6 +94,16 @@ jobs:
           # Clean up temp certificate file
           rm -f "$RUNNER_TEMP/certificate.p12"
 
+      - name: Create Apple API key file for notarization
+        env:
+          DOTENV_PRIVATE_KEY: ${{ secrets.DOTENV_PRIVATE_KEY }}
+        run: |
+          # Extract the base64-encoded .p8 key content and write to file
+          APPLE_API_KEY_CONTENT=$(dotenvx get APPLE_API_KEY_CONTENT)
+          echo "$APPLE_API_KEY_CONTENT" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
+          echo "APPLE_API_KEY=$RUNNER_TEMP/AuthKey.p8" >> $GITHUB_ENV
+          echo "Apple API key file created at $RUNNER_TEMP/AuthKey.p8"
+
       - name: Build macOS universal binary
         env:
           DOTENV_PRIVATE_KEY: ${{ secrets.DOTENV_PRIVATE_KEY }}
@@ -125,6 +135,7 @@ jobs:
             security delete-keychain "$KEYCHAIN_PATH" || true
           fi
           rm -f .env
+          rm -f "$RUNNER_TEMP/AuthKey.p8"
 
   create-release:
     needs: build-macos
