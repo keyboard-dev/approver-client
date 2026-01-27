@@ -2,6 +2,19 @@
 require('@dotenvx/dotenvx').config()
 // require('dotenv').config()
 
+// Debug: Check if Apple credentials are loaded and decrypted
+const checkEnvVar = (name) => {
+  const val = process.env[name]
+  if (!val) return 'NOT SET'
+  if (val.startsWith('encrypted:')) return 'STILL ENCRYPTED'
+  return `OK (${val.substring(0, 8)}...)`
+}
+console.log('[forge.config.js] NODE_ENV:', process.env.NODE_ENV)
+console.log('[forge.config.js] SKIP_SIGNING:', process.env.SKIP_SIGNING)
+console.log('[forge.config.js] APPLE_API_KEY_ID:', checkEnvVar('APPLE_API_KEY_ID'))
+console.log('[forge.config.js] APPLE_API_ISSUER:', checkEnvVar('APPLE_API_ISSUER'))
+console.log('[forge.config.js] APPLE_API_KEY:', checkEnvVar('APPLE_API_KEY'))
+
 module.exports = {
   packagerConfig: {
     asar: true,
