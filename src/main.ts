@@ -117,7 +117,9 @@ import { CodespaceData, SSEBackgroundService } from './services/SSEBackgroundSer
 import { PaymentStatusResponse, SubscriptionCheckoutResponse, subscriptionsService } from './services/subscriptions-service'
 import { TrayManager } from './tray-manager'
 import { CollectionRequest, Message, ShareMessage } from './types'
+
 import { CODE_APPROVAL_ORDER, CodeApprovalLevel, RESPONSE_APPROVAL_ORDER, ResponseApprovalLevel } from './types/settings-types'
+import { SecurityPolicy } from './types/security-policy'
 import { ExecutorWebSocketClient } from './websocket-client-to-executor'
 import { WindowManager } from './window-manager'
 
@@ -216,6 +218,9 @@ class MenuBarNotificationApp {
   private fullCodeExecution: boolean = false
   private readonly SETTINGS_FILE = path.join(os.homedir(), '.keyboard-mcp-settings')
   private readonly FULL_CODE_EXECUTION_FILE = path.join(os.homedir(), '.keyboard-mcp', 'full-code-execution')
+
+  // Security policy management - now uses API
+  private readonly SECURITY_POLICY_API_URL = `https://api.keyboard.dev`
 
   // Executor WebSocket client
   private executorWSClient: ExecutorWebSocketClient | null = null
@@ -319,6 +324,9 @@ class MenuBarNotificationApp {
 
       // Initialize app settings
       await this.initializeSettings()
+
+      // Initialize security policies
+      await this.initializeSecurityPolicies()
 
       // Initialize version timestamp tracking
       await this.getVersionInstallTimestamp()
@@ -1017,6 +1025,129 @@ class MenuBarNotificationApp {
       settingsFile: this.SETTINGS_FILE,
       updatedAt,
     }
+  }
+
+  // Security Policy Management Methods - API-based (single policy per user)
+  private async initializeSecurityPolicies(): Promise<void> {
+    // No local initialization needed - policies are stored on the server via API
+  }
+
+  /**
+   * Get the user's security policy from the API
+   * Returns null if no policy exists
+   */
+  private async getSecurityPolicy(): Promise<SecurityPolicy | null> {
+    try {
+      const accessToken = await this.authService.getValidAccessToken()
+      if (!accessToken) {
+        return null
+      }
+
+      const response = await fetch(`${this.SECURITY_POLICY_API_URL}/api/user/policies`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (!response.ok) {
+        return null
+      }
+
+      const data = await response.json() as { success: boolean, policy: SecurityPolicy | null }
+      return data.policy || null
+    }
+    catch {
+      return null
+    }
+  }
+
+  /**
+   * Create a new security policy for the user
+   * Fails if a policy already exists (use update instead)
+   */
+  private async createSecurityPolicy(policy: Omit<SecurityPolicy, 'id' | 'createdAt' | 'updatedAt' | 'created_by' | 'user_id'>): Promise<SecurityPolicy> {
+    const accessToken = await this.authService.getValidAccessToken()
+    if (!accessToken) {
+      throw new Error('No access token available for security policy API')
+    }
+
+    const response = await fetch(`${this.SECURITY_POLICY_API_URL}/api/user/policies`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(policy),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({})) as { message?: string }
+      throw new Error(errorData.message || `Failed to create security policy: ${response.status}`)
+    }
+
+    const data = await response.json() as { success: boolean, policy: SecurityPolicy }
+    return data.policy
+  }
+
+  /**
+   * Update the user's existing security policy
+   * Supports partial updates
+   */
+  private async updateSecurityPolicy(updates: Partial<SecurityPolicy>): Promise<SecurityPolicy | null> {
+    const accessToken = await this.authService.getValidAccessToken()
+    if (!accessToken) {
+      throw new Error('No access token available for security policy API')
+    }
+
+    const response = await fetch(`${this.SECURITY_POLICY_API_URL}/api/user/policies`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(updates),
+    })
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        return null
+      }
+      const errorData = await response.json().catch(() => ({})) as { message?: string }
+      throw new Error(errorData.message || `Failed to update security policy: ${response.status}`)
+    }
+
+    const data = await response.json() as { success: boolean, policy: SecurityPolicy }
+    return data.policy
+  }
+
+  /**
+   * Delete the user's security policy
+   */
+  private async deleteSecurityPolicy(): Promise<boolean> {
+    const accessToken = await this.authService.getValidAccessToken()
+    if (!accessToken) {
+      throw new Error('No access token available for security policy API')
+    }
+
+    const response = await fetch(`${this.SECURITY_POLICY_API_URL}/api/user/policies`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+    })
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        return false
+      }
+      const errorData = await response.json().catch(() => ({})) as { message?: string }
+      throw new Error(errorData.message || `Failed to delete security policy: ${response.status}`)
+    }
+
+    return true
   }
 
   private checkForUpdates(): void {
@@ -1843,6 +1974,23 @@ class MenuBarNotificationApp {
       return this.fullCodeExecution
     })
 
+    // Security Policy IPC handlers (single policy per user via API)
+    ipcMain.handle('security-policy:get', async (): Promise<SecurityPolicy | null> => {
+      return await this.getSecurityPolicy()
+    })
+
+    ipcMain.handle('security-policy:create', async (_event, policy: Omit<SecurityPolicy, 'id' | 'createdAt' | 'updatedAt' | 'created_by' | 'user_id'>): Promise<SecurityPolicy> => {
+      return await this.createSecurityPolicy(policy)
+    })
+
+    ipcMain.handle('security-policy:update', async (_event, updates: Partial<SecurityPolicy>): Promise<SecurityPolicy | null> => {
+      return await this.updateSecurityPolicy(updates)
+    })
+
+    ipcMain.handle('security-policy:delete', async (): Promise<boolean> => {
+      return await this.deleteSecurityPolicy()
+    })
+
     ipcMain.handle('get-assets-path', (): string => {
       return getAssetsPath()
     })
@@ -2107,6 +2255,38 @@ class MenuBarNotificationApp {
       }
     })
 
+    // General web search using the new /api/ai/inference endpoint with webSearch enabled
+    ipcMain.handle('web-search-general', async (_event, query: string) => {
+      try {
+        const authTokens = this.authService.getAuthTokens()
+        const accessToken = authTokens?.access_token || ''
+
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/ai/inference`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-5-20250929',
+            messages: [{ role: 'user', content: query }],
+            webSearch: true,
+            webSearchMaxUses: 3,
+          }),
+        })
+
+        if (!response.ok) {
+          const errorText = await response.text()
+          throw new Error(`API error: ${response.status} - ${errorText}`)
+        }
+
+        return response.json()
+      }
+      catch (error) {
+        throw new Error(`Failed to perform general web search: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      }
+    })
+
     // Get user tokens from current WebSocket session
     ipcMain.handle('get-user-tokens', async (): Promise<{ tokensAvailable?: string[], error?: string }> => {
       try {
@@ -2177,6 +2357,19 @@ class MenuBarNotificationApp {
           if (accessToken) {
             this.executionPreferenceManager.setJwtToken(accessToken)
             await this.executionPreferenceManager.updatePreference(preference)
+
+            // Update the local WebSocket client preference and disconnect
+            // so it reconnects with the new preference
+            if (this.executorWSClient) {
+              this.executorWSClient.setExecutionPreference(preference)
+              this.executorWSClient.disconnect()
+            }
+
+            // Also disconnect SSE so it can reconnect with the new environment
+            if (this.sseBackgroundService) {
+              this.sseBackgroundService.disconnect()
+            }
+
             return { success: true }
           }
 
@@ -2277,6 +2470,1527 @@ class MenuBarNotificationApp {
     // Fetch Additional Connectors IPC handler
     ipcMain.handle('fetch-additional-connectors', async () => {
       return this.getAdditionalConnectors()
+    })
+
+    // Pipedream Triggers IPC handler
+    ipcMain.handle('fetch-pipedream-accounts', async () => {
+      const accessToken = await this.authService.getValidAccessToken()
+      if (!accessToken) {
+        throw new Error('Not authenticated')
+      }
+      const response = await fetch(`${this.OAUTH_SERVER_URL}/api/pipedream/accounts`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
+      )
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      const data = await response.json()
+      const connectedApps = (data as { accounts: Array<{ app?: { name: string } }> }).accounts.map((account) => {
+        return account.app?.name || 'Unknown App'
+      })
+      return connectedApps
+    })
+
+    ipcMain.handle('fetch-pipedream-accounts-detailed', async () => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return {
+            success: false,
+            error: 'Not authenticated',
+          }
+        }
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/pipedream/accounts`,
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          },
+        )
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+        const data = await response.json()
+        return { success: true, data }
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    ipcMain.handle('open-pipedream-connect-link', async (_event, appSlug: string) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return {
+            success: false,
+            error: 'Not authenticated',
+          }
+        }
+
+        // Get connect token from Pipedream API
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/pipedream/connect-token`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ app: appSlug }),
+        })
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json() as { success: boolean, connectLinkUrl?: string, token?: string, expiresAt?: string }
+
+        if (data.connectLinkUrl) {
+          // Open the connect link URL in the system browser
+          shell.openExternal(data.connectLinkUrl)
+          return { success: true }
+        }
+        else {
+          return {
+            success: false,
+            error: 'No connect link URL returned',
+          }
+        }
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    ipcMain.handle('fetch-pipedream-apps', async (_event, options?: {
+      query?: string
+      limit?: number
+      category?: string
+      sortKey?: 'name' | 'name_slug' | 'featured_weight'
+      sortDirection?: 'asc' | 'desc'
+      hasTriggers?: boolean
+    }) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return {
+            success: false,
+            error: 'Not authenticated',
+          }
+        }
+
+        const params = new URLSearchParams()
+        if (options?.query) {
+          params.set('q', options.query)
+        }
+        if (options?.category) {
+          params.set('category', options.category)
+        }
+        if (options?.hasTriggers !== undefined) {
+          params.set('has_triggers', options.hasTriggers.toString())
+        }
+        if (options?.limit !== undefined) {
+          params.set('limit', options.limit.toString())
+        }
+        if (options?.sortKey) {
+          params.set('sort_key', options.sortKey)
+        }
+        if (options?.sortDirection) {
+          params.set('sort_direction', options.sortDirection)
+        }
+
+        const url = `${this.OAUTH_SERVER_URL}/api/pipedream/apps${params.toString() ? `?${params.toString()}` : ''}`
+
+        const response = await fetch(url, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return { success: true, data }
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    ipcMain.handle('fetch-pipedream-triggers', async (_event, app: string) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return {
+            success: false,
+            error: 'Not authenticated',
+          }
+        }
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/pipedream/triggers?app=${encodeURIComponent(app)}`,
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          },
+        )
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+        const data = await response.json()
+        return { success: true, data }
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    // Deploy Pipedream Trigger IPC handler
+    ipcMain.handle('deploy-pipedream-trigger', async (_event, deployConfig: {
+      componentKey: string
+      appName: string
+      appSlug: string
+      configuredProps?: Record<string, unknown>
+      tasks?: Array<{
+        keyboard_shortcut_ids?: string[]
+        cloud_credentials?: string[]
+        pipedream_proxy_apps?: string[]
+        ask?: string | null
+      }>
+    }) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return {
+            success: false,
+            error: 'Not authenticated',
+          }
+        }
+
+        const requestBody = {
+          componentKey: deployConfig.componentKey,
+          appName: deployConfig.appName,
+          tasks: deployConfig.tasks,
+          appSlug: deployConfig.appSlug,
+          ...(deployConfig.configuredProps && Object.keys(deployConfig.configuredProps).length > 0
+            ? { configuredProps: deployConfig.configuredProps }
+            : {}),
+        }
+
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/pipedream/deployed-triggers`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(requestBody),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string }
+          throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return { success: true, data }
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    // Get Deployed Pipedream Triggers IPC handler
+    ipcMain.handle('get-deployed-pipedream-triggers', async (_event, includeTasks = false) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return {
+            success: false,
+            error: 'Not authenticated',
+          }
+        }
+
+        const url = includeTasks
+          ? `${this.OAUTH_SERVER_URL}/api/pipedream/deployed-triggers?include_tasks=true`
+          : `${this.OAUTH_SERVER_URL}/api/pipedream/deployed-triggers`
+
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return { success: true, data }
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    // Delete Deployed Pipedream Trigger IPC handler
+    ipcMain.handle('delete-deployed-pipedream-trigger', async (_event, triggerId: string) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return {
+            success: false,
+            error: 'Not authenticated',
+          }
+        }
+
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/pipedream/deployed-triggers/${triggerId}`, {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string }
+          throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return { success: true, data }
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    // Fetch Pipedream Schedule Triggers IPC handler
+    ipcMain.handle('fetch-pipedream-schedule-triggers', async () => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return {
+            success: false,
+            error: 'Not authenticated',
+          }
+        }
+
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/pipedream/schedule-triggers`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string }
+          throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return { success: true, data }
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    // Deploy Pipedream Schedule Trigger IPC handler
+    ipcMain.handle('deploy-pipedream-schedule-trigger', async (_event, scheduleConfig: {
+      scheduleType: string
+      cron: {
+        cron: string
+        timezone?: string
+      }
+      label: string
+      tasks?: Array<{
+        keyboard_shortcut_ids?: string[]
+        cloud_credentials?: string[]
+        pipedream_proxy_apps?: string[]
+        ask?: string | null
+      }>
+    }) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return {
+            success: false,
+            error: 'Not authenticated',
+          }
+        }
+
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/pipedream/deploy-schedule-trigger`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(scheduleConfig),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string }
+          throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return { success: true, data }
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    // Create Trigger Task IPC handler
+    ipcMain.handle('create-trigger-task', async (_event, taskConfig: {
+      deployed_trigger_id: string
+      keyboard_shortcut_ids?: string[]
+      cloud_credentials?: string[]
+      pipedream_proxy_apps?: string[]
+      ask?: string | null
+    }) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return {
+            success: false,
+            error: 'Not authenticated',
+          }
+        }
+
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/pipedream/trigger-tasks`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(taskConfig),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string }
+          throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return { success: true, data }
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    // Update Trigger Task IPC handler
+    ipcMain.handle('update-trigger-task', async (_event, taskId: string, taskConfig: {
+      keyboard_shortcut_ids?: string[]
+      cloud_credentials?: string[]
+      pipedream_proxy_apps?: string[]
+      ask?: string | null
+    }) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return {
+            success: false,
+            error: 'Not authenticated',
+          }
+        }
+
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/pipedream/trigger-tasks/${taskId}`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(taskConfig),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string }
+          throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return { success: true, data }
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    // Get Trigger Tasks IPC handler
+    ipcMain.handle('get-trigger-tasks', async (_event, deployedTriggerId: string, limit = 10) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return {
+            success: false,
+            error: 'Not authenticated',
+          }
+        }
+
+        const response = await fetch(
+          `${this.OAUTH_SERVER_URL}/api/pipedream/trigger-tasks?deployed_trigger_id=${encodeURIComponent(deployedTriggerId)}&limit=${limit}`,
+          {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          },
+        )
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return { success: true, data }
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    // Check User Token Status IPC handler
+    ipcMain.handle('check-user-token-status', async () => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return {
+            success: false,
+            error: 'Not authenticated',
+          }
+        }
+
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/token-vault/user-token-status`, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return { success: true, data }
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    // Store User Refresh Token IPC handler
+    ipcMain.handle('store-user-refresh-token', async (_event) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        const refreshToken = await this.authService.getRefreshToken()
+        if (!refreshToken) {
+          return {
+            success: false,
+            error: 'Failed to refresh tokens',
+          }
+        }
+        if (!accessToken) {
+          return {
+            success: false,
+            error: 'Not authenticated',
+          }
+        }
+
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/token-vault/user-token`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            refresh_token: refreshToken,
+          }),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string, details?: string }
+          throw new Error(errorData.error || errorData.details || `HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return { success: true, data }
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    // =============================================================================
+    // Composio Integration - Connected Accounts
+    // =============================================================================
+
+    ipcMain.handle('initiate-composio-connection', async (_event, request: {
+      appName: string
+      redirectUrl?: string
+      authConfig?: Record<string, unknown>
+    }) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/composio/accounts/connect`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(request),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string, message?: string, details?: unknown }
+          throw new Error(errorData.message || errorData.error || `HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    ipcMain.handle('list-composio-connected-accounts', async (_event, params?: {
+      appName?: string
+      status?: string
+    }) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const queryParams = new URLSearchParams()
+        if (params?.appName) queryParams.set('appName', params.appName)
+        if (params?.status) queryParams.set('status', params.status)
+
+        const url = `${this.OAUTH_SERVER_URL}/api/composio/accounts${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
+
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    ipcMain.handle('get-composio-connected-account', async (_event, accountId: string) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/composio/accounts/${accountId}`, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    ipcMain.handle('delete-composio-connected-account', async (_event, accountId: string) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/composio/accounts/${accountId}`, {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string }
+          throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    ipcMain.handle('sync-composio-connected-accounts', async () => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/composio/accounts/sync`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    // Check connected account status for an app (used before deploying triggers)
+    ipcMain.handle('check-composio-account-status', async (_event, appName: string) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const url = `${this.OAUTH_SERVER_URL}/api/composio/accounts?appName=${encodeURIComponent(appName)}`
+
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json() as {
+          success: boolean
+          data?: {
+            items: Array<{
+              id: string
+              appName: string
+              status: string
+              createdAt: string
+              updatedAt: string
+            }>
+          }
+        }
+
+        if (!data.success || !data.data?.items?.length) {
+          return {
+            success: true,
+            data: {
+              hasAccount: false,
+              status: 'not_connected',
+              message: 'No connected account found for this app',
+            },
+          }
+        }
+
+        // Get the first (most recent) account for this app
+        const account = data.data.items[0]
+        // Compare case-insensitively since API may return "ACTIVE" or "active"
+        const isActive = account.status.toLowerCase() === 'active'
+
+        return {
+          success: true,
+          data: {
+            hasAccount: true,
+            accountId: account.id,
+            status: account.status,
+            isActive,
+            createdAt: account.createdAt,
+            updatedAt: account.updatedAt,
+            message: isActive
+              ? 'Account is active and ready'
+              : `Account status is ${account.status}. Please reconnect to continue.`,
+          },
+        }
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    // =============================================================================
+    // Composio Integration - Triggers
+    // =============================================================================
+
+    ipcMain.handle('deploy-composio-trigger', async (_event, config: {
+      connectedAccountId: string
+      triggerName: string
+      appName: string
+      config?: Record<string, unknown>
+      encryptionEnabled?: boolean
+      tasks?: Array<{
+        keyboardShortcutIds?: string[]
+        cloudCredentials?: string[]
+        ask?: string
+      }>
+    }) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/composio/triggers`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(config),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string }
+          throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    ipcMain.handle('list-composio-triggers', async (_event, params?: {
+      appName?: string
+      status?: string
+    }) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const queryParams = new URLSearchParams()
+        if (params?.appName) queryParams.set('appName', params.appName)
+        if (params?.status) queryParams.set('status', params.status)
+
+        const url = `${this.OAUTH_SERVER_URL}/api/composio/triggers${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    ipcMain.handle('get-composio-trigger', async (_event, triggerId: string) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/composio/triggers/${triggerId}`, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    ipcMain.handle('update-composio-trigger-config', async (_event, triggerId: string, config: Record<string, unknown>) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/composio/triggers/${triggerId}`, {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ config }),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string }
+          throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    ipcMain.handle('pause-composio-trigger', async (_event, triggerId: string) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/composio/triggers/${triggerId}/pause`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string }
+          throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    ipcMain.handle('resume-composio-trigger', async (_event, triggerId: string) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/composio/triggers/${triggerId}/resume`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string }
+          throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    ipcMain.handle('delete-composio-trigger', async (_event, triggerId: string) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/composio/triggers/${triggerId}`, {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string }
+          throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    ipcMain.handle('list-composio-available-triggers', async (_event, appName: string) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/composio/triggers/available/${appName}`, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    ipcMain.handle('get-composio-trigger-config', async (_event, triggerName: string) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/composio/triggers/config/${triggerName}`, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    // =============================================================================
+    // Composio Integration - Trigger Tasks
+    // =============================================================================
+
+    ipcMain.handle('create-composio-trigger-task', async (_event, triggerId: string, task: {
+      keyboardShortcutIds?: string[]
+      cloudCredentials?: string[]
+      ask?: string
+    }) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/composio/triggers/${triggerId}/tasks`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(task),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string }
+          throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    ipcMain.handle('list-composio-trigger-tasks', async (_event, triggerId: string) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/composio/triggers/${triggerId}/tasks`, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    ipcMain.handle('get-composio-trigger-task', async (_event, taskId: string) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/composio/tasks/${taskId}`, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    ipcMain.handle('update-composio-trigger-task', async (_event, taskId: string, updates: {
+      keyboardShortcutIds?: string[]
+      cloudCredentials?: string[]
+      pipedreamProxyApps?: string[]
+      ask?: string
+    }) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/composio/tasks/${taskId}`, {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(updates),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string }
+          throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    ipcMain.handle('delete-composio-trigger-task', async (_event, taskId: string) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/composio/tasks/${taskId}`, {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string }
+          throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    // =============================================================================
+    // Composio Integration - Apps
+    // =============================================================================
+
+    ipcMain.handle('list-composio-apps', async (_event, params?: {
+      search?: string
+      category?: string
+      limit?: number
+      supportsTriggers?: boolean
+    }) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const queryParams = new URLSearchParams()
+        if (params?.search) queryParams.set('search', params.search)
+        if (params?.category) queryParams.set('category', params.category)
+        if (params?.limit) queryParams.set('limit', params.limit.toString())
+        if (params?.supportsTriggers !== undefined) {
+          queryParams.set('supportsTriggers', params.supportsTriggers.toString())
+        }
+
+        const url = `${this.OAUTH_SERVER_URL}/api/composio/apps${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    ipcMain.handle('list-composio-app-categories', async () => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/composio/apps/categories`, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    ipcMain.handle('get-composio-app', async (_event, appSlug: string) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/composio/apps/${appSlug}`, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    // Unified Triggers API (localhost:4000)
+    const UNIFIED_TRIGGERS_API_URL = process.env.UNIFIED_TRIGGERS_API_URL || `https://api.keyboard.dev`
+
+    // Search triggers across both Pipedream and Composio
+    ipcMain.handle('search-unified-triggers', async (_event, appName: string) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const response = await fetch(
+          `${UNIFIED_TRIGGERS_API_URL}/api/triggers/search?app=${encodeURIComponent(appName)}`,
+          {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${accessToken}`,
+            },
+          },
+        )
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json()
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    // List all supported apps with platform mappings
+    ipcMain.handle('list-unified-trigger-apps', async () => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        // Fetch unified apps list
+        const response = await fetch(
+          `${UNIFIED_TRIGGERS_API_URL}/api/triggers/apps`,
+          {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${accessToken}`,
+            },
+          },
+        )
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const data = await response.json() as {
+          success: boolean
+          apps?: Array<{ displayName: string, composioSlug?: string, pipedreamSlug?: string, logoUrl?: string }>
+          error?: string
+        }
+
+        // Fetch Pipedream apps to get their logo URLs
+        const pipedreamAppsMap: Map<string, string> = new Map()
+        try {
+          const pipedreamResponse = await fetch(
+            `${this.OAUTH_SERVER_URL}/api/pipedream/apps?limit=200&has_triggers=true`,
+            {
+              method: 'GET',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${accessToken}`,
+              },
+            },
+          )
+          if (pipedreamResponse.ok) {
+            const pipedreamData = await pipedreamResponse.json() as {
+              success: boolean
+              apps?: Array<{ name_slug?: string, img_src?: string }>
+            }
+            if (pipedreamData.success && pipedreamData.apps) {
+              for (const app of pipedreamData.apps) {
+                if (app.name_slug && app.img_src) {
+                  pipedreamAppsMap.set(app.name_slug.toLowerCase(), app.img_src)
+                }
+              }
+            }
+          }
+        }
+        catch (err) {
+        }
+
+        // Enrich apps with platform-specific logo URLs
+        if (data.success && data.apps) {
+          data.apps = data.apps.map((app) => {
+            const pipedreamLogoUrl = app.pipedreamSlug
+              ? pipedreamAppsMap.get(app.pipedreamSlug.toLowerCase())
+              : undefined
+
+            return {
+              ...app,
+              pipedreamLogoUrl: pipedreamLogoUrl || undefined,
+              composioLogoUrl: app.logoUrl, // Original logoUrl is likely from Composio or a fallback
+              // Update logoUrl to prefer Pipedream
+              logoUrl: pipedreamLogoUrl || app.logoUrl,
+            }
+          })
+        }
+
+        return data
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
     })
   }
 

@@ -7,6 +7,8 @@ import { AIProvidersPanel } from './panels/AIProvidersPanel'
 import { ConnectorsPanel } from './panels/ConnectorsPanel'
 import { KeyPanel } from './panels/KeyPanel'
 import { NotificationPanel } from './panels/NotificationPanel'
+import { SecurityPolicyPanel } from './panels/SecurityPolicyPanel'
+import { TriggersPanel } from './panels/TriggersPanel'
 
 /*
  * REACT ROUTER MIGRATION NOTE:
@@ -25,10 +27,12 @@ import { NotificationPanel } from './panels/NotificationPanel'
 const TABS = [
   'WebSocket',
   'Security',
+  'Security Policies',
   'AI Providers',
   'AI Credits',
   'Notifications',
   'Connectors',
+  'Triggers',
   'Advanced',
 ] as const
 
@@ -100,6 +104,8 @@ export const SettingsScreen: React.FC = () => {
           />
         )
       }
+      case 'Security Policies':
+        return <SecurityPolicyPanel />
       case 'AI Providers':
         return <AIProvidersPanel />
       case 'AI Credits':
@@ -108,6 +114,8 @@ export const SettingsScreen: React.FC = () => {
         return <NotificationPanel />
       case 'Connectors':
         return <ConnectorsPanel />
+      case 'Triggers':
+        return <TriggersPanel />
       case 'Advanced':
         return <AdvancedPanel />
       default:

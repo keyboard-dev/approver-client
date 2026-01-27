@@ -52,7 +52,29 @@ export class AuthService {
       })
 
       // Set up SSE service with restored token
+      this.initializeSSEService()
     }
+  }
+
+  /**
+   * Initialize SSE background service for real-time notifications
+   */
+  private initializeSSEService(): void {
+    if (!this.authTokens?.access_token) {
+      return
+    }
+
+    // Don't create duplicate SSE services
+    if (this.getSseBackgroundService()) {
+      return
+    }
+
+    const sseBackgroundService = new SSEBackgroundService({
+      serverUrl: 'https://mcp.keyboard.dev',
+    })
+    sseBackgroundService.setAuthToken(this.authTokens.access_token)
+    sseBackgroundService.connect()
+    this.setSseBackgroundService(sseBackgroundService)
   }
 
   /**
@@ -195,18 +217,8 @@ export class AuthService {
         priority: 'normal',
       })
 
-      const sseBackgroundService = new SSEBackgroundService({
-        serverUrl: 'https://mcp.keyboard.dev',
-      })
-      sseBackgroundService.setAuthToken(this.authTokens?.access_token)
-
-      // Listen for codespace-online events to refresh user context
-      sseBackgroundService.on('codespace-online', (_codespaceData) => {
-        // Clear context cache so user tokens get refreshed on next request
-      })
-
-      sseBackgroundService.connect()
-      this.setSseBackgroundService(sseBackgroundService)
+      // Initialize SSE for real-time notifications
+      this.initializeSSEService()
     }
     catch (error) {
       this.notifyAuthError(`Token exchange failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
@@ -217,6 +229,16 @@ export class AuthService {
   /**
    * Refresh access token using refresh token
    */
+  async getRefreshToken(): Promise<string | null> {
+    if (!this.authTokens?.refresh_token) {
+      this.authTokens = await this.loadAuthTokens()
+      if (!this.authTokens?.refresh_token) {
+        return null
+      }
+    }
+    return this.authTokens.refresh_token
+  }
+
   async refreshTokens(): Promise<boolean> {
     try {
       if (!this.authTokens?.refresh_token) {

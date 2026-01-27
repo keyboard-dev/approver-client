@@ -1,0 +1,165 @@
+name: Build macOS Universal App
+
+on:
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: 'Create GitHub release'
+        type: boolean
+        default: true
+  push:
+    tags:
+      - 'v*.*.*'
+
+env:
+  NODE_ENV: production
+
+jobs:
+  build-macos:
+    runs-on: macos-13
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      artifact_name: ${{ steps.version.outputs.artifact_name }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dotenvx globally
+        run: npm install -g @dotenvx/dotenvx
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Extract version from package.json
+        id: version
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            VERSION="${{ github.ref_name }}"
+            VERSION="${VERSION#v}"
+          else
+            VERSION=$(node -p "require('./package.json').version")
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "artifact_name=KeyboardAI-darwin-universal-${VERSION}.zip" >> $GITHUB_OUTPUT
+          echo "Building version: $VERSION"
+
+      - name: Create encrypted .env file
+        run: echo "${{ secrets.DOTENV_FILE }}" > .env
+
+      - name: Import code signing certificate
+        env:
+          DOTENV_PRIVATE_KEY: ${{ secrets.DOTENV_PRIVATE_KEY }}
+        run: |
+          # Create a temporary keychain
+          KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
+          KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
+
+          # Create keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Extract certificate from encrypted env and import
+          CERTIFICATE=$(dotenvx get MACOS_CERTIFICATE)
+          CERTIFICATE_PASSWORD=$(dotenvx get MACOS_CERTIFICATE_PWD)
+
+          # Decode and import certificate
+          echo "$CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          security import "$RUNNER_TEMP/certificate.p12" \
+            -P "$CERTIFICATE_PASSWORD" \
+            -A \
+            -t cert \
+            -f pkcs12 \
+            -k "$KEYCHAIN_PATH"
+
+          # Set key partition list for codesign access
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Add keychain to search list
+          security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | tr -d '"')
+
+          # Set as default keychain
+          security default-keychain -s "$KEYCHAIN_PATH"
+
+          # Store keychain path for cleanup
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> $GITHUB_ENV
+          echo "KEYCHAIN_PASSWORD=$KEYCHAIN_PASSWORD" >> $GITHUB_ENV
+
+          # Clean up temp certificate file
+          rm -f "$RUNNER_TEMP/certificate.p12"
+
+      - name: Build macOS universal binary
+        env:
+          DOTENV_PRIVATE_KEY: ${{ secrets.DOTENV_PRIVATE_KEY }}
+        run: dotenvx run -- npm run build-mac-universal
+
+      - name: Verify build output
+        run: |
+          ARTIFACT_PATH="out/make/zip/darwin/universal/${{ steps.version.outputs.artifact_name }}"
+          if [ ! -f "$ARTIFACT_PATH" ]; then
+            echo "Error: Expected artifact not found at $ARTIFACT_PATH"
+            echo "Contents of out/make/zip/darwin/universal/:"
+            ls -la out/make/zip/darwin/universal/ || echo "Directory does not exist"
+            exit 1
+          fi
+          echo "Build artifact found: $ARTIFACT_PATH"
+          ls -lh "$ARTIFACT_PATH"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-universal-build
+          path: out/make/zip/darwin/universal/${{ steps.version.outputs.artifact_name }}
+          retention-days: 30
+
+      - name: Cleanup keychain and secrets
+        if: always()
+        run: |
+          if [ -n "$KEYCHAIN_PATH" ] && [ -f "$KEYCHAIN_PATH" ]; then
+            security delete-keychain "$KEYCHAIN_PATH" || true
+          fi
+          rm -f .env
+
+  create-release:
+    needs: build-macos
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.create_release)
+    permissions:
+      contents: write
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-universal-build
+          path: ./artifacts
+
+      - name: List downloaded artifacts
+        run: ls -la ./artifacts
+
+      - name: Create pre-release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', needs.build-macos.outputs.version) }}
+          name: KeyboardAI v${{ needs.build-macos.outputs.version }}
+          body: |
+            ## KeyboardAI v${{ needs.build-macos.outputs.version }}
+
+            ### Downloads
+            - **macOS (Universal)**: `${{ needs.build-macos.outputs.artifact_name }}`
+
+            ### Installation
+            1. Download the `.zip` file for your platform
+            2. Extract and move `KeyboardAI.app` to your Applications folder
+            3. On first launch, right-click and select "Open" to bypass Gatekeeper
+
+            ---
+            *This is a pre-release build. Please report any issues.*
+          files: ./artifacts/${{ needs.build-macos.outputs.artifact_name }}
+          prerelease: true
+          generate_release_notes: true

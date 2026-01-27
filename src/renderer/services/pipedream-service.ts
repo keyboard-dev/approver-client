@@ -64,6 +64,44 @@ export interface CategoriesResponse {
   categories: string[]
 }
 
+export interface PipedreamTriggerConfigProp {
+  name: string
+  type: string
+  label: string
+  description?: string
+  optional?: boolean
+  default?: unknown
+  options?: Array<{ label: string, value: string }>
+}
+
+export interface PipedreamTrigger {
+  key: string
+  name: string
+  version: string
+  description?: string
+  component_type: string
+  configurable_props: PipedreamTriggerConfigProp[]
+  app: {
+    id: string
+    name_slug: string
+    name: string
+    auth_type?: string
+    description?: string
+    img_src?: string
+  }
+}
+
+export interface TriggersResponse {
+  success: boolean
+  triggers: PipedreamTrigger[]
+  totalCount: number
+  pageInfo?: {
+    count: number
+    startCursor?: string
+    endCursor?: string
+  }
+}
+
 // =============================================================================
 // Helper Functions
 // =============================================================================
@@ -143,6 +181,7 @@ export async function listApps(
   category?: string,
   sortKey: 'name' | 'name_slug' | 'featured_weight' = 'featured_weight',
   sortDirection: 'asc' | 'desc' = 'desc',
+  hasTriggers?: boolean,
 ): Promise<AppsResponse> {
   const headers = await getAuthHeaders()
   const params = new URLSearchParams()
@@ -151,6 +190,9 @@ export async function listApps(
   }
   if (category) {
     params.set('category', category)
+  }
+  if (hasTriggers !== undefined) {
+    params.set('has_triggers', hasTriggers.toString())
   }
   params.set('limit', limit.toString())
   params.set('sort_key', sortKey)
@@ -164,6 +206,35 @@ export async function listApps(
   })
 
   return handleResponse<AppsResponse>(response)
+}
+
+/**
+ * List available triggers for an app.
+ */
+export async function listTriggers(
+  app?: string,
+  query?: string,
+  limit = 50,
+): Promise<TriggersResponse> {
+  const headers = await getAuthHeaders()
+  const params = new URLSearchParams()
+  if (app) {
+    params.set('app', app)
+  }
+  if (query) {
+    params.set('q', query)
+  }
+  params.set('limit', limit.toString())
+
+  const url = `${API_BASE}/triggers${params.toString() ? `?${params.toString()}` : ''}`
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers,
+  })
+
+  const result = await handleResponse<TriggersResponse>(response)
+  return result
 }
 
 /**
@@ -211,6 +282,7 @@ export const pipedreamService = {
   getConnectToken,
   listAccounts,
   listApps,
+  listTriggers,
   listCategories,
   deleteAccount,
   openConnectLink,

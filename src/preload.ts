@@ -4,6 +4,7 @@ import { ServerProviderInfo } from './oauth-providers'
 import { OAuthProviderConfig } from './provider-storage'
 import { CodespaceInfo, CollectionRequest, Message, ShareMessage } from './types'
 import { CodeApprovalLevel, ResponseApprovalLevel } from './types/settings-types'
+import { SecurityPolicy } from './types/security-policy'
 
 export interface AuthStatus {
   authenticated: boolean
@@ -108,6 +109,20 @@ export interface UpdateInfo {
   releaseDate?: string
   releaseName?: string
   releaseNotes?: string
+}
+
+export interface WebSearchGeneralCitation {
+  type: 'web_search_result'
+  url: string
+  title: string
+}
+
+export interface WebSearchGeneralResponse {
+  content: Array<{
+    type: 'text'
+    text: string
+    citations?: WebSearchGeneralCitation[]
+  }>
 }
 
 export interface CreditsBalance {
@@ -335,7 +350,8 @@ export interface ElectronAPI {
   onAIStreamEnd: (callback: () => void) => void
   onAIStreamError: (callback: (error: string) => void) => void
   removeAIStreamListeners: () => void
-  webSearch: (provider: string, query: string, company: string) => Promise<any>
+  webSearch: (provider: string, query: string, company: string) => Promise<unknown>
+  webSearchGeneral: (query: string) => Promise<WebSearchGeneralResponse>
   getUserTokens: () => Promise<{ tokensAvailable?: string[], error?: string }>
   getCodespaceInfo: () => Promise<CodespaceInfo>
   // Credits balance
@@ -349,6 +365,157 @@ export interface ElectronAPI {
   getAdditionalConnectedAccounts: () => Promise<{ success: boolean, accounts: Array<{ id: string, connection: string, access_type: string, scopes: string[], created_at: string, icon?: string }> }>
   fetchAdditionalConnectors: () => Promise<Array<{ id: string, name: string, description?: string, icon: string, scopes?: string[], source?: 'local' | 'pipedream' | 'custom', metadata?: Record<string, unknown> }>>
   deleteAdditionalAccount: (accountId: string) => Promise<{ success: boolean, message?: string }>
+  // Pipedream Triggers
+  fetchPipedreamAccounts: () => Promise<string[]>
+  fetchPipedreamAccountsDetailed: () => Promise<{ success: boolean, data?: unknown, error?: string }>
+  openPipedreamConnectLink: (appSlug: string) => Promise<{ success: boolean, error?: string }>
+  fetchPipedreamApps: (options?: {
+    query?: string
+    limit?: number
+    category?: string
+    sortKey?: 'name' | 'name_slug' | 'featured_weight'
+    sortDirection?: 'asc' | 'desc'
+    hasTriggers?: boolean
+  }) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  fetchPipedreamTriggers: (app: string) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  deployPipedreamTrigger: (config: {
+    componentKey: string
+    appName: string
+    appSlug: string
+    configuredProps?: Record<string, unknown>
+    tasks?: Array<{
+      keyboard_shortcut_ids?: string[]
+      cloud_credentials?: string[]
+      pipedream_proxy_apps?: string[]
+      ask?: string | null
+    }>
+  }) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  getDeployedPipedreamTriggers: (includeTasks?: boolean) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  deleteDeployedPipedreamTrigger: (triggerId: string) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  fetchPipedreamScheduleTriggers: () => Promise<{ success: boolean, data?: unknown, error?: string }>
+  deployPipedreamScheduleTrigger: (config: {
+    scheduleType: string
+    cron: {
+      cron: string
+      timezone?: string
+    }
+    label: string
+    tasks?: Array<{
+      keyboard_shortcut_ids?: string[]
+      cloud_credentials?: string[]
+      pipedream_proxy_apps?: string[]
+      ask?: string | null
+    }>
+  }) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  createTriggerTask: (config: {
+    deployed_trigger_id: string
+    keyboard_shortcut_ids?: string[]
+    cloud_credentials?: string[]
+    pipedream_proxy_apps?: string[]
+    ask?: string | null
+  }) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  updateTriggerTask: (taskId: string, config: {
+    keyboard_shortcut_ids?: string[]
+    cloud_credentials?: string[]
+    pipedream_proxy_apps?: string[]
+    ask?: string | null
+  }) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  getTriggerTasks: (deployedTriggerId: string, limit?: number) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  checkUserTokenStatus: () => Promise<{ success: boolean, data?: unknown, error?: string }>
+  storeUserRefreshToken: () => Promise<{ success: boolean, data?: unknown, error?: string }>
+  // Composio Integration
+  initiateComposioConnection: (request: { appName: string, redirectUrl?: string, authConfig?: Record<string, unknown> }) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  listComposioConnectedAccounts: (params?: { appName?: string, status?: string }) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  getComposioConnectedAccount: (accountId: string) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  deleteComposioConnectedAccount: (accountId: string) => Promise<{ success: boolean, error?: string }>
+  syncComposioConnectedAccounts: () => Promise<{ success: boolean, data?: unknown, error?: string }>
+  deployComposioTrigger: (config: {
+    connectedAccountId: string
+    triggerName: string
+    appName: string
+    config?: Record<string, unknown>
+    encryptionEnabled?: boolean
+    tasks?: Array<{
+      keyboardShortcutIds?: string[]
+      cloudCredentials?: string[]
+      ask?: string
+    }>
+  }) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  listComposioTriggers: (params?: { appName?: string, status?: string }) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  getComposioTrigger: (triggerId: string) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  updateComposioTriggerConfig: (triggerId: string, config: Record<string, unknown>) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  pauseComposioTrigger: (triggerId: string) => Promise<{ success: boolean, error?: string }>
+  resumeComposioTrigger: (triggerId: string) => Promise<{ success: boolean, error?: string }>
+  deleteComposioTrigger: (triggerId: string) => Promise<{ success: boolean, error?: string }>
+  listComposioAvailableTriggers: (appName: string) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  getComposioTriggerConfig: (triggerName: string) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  createComposioTriggerTask: (triggerId: string, task: { keyboardShortcutIds?: string[], cloudCredentials?: string[], ask?: string }) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  listComposioTriggerTasks: (triggerId: string) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  getComposioTriggerTask: (taskId: string) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  updateComposioTriggerTask: (taskId: string, updates: { keyboardShortcutIds?: string[], cloudCredentials?: string[], pipedreamProxyApps?: string[], ask?: string }) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  deleteComposioTriggerTask: (taskId: string) => Promise<{ success: boolean, error?: string }>
+  listComposioApps: (params?: { search?: string, category?: string, limit?: number, supportsTriggers?: boolean }) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  listComposioAppCategories: () => Promise<{ success: boolean, data?: unknown, error?: string }>
+  getComposioApp: (appSlug: string) => Promise<{ success: boolean, data?: unknown, error?: string }>
+  checkComposioAccountStatus: (appName: string) => Promise<{
+    success: boolean
+    data?: {
+      hasAccount: boolean
+      accountId?: string
+      status: string
+      isActive?: boolean
+      createdAt?: string
+      updatedAt?: string
+      message: string
+    }
+    error?: string
+  }>
+  // Unified Triggers API
+  searchUnifiedTriggers: (appName: string) => Promise<{
+    success: boolean
+    app?: string
+    triggers?: Array<{
+      id: string
+      name: string
+      description: string
+      app: string
+      appDisplayName: string
+      source: 'composio' | 'pipedream'
+      sourceSlug: string
+      config: {
+        properties: Record<string, unknown>
+        required: string[]
+      }
+      appInfo?: {
+        logoUrl?: string
+        authType?: string
+      }
+    }>
+    sources?: {
+      composio: { available: boolean, count: number }
+      pipedream: { available: boolean, count: number }
+    }
+    error?: string
+  }>
+  listUnifiedTriggerApps: () => Promise<{
+    success: boolean
+    apps?: Array<{
+      displayName: string
+      composioSlug?: string
+      pipedreamSlug?: string
+      logoUrl?: string
+      pipedreamLogoUrl?: string
+      composioLogoUrl?: string
+    }>
+    count?: number
+    error?: string
+  }>
+
+  // Security Policy management (single policy per user via API)
+  getSecurityPolicy: () => Promise<SecurityPolicy | null>
+  createSecurityPolicy: (policy: Omit<SecurityPolicy, 'id' | 'createdAt' | 'updatedAt' | 'created_by' | 'user_id'>) => Promise<SecurityPolicy>
+  updateSecurityPolicy: (updates: Partial<SecurityPolicy>) => Promise<SecurityPolicy | null>
+  deleteSecurityPolicy: () => Promise<boolean>
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -580,7 +747,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.removeAllListeners('ai-stream-end')
     ipcRenderer.removeAllListeners('ai-stream-error')
   },
-  webSearch: (provider: string, query: string, company: string): Promise<any> => ipcRenderer.invoke('web-search', provider, query, company),
+  webSearch: (provider: string, query: string, company: string): Promise<unknown> => ipcRenderer.invoke('web-search', provider, query, company),
+  webSearchGeneral: (query: string): Promise<WebSearchGeneralResponse> => ipcRenderer.invoke('web-search-general', query),
   getUserTokens: (): Promise<{ tokensAvailable?: string[], error?: string }> => ipcRenderer.invoke('get-user-tokens'),
   getCodespaceInfo: (): Promise<CodespaceInfo> => ipcRenderer.invoke('get-codespace-info'),
   // Credits balance
@@ -594,6 +762,156 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAdditionalConnectedAccounts: (): Promise<{ success: boolean, accounts: Array<{ id: string, connection: string, access_type: string, scopes: string[], created_at: string, icon?: string }> }> => ipcRenderer.invoke('get-additional-connected-accounts'),
   deleteAdditionalAccount: (accountId: string): Promise<{ success: boolean, message?: string }> => ipcRenderer.invoke('delete-additional-account', accountId),
   fetchAdditionalConnectors: (): Promise<Array<{ id: string, name: string, description?: string, icon: string, scopes?: string[], source?: 'local' | 'pipedream' | 'custom', metadata?: Record<string, unknown> }>> => ipcRenderer.invoke('fetch-additional-connectors'),
+  // Pipedream Triggers
+  fetchPipedreamAccounts: (): Promise<string[]> => ipcRenderer.invoke('fetch-pipedream-accounts'),
+  fetchPipedreamAccountsDetailed: (): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('fetch-pipedream-accounts-detailed'),
+  openPipedreamConnectLink: (appSlug: string): Promise<{ success: boolean, error?: string }> => ipcRenderer.invoke('open-pipedream-connect-link', appSlug),
+  fetchPipedreamApps: (options?: {
+    query?: string
+    limit?: number
+    category?: string
+    sortKey?: 'name' | 'name_slug' | 'featured_weight'
+    sortDirection?: 'asc' | 'desc'
+    hasTriggers?: boolean
+  }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('fetch-pipedream-apps', options),
+  fetchPipedreamTriggers: (app: string): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('fetch-pipedream-triggers', app),
+  deployPipedreamTrigger: (config: {
+    componentKey: string
+    appName: string
+    appSlug: string
+    configuredProps?: Record<string, unknown>
+    tasks?: Array<{
+      keyboard_shortcut_ids?: string[]
+      cloud_credentials?: string[]
+      pipedream_proxy_apps?: string[]
+      ask?: string | null
+    }>
+  }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('deploy-pipedream-trigger', config),
+  getDeployedPipedreamTriggers: (includeTasks = false): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('get-deployed-pipedream-triggers', includeTasks),
+  deleteDeployedPipedreamTrigger: (triggerId: string): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('delete-deployed-pipedream-trigger', triggerId),
+  fetchPipedreamScheduleTriggers: (): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('fetch-pipedream-schedule-triggers'),
+  deployPipedreamScheduleTrigger: (config: {
+    scheduleType: string
+    cron: {
+      cron: string
+      timezone?: string
+    }
+    label: string
+    tasks?: Array<{
+      keyboard_shortcut_ids?: string[]
+      cloud_credentials?: string[]
+      pipedream_proxy_apps?: string[]
+      ask?: string | null
+    }>
+  }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('deploy-pipedream-schedule-trigger', config),
+  createTriggerTask: (config: {
+    deployed_trigger_id: string
+    keyboard_shortcut_ids?: string[]
+    cloud_credentials?: string[]
+    pipedream_proxy_apps?: string[]
+    ask?: string | null
+  }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('create-trigger-task', config),
+  updateTriggerTask: (taskId: string, config: {
+    keyboard_shortcut_ids?: string[]
+    cloud_credentials?: string[]
+    pipedream_proxy_apps?: string[]
+    ask?: string | null
+  }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('update-trigger-task', taskId, config),
+  getTriggerTasks: (deployedTriggerId: string, limit = 10): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('get-trigger-tasks', deployedTriggerId, limit),
+  checkUserTokenStatus: (): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('check-user-token-status'),
+  storeUserRefreshToken: (): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('store-user-refresh-token'),
+  // Composio Integration
+  initiateComposioConnection: (request: { appName: string, redirectUrl?: string, authConfig?: Record<string, unknown> }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('initiate-composio-connection', request),
+  listComposioConnectedAccounts: (params?: { appName?: string, status?: string }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('list-composio-connected-accounts', params),
+  getComposioConnectedAccount: (accountId: string): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('get-composio-connected-account', accountId),
+  deleteComposioConnectedAccount: (accountId: string): Promise<{ success: boolean, error?: string }> => ipcRenderer.invoke('delete-composio-connected-account', accountId),
+  syncComposioConnectedAccounts: (): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('sync-composio-connected-accounts'),
+  deployComposioTrigger: (config: {
+    connectedAccountId: string
+    triggerName: string
+    appName: string
+    config?: Record<string, unknown>
+    encryptionEnabled?: boolean
+    tasks?: Array<{
+      keyboardShortcutIds?: string[]
+      cloudCredentials?: string[]
+      ask?: string
+    }>
+  }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('deploy-composio-trigger', config),
+  listComposioTriggers: (params?: { appName?: string, status?: string }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('list-composio-triggers', params),
+  getComposioTrigger: (triggerId: string): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('get-composio-trigger', triggerId),
+  updateComposioTriggerConfig: (triggerId: string, config: Record<string, unknown>): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('update-composio-trigger-config', triggerId, config),
+  pauseComposioTrigger: (triggerId: string): Promise<{ success: boolean, error?: string }> => ipcRenderer.invoke('pause-composio-trigger', triggerId),
+  resumeComposioTrigger: (triggerId: string): Promise<{ success: boolean, error?: string }> => ipcRenderer.invoke('resume-composio-trigger', triggerId),
+  deleteComposioTrigger: (triggerId: string): Promise<{ success: boolean, error?: string }> => ipcRenderer.invoke('delete-composio-trigger', triggerId),
+  listComposioAvailableTriggers: (appName: string): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('list-composio-available-triggers', appName),
+  getComposioTriggerConfig: (triggerName: string): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('get-composio-trigger-config', triggerName),
+  createComposioTriggerTask: (triggerId: string, task: { keyboardShortcutIds?: string[], cloudCredentials?: string[], ask?: string }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('create-composio-trigger-task', triggerId, task),
+  listComposioTriggerTasks: (triggerId: string): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('list-composio-trigger-tasks', triggerId),
+  getComposioTriggerTask: (taskId: string): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('get-composio-trigger-task', taskId),
+  updateComposioTriggerTask: (taskId: string, updates: { keyboardShortcutIds?: string[], cloudCredentials?: string[], pipedreamProxyApps?: string[], ask?: string }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('update-composio-trigger-task', taskId, updates),
+  deleteComposioTriggerTask: (taskId: string): Promise<{ success: boolean, error?: string }> => ipcRenderer.invoke('delete-composio-trigger-task', taskId),
+  listComposioApps: (params?: { search?: string, category?: string, limit?: number, supportsTriggers?: boolean }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('list-composio-apps', params),
+  listComposioAppCategories: (): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('list-composio-app-categories'),
+  getComposioApp: (appSlug: string): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('get-composio-app', appSlug),
+  checkComposioAccountStatus: (appName: string): Promise<{
+    success: boolean
+    data?: {
+      hasAccount: boolean
+      accountId?: string
+      status: string
+      isActive?: boolean
+      createdAt?: string
+      updatedAt?: string
+      message: string
+    }
+    error?: string
+  }> => ipcRenderer.invoke('check-composio-account-status', appName),
+  // Unified Triggers API
+  searchUnifiedTriggers: (appName: string): Promise<{
+    success: boolean
+    app?: string
+    triggers?: Array<{
+      id: string
+      name: string
+      description: string
+      app: string
+      appDisplayName: string
+      source: 'composio' | 'pipedream'
+      sourceSlug: string
+      config: {
+        properties: Record<string, unknown>
+        required: string[]
+      }
+      appInfo?: {
+        logoUrl?: string
+        authType?: string
+      }
+    }>
+    sources?: {
+      composio: { available: boolean, count: number }
+      pipedream: { available: boolean, count: number }
+    }
+    error?: string
+  }> => ipcRenderer.invoke('search-unified-triggers', appName),
+  listUnifiedTriggerApps: (): Promise<{
+    success: boolean
+    apps?: Array<{
+      displayName: string
+      composioSlug?: string
+      pipedreamSlug?: string
+    }>
+    count?: number
+    error?: string
+  }> => ipcRenderer.invoke('list-unified-trigger-apps'),
+
+  // Security Policy API (single policy per user)
+  getSecurityPolicy: (): Promise<SecurityPolicy | null> => ipcRenderer.invoke('security-policy:get'),
+  createSecurityPolicy: (policy: Omit<SecurityPolicy, 'id' | 'createdAt' | 'updatedAt' | 'created_by' | 'user_id'>): Promise<SecurityPolicy> =>
+    ipcRenderer.invoke('security-policy:create', policy),
+  updateSecurityPolicy: (updates: Partial<SecurityPolicy>): Promise<SecurityPolicy | null> =>
+    ipcRenderer.invoke('security-policy:update', updates),
+  deleteSecurityPolicy: (): Promise<boolean> => ipcRenderer.invoke('security-policy:delete'),
 } as ElectronAPI)
 
 // Extend the global Window interface

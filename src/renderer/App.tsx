@@ -83,11 +83,15 @@ export const AppContent: React.FC = () => {
   const checkGitHubConnection = useCallback(async () => {
     try {
       let connected = await window.electronAPI.checkOnboardingGithubToken()
+      if (connected) {
+        setIsGitHubConnected(true)
+        return
+      }
       const result = await window.electronAPI.getPaymentStatus()
       if (result.success && result.subscriptions && result.subscriptions.length > 0) {
         connected = true
+        setIsGitHubConnected(connected)
       }
-      setIsGitHubConnected(connected)
     }
     catch (error) {
       setIsGitHubConnected(false)

@@ -320,6 +320,43 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
     })
   }
 
+  const handleDisconnectAdditional = (account: AdditionalConnectedAccount) => {
+    showPopup({
+      description: `Are you sure you want to disconnect ${account.displayName}? You'll need to reconnect to use this account.`,
+      onConfirm: async () => {
+        hidePopup()
+        try {
+          await disconnectAdditionalAccount(account.id)
+        }
+        catch {
+          // Error handled by disconnect function
+        }
+      },
+      onCancel: hidePopup,
+    })
+  }
+
+  const handleRefreshAll = () => {
+    refreshLocalStatus()
+    refreshPipedreamAccounts()
+    refreshAdditionalAccounts()
+  }
+
+  // ==========================================================================
+  // Handlers - Custom Integrations
+  // ==========================================================================
+
+  const handleConnectCustom = async (integrationId: string) => {
+    setConnectError(null)
+    try {
+      await connectIntegration(integrationId)
+    }
+    catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to connect'
+      setConnectError(message)
+    }
+  }
+
   // ==========================================================================
   // Render
   // ==========================================================================
