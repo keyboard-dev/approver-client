@@ -60,9 +60,6 @@ export class ExecutorWebSocketClient {
     onMessageReceived?: (message: ExecutorMessage) => void,
     windowManager?: IWindowManager,
   ) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/e22b8f57-7dc7-467c-b52e-3fdd1fecc3f1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'websocket-client-to-executor.ts:59',message:'ExecutorWebSocketClient constructor',data:{initialExecutionPreference:this.executionPreference},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
-    // #endregion
     this.onMessageReceived = onMessageReceived
     this.windowManager = windowManager
   }
@@ -86,9 +83,6 @@ export class ExecutorWebSocketClient {
   }
 
   setExecutionPreference(preference: ExecutionPreference): void {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/e22b8f57-7dc7-467c-b52e-3fdd1fecc3f1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'websocket-client-to-executor.ts:98',message:'setExecutionPreference called',data:{newPreference:preference,oldPreference:this.executionPreference},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2'})}).catch(()=>{});
-    // #endregion
     this.executionPreference = preference
   }
 
@@ -527,15 +521,9 @@ export class ExecutorWebSocketClient {
 
   // Automatically discover and connect to the best available executor
   async autoConnect(): Promise<boolean> {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/e22b8f57-7dc7-467c-b52e-3fdd1fecc3f1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'websocket-client-to-executor.ts:536',message:'autoConnect entry',data:{executionPreference:this.executionPreference,hasCodespacesService:!!this.codespacesService,hasGithubToken:!!this.githubToken,hasKeyboardEnvManager:!!this.keyboardEnvironmentManager},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
-    // #endregion
     // If we have a GitHub token and codespaces service, try GitHub codespaces first
     if (this.codespacesService && this.githubToken && this.executionPreference != 'keyboard-environment') {
       try {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/e22b8f57-7dc7-467c-b52e-3fdd1fecc3f1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'websocket-client-to-executor.ts:539',message:'Attempting GitHub Codespace connection',data:{executionPreference:this.executionPreference,reason:'Codespace condition passed'},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
-        // #endregion
         // Try to find and connect to a user's codespace
         const preparedCodespace = await this.codespacesService.discoverAndPrepareCodespace()
 
@@ -561,9 +549,6 @@ export class ExecutorWebSocketClient {
 
     // If no GitHub token available, try keyboard environment target
     if (!this.githubToken || this.executionPreference === 'keyboard-environment') {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/e22b8f57-7dc7-467c-b52e-3fdd1fecc3f1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'websocket-client-to-executor.ts:564',message:'Attempting keyboard environment connection',data:{executionPreference:this.executionPreference,hasGithubToken:!!this.githubToken,reason:!this.githubToken?'No GitHub token':'Preference is keyboard-environment'},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
-      // #endregion
       try {
         return await this.connectToKeyboardEnvTarget()
       }
