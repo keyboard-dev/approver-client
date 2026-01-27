@@ -104,7 +104,7 @@ import { setEncryptionKeyProvider } from './encryption'
 import { ExecutionPreference, ExecutionPreferenceManager } from './execution-preference'
 import { GithubService } from './Github'
 import { GitHubCodespacesService } from './github-codespaces'
-import { deleteScriptTemplate } from './keyboard-shortcuts'
+import { deleteScriptTemplate, saveScriptTemplate, updateScriptTemplate } from './keyboard-shortcuts'
 import { OAuthProvider, ServerProvider, ServerProviderInfo } from './oauth-providers'
 import { StoredProviderTokens } from './oauth-token-storage'
 import { OAuthProviderConfig } from './provider-storage'
@@ -1675,6 +1675,34 @@ class MenuBarNotificationApp {
       if (!result.success) {
         throw new Error(result.error || 'Failed to delete script')
       }
+    })
+
+    ipcMain.handle('save-script-template', async (_event, scriptData: {
+      name: string
+      description: string
+      schema: Record<string, unknown>
+      script: string
+      tags: string[]
+    }): Promise<{ success: boolean, id?: string, error?: string }> => {
+      const accessToken = await this.authService.getValidAccessToken()
+      if (!accessToken) {
+        return { success: false, error: 'No access token available' }
+      }
+      return await saveScriptTemplate(scriptData, accessToken)
+    })
+
+    ipcMain.handle('update-script-template', async (_event, id: string, updates: {
+      name?: string
+      description?: string
+      schema?: Record<string, unknown>
+      script?: string
+      tags?: string[]
+    }): Promise<{ success: boolean, error?: string }> => {
+      const accessToken = await this.authService.getValidAccessToken()
+      if (!accessToken) {
+        return { success: false, error: 'No access token available' }
+      }
+      return await updateScriptTemplate(id, accessToken, updates)
     })
 
     // OAuth Provider IPC handlers - delegate to OAuthService

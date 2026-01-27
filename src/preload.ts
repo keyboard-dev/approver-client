@@ -235,6 +235,20 @@ export interface ElectronAPI {
   getAccessToken: () => Promise<string | null>
   getScripts: () => Promise<Script[]>
   deleteScript: (scriptId: string) => Promise<void>
+  saveScriptTemplate: (scriptData: {
+    name: string
+    description: string
+    schema: Record<string, unknown>
+    script: string
+    tags: string[]
+  }) => Promise<{ success: boolean, id?: string, error?: string }>
+  updateScriptTemplate: (id: string, updates: {
+    name?: string
+    description?: string
+    schema?: Record<string, unknown>
+    script?: string
+    tags?: string[]
+  }) => Promise<{ success: boolean, error?: string }>
   onAuthSuccess: (callback: (event: IpcRendererEvent, data: AuthStatus) => void) => void
   onAuthError: (callback: (event: IpcRendererEvent, error: AuthError) => void) => void
   onAuthLogout: (callback: (event: IpcRendererEvent) => void) => void
@@ -598,6 +612,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAccessToken: (): Promise<string | null> => ipcRenderer.invoke('get-access-token'),
   getScripts: (): Promise<Script[]> => ipcRenderer.invoke('get-scripts'),
   deleteScript: (scriptId: string): Promise<void> => ipcRenderer.invoke('delete-script', scriptId),
+  saveScriptTemplate: (scriptData: {
+    name: string
+    description: string
+    schema: Record<string, unknown>
+    script: string
+    tags: string[]
+  }): Promise<{ success: boolean, id?: string, error?: string }> => ipcRenderer.invoke('save-script-template', scriptData),
+  updateScriptTemplate: (id: string, updates: {
+    name?: string
+    description?: string
+    schema?: Record<string, unknown>
+    script?: string
+    tags?: string[]
+  }): Promise<{ success: boolean, error?: string }> => ipcRenderer.invoke('update-script-template', id, updates),
 
   // Legacy OAuth event listeners
   onAuthSuccess: (callback: (event: IpcRendererEvent, data: AuthStatus) => void): void => {
