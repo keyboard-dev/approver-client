@@ -121,7 +121,7 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
       await cleanup()
 
       // Create the transport with proper authentication headers
-      const url = new URL(serverUrl)
+      const url = new URL(`${serverUrl}/mcp`)
       const transport = new StreamableHTTPClientTransport(url, {
         requestInit: {
           headers: {
