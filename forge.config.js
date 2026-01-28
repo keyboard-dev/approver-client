@@ -2,12 +2,10 @@
 require('@dotenvx/dotenvx').config()
 // require('dotenv').config()
 
-
-
 module.exports = {
   packagerConfig: {
     asar: true,
-    name: 'KeyboardAI',
+    name: process.env.APP_NAME || 'KeyboardAI',
     // Use platform-specific icons
     ...(process.platform === 'darwin' && { icon: 'assets/keyboard-dock.icns' }),
     ...(process.platform === 'win32' && { icon: 'assets/keyboard-dock.ico' }),
