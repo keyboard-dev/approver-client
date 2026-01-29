@@ -71,6 +71,19 @@ export const ConnectorsPanel: React.FC = () => {
             </button>
             .
           </span>
+          {' '}
+          <span className="inline-flex items-center gap-1">
+            <SourceTag source="composio" />
+            apps are powered by
+            {' '}
+            <button
+              className="underline"
+              onClick={() => window.electronAPI.openExternalUrl('https://composio.dev')}
+            >
+              Composio
+            </button>
+            .
+          </span>
         </div>
       </div>
     </div>

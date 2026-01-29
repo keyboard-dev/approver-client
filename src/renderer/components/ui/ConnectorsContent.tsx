@@ -10,9 +10,11 @@ import { ExternalLink, Search, X } from 'lucide-react'
 import React, { useMemo, useState } from 'react'
 
 import squaresIconUrl from '../../../../assets/icon-squares.svg'
+import { useComposio } from '../../hooks/useComposio'
 import { KeyboardApiProvider, useKeyboardApiConnectors } from '../../hooks/useKeyboardApiConnectors'
 import { usePipedream } from '../../hooks/usePipedream'
 import { usePopup } from '../../hooks/usePopup'
+import { ComposioConnectedAccount } from '../../services/composio-service'
 import { PipedreamAccount } from '../../services/pipedream-service'
 
 // =============================================================================
@@ -30,20 +32,26 @@ export interface ConnectorsContentProps {
   showDocsLink?: boolean
 }
 
-type FilterType = 'all' | 'local' | 'pipedream'
+type FilterType = 'all' | 'local' | 'pipedream' | 'composio'
 
 // =============================================================================
 // Tag Component
 // =============================================================================
 
-type SourceType = 'local' | 'pipedream' | 'cloud'
+type SourceType = 'local' | 'pipedream' | 'composio' | 'cloud'
 
 interface SourceTagProps {
   source: SourceType
 }
 
 export const SourceTag: React.FC<SourceTagProps> = ({ source }) => {
-  const label = source === 'local' ? 'Local' : 'Pipedream'
+  const labelMap: Record<SourceType, string> = {
+    local: 'Local',
+    pipedream: 'Pipedream',
+    composio: 'Composio',
+    cloud: 'Cloud',
+  }
+  const label = labelMap[source] || source
 
   return (
     <span className="bg-[#f0f0f0] text-black text-[14px] font-medium px-2 py-1 rounded-full">
@@ -66,6 +74,7 @@ const FilterTabs: React.FC<FilterTabsProps> = ({ activeFilter, onFilterChange })
     { id: 'all', label: 'All' },
     { id: 'local', label: 'Local' },
     { id: 'pipedream', label: 'Pipedream' },
+    { id: 'composio', label: 'Composio' },
   ]
 
   return (
@@ -191,13 +200,36 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
     appsError: pipedreamAppsError,
     defaultApps: pipedreamDefaultApps,
     defaultAppsLoading: pipedreamDefaultAppsLoading,
-    connectingApp,
-    disconnectingAccountId,
-    connectApp,
-    disconnectAccount,
+    connectingApp: pipedreamConnectingApp,
+    disconnectingAccountId: pipedreamDisconnectingAccountId,
+    connectApp: connectPipedreamApp,
+    disconnectAccount: disconnectPipedreamAccount,
     setSearchQuery: setPipedreamSearchQuery,
     clearSearch: clearPipedreamSearch,
   } = usePipedream()
+
+  // Composio connectors
+  const {
+    accounts: composioAccounts,
+    accountsLoading: composioAccountsLoading,
+    accountsError: composioAccountsError,
+    apps: composioApps,
+    appsLoading: composioAppsLoading,
+    appsError: composioAppsError,
+    connectingApp: composioConnectingApp,
+    disconnectingAccountId: composioDisconnectingAccountId,
+    connectApp: connectComposioApp,
+    disconnectAccount: disconnectComposioAccount,
+    searchApps: searchComposioApps,
+    refreshAccounts: refreshComposioAccounts,
+    clearSearch: clearComposioSearch,
+    fetchAppsWithTriggers: fetchComposioDefaultApps,
+  } = useComposio()
+
+  // Fetch default Composio apps on mount for logo lookups
+  React.useEffect(() => {
+    fetchComposioDefaultApps()
+  }, [fetchComposioDefaultApps])
 
   const [searchQuery, setSearchQuery] = useState('')
   const [connectError, setConnectError] = useState<string | null>(null)
@@ -209,8 +241,8 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
 
   // Filter local providers based on search and filter type
   const filteredLocalProviders = useMemo(() => {
-    // Hide local if pipedream filter is active
-    if (filterType === 'pipedream') {
+    // Hide local if pipedream or composio filter is active
+    if (filterType === 'pipedream' || filterType === 'composio') {
       return []
     }
 
@@ -226,8 +258,8 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
 
   // Filter Pipedream apps based on filter type
   const filteredPipedreamApps = useMemo(() => {
-    // Hide pipedream if local filter is active
-    if (filterType === 'local') {
+    // Hide pipedream if local or composio filter is active
+    if (filterType === 'local' || filterType === 'composio') {
       return []
     }
     return pipedreamApps
@@ -235,8 +267,8 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
 
   // Filter Pipedream default apps based on filter type
   const filteredPipedreamDefaultApps = useMemo(() => {
-    // Hide pipedream if local filter is active
-    if (filterType === 'local') {
+    // Hide pipedream if local or composio filter is active
+    if (filterType === 'local' || filterType === 'composio') {
       return []
     }
     return pipedreamDefaultApps
@@ -244,11 +276,37 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
 
   // Filter Pipedream accounts based on filter type
   const filteredPipedreamAccounts = useMemo(() => {
-    if (filterType === 'local') {
+    if (filterType === 'local' || filterType === 'composio') {
       return []
     }
     return pipedreamAccounts
   }, [pipedreamAccounts, filterType])
+
+  // Filter Composio accounts based on search and filter type
+  const filteredComposioAccounts = useMemo(() => {
+    if (filterType === 'local' || filterType === 'pipedream') {
+      return []
+    }
+    let accounts = composioAccounts
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase()
+      accounts = accounts.filter((account) => {
+        const appName = account.appName?.toLowerCase() || ''
+        const toolkitSlug = account.toolkit?.slug?.toLowerCase() || ''
+        return appName.includes(query) || toolkitSlug.includes(query)
+      })
+    }
+    return accounts
+  }, [composioAccounts, searchQuery, filterType])
+
+  // Filter Composio apps based on filter type
+  const filteredComposioApps = useMemo(() => {
+    // Hide composio if local or pipedream filter is active
+    if (filterType === 'local' || filterType === 'pipedream') {
+      return []
+    }
+    return composioApps
+  }, [composioApps, filterType])
 
   // ==========================================================================
   // Handlers
@@ -258,11 +316,19 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
     setSearchQuery(value)
     // Also update Pipedream search
     setPipedreamSearchQuery(value)
+    // Also update Composio search
+    if (value.trim()) {
+      searchComposioApps(value)
+    }
+    else {
+      clearComposioSearch()
+    }
   }
 
   const handleClearSearch = () => {
     setSearchQuery('')
     clearPipedreamSearch()
+    clearComposioSearch()
   }
 
   const handleConnectLocal = async (providerId: string) => {
@@ -295,7 +361,7 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
   const handleConnectPipedream = async (appSlug: string) => {
     setConnectError(null)
     try {
-      await connectApp(appSlug)
+      await connectPipedreamApp(appSlug)
       handleClearSearch()
     }
     catch (error) {
@@ -310,7 +376,7 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
       onConfirm: async () => {
         hidePopup()
         try {
-          await disconnectAccount(account.id)
+          await disconnectPipedreamAccount(account.id)
         }
         catch {
           // Error handled by disconnect function
@@ -320,41 +386,35 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
     })
   }
 
-  const handleDisconnectAdditional = (account: AdditionalConnectedAccount) => {
-    showPopup({
-      description: `Are you sure you want to disconnect ${account.displayName}? You'll need to reconnect to use this account.`,
-      onConfirm: async () => {
-        hidePopup()
-        try {
-          await disconnectAdditionalAccount(account.id)
-        }
-        catch {
-          // Error handled by disconnect function
-        }
-      },
-      onCancel: hidePopup,
-    })
-  }
-
-  const handleRefreshAll = () => {
-    refreshLocalStatus()
-    refreshPipedreamAccounts()
-    refreshAdditionalAccounts()
-  }
-
-  // ==========================================================================
-  // Handlers - Custom Integrations
-  // ==========================================================================
-
-  const handleConnectCustom = async (integrationId: string) => {
+  const handleConnectComposio = async (appName: string) => {
     setConnectError(null)
     try {
-      await connectIntegration(integrationId)
+      await connectComposioApp(appName)
+      // Refresh accounts after initiating connection (user will complete OAuth in browser)
+      setTimeout(() => {
+        refreshComposioAccounts()
+      }, 2000)
     }
     catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to connect'
       setConnectError(message)
     }
+  }
+
+  const handleDisconnectComposio = (account: ComposioConnectedAccount) => {
+    showPopup({
+      description: `Are you sure you want to disconnect ${account.appName}? You'll need to reconnect to use this app.`,
+      onConfirm: async () => {
+        hidePopup()
+        try {
+          await disconnectComposioAccount(account.id)
+        }
+        catch {
+          // Error handled by disconnect function
+        }
+      },
+      onCancel: hidePopup,
+    })
   }
 
   // ==========================================================================
@@ -402,15 +462,23 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
             >
               Pipedream
             </button>
+            . Composio apps are powered by
+            {' '}
+            <button
+              className="underline decoration-solid hover:text-[#737373]"
+              onClick={() => window.electronAPI.openExternalUrl('https://composio.dev/')}
+            >
+              Composio
+            </button>
             .
           </p>
         )}
       </div>
 
       {/* Error Display */}
-      {(connectError || localError || pipedreamAppsError) && (
+      {(connectError || localError || pipedreamAppsError || composioAccountsError || composioAppsError) && (
         <div className="p-3 bg-[#FEE] border border-[#D23535] rounded-lg text-[#D23535] text-sm">
-          {connectError || localError || pipedreamAppsError}
+          {connectError || localError || pipedreamAppsError || composioAccountsError || composioAppsError}
         </div>
       )}
 
@@ -454,11 +522,49 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
             source="pipedream"
             isConnected={true}
             isConnecting={false}
-            isDisconnecting={disconnectingAccountId === account.id}
+            isDisconnecting={pipedreamDisconnectingAccountId === account.id}
             onConnect={() => {}}
             onDisconnect={() => handleDisconnectPipedream(account)}
           />
         ))}
+
+        {/* Connected Composio Accounts */}
+        {composioAccountsLoading && filterType !== 'local' && filterType !== 'pipedream' && (
+          <div className="text-center py-4 text-[#737373]">
+            Loading Composio accounts...
+          </div>
+        )}
+        {filteredComposioAccounts.map((account) => {
+          // Get app identifier - prefer appName, fallback to toolkit.slug
+          const appIdentifier = account.appName || account.toolkit?.slug || ''
+          const appIdentifierLower = appIdentifier.toLowerCase()
+
+          // Find matching app for logo and display name
+          const matchingApp = composioApps.find(app =>
+            (app.name?.toLowerCase() || '') === appIdentifierLower
+            || (app.slug?.toLowerCase() || '') === appIdentifierLower,
+          )
+
+          // Get logo from matched app or use default
+          const logo = matchingApp?.meta?.logo || matchingApp?.logo || squaresIconUrl
+
+          // Get display name - prefer matched app name, fallback to identifier, then 'Unknown App'
+          const displayName = matchingApp?.name || appIdentifier || 'Unknown App'
+
+          return (
+            <ConnectorRow
+              key={`composio-connected-${account.id}`}
+              icon={logo}
+              name={displayName}
+              source="composio"
+              isConnected={true}
+              isConnecting={false}
+              isDisconnecting={composioDisconnectingAccountId === account.id}
+              onConnect={() => {}}
+              onDisconnect={() => handleDisconnectComposio(account)}
+            />
+          )
+        })}
 
         {/* Pipedream Apps (search results) */}
         {isSearching && (
@@ -475,20 +581,64 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
                 name={app.name}
                 source="pipedream"
                 isConnected={false}
-                isConnecting={connectingApp === app.nameSlug}
+                isConnecting={pipedreamConnectingApp === app.nameSlug}
                 isDisconnecting={false}
                 onConnect={() => handleConnectPipedream(app.nameSlug)}
                 onDisconnect={() => {}}
               />
             ))}
-            {!pipedreamAppsLoading && filteredPipedreamApps.length === 0 && filteredLocalProviders.length === 0 && (
-              <div className="text-center py-6 text-[#737373]">
-                No connectors found for "
-                {searchQuery}
-                "
+          </>
+        )}
+
+        {/* Composio Apps (search results) */}
+        {isSearching && (filterType === 'all' || filterType === 'composio') && (
+          <>
+            {composioAppsLoading && (
+              <div className="text-center py-4 text-[#737373]">
+                Searching Composio apps...
               </div>
             )}
+            {filteredComposioApps
+              .filter(app =>
+                // Filter out already connected apps
+                !composioAccounts.some((acc) => {
+                  const accAppName = acc.appName?.toLowerCase() || ''
+                  const accToolkitSlug = acc.toolkit?.slug?.toLowerCase() || ''
+                  const appName = app.name?.toLowerCase() || ''
+                  const appSlug = app.slug?.toLowerCase() || ''
+                  return accAppName === appName || accAppName === appSlug
+                    || accToolkitSlug === appName || accToolkitSlug === appSlug
+                }),
+              )
+              .map(app => (
+                <ConnectorRow
+                  key={`composio-${app.slug}`}
+                  icon={app.meta?.logo || app.logo || squaresIconUrl}
+                  name={app.name || app.slug || 'Unknown'}
+                  source="composio"
+                  isConnected={false}
+                  isConnecting={composioConnectingApp === app.slug}
+                  isDisconnecting={false}
+                  onConnect={() => handleConnectComposio(app.slug)}
+                  onDisconnect={() => {}}
+                />
+              ))}
           </>
+        )}
+
+        {/* No results message */}
+        {isSearching
+          && !pipedreamAppsLoading
+          && !composioAppsLoading
+          && filteredPipedreamApps.length === 0
+          && filteredComposioApps.length === 0
+          && filteredLocalProviders.length === 0
+          && filteredComposioAccounts.length === 0 && (
+          <div className="text-center py-6 text-[#737373]">
+            No connectors found for "
+            {searchQuery}
+            "
+          </div>
         )}
 
         {/* Pipedream Default Apps (when not searching) */}
@@ -506,7 +656,7 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
                 name={app.name}
                 source="pipedream"
                 isConnected={false}
-                isConnecting={connectingApp === app.nameSlug}
+                isConnecting={pipedreamConnectingApp === app.nameSlug}
                 isDisconnecting={false}
                 onConnect={() => handleConnectPipedream(app.nameSlug)}
                 onDisconnect={() => {}}
@@ -515,8 +665,53 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
           </>
         )}
 
+        {/* Composio Default Apps (when not searching and on Composio/All tab) */}
+        {!isSearching && (filterType === 'all' || filterType === 'composio') && (
+          <>
+            {composioAppsLoading && (
+              <div className="text-center py-4 text-[#737373]">
+                Loading Composio apps...
+              </div>
+            )}
+            {composioApps
+              .filter(app =>
+                // Filter out already connected apps
+                !composioAccounts.some((acc) => {
+                  const accAppName = acc.appName?.toLowerCase() || ''
+                  const accToolkitSlug = acc.toolkit?.slug?.toLowerCase() || ''
+                  const appName = app.name?.toLowerCase() || ''
+                  const appSlug = app.slug?.toLowerCase() || ''
+                  return accAppName === appName || accAppName === appSlug
+                    || accToolkitSlug === appName || accToolkitSlug === appSlug
+                }),
+              )
+              .map(app => (
+                <ConnectorRow
+                  key={`composio-default-${app.slug}`}
+                  icon={app.meta?.logo || app.logo || squaresIconUrl}
+                  name={app.name || app.slug || 'Unknown'}
+                  source="composio"
+                  isConnected={false}
+                  isConnecting={composioConnectingApp === app.slug}
+                  isDisconnecting={false}
+                  onConnect={() => handleConnectComposio(app.slug)}
+                  onDisconnect={() => {}}
+                />
+              ))}
+          </>
+        )}
+
         {/* Empty State */}
-        {!localLoading && filteredLocalProviders.length === 0 && filteredPipedreamAccounts.length === 0 && !showPipedreamResults && !showPipedreamDefaults && (
+        {!localLoading
+          && !composioAccountsLoading
+          && !composioAppsLoading
+          && filteredLocalProviders.length === 0
+          && filteredPipedreamAccounts.length === 0
+          && filteredComposioAccounts.length === 0
+          && !showPipedreamResults
+          && !showPipedreamDefaults
+          && composioApps.length === 0
+          && !isSearching && (
           <div className="text-center py-6 text-[#737373]">
             No connectors available
           </div>
