@@ -387,6 +387,7 @@ export interface ElectronAPI {
       keyboard_shortcut_ids?: string[]
       cloud_credentials?: string[]
       pipedream_proxy_apps?: string[]
+      composio_proxy_apps?: string[]
       ask?: string | null
     }>
   }) => Promise<{ success: boolean, data?: unknown, error?: string }>
@@ -404,6 +405,7 @@ export interface ElectronAPI {
       keyboard_shortcut_ids?: string[]
       cloud_credentials?: string[]
       pipedream_proxy_apps?: string[]
+      composio_proxy_apps?: string[]
       ask?: string | null
     }>
   }) => Promise<{ success: boolean, data?: unknown, error?: string }>
@@ -412,12 +414,14 @@ export interface ElectronAPI {
     keyboard_shortcut_ids?: string[]
     cloud_credentials?: string[]
     pipedream_proxy_apps?: string[]
+    composio_proxy_apps?: string[]
     ask?: string | null
   }) => Promise<{ success: boolean, data?: unknown, error?: string }>
   updateTriggerTask: (taskId: string, config: {
     keyboard_shortcut_ids?: string[]
     cloud_credentials?: string[]
     pipedream_proxy_apps?: string[]
+    composio_proxy_apps?: string[]
     ask?: string | null
   }) => Promise<{ success: boolean, data?: unknown, error?: string }>
   getTriggerTasks: (deployedTriggerId: string, limit?: number) => Promise<{ success: boolean, data?: unknown, error?: string }>
@@ -784,6 +788,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       keyboard_shortcut_ids?: string[]
       cloud_credentials?: string[]
       pipedream_proxy_apps?: string[]
+      composio_proxy_apps?: string[]
       ask?: string | null
     }>
   }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('deploy-pipedream-trigger', config),
@@ -801,6 +806,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       keyboard_shortcut_ids?: string[]
       cloud_credentials?: string[]
       pipedream_proxy_apps?: string[]
+      composio_proxy_apps?: string[]
       ask?: string | null
     }>
   }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('deploy-pipedream-schedule-trigger', config),
@@ -809,12 +815,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     keyboard_shortcut_ids?: string[]
     cloud_credentials?: string[]
     pipedream_proxy_apps?: string[]
+    composio_proxy_apps?: string[]
     ask?: string | null
   }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('create-trigger-task', config),
   updateTriggerTask: (taskId: string, config: {
     keyboard_shortcut_ids?: string[]
     cloud_credentials?: string[]
     pipedream_proxy_apps?: string[]
+    composio_proxy_apps?: string[]
     ask?: string | null
   }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('update-trigger-task', taskId, config),
   getTriggerTasks: (deployedTriggerId: string, limit = 10): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('get-trigger-tasks', deployedTriggerId, limit),

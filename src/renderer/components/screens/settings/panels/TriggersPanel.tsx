@@ -1407,8 +1407,8 @@ export const TriggersPanel: React.FC = () => {
                     <div className="px-2 py-3 text-sm text-[#737373]">No Composio apps connected</div>
                   )}
                   {composioAccounts && composioAccounts.filter(acc => acc.status?.toUpperCase() === 'ACTIVE').map((account) => {
-                    const isSelected = task.composio_proxy_apps?.includes(account.id) || false
                     const appName = account.toolkit?.slug || account.appName || 'Unknown'
+                    const isSelected = task.composio_proxy_apps?.includes(appName) || false
                     const displayName = appName.charAt(0).toUpperCase() + appName.slice(1)
                     return (
                       <DropdownMenuCheckboxItem
@@ -1417,8 +1417,8 @@ export const TriggersPanel: React.FC = () => {
                         onCheckedChange={(checked) => {
                           const currentApps = task.composio_proxy_apps || []
                           const newApps = checked
-                            ? [...currentApps, account.id]
-                            : currentApps.filter(id => id !== account.id)
+                            ? [...currentApps, appName]
+                            : currentApps.filter(name => name !== appName)
                           updateFn(index, 'composio_proxy_apps', newApps)
                         }}
                       >
@@ -1430,17 +1430,15 @@ export const TriggersPanel: React.FC = () => {
               </DropdownMenu>
               {task.composio_proxy_apps && task.composio_proxy_apps.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-2">
-                  {task.composio_proxy_apps.map(accountId => {
-                    const account = composioAccounts?.find(a => a.id === accountId)
-                    const appName = account?.toolkit?.slug || account?.appName || accountId
+                  {task.composio_proxy_apps.map(appName => {
                     const displayName = appName.charAt(0).toUpperCase() + appName.slice(1)
                     return (
-                      <span key={accountId} className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs">
+                      <span key={appName} className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs">
                         {displayName}
                         <X
                           className="h-3 w-3 cursor-pointer hover:text-purple-900"
                           onClick={() => {
-                            const newApps = (task.composio_proxy_apps || []).filter(id => id !== accountId)
+                            const newApps = (task.composio_proxy_apps || []).filter(name => name !== appName)
                             updateFn(index, 'composio_proxy_apps', newApps)
                           }}
                         />
@@ -2586,9 +2584,7 @@ export const TriggersPanel: React.FC = () => {
                                         <div>
                                           <div className="text-xs font-medium text-[#737373] mb-1">Composio Proxy Apps:</div>
                                           <div className="flex flex-wrap gap-1">
-                                            {task.composio_proxy_apps.map((accountId, idx) => {
-                                              const account = composioAccounts?.find(a => a.id === accountId)
-                                              const appName = account?.toolkit?.slug || account?.appName || accountId
+                                            {task.composio_proxy_apps.map((appName, idx) => {
                                               const displayName = appName.charAt(0).toUpperCase() + appName.slice(1)
                                               return (
                                                 <span

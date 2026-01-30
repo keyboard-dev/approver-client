@@ -2671,6 +2671,7 @@ class MenuBarNotificationApp {
         keyboard_shortcut_ids?: string[]
         cloud_credentials?: string[]
         pipedream_proxy_apps?: string[]
+        composio_proxy_apps?: string[]
         ask?: string | null
       }>
     }) => {
@@ -2836,6 +2837,7 @@ class MenuBarNotificationApp {
         keyboard_shortcut_ids?: string[]
         cloud_credentials?: string[]
         pipedream_proxy_apps?: string[]
+        composio_proxy_apps?: string[]
         ask?: string | null
       }>
     }) => {
