@@ -89,6 +89,8 @@ export interface ComposioTriggerTask {
   deployedTriggerId: string
   keyboardShortcutIds: string[]
   cloudCredentials: string[]
+  pipedreamProxyApps?: string[]
+  composioProxyApps?: string[]
   ask?: string
   createdAt: string
   updatedAt: string
@@ -148,6 +150,8 @@ export interface DeployTriggerRequest {
   tasks?: Array<{
     keyboardShortcutIds?: string[]
     cloudCredentials?: string[]
+    pipedreamProxyApps?: string[]
+    composioProxyApps?: string[]
     ask?: string
   }>
 }
@@ -421,6 +425,8 @@ export async function createTriggerTask(
   task: {
     keyboardShortcutIds?: string[]
     cloudCredentials?: string[]
+    pipedreamProxyApps?: string[]
+    composioProxyApps?: string[]
     ask?: string
   },
 ): Promise<CreateTaskResponse> {
@@ -449,6 +455,8 @@ export async function updateTriggerTask(
   updates: {
     keyboardShortcutIds?: string[]
     cloudCredentials?: string[]
+    pipedreamProxyApps?: string[]
+    composioProxyApps?: string[]
     ask?: string
   },
 ): Promise<UpdateTaskResponse> {

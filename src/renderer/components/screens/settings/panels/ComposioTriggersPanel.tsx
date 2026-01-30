@@ -20,6 +20,7 @@ interface ComposioTask {
   keyboardShortcutIds?: string[]
   cloudCredentials?: string[]
   pipedreamProxyApps?: string[]
+  composioProxyApps?: string[]
   ask?: string
 }
 
@@ -84,6 +85,7 @@ export const ComposioTriggersPanel: React.FC = () => {
   const [availableScripts, setAvailableScripts] = useState<Script[]>([])
   const [availableCredentials, setAvailableCredentials] = useState<Array<{ id: string, connection: string, icon?: string }>>([])
   const [availablePipedreamAccounts, setAvailablePipedreamAccounts] = useState<string[]>([])
+  const [availableComposioAccounts, setAvailableComposioAccounts] = useState<Array<{ id: string, appName: string, status: string, toolkit?: { slug: string } }>>([])
   const [isLoadingOptions, setIsLoadingOptions] = useState(false)
 
   useEffect(() => {
@@ -239,14 +241,15 @@ export const ComposioTriggersPanel: React.FC = () => {
     setConnectionError(null)
   }
 
-  // Load available scripts, credentials, and Pipedream accounts for task configuration
+  // Load available scripts, credentials, Pipedream accounts, and Composio accounts for task configuration
   const loadTaskOptions = async () => {
     setIsLoadingOptions(true)
     try {
-      const [scriptsResponse, accountsResponse, pipedreamAppNames] = await Promise.all([
+      const [scriptsResponse, accountsResponse, pipedreamAppNames, composioAccountsResponse] = await Promise.all([
         window.electronAPI.getScripts(),
         window.electronAPI.getAdditionalConnectedAccounts(),
         window.electronAPI.fetchPipedreamAccounts(),
+        window.electronAPI.listComposioConnectedAccounts({}),
       ])
 
       setAvailableScripts(Array.isArray(scriptsResponse) ? scriptsResponse : [])
@@ -259,11 +262,29 @@ export const ComposioTriggersPanel: React.FC = () => {
       }
 
       setAvailablePipedreamAccounts(Array.isArray(pipedreamAppNames) ? pipedreamAppNames : [])
+
+      // Set Composio connected accounts (filter for active accounts only)
+      if (composioAccountsResponse.success && composioAccountsResponse.data?.items) {
+        setAvailableComposioAccounts(
+          composioAccountsResponse.data.items
+            .filter((acc: { status: string }) => acc.status === 'active')
+            .map((acc: { id: string, appName: string, status: string, toolkit?: { slug: string } }) => ({
+              id: acc.id,
+              appName: acc.appName,
+              status: acc.status,
+              toolkit: acc.toolkit,
+            })),
+        )
+      }
+      else {
+        setAvailableComposioAccounts([])
+      }
     }
     catch {
       setAvailableScripts([])
       setAvailableCredentials([])
       setAvailablePipedreamAccounts([])
+      setAvailableComposioAccounts([])
     }
     finally {
       setIsLoadingOptions(false)
@@ -272,7 +293,7 @@ export const ComposioTriggersPanel: React.FC = () => {
 
   // Task management functions
   const addTask = () => {
-    setTasks([...tasks, { keyboardShortcutIds: [], cloudCredentials: [], pipedreamProxyApps: [], ask: '' }])
+    setTasks([...tasks, { keyboardShortcutIds: [], cloudCredentials: [], pipedreamProxyApps: [], composioProxyApps: [], ask: '' }])
   }
 
   const removeTask = (index: number) => {
@@ -307,11 +328,12 @@ export const ComposioTriggersPanel: React.FC = () => {
     try {
       // Filter out empty tasks and format for API
       const tasksToSend = tasks
-        .filter(task => task.ask || (task.keyboardShortcutIds && task.keyboardShortcutIds.length > 0) || (task.cloudCredentials && task.cloudCredentials.length > 0) || (task.pipedreamProxyApps && task.pipedreamProxyApps.length > 0))
+        .filter(task => task.ask || (task.keyboardShortcutIds && task.keyboardShortcutIds.length > 0) || (task.cloudCredentials && task.cloudCredentials.length > 0) || (task.pipedreamProxyApps && task.pipedreamProxyApps.length > 0) || (task.composioProxyApps && task.composioProxyApps.length > 0))
         .map(task => ({
           keyboardShortcutIds: task.keyboardShortcutIds || [],
           cloudCredentials: task.cloudCredentials || [],
           pipedreamProxyApps: task.pipedreamProxyApps || [],
+          composioProxyApps: task.composioProxyApps || [],
           ask: task.ask || undefined,
         }))
 
@@ -999,7 +1021,7 @@ export const ComposioTriggersPanel: React.FC = () => {
                     onClick={() => {
                       if (!showTasksSection && tasks.length === 0) {
                       // When showing tasks for the first time, add an initial task
-                        setTasks([{ keyboardShortcutIds: [], cloudCredentials: [], pipedreamProxyApps: [], ask: '' }])
+                        setTasks([{ keyboardShortcutIds: [], cloudCredentials: [], pipedreamProxyApps: [], composioProxyApps: [], ask: '' }])
                       }
                       setShowTasksSection(!showTasksSection)
                     }}
@@ -1229,6 +1251,81 @@ export const ComposioTriggersPanel: React.FC = () => {
                                         onClick={() => {
                                           const newApps = (task.pipedreamProxyApps || []).filter(name => name !== appName)
                                           updateTask(index, 'pipedreamProxyApps', newApps)
+                                        }}
+                                      />
+                                    </span>
+                                  )
+                                })}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Composio Proxy Apps */}
+                          <div>
+                            <label className="text-xs text-[#737373] mb-2 block">
+                              Composio Proxy Apps
+                            </label>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  className="w-full justify-between text-sm h-auto min-h-[2.5rem] py-2"
+                                  disabled={isLoadingOptions}
+                                >
+                                  {task.composioProxyApps && task.composioProxyApps.length > 0
+                                    ? `${task.composioProxyApps.length} selected`
+                                    : 'Select Composio apps...'}
+                                  <ChevronDown className="ml-2 h-4 w-4 opacity-50" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent className="w-80 max-h-80 overflow-y-auto">
+                                <DropdownMenuLabel>Composio Connected Apps</DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                                {(!availableComposioAccounts || availableComposioAccounts.length === 0) && (
+                                  <div className="px-2 py-3 text-sm text-[#737373]">
+                                    No Composio apps connected
+                                  </div>
+                                )}
+                                {availableComposioAccounts && availableComposioAccounts.map((account) => {
+                                  const isSelected = task.composioProxyApps?.includes(account.id) || false
+                                  return (
+                                    <DropdownMenuCheckboxItem
+                                      key={account.id}
+                                      checked={isSelected}
+                                      onCheckedChange={(checked) => {
+                                        const currentApps = task.composioProxyApps || []
+                                        const newApps = checked
+                                          ? [...currentApps, account.id]
+                                          : currentApps.filter(id => id !== account.id)
+                                        updateTask(index, 'composioProxyApps', newApps)
+                                      }}
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <span className="truncate">{account.appName}</span>
+                                        <span className="text-xs text-[#A3A3A3]">
+                                          ({account.toolkit?.slug || account.appName})
+                                        </span>
+                                      </div>
+                                    </DropdownMenuCheckboxItem>
+                                  )
+                                })}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                            {task.composioProxyApps && task.composioProxyApps.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-2">
+                                {task.composioProxyApps.map((accountId) => {
+                                  const account = availableComposioAccounts?.find(a => a.id === accountId)
+                                  return (
+                                    <span
+                                      key={accountId}
+                                      className="inline-flex items-center gap-1 px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-xs"
+                                    >
+                                      {account?.appName || accountId}
+                                      <X
+                                        className="h-3 w-3 cursor-pointer hover:text-indigo-900"
+                                        onClick={() => {
+                                          const newApps = (task.composioProxyApps || []).filter(id => id !== accountId)
+                                          updateTask(index, 'composioProxyApps', newApps)
                                         }}
                                       />
                                     </span>

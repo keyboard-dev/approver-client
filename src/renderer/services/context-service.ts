@@ -8,12 +8,25 @@ export interface UserTokensResponse {
   error?: string
 }
 
+// Composio connected account from /api/composio/accounts
+export interface ComposioAccountContext {
+  id: string
+  status: string
+  toolkit: {
+    slug: string
+  }
+  isDisabled: boolean
+  createdAt: string
+  updatedAt: string
+}
+
 export interface EnhancedContext {
   planningToken: string
   userTokens: string[]
   codespaceInfo: CodespaceInfo | null
   selectedScripts: Script[]
   pipedreamAccounts: PipedreamAccount[]
+  composioAccounts: ComposioAccountContext[]
   timestamp: number
 }
 
@@ -70,11 +83,12 @@ export class ContextService {
     // Generate new planning token
     const planningToken = generatePlanningToken()
 
-    // Fetch user tokens, codespace info, and pipedream accounts in parallel
-    const [userTokens, codespaceInfo, pipedreamAccounts] = await Promise.allSettled([
+    // Fetch user tokens, codespace info, pipedream accounts, and composio accounts in parallel
+    const [userTokens, codespaceInfo, pipedreamAccounts, composioAccounts] = await Promise.allSettled([
       this.fetchUserTokens(),
       this.fetchCodespaceInfo(),
       this.fetchPipedreamAccounts(),
+      this.fetchComposioAccounts(),
     ])
 
     const context: EnhancedContext = {
@@ -83,6 +97,7 @@ export class ContextService {
       codespaceInfo: codespaceInfo.status === 'fulfilled' ? codespaceInfo.value : null,
       selectedScripts: this.selectedScripts,
       pipedreamAccounts: pipedreamAccounts.status === 'fulfilled' ? pipedreamAccounts.value : [],
+      composioAccounts: composioAccounts.status === 'fulfilled' ? composioAccounts.value : [],
       timestamp: Date.now(),
     }
 
@@ -172,6 +187,26 @@ ${JSON.stringify(pipedreamAccountsList, null, 2)}
 Note: Use the accountId when making API calls that require a connected account reference (e.g., for Pipedream triggers or actions that need account authentication).`
       : ''
 
+    // Build Composio connected accounts section
+    const composioAccountsList = context.composioAccounts.length > 0
+      ? context.composioAccounts
+          .filter(account => account.status === 'ACTIVE' && !account.isDisabled)
+          .map(account => ({
+            accountId: account.id,
+            appName: account.toolkit.slug,
+            status: account.status,
+          }))
+      : []
+
+    const composioAccountsSection = composioAccountsList.length > 0
+      ? `
+
+COMPOSIO CONNECTED ACCOUNTS:
+${JSON.stringify(composioAccountsList, null, 2)}
+
+Note: These are Composio-managed OAuth connections. The appName (toolkit slug) identifies the service (e.g., "slack", "github", "googlecalendar"). Use the accountId when deploying Composio triggers or making authenticated API calls through Composio.`
+      : ''
+
     return `You are a helpful AI assistant with access to a secure code execution environment.  Any code you will try to execute will also be reviewed by a human before execution so you can execute and write code with confidence.
 
 This is a real planning token to pass the run-code ability.  Make sure to use it when calling the run-code ability.
@@ -201,7 +236,7 @@ API RESEARCH GUIDANCE:
 - Only after you tried to use the web-search ability, and it didn't work, then you can use the run-code ability to execute code but the idea is to use the web-search ability first.
 
 Full abilities description and schema:
-${abilitiesList}${additionalToolsSection}${pipedreamAccountsSection}
+${abilitiesList}${additionalToolsSection}${pipedreamAccountsSection}${composioAccountsSection}
 
 INSTRUCTIONS:
 - You can execute abilities directly using JSON format: {"ability": "ability-name", "parameters": {...}}
@@ -267,6 +302,25 @@ USER REQUEST: ${userMessage}`
         const data = response.data as { accounts?: PipedreamAccount[] }
         if (data.accounts) {
           return data.accounts
+        }
+      }
+      return []
+    }
+    catch {
+      return []
+    }
+  }
+
+  /**
+   * Fetch Composio connected accounts
+   */
+  private async fetchComposioAccounts(): Promise<ComposioAccountContext[]> {
+    try {
+      const response = await window.electronAPI?.listComposioConnectedAccounts?.()
+      if (response?.success && response?.data) {
+        const data = response.data as { items?: ComposioAccountContext[] }
+        if (data.items) {
+          return data.items
         }
       }
       return []
