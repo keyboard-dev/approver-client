@@ -3114,9 +3114,11 @@ class MenuBarNotificationApp {
       appName?: string
       status?: string
     }) => {
+      console.log('[IPC] list-composio-connected-accounts called with params:', params)
       try {
         const accessToken = await this.authService.getValidAccessToken()
         if (!accessToken) {
+          console.log('[IPC] list-composio-connected-accounts: Not authenticated')
           return { success: false, error: 'Not authenticated' }
         }
 
@@ -3125,6 +3127,7 @@ class MenuBarNotificationApp {
         if (params?.status) queryParams.set('status', params.status)
 
         const url = `${this.OAUTH_SERVER_URL}/api/composio/accounts${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
+        console.log('[IPC] list-composio-connected-accounts URL:', url)
 
         const response = await fetch(url, {
           method: 'GET',
@@ -3138,9 +3141,11 @@ class MenuBarNotificationApp {
         }
 
         const data = await response.json()
+        console.log('[IPC] list-composio-connected-accounts response data:', JSON.stringify(data, null, 2))
         return data
       }
       catch (error) {
+        console.error('[IPC] list-composio-connected-accounts error:', error)
         return {
           success: false,
           error: error instanceof Error ? error.message : 'Unknown error',
