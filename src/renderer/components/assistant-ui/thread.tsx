@@ -2,6 +2,7 @@ import {
   ArrowDownIcon,
   ArrowUpIcon,
   CheckIcon,
+  ChevronDownIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   CopyIcon,
@@ -17,7 +18,6 @@ import {
   ErrorPrimitive,
   MessagePrimitive,
   ThreadPrimitive,
-  useComposer,
 } from '@assistant-ui/react'
 
 import { LazyMotion, MotionConfig, domAnimation } from 'motion/react'
@@ -59,7 +59,7 @@ export const Thread: FC<ThreadCustomProps> = ({
     <LazyMotion features={domAnimation}>
       <MotionConfig reducedMotion="user">
         <ThreadPrimitive.Root
-          className="aui-root aui-thread-root @container flex h-full flex-col bg-background"
+          className="aui-root aui-thread-root @container flex h-full flex-col bg-[#f5f5f5] rounded-[20px] overflow-hidden"
           style={{
             ['--thread-max-width' as string]: '44rem',
           }}
@@ -83,7 +83,6 @@ export const Thread: FC<ThreadCustomProps> = ({
               onRejectMessage={onRejectMessage}
               onClearMessage={onClearMessage}
             />
-            {console.log('Thread: currentApprovalMessage', currentApprovalMessage)}
 
             <ThreadPrimitive.If empty={false}>
               <div className="aui-thread-viewport-spacer min-h-8 grow" />
@@ -114,31 +113,35 @@ const ThreadScrollToBottom: FC = () => {
   )
 }
 
+// Floral background image from design
+const floralBackgroundUrl = 'https://www.figma.com/api/mcp/asset/9bad4c51-8496-484a-b2f4-c2ec2d303fe0'
+
 const ThreadWelcome: FC = () => {
   return (
-    <div className="aui-thread-welcome-root mx-auto my-auto flex w-full max-w-[var(--thread-max-width)] flex-grow flex-col">
-      <div className="aui-thread-welcome-center flex w-full flex-grow flex-col items-center justify-center">
-        <div className="aui-thread-welcome-message flex size-full flex-col justify-center px-8">
-          <m.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 10 }}
-            className="aui-thread-welcome-message-motion-1 text-2xl font-semibold"
-          >
-            Hello there!
-          </m.div>
-          <m.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 10 }}
-            transition={{ delay: 0.1 }}
-            className="aui-thread-welcome-message-motion-2 text-2xl text-muted-foreground/65"
-          >
-            How can I help you today?
-          </m.div>
-        </div>
+    <div className="aui-thread-welcome-root flex w-full flex-grow flex-col relative">
+      {/* Background image with gradient overlay */}
+      <div className="absolute inset-0 overflow-hidden rounded-[20px]">
+        <img
+          src={floralBackgroundUrl}
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover opacity-50"
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#f5f5f5]" style={{ backgroundImage: 'linear-gradient(to bottom, rgba(245,245,245,0) 0%, #f5f5f5 85%)' }} />
       </div>
-      <ThreadSuggestions />
+
+      {/* Centered headline */}
+      <div className="flex w-full flex-grow flex-col items-center justify-center relative z-10 py-16">
+        <m.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 20 }}
+          className="bg-white/10 backdrop-blur-sm px-5 py-2.5 rounded-full"
+        >
+          <span className="text-3xl md:text-4xl lg:text-5xl font-normal text-[#171717] tracking-wide text-center">
+            What can we automate for you today?
+          </span>
+        </m.div>
+      </div>
     </div>
   )
 }
@@ -206,7 +209,7 @@ interface ComposerProps {
 }
 
 const Composer: FC<ComposerProps> = ({ selectedScripts = [], onScriptSelect }) => {
-  const composer = useComposer()
+  const [showScriptDropdown, setShowScriptDropdown] = useState(false)
 
   const handleScriptSelect = (scripts: Script[]) => {
     // Update context service directly
@@ -218,78 +221,81 @@ const Composer: FC<ComposerProps> = ({ selectedScripts = [], onScriptSelect }) =
     }
   }
 
-  const handleSubmit = (e?: React.FormEvent) => {
-    if (e) {
-      e.preventDefault()
-    }
-    if (selectedScripts.length > 0 && onScriptSelect) {
-      // Get current text
-      const currentText = composer.text
-
-      // Create message content with script context
-      let messageContent = currentText
-      if (selectedScripts.length > 0 && currentText.trim()) {
-        if (selectedScripts.length === 1) {
-          const script = selectedScripts[0]
-          messageContent = `[Script: ${script.name}] ${currentText}\n\nScript Context:\n- Name: ${script.name}\n- ID: ${script.id}\n- Description: ${script.description}`
-          if (script.tags && script.tags.length > 0) {
-            messageContent += `\n- Tags: ${script.tags.join(', ')}`
-          }
-          if (script.services && script.services.length > 0) {
-            messageContent += `\n- Services: ${script.services.join(', ')}`
-          }
-        }
-        else {
-          messageContent = `[Scripts: ${selectedScripts.map(s => s.name).join(', ')}] ${currentText}\n\nSelected Scripts Context:\n`
-          selectedScripts.forEach((script, index) => {
-            messageContent += `\n${index + 1}. ${script.name}\n- ID: ${script.id}\n- Description: ${script.description}`
-            if (script.tags && script.tags.length > 0) {
-              messageContent += `\n- Tags: ${script.tags.join(', ')}`
-            }
-            if (script.services && script.services.length > 0) {
-              messageContent += `\n- Services: ${script.services.join(', ')}`
-            }
-          })
-        }
-      }
-
-      // Set the enhanced text
-      composer.setText(messageContent)
-
-      // Clear script selection after setting the text
-      setTimeout(() => {
-        handleScriptSelect([])
-      }, 100)
-    }
-  }
-
   return (
-    <div className="aui-composer-wrapper sticky bottom-0 mx-auto flex w-full max-w-[var(--thread-max-width)] flex-col gap-4 overflow-visible rounded-t-3xl bg-background px-4 pb-4 md:pb-6">
+    <div className="aui-composer-wrapper sticky bottom-0 mx-auto flex w-full max-w-[var(--thread-max-width)] flex-col gap-2.5 overflow-visible px-5 pb-10">
       <ThreadScrollToBottom />
 
-      {/* Script Selector */}
-      {selectedScripts.length > 0 || onScriptSelect
-        ? (
-            <div className="aui-script-selector-wrapper">
-              <ScriptSelector
-                selectedScripts={selectedScripts}
-                onScriptSelect={handleScriptSelect}
-              />
-            </div>
-          )
-        : null}
+      {/* Script Selector Dropdown (shown when expanded) */}
+      {showScriptDropdown && onScriptSelect && (
+        <div className="aui-script-selector-wrapper mb-2">
+          <ScriptSelector
+            selectedScripts={selectedScripts}
+            onScriptSelect={handleScriptSelect}
+          />
+        </div>
+      )}
 
-      <ThreadScrollToBottom />
-      <ComposerPrimitive.Root className="aui-composer-root relative flex w-full flex-col rounded-3xl border border-border bg-muted px-1 pt-2 shadow-[0_9px_9px_0px_rgba(0,0,0,0.01),0_2px_5px_0px_rgba(0,0,0,0.06)] dark:border-muted-foreground/15">
+      <ComposerPrimitive.Root className="aui-composer-root relative flex w-full flex-col rounded-xl border border-[#dbdbdb] bg-[#fafafa] p-4 min-h-[100px] max-h-[260px] justify-between">
         <ComposerAttachments />
         <ComposerPrimitive.Input
-          placeholder="Send a message..."
-          className="aui-composer-input mb-1 max-h-32 min-h-16 w-full resize-none bg-transparent px-3.5 pt-1.5 pb-3 text-base outline-none placeholder:text-muted-foreground focus:outline-primary"
+          placeholder="Do anything with AI..."
+          className="aui-composer-input w-full resize-none bg-transparent text-sm font-medium text-[#171717] outline-none placeholder:text-[#737373] focus:outline-none"
           rows={1}
           autoFocus
           aria-label="Message input"
         />
-        <ComposerAction />
+
+        {/* Bottom action bar */}
+        <div className="flex items-center justify-between mt-4">
+          {/* Left side: Flow shortcuts */}
+          <div className="flex items-center gap-2.5">
+            <ComposerAddAttachment />
+            <button
+              type="button"
+              onClick={() => setShowScriptDropdown(!showScriptDropdown)}
+              className="flex items-center gap-0 text-sm font-medium text-[#737373] hover:text-[#171717] transition-colors"
+            >
+              <span>Flow shortcuts</span>
+              <ChevronDownIcon className={cn('size-5 transition-transform', showScriptDropdown && 'rotate-180')} />
+            </button>
+            {selectedScripts.length > 0 && (
+              <span className="text-xs text-[#737373] bg-[#ebebeb] px-2 py-0.5 rounded-full">
+                {selectedScripts.length} selected
+              </span>
+            )}
+          </div>
+
+          {/* Right side: Send button */}
+          <ThreadPrimitive.If running={false}>
+            <ComposerPrimitive.Send asChild>
+              <TooltipIconButton
+                tooltip="Send message"
+                side="top"
+                type="submit"
+                variant="ghost"
+                size="icon"
+                className="aui-composer-send size-6 rounded-full p-0 text-[#171717] hover:bg-[#ebebeb]"
+                aria-label="Send message"
+              >
+                <ArrowUpIcon className="aui-composer-send-icon size-5" />
+              </TooltipIconButton>
+            </ComposerPrimitive.Send>
+          </ThreadPrimitive.If>
+
+          <ThreadPrimitive.If running>
+            <ComposerPrimitive.Cancel asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="aui-composer-cancel size-6 rounded-full"
+                aria-label="Stop generating"
+              >
+                <Square className="aui-composer-cancel-icon size-3.5 fill-[#171717]" />
+              </Button>
+            </ComposerPrimitive.Cancel>
+          </ThreadPrimitive.If>
+        </div>
       </ComposerPrimitive.Root>
     </div>
   )
