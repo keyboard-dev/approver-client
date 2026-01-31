@@ -26,6 +26,14 @@ export const toolsToAbilities = {
         command: 'update-keyboard-shortcut-script-template',
         description: 'use this ability to update a keyboard shortcut script template',
       },
+      {
+        command: 'poll-background-job',
+        description: 'use this ability to poll a background job for its status and result.',
+      },
+      {
+        command: 'list-background-jobs',
+        description: 'use this ability to list all the background jobs for the user.',
+      },
     ],
   },
 }

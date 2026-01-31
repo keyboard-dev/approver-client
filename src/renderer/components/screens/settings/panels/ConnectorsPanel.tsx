@@ -52,37 +52,39 @@ export const ConnectorsPanel: React.FC = () => {
       </div>
 
       {/* Info Footer */}
-      <div className="px-4 mt-auto pt-4">
-        <div className="text-xs text-[#A3A3A3]">
-          <span className="inline-flex items-center gap-1">
+      <div className="px-4 mt-auto pt-4 pb-2">
+        <div className="flex flex-col gap-1.5 text-xs text-[#A3A3A3]">
+          <span className="inline-flex items-center gap-1.5">
             <SourceTag source="local" />
-            connectors are managed by Keyboard.
+            <span>connectors are managed by Keyboard.</span>
           </span>
-          {' '}
-          <span className="inline-flex items-center gap-1">
+          <span className="inline-flex items-center gap-1.5">
             <SourceTag source="pipedream" />
-            apps are powered by
-            {' '}
-            <button
-              className="underline"
-              onClick={() => window.electronAPI.openExternalUrl('https://pipedream.com')}
-            >
-              Pipedream Connect
-            </button>
-            .
+            <span>
+              apps are powered by
+              {' '}
+              <button
+                className="underline hover:text-[#737373]"
+                onClick={() => window.electronAPI.openExternalUrl('https://pipedream.com')}
+              >
+                Pipedream Connect
+              </button>
+              .
+            </span>
           </span>
-          {' '}
-          <span className="inline-flex items-center gap-1">
+          <span className="inline-flex items-center gap-1.5">
             <SourceTag source="composio" />
-            apps are powered by
-            {' '}
-            <button
-              className="underline"
-              onClick={() => window.electronAPI.openExternalUrl('https://composio.dev')}
-            >
-              Composio
-            </button>
-            .
+            <span>
+              apps are powered by
+              {' '}
+              <button
+                className="underline hover:text-[#737373]"
+                onClick={() => window.electronAPI.openExternalUrl('https://composio.dev')}
+              >
+                Composio
+              </button>
+              .
+            </span>
           </span>
         </div>
       </div>

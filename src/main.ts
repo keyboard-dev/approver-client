@@ -193,7 +193,7 @@ class MenuBarNotificationApp {
   private pendingCount: number = 0
   private readonly WS_PORT = 8080
   private readonly OAUTH_PORT = 8082
-  private readonly OAUTH_SERVER_URL = process.env.OAUTH_SERVER_URL || 'http://localhost:4000'
+  private readonly OAUTH_SERVER_URL = process.env.OAUTH_SERVER_URL || 'https://api.keyboard.dev'
   private readonly SKIP_AUTH = process.env.SKIP_AUTH === 'true'
   private readonly CUSTOM_PROTOCOL = 'mcpauth'
   private sseBackgroundService: SSEBackgroundService | null = null
@@ -2053,7 +2053,7 @@ class MenuBarNotificationApp {
     })
 
     ipcMain.handle('connect-to-best-codespace', async (): Promise<boolean> => {
-      if (!this.executorWSClient) {
+      if (!this.executorWSClient || !this.executionPreferenceManager) {
         return false
       }
       const preference = await this.executionPreferenceManager.getPreference()

@@ -20,10 +20,21 @@ export interface ComposioAccountContext {
   updatedAt: string
 }
 
+export interface ExecutorConnectionInfo {
+  connected: boolean
+  target?: {
+    type: 'localhost' | 'codespace'
+    url: string
+    name?: string
+    codespaceName?: string
+  }
+}
+
 export interface EnhancedContext {
   planningToken: string
   userTokens: string[]
   codespaceInfo: CodespaceInfo | null
+  executorConnection: ExecutorConnectionInfo | null
   selectedScripts: Script[]
   pipedreamAccounts: PipedreamAccount[]
   composioAccounts: ComposioAccountContext[]
@@ -83,10 +94,11 @@ export class ContextService {
     // Generate new planning token
     const planningToken = generatePlanningToken()
 
-    // Fetch user tokens, codespace info, pipedream accounts, and composio accounts in parallel
-    const [userTokens, codespaceInfo, pipedreamAccounts, composioAccounts] = await Promise.allSettled([
+    // Fetch user tokens, codespace info, executor connection, pipedream accounts, and composio accounts in parallel
+    const [userTokens, codespaceInfo, executorConnection, pipedreamAccounts, composioAccounts] = await Promise.allSettled([
       this.fetchUserTokens(),
       this.fetchCodespaceInfo(),
+      this.fetchExecutorConnection(),
       this.fetchPipedreamAccounts(),
       this.fetchComposioAccounts(),
     ])
@@ -95,6 +107,7 @@ export class ContextService {
       planningToken,
       userTokens: userTokens.status === 'fulfilled' ? userTokens.value : [],
       codespaceInfo: codespaceInfo.status === 'fulfilled' ? codespaceInfo.value : null,
+      executorConnection: executorConnection.status === 'fulfilled' ? executorConnection.value : null,
       selectedScripts: this.selectedScripts,
       pipedreamAccounts: pipedreamAccounts.status === 'fulfilled' ? pipedreamAccounts.value : [],
       composioAccounts: composioAccounts.status === 'fulfilled' ? composioAccounts.value : [],
@@ -123,6 +136,15 @@ export class ContextService {
           docResources: context.codespaceInfo.docResources,
         }, null, 2)
       : 'No codespace information available'
+
+    // Build service URL section
+    const serviceUrlSection = context.executorConnection?.target?.url
+      ? `
+SERVICE EXECUTION URL:
+${context.executorConnection.target.url}
+
+Note: This is the actual URL of the code execution service. The service type is "${context.executorConnection.target.type}"${context.executorConnection.target.codespaceName ? ` (codespace: ${context.executorConnection.target.codespaceName})` : ''}.`
+      : ''
 
     const abilitiesList = JSON.stringify(toolsToAbilities, null, 2)
 
@@ -225,7 +247,7 @@ ${userTokensList}
 Here is information about the actual code execution environment.  This is where you will execute your code.  Additionally there will be a list of other environment variables that you can leverage in your code.
 
 CODESPACE INFORMATION:
-${codespaceDetails}${selectedScriptsSection}
+${codespaceDetails}${serviceUrlSection}${selectedScriptsSection}
 
 API RESEARCH GUIDANCE:
 - Use the web-search ability to find official documentation and examples
@@ -288,6 +310,22 @@ USER REQUEST: ${userMessage}`
       return null
     }
     catch (error) {
+      return null
+    }
+  }
+
+  /**
+   * Fetch executor connection status (includes service URL)
+   */
+  private async fetchExecutorConnection(): Promise<ExecutorConnectionInfo | null> {
+    try {
+      const status = await window.electronAPI?.getExecutorConnectionStatus?.()
+      if (status) {
+        return status
+      }
+      return null
+    }
+    catch {
       return null
     }
   }
