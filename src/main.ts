@@ -2053,7 +2053,7 @@ class MenuBarNotificationApp {
     })
 
     ipcMain.handle('connect-to-best-codespace', async (): Promise<boolean> => {
-      if (!this.executorWSClient) {
+      if (!this.executorWSClient || !this.executionPreferenceManager) {
         return false
       }
       const preference = await this.executionPreferenceManager.getPreference()
@@ -2671,6 +2671,7 @@ class MenuBarNotificationApp {
         keyboard_shortcut_ids?: string[]
         cloud_credentials?: string[]
         pipedream_proxy_apps?: string[]
+        composio_proxy_apps?: string[]
         ask?: string | null
       }>
     }) => {
@@ -2836,6 +2837,7 @@ class MenuBarNotificationApp {
         keyboard_shortcut_ids?: string[]
         cloud_credentials?: string[]
         pipedream_proxy_apps?: string[]
+        composio_proxy_apps?: string[]
         ask?: string | null
       }>
     }) => {
@@ -3125,7 +3127,6 @@ class MenuBarNotificationApp {
         if (params?.status) queryParams.set('status', params.status)
 
         const url = `${this.OAUTH_SERVER_URL}/api/composio/accounts${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
-
         const response = await fetch(url, {
           method: 'GET',
           headers: {

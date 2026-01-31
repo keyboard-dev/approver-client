@@ -226,19 +226,13 @@ export function useMCPIntegration(
         // Register a pending call that can be resolved by approval
         const pending = registerPendingCall(name)
         pendingCallId = pending.id
-        console.log(`[MCPIntegration] Registered pending call ${pendingCallId} for ${name}`)
-
-        // Race between MCP HTTP response and pending call resolution from approval
         try {
           result = await Promise.race([
             mcpClient.callTool(name, abilityArgs).then((mcpResult) => {
-              console.log(`[MCPIntegration] MCP server responded first for ${name}`)
-              // MCP responded first, remove the pending call
               removePendingCall(pendingCallId!)
               return mcpResult
             }),
             pending.promise.then((approvalResult) => {
-              console.log(`[MCPIntegration] Approval resolved first for ${name}`)
               return approvalResult
             }),
           ])

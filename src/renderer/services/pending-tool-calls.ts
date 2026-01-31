@@ -40,7 +40,6 @@ export function registerPendingCall(toolName: string): {
 
   if (resolver) {
     pendingCalls.set(id, resolver)
-    console.log(`[PendingToolCalls] Registered pending call: ${id} for tool: ${toolName}`)
   }
 
   return { id, promise }
@@ -55,21 +54,14 @@ export function registerPendingCall(toolName: string): {
  * @returns true if a pending call was found and resolved, false otherwise
  */
 export function resolvePendingCall(toolName: string, result: CallToolResult): boolean {
-  console.log(`[PendingToolCalls] Attempting to resolve pending call for tool: ${toolName}`)
-  console.log(`[PendingToolCalls] Current pending calls:`, Array.from(pendingCalls.keys()))
-
-  // Find first pending call matching this tool
   for (const [id, resolver] of pendingCalls) {
     if (resolver.toolName === toolName) {
-      console.log(`[PendingToolCalls] Found matching pending call: ${id}`)
       resolver.resolve(result)
       pendingCalls.delete(id)
-      console.log(`[PendingToolCalls] Resolved and removed pending call: ${id}`)
       return true
     }
   }
 
-  console.log(`[PendingToolCalls] No pending call found for tool: ${toolName}`)
   return false
 }
 
@@ -82,7 +74,6 @@ export function resolvePendingCall(toolName: string, result: CallToolResult): bo
 export function removePendingCall(id: string): void {
   if (pendingCalls.has(id)) {
     pendingCalls.delete(id)
-    console.log(`[PendingToolCalls] Removed pending call: ${id}`)
   }
 }
 
@@ -127,10 +118,8 @@ export function cleanupStaleCalls(timeoutMs: number = 15 * 60 * 1000): void {
 
   for (const id of staleIds) {
     pendingCalls.delete(id)
-    console.log(`[PendingToolCalls] Cleaned up stale call: ${id}`)
   }
 
   if (staleIds.length > 0) {
-    console.log(`[PendingToolCalls] Cleaned up ${staleIds.length} stale calls`)
   }
 }

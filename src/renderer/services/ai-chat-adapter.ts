@@ -196,16 +196,11 @@ Respond with only one word: "simple", "web-search", or "agentic"`
       )
 
       const classification = response.toLowerCase().trim()
-      console.log('[classifyQueryComplexity] Haiku raw response:', response)
-      console.log('[classifyQueryComplexity] Parsed classification:', classification)
-
       if (classification === 'simple') return 'simple'
       if (classification === 'web-search') return 'web-search'
       return 'agentic'
     }
     catch (error) {
-      console.error('[classifyQueryComplexity] Error:', error)
-      // On error, default to agentic (safer to have tools available)
       return 'agentic'
     }
   }
@@ -236,12 +231,7 @@ Respond with only one word: "simple", "web-search", or "agentic"`
         throw new Error('Request was aborted')
       }
 
-      console.log('[handleWebSearch] Calling web-search-general with query:', userQuery)
-
-      // Call the new general web search endpoint
       const searchResult = await window.electronAPI.webSearchGeneral(userQuery)
-
-      console.log('[handleWebSearch] Search result:', searchResult)
 
       accumulatedResponse += '\n\n✅ **Search complete!**'
       yield {
@@ -355,7 +345,7 @@ Respond with only one word: "simple", "web-search", or "agentic"`
     // CRITICAL: Remove any existing listeners from previous stream iterations
     // This prevents event listener collision in the agentic loop
     window.electronAPI.removeAIStreamListeners()
-    
+
     let fullResponse = ''
     let streamComplete = false
     let streamError: Error | null = null
@@ -384,7 +374,7 @@ Respond with only one word: "simple", "web-search", or "agentic"`
         text: `${currentAccumulated}\n\n${progressPrefix} ⏳`,
         isComplete: false,
       }
-      
+
       // Start the stream
       await window.electronAPI.sendAIMessageStream(
         this.currentProvider.provider,
@@ -392,10 +382,10 @@ Respond with only one word: "simple", "web-search", or "agentic"`
         { model: this.currentProvider.model },
       )
 
-      let lastYieldedLength = 0  // How much we've actually shown to UI
-      const CHARS_PER_YIELD = 15  // Release ~15 chars at a time for smooth typing effect
-      const YIELD_INTERVAL = 20  // ms between yields when smoothing
-      
+      let lastYieldedLength = 0 // How much we've actually shown to UI
+      const CHARS_PER_YIELD = 15 // Release ~15 chars at a time for smooth typing effect
+      const YIELD_INTERVAL = 20 // ms between yields when smoothing
+
       // Process stream and yield updates with token smoothing
       while (!streamComplete || lastYieldedLength < fullResponse.length) {
         if (abortSignal?.aborted) {
@@ -412,7 +402,7 @@ Respond with only one word: "simple", "web-search", or "agentic"`
           const availableNewContent = fullResponse.length - lastYieldedLength
           const charsToYield = Math.min(CHARS_PER_YIELD, availableNewContent)
           const newYieldLength = lastYieldedLength + charsToYield
-          
+
           const displayContent = fullResponse.substring(0, newYieldLength)
           const charCount = newYieldLength > 100
             ? ` (${newYieldLength} chars)`
@@ -425,10 +415,11 @@ Respond with only one word: "simple", "web-search", or "agentic"`
           const updatedText = `${currentAccumulated}\n\n${prefixWithCount}\n${displayText}`
           yield { text: updatedText, isComplete: false }
           lastYieldedLength = newYieldLength
-          
+
           // Short delay for smooth typing effect
           await new Promise(resolve => setTimeout(resolve, YIELD_INTERVAL))
-        } else {
+        }
+        else {
           // No new content yet, poll at normal rate
           await new Promise(resolve => setTimeout(resolve, 50))
         }
@@ -439,7 +430,7 @@ Respond with only one word: "simple", "web-search", or "agentic"`
         const availableNewContent = fullResponse.length - lastYieldedLength
         const charsToYield = Math.min(CHARS_PER_YIELD, availableNewContent)
         const newYieldLength = lastYieldedLength + charsToYield
-        
+
         const displayContent = fullResponse.substring(0, newYieldLength)
         const charCount = newYieldLength > 100 ? ` (${newYieldLength} chars)` : ''
         const displayText = newYieldLength > 300
@@ -452,10 +443,10 @@ Respond with only one word: "simple", "web-search", or "agentic"`
           isComplete: false,
         }
         lastYieldedLength = newYieldLength
-        
+
         await new Promise(resolve => setTimeout(resolve, YIELD_INTERVAL))
       }
-      
+
       // Final yield with complete response
       yield {
         text: `${currentAccumulated}\n\n${progressPrefix}\n${fullResponse}`,
@@ -534,7 +525,8 @@ Respond with only one word: "simple", "web-search", or "agentic"`
       if (firstResponseAbilityCalls.length > 0) {
         // First response already has ability calls - use it directly, skip second AI call
         response = toolChoiceResponse
-      } else {
+      }
+      else {
         // No abilities in first response - make second call to plan tool execution
         const selectedTools = this.preContextPrompt([{ role: 'user', content: toolChoiceResponse }])
 
@@ -548,7 +540,7 @@ Respond with only one word: "simple", "web-search", or "agentic"`
         for await (const update of this.streamAIResponseWithProgress(
           selectedTools,
           '🎯 **Planning tool execution...**',
-          accumulatedResponse.replace('\n\n⏳ _Preparing next step..._', ''),  // Remove transition indicator
+          accumulatedResponse.replace('\n\n⏳ _Preparing next step..._', ''), // Remove transition indicator
           abortSignal,
         )) {
           yield {
@@ -629,43 +621,43 @@ Respond with only one word: "simple", "web-search", or "agentic"`
 
             // Execute the ability with periodic UI updates
             const executionPromise = this.mcpIntegration.executeAbilityCall(abilityName, parameters)
-            
+
             // Yield periodic progress updates while waiting for execution
             let executionComplete = false
             let executionResult: any = null
             let executionError: Error | null = null
-            
+
             executionPromise
-              .then(result => {
+              .then((result) => {
                 executionResult = result
                 executionComplete = true
               })
-              .catch(err => {
+              .catch((err) => {
                 executionError = err
                 executionComplete = true
               })
-            
+
             // Show animated progress while waiting - include elapsed time for visibility
             let loopCount = 0
             const startTime = Date.now()
             while (!executionComplete) {
               loopCount++
-              
+
               const elapsedSec = Math.floor((Date.now() - startTime) / 1000)
               const spinner = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'][loopCount % 10]
-              
+
               // Update the last line with visible progress (elapsed time + spinner)
               const lines = accumulatedResponse.split('\n')
               lines[lines.length - 1] = `- **${abilityName}**: ${spinner} Running... (${elapsedSec}s)`
               const animatedResponse = lines.join('\n')
-              
+
               yield {
                 content: [{ type: 'text' as const, text: animatedResponse }],
               }
-              
-              await new Promise(resolve => setTimeout(resolve, 300))  // Faster updates for smoother animation
+
+              await new Promise(resolve => setTimeout(resolve, 300)) // Faster updates for smoother animation
             }
-            
+
             if (executionError) {
               throw executionError
             }
@@ -833,7 +825,6 @@ ${analysisResponse}`
           if (lastUserMessage?.role === 'user') {
             // Get enhanced context with planning token, user tokens, and codespace info
             const enhancedSystemPrompt = await contextService.buildEnhancedSystemPrompt(lastUserMessage.content)
-            console.log('enhancedSystemPrompt', enhancedSystemPrompt)
             const existingSystemIndex = aiMessages.findIndex(m => m.role === 'system')
             if (existingSystemIndex >= 0) {
               // Replace existing system message with enhanced one
@@ -883,13 +874,9 @@ ${analysisResponse}`
 
       // Handle keyboard.dev ability calling if enabled
       const abilitiesAvailable = this.mcpIntegration?.functions || []
-      console.log('[run] mcpEnabled:', this.currentProvider.mcpEnabled, 'abilitiesAvailable:', abilitiesAvailable.length)
-
       if (this.currentProvider.mcpEnabled && abilitiesAvailable.length > 0) {
         // Classify query complexity first to route to appropriate handler
         const queryType = await this.classifyQueryComplexity(aiMessages)
-        console.log('[run] Query type classification result:', queryType)
-
         if (queryType === 'web-search') {
           // Web search query - use streamlined web search workflow with current date context
           for await (const result of this.handleWebSearch(aiMessages, abortSignal)) {
@@ -944,9 +931,9 @@ ${analysisResponse}`
         )
 
         let lastYieldedLength = 0
-        const CHARS_PER_YIELD = 15  // Smooth typing effect
-        const YIELD_INTERVAL = 20  // ms between yields
-        
+        const CHARS_PER_YIELD = 15 // Smooth typing effect
+        const YIELD_INTERVAL = 20 // ms between yields
+
         while (!streamComplete || lastYieldedLength < accumulatedText.length) {
           if (abortSignal?.aborted) {
             throw new Error('Request was aborted')
@@ -961,15 +948,16 @@ ${analysisResponse}`
             const availableNew = accumulatedText.length - lastYieldedLength
             const charsToYield = Math.min(CHARS_PER_YIELD, availableNew)
             const newYieldLength = lastYieldedLength + charsToYield
-            
+
             yield {
               content: [{ type: 'text' as const, text: accumulatedText.substring(0, newYieldLength) }],
             }
             lastYieldedLength = newYieldLength
-            
+
             // Short delay for smooth typing effect
             await new Promise(resolve => setTimeout(resolve, YIELD_INTERVAL))
-          } else {
+          }
+          else {
             // No new content yet, poll at normal rate
             await new Promise(resolve => setTimeout(resolve, 50))
           }
