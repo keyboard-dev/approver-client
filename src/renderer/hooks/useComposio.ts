@@ -159,19 +159,14 @@ export function useComposio(): UseComposioReturn {
   // ==========================================================================
 
   const refreshAccounts = useCallback(async () => {
-    console.log('[useComposio] refreshAccounts called')
     setAccountsLoading(true)
     setAccountsError(null)
 
     try {
       const response = await listConnectedAccounts()
-      console.log('[useComposio] listConnectedAccounts response:', response)
-      console.log('[useComposio] response.data:', response.data)
-      console.log('[useComposio] response.data?.items:', response.data?.items)
       setAccounts(response.data?.items || [])
     }
     catch (error) {
-      console.error('[useComposio] refreshAccounts error:', error)
       const message = error instanceof Error ? error.message : 'Failed to load accounts'
       setAccountsError(message)
     }

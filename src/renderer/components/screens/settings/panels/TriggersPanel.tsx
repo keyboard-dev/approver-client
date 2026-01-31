@@ -377,7 +377,6 @@ export const TriggersPanel: React.FC = () => {
   }
 
   const loadTaskOptions = async () => {
-    console.log('[TriggersPanel] loadTaskOptions called')
     setIsLoadingOptions(true)
     try {
       const [scriptsResponse, accountsResponse, pipedreamAppNames] = await Promise.all([
@@ -398,12 +397,9 @@ export const TriggersPanel: React.FC = () => {
       setAvailablePipedreamAccounts(Array.isArray(pipedreamAppNames) ? pipedreamAppNames : [])
 
       // Also refresh Composio accounts for the dropdown
-      console.log('[TriggersPanel] About to refresh Composio accounts')
       await refreshComposioAccounts()
-      console.log('[TriggersPanel] After refreshComposioAccounts, composioAccounts:', composioAccounts)
     }
     catch (err) {
-      console.error('[TriggersPanel] loadTaskOptions error:', err)
       setAvailableScripts([])
       setAvailableCredentials([])
       setAvailablePipedreamAccounts([])
@@ -1191,25 +1187,23 @@ export const TriggersPanel: React.FC = () => {
     removeFn: (index: number) => void,
     addFn: () => void,
   ) => {
-    console.log('[TriggersPanel] renderTaskSection - composioAccounts:', composioAccounts)
-    console.log('[TriggersPanel] renderTaskSection - active accounts:', composioAccounts?.filter(acc => acc.status?.toUpperCase() === 'ACTIVE'))
     return (
-    <div className="space-y-4">
-      {taskList.map((task, index) => (
-        <div key={index} className="p-4 border border-[#E5E5E5] rounded-lg bg-white">
-          <div className="flex items-center justify-between mb-3">
-            <span className="font-semibold text-sm">
-              Task
-              {index + 1}
-            </span>
-            <button onClick={() => removeFn(index)} className="text-red-600 hover:text-red-700 text-sm">
-              Remove
-            </button>
-          </div>
+      <div className="space-y-4">
+        {taskList.map((task, index) => (
+          <div key={index} className="p-4 border border-[#E5E5E5] rounded-lg bg-white">
+            <div className="flex items-center justify-between mb-3">
+              <span className="font-semibold text-sm">
+                Task
+                {index + 1}
+              </span>
+              <button onClick={() => removeFn(index)} className="text-red-600 hover:text-red-700 text-sm">
+                Remove
+              </button>
+            </div>
 
-          <div className="space-y-3">
-            {/* Keyboard Shortcuts */}
-            {/* <div>
+            <div className="space-y-3">
+              {/* Keyboard Shortcuts */}
+              {/* <div>
               <label className="text-xs text-[#737373] mb-2 block">Keyboard Shortcuts</label>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -1270,8 +1264,8 @@ export const TriggersPanel: React.FC = () => {
               )}
             </div> */}
 
-            {/* Cloud Credentials */}
-            {/* <div>
+              {/* Cloud Credentials */}
+              {/* <div>
               <label className="text-xs text-[#737373] mb-2 block">Cloud Credentials</label>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -1332,146 +1326,147 @@ export const TriggersPanel: React.FC = () => {
               )}
             </div> */}
 
-            {/* Pipedream Proxy Apps */}
-            <div>
-              <label className="text-xs text-[#737373] mb-2 block">Pipedream Proxy Apps</label>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="w-full justify-between text-sm h-auto min-h-[2.5rem] py-2" disabled={isLoadingOptions}>
-                    {task.pipedream_proxy_apps && task.pipedream_proxy_apps.length > 0
-                      ? `${task.pipedream_proxy_apps.length} selected`
-                      : 'Select Pipedream apps...'}
-                    <ChevronDown className="ml-2 h-4 w-4 opacity-50" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-80 max-h-80 overflow-y-auto">
-                  <DropdownMenuLabel>Pipedream Connected Apps</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  {(!availablePipedreamAccounts || availablePipedreamAccounts.length === 0) && (
-                    <div className="px-2 py-3 text-sm text-[#737373]">No Pipedream apps connected</div>
-                  )}
-                  {availablePipedreamAccounts && availablePipedreamAccounts.map((appNameItem) => {
-                    const isSelected = task.pipedream_proxy_apps?.includes(appNameItem) || false
-                    return (
-                      <DropdownMenuCheckboxItem
-                        key={appNameItem}
-                        checked={isSelected}
-                        onCheckedChange={(checked) => {
-                          const currentApps = task.pipedream_proxy_apps || []
-                          const newApps = checked
-                            ? [...currentApps, appNameItem]
-                            : currentApps.filter(name => name !== appNameItem)
-                          updateFn(index, 'pipedream_proxy_apps', newApps)
-                        }}
-                      >
-                        <span className="font-medium">{appNameItem}</span>
-                      </DropdownMenuCheckboxItem>
-                    )
-                  })}
-                </DropdownMenuContent>
-              </DropdownMenu>
-              {task.pipedream_proxy_apps && task.pipedream_proxy_apps.length > 0 && (
-                <div className="flex flex-wrap gap-1 mt-2">
-                  {task.pipedream_proxy_apps.map(appNameItem => (
-                    <span key={appNameItem} className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs">
-                      {appNameItem}
-                      <X
-                        className="h-3 w-3 cursor-pointer hover:text-purple-900"
-                        onClick={() => {
-                          const newApps = (task.pipedream_proxy_apps || []).filter(name => name !== appNameItem)
-                          updateFn(index, 'pipedream_proxy_apps', newApps)
-                        }}
-                      />
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Composio Proxy Apps */}
-            <div>
-              <label className="text-xs text-[#737373] mb-2 block">Composio Proxy Apps</label>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="w-full justify-between text-sm h-auto min-h-[2.5rem] py-2" disabled={isLoadingOptions}>
-                    {task.composio_proxy_apps && task.composio_proxy_apps.length > 0
-                      ? `${task.composio_proxy_apps.length} selected`
-                      : 'Select Composio apps...'}
-                    <ChevronDown className="ml-2 h-4 w-4 opacity-50" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-80 max-h-80 overflow-y-auto">
-                  <DropdownMenuLabel>Composio Connected Apps</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  {(!composioAccounts || composioAccounts.filter(acc => acc.status?.toUpperCase() === 'ACTIVE').length === 0) && (
-                    <div className="px-2 py-3 text-sm text-[#737373]">No Composio apps connected</div>
-                  )}
-                  {composioAccounts && composioAccounts.filter(acc => acc.status?.toUpperCase() === 'ACTIVE').map((account) => {
-                    const appName = account.toolkit?.slug || account.appName || 'Unknown'
-                    const isSelected = task.composio_proxy_apps?.includes(appName) || false
-                    const displayName = appName.charAt(0).toUpperCase() + appName.slice(1)
-                    return (
-                      <DropdownMenuCheckboxItem
-                        key={account.id}
-                        checked={isSelected}
-                        onCheckedChange={(checked) => {
-                          const currentApps = task.composio_proxy_apps || []
-                          const newApps = checked
-                            ? [...currentApps, appName]
-                            : currentApps.filter(name => name !== appName)
-                          updateFn(index, 'composio_proxy_apps', newApps)
-                        }}
-                      >
-                        <span className="font-medium">{displayName}</span>
-                      </DropdownMenuCheckboxItem>
-                    )
-                  })}
-                </DropdownMenuContent>
-              </DropdownMenu>
-              {task.composio_proxy_apps && task.composio_proxy_apps.length > 0 && (
-                <div className="flex flex-wrap gap-1 mt-2">
-                  {task.composio_proxy_apps.map(appName => {
-                    const displayName = appName.charAt(0).toUpperCase() + appName.slice(1)
-                    return (
-                      <span key={appName} className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs">
-                        {displayName}
+              {/* Pipedream Proxy Apps */}
+              <div>
+                <label className="text-xs text-[#737373] mb-2 block">Pipedream Proxy Apps</label>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="w-full justify-between text-sm h-auto min-h-[2.5rem] py-2" disabled={isLoadingOptions}>
+                      {task.pipedream_proxy_apps && task.pipedream_proxy_apps.length > 0
+                        ? `${task.pipedream_proxy_apps.length} selected`
+                        : 'Select Pipedream apps...'}
+                      <ChevronDown className="ml-2 h-4 w-4 opacity-50" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-80 max-h-80 overflow-y-auto">
+                    <DropdownMenuLabel>Pipedream Connected Apps</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {(!availablePipedreamAccounts || availablePipedreamAccounts.length === 0) && (
+                      <div className="px-2 py-3 text-sm text-[#737373]">No Pipedream apps connected</div>
+                    )}
+                    {availablePipedreamAccounts && availablePipedreamAccounts.map((appNameItem) => {
+                      const isSelected = task.pipedream_proxy_apps?.includes(appNameItem) || false
+                      return (
+                        <DropdownMenuCheckboxItem
+                          key={appNameItem}
+                          checked={isSelected}
+                          onCheckedChange={(checked) => {
+                            const currentApps = task.pipedream_proxy_apps || []
+                            const newApps = checked
+                              ? [...currentApps, appNameItem]
+                              : currentApps.filter(name => name !== appNameItem)
+                            updateFn(index, 'pipedream_proxy_apps', newApps)
+                          }}
+                        >
+                          <span className="font-medium">{appNameItem}</span>
+                        </DropdownMenuCheckboxItem>
+                      )
+                    })}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                {task.pipedream_proxy_apps && task.pipedream_proxy_apps.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {task.pipedream_proxy_apps.map(appNameItem => (
+                      <span key={appNameItem} className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs">
+                        {appNameItem}
                         <X
                           className="h-3 w-3 cursor-pointer hover:text-purple-900"
                           onClick={() => {
-                            const newApps = (task.composio_proxy_apps || []).filter(name => name !== appName)
-                            updateFn(index, 'composio_proxy_apps', newApps)
+                            const newApps = (task.pipedream_proxy_apps || []).filter(name => name !== appNameItem)
+                            updateFn(index, 'pipedream_proxy_apps', newApps)
                           }}
                         />
                       </span>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
-            {/* AI Prompt */}
-            <div>
-              <label className="text-xs text-[#737373] mb-1 block">AI Prompt (optional)</label>
-              <textarea
-                value={task.ask || ''}
-                onChange={e => updateFn(index, 'ask', e.target.value)}
-                placeholder="Enter an AI prompt or question..."
-                rows={3}
-                className="w-full px-3 py-2 text-sm border border-[#E5E5E5] rounded focus:outline-none focus:ring-2 focus:ring-[#171717]"
-              />
+              {/* Composio Proxy Apps */}
+              <div>
+                <label className="text-xs text-[#737373] mb-2 block">Composio Proxy Apps</label>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="w-full justify-between text-sm h-auto min-h-[2.5rem] py-2" disabled={isLoadingOptions}>
+                      {task.composio_proxy_apps && task.composio_proxy_apps.length > 0
+                        ? `${task.composio_proxy_apps.length} selected`
+                        : 'Select Composio apps...'}
+                      <ChevronDown className="ml-2 h-4 w-4 opacity-50" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-80 max-h-80 overflow-y-auto">
+                    <DropdownMenuLabel>Composio Connected Apps</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {(!composioAccounts || composioAccounts.filter(acc => acc.status?.toUpperCase() === 'ACTIVE').length === 0) && (
+                      <div className="px-2 py-3 text-sm text-[#737373]">No Composio apps connected</div>
+                    )}
+                    {composioAccounts && composioAccounts.filter(acc => acc.status?.toUpperCase() === 'ACTIVE').map((account) => {
+                      const appName = account.toolkit?.slug || account.appName || 'Unknown'
+                      const isSelected = task.composio_proxy_apps?.includes(appName) || false
+                      const displayName = appName.charAt(0).toUpperCase() + appName.slice(1)
+                      return (
+                        <DropdownMenuCheckboxItem
+                          key={account.id}
+                          checked={isSelected}
+                          onCheckedChange={(checked) => {
+                            const currentApps = task.composio_proxy_apps || []
+                            const newApps = checked
+                              ? [...currentApps, appName]
+                              : currentApps.filter(name => name !== appName)
+                            updateFn(index, 'composio_proxy_apps', newApps)
+                          }}
+                        >
+                          <span className="font-medium">{displayName}</span>
+                        </DropdownMenuCheckboxItem>
+                      )
+                    })}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                {task.composio_proxy_apps && task.composio_proxy_apps.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {task.composio_proxy_apps.map((appName) => {
+                      const displayName = appName.charAt(0).toUpperCase() + appName.slice(1)
+                      return (
+                        <span key={appName} className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs">
+                          {displayName}
+                          <X
+                            className="h-3 w-3 cursor-pointer hover:text-purple-900"
+                            onClick={() => {
+                              const newApps = (task.composio_proxy_apps || []).filter(name => name !== appName)
+                              updateFn(index, 'composio_proxy_apps', newApps)
+                            }}
+                          />
+                        </span>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* AI Prompt */}
+              <div>
+                <label className="text-xs text-[#737373] mb-1 block">AI Prompt (optional)</label>
+                <textarea
+                  value={task.ask || ''}
+                  onChange={e => updateFn(index, 'ask', e.target.value)}
+                  placeholder="Enter an AI prompt or question..."
+                  rows={3}
+                  className="w-full px-3 py-2 text-sm border border-[#E5E5E5] rounded focus:outline-none focus:ring-2 focus:ring-[#171717]"
+                />
+              </div>
             </div>
           </div>
-        </div>
-      ))}
+        ))}
 
-      <button onClick={addFn} className="text-sm text-blue-600 hover:text-blue-700">
-        + Add
-        {' '}
-        {taskList.length > 0 ? 'Another ' : ''}
-        Task
-      </button>
-    </div>
-  )}
+        <button onClick={addFn} className="text-sm text-blue-600 hover:text-blue-700">
+          + Add
+          {' '}
+          {taskList.length > 0 ? 'Another ' : ''}
+          Task
+        </button>
+      </div>
+    )
+  }
 
   // ============== LOADING STATE ==============
 

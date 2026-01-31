@@ -237,7 +237,6 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
       }, undefined, { timeout })
     }
     catch (err) {
-      console.error('Error calling tool', err)
       throw err
     }
   }, [options.timeout])

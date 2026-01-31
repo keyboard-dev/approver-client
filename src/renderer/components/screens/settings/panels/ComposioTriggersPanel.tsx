@@ -1303,7 +1303,9 @@ export const ComposioTriggersPanel: React.FC = () => {
                                       <div className="flex items-center gap-2">
                                         <span className="truncate">{account.appName}</span>
                                         <span className="text-xs text-[#A3A3A3]">
-                                          ({account.toolkit?.slug || account.appName})
+                                          (
+                                          {account.toolkit?.slug || account.appName}
+                                          )
                                         </span>
                                       </div>
                                     </DropdownMenuCheckboxItem>
