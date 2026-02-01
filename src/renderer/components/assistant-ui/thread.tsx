@@ -6,6 +6,8 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   CopyIcon,
+  PanelLeftCloseIcon,
+  PanelLeftOpenIcon,
   PanelRightCloseIcon,
   PanelRightOpenIcon,
   PencilIcon,
@@ -39,6 +41,7 @@ import {
   UserMessageAttachments,
 } from './attachment'
 import { MarkdownText } from './markdown-text'
+import { ThreadLeftSidebar } from './thread-left-sidebar'
 import { ThreadSidebar } from './thread-sidebar'
 import { ToolFallback } from './tool-fallback'
 import { TooltipIconButton } from './tooltip-icon-button'
@@ -67,6 +70,8 @@ interface ThreadCustomProps {
   mcpAbilities?: number
   mcpError?: string | null
   onRetryMCP?: () => void
+  // Navigation
+  onNavigate?: (destination: string) => void
 }
 
 export const Thread: FC<ThreadCustomProps> = ({
@@ -86,14 +91,34 @@ export const Thread: FC<ThreadCustomProps> = ({
   mcpAbilities,
   mcpError,
   onRetryMCP,
+  // Navigation
+  onNavigate,
 }) => {
   const [selectedScripts, setSelectedScripts] = useState<Script[]>([])
-  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [leftSidebarOpen, setLeftSidebarOpen] = useState(false)
+  const [rightSidebarOpen, setRightSidebarOpen] = useState(false)
+
+  const handleNavigation = (itemId: string) => {
+    if (onNavigate) {
+      onNavigate(itemId)
+    }
+  }
 
   return (
     <LazyMotion features={domAnimation}>
       <MotionConfig reducedMotion="user">
         <div className="flex h-full w-full gap-0 overflow-hidden">
+          {/* Left Sidebar */}
+          {leftSidebarOpen && (
+            <div className="h-full py-[10px] pr-[10px]">
+              <ThreadLeftSidebar
+                isOpen={leftSidebarOpen}
+                activeItem="agentic-chat"
+                onItemClick={handleNavigation}
+              />
+            </div>
+          )}
+
           {/* Main Chat Panel */}
           <ThreadPrimitive.Root
             className="aui-root aui-thread-root @container flex h-full flex-1 flex-col bg-[#f5f5f5] border border-[#dbdbdb] rounded-[20px] overflow-hidden"
@@ -101,18 +126,34 @@ export const Thread: FC<ThreadCustomProps> = ({
               ['--thread-max-width' as string]: '44rem',
             }}
           >
-            {/* Header with title and sidebar toggle */}
+            {/* Header with title and sidebar toggles */}
             <div className="flex items-center justify-between p-[16px] border-b border-[#eaeaea]">
-              <p className="font-semibold text-[16px] text-[#171717]">
-                New chat
-              </p>
+              <div className="flex items-center gap-[10px]">
+                {/* Left sidebar toggle */}
+                <button
+                  type="button"
+                  onClick={() => setLeftSidebarOpen(!leftSidebarOpen)}
+                  className="flex items-center justify-center p-[2px] hover:bg-[#ebebeb] rounded-md transition-colors"
+                  aria-label={leftSidebarOpen ? 'Close left sidebar' : 'Open left sidebar'}
+                >
+                  {leftSidebarOpen ? (
+                    <PanelLeftCloseIcon className="size-[20px] text-[#171717]" />
+                  ) : (
+                    <PanelLeftOpenIcon className="size-[20px] text-[#171717]" />
+                  )}
+                </button>
+                <p className="font-semibold text-[16px] text-[#171717]">
+                  New chat
+                </p>
+              </div>
+              {/* Right sidebar toggle */}
               <button
                 type="button"
-                onClick={() => setSidebarOpen(!sidebarOpen)}
+                onClick={() => setRightSidebarOpen(!rightSidebarOpen)}
                 className="flex items-center justify-center p-[2px] hover:bg-[#ebebeb] rounded-md transition-colors"
-                aria-label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
+                aria-label={rightSidebarOpen ? 'Close right sidebar' : 'Open right sidebar'}
               >
-                {sidebarOpen ? (
+                {rightSidebarOpen ? (
                   <PanelRightCloseIcon className="size-[20px] text-[#171717]" />
                 ) : (
                   <PanelRightOpenIcon className="size-[20px] text-[#171717]" />
@@ -151,12 +192,12 @@ export const Thread: FC<ThreadCustomProps> = ({
             />
           </ThreadPrimitive.Root>
 
-          {/* Sidebar */}
-          {sidebarOpen && (
+          {/* Right Sidebar */}
+          {rightSidebarOpen && (
             <div className="h-full py-[10px] pl-[10px]">
               <ThreadSidebar
-                isOpen={sidebarOpen}
-                onClose={() => setSidebarOpen(false)}
+                isOpen={rightSidebarOpen}
+                onClose={() => setRightSidebarOpen(false)}
                 providers={providers}
                 availableProviders={availableProviders}
                 selectedProvider={selectedProvider}
