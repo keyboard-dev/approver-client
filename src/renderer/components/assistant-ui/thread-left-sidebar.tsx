@@ -1,75 +1,64 @@
-import { BotIcon, HomeIcon, ListTodoIcon, SettingsIcon, WorkflowIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { cn } from '../../lib/utils'
 
-interface NavItem {
-  id: string
-  label: string
-  icon: React.ReactNode
-}
+/**
+ * Settings tabs matching the SettingsScreen
+ */
+const SETTINGS_TABS = [
+  'WebSocket',
+  'Security',
+  'Security Policies',
+  'AI Providers',
+  'AI Credits',
+  'Notifications',
+  'Connectors',
+  'Triggers',
+  'Advanced',
+] as const
 
-const navItems: NavItem[] = [
-  {
-    id: 'home',
-    label: 'Home',
-    icon: <HomeIcon className="size-[24px]" />,
-  },
-  {
-    id: 'agentic-chat',
-    label: 'Agentic chat',
-    icon: <BotIcon className="size-[24px]" />,
-  },
-  {
-    id: 'flow-shortcuts',
-    label: 'Flow shortcuts',
-    icon: <WorkflowIcon className="size-[24px]" />,
-  },
-  {
-    id: 'task-approvals',
-    label: 'Task approvals',
-    icon: <ListTodoIcon className="size-[24px]" />,
-  },
-  {
-    id: 'settings',
-    label: 'Settings',
-    icon: <SettingsIcon className="size-[24px]" />,
-  },
-]
+export type SettingsTabType = typeof SETTINGS_TABS[number]
 
 interface ThreadLeftSidebarProps {
   isOpen: boolean
-  activeItem?: string
-  onItemClick?: (itemId: string) => void
+  activeTab?: SettingsTabType | null
+  onTabClick?: (tab: SettingsTabType) => void
 }
 
 export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
   isOpen,
-  activeItem = 'agentic-chat',
-  onItemClick,
+  activeTab,
+  onTabClick,
 }) => {
   if (!isOpen) return null
 
   return (
-    <div className="flex flex-col h-full w-[215px] max-w-[500px] overflow-x-clip overflow-y-auto">
-      {navItems.map((item) => (
+    <div className="flex flex-col h-full w-[180px] shrink-0 overflow-y-auto">
+      {/* Settings Header */}
+      <div className="px-[16px] py-[8px]">
+        <p className="font-semibold text-[14px] text-[#737373] leading-normal">
+          Settings
+        </p>
+      </div>
+
+      {/* Settings Navigation */}
+      {SETTINGS_TABS.map((tab) => (
         <button
-          key={item.id}
+          key={tab}
           type="button"
-          onClick={() => onItemClick?.(item.id)}
+          onClick={() => onTabClick?.(tab)}
           className={cn(
-            'flex gap-[10px] items-center justify-start px-[16px] py-[8px] w-full text-left transition-colors',
-            'hover:bg-[#e0e0e0] rounded-lg',
-            activeItem === item.id && 'bg-[#e5e5e5]'
+            'px-[16px] py-[8px] w-full text-left transition-colors',
+            'hover:bg-[#e5e5e5]',
+            activeTab === tab ? 'text-[#171717] font-semibold' : 'text-[#737373] font-medium'
           )}
         >
-          <span className="text-[#171717]">
-            {item.icon}
+          <span className="text-[14px] leading-normal">
+            {tab}
           </span>
-          <p className="flex-1 font-medium text-[14px] text-[#171717] leading-normal">
-            {item.label}
-          </p>
         </button>
       ))}
     </div>
   )
 }
+
+export { SETTINGS_TABS }

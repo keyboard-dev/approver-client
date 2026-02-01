@@ -1,6 +1,7 @@
 import { Route, Routes } from 'react-router-dom'
 import { AppContent } from './App'
 import { ChatPage } from './components/screens/ChatPage'
+import { HomeScreen } from './components/screens/HomeScreen'
 import { MessageDetailScreen } from './components/screens/MessageDetailScreen'
 import { SettingsScreen } from './components/screens/settings/SettingsScreen'
 import { Layout } from './Layout'
@@ -17,8 +18,11 @@ import { Layout } from './Layout'
  *
  * Current routes:
  * - / : Main view (message list or current message)
+ * - /home : New home screen with integrated navigation (Home, Agentic chat, Flow shortcuts, Task approvals, Settings)
+ * - /home/:tab : Home screen with specific tab
+ * - /home/:tab/:messageId : Home screen with specific tab and message context
  * - /messages/:messageId : Message detail view (Security Evaluation Request)
- * - /chat : Chat interface
+ * - /chat : Chat interface (legacy, redirects to home/agentic-chat)
  * - /chat/:messageId : Chat interface with approval message context
  * - /settings : Settings with default tab
  * - /settings/:tab : Settings with specific tab (WebSocket, Security, Notifications, Connectors, Advanced)
@@ -30,6 +34,9 @@ export const AppRoutes = () => {
     <Routes>
       <Route element={<Layout />}>
         <Route path="/" element={<AppContent />} />
+        <Route path="/home" element={<HomeScreen />} />
+        <Route path="/home/:tab" element={<HomeScreen />} />
+        <Route path="/home/:tab/:messageId" element={<HomeScreen />} />
         <Route path="/messages/:messageId" element={<MessageDetailScreen />} />
         <Route path="/chat" element={<ChatPage />} />
         <Route path="/chat/:messageId" element={<ChatPage />} />

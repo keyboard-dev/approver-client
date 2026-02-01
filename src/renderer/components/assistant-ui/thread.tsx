@@ -41,9 +41,18 @@ import {
   UserMessageAttachments,
 } from './attachment'
 import { MarkdownText } from './markdown-text'
-import { ThreadLeftSidebar } from './thread-left-sidebar'
+import { SettingsTabType, ThreadLeftSidebar } from './thread-left-sidebar'
 import { ThreadSidebar } from './thread-sidebar'
 import { ToolFallback } from './tool-fallback'
+// Settings panels
+import { AdvancedPanel } from '../screens/settings/panels/AdvancedPanel'
+import { AICreditsPanel } from '../screens/settings/panels/AICreditsPanel'
+import { AIProvidersPanel } from '../screens/settings/panels/AIProvidersPanel'
+import { ConnectorsPanel } from '../screens/settings/panels/ConnectorsPanel'
+import { KeyPanel } from '../screens/settings/panels/KeyPanel'
+import { NotificationPanel } from '../screens/settings/panels/NotificationPanel'
+import { SecurityPolicyPanel } from '../screens/settings/panels/SecurityPolicyPanel'
+import { TriggersPanel } from '../screens/settings/panels/TriggersPanel'
 import { TooltipIconButton } from './tooltip-icon-button'
 
 interface ProviderConfig {
@@ -70,8 +79,6 @@ interface ThreadCustomProps {
   mcpAbilities?: number
   mcpError?: string | null
   onRetryMCP?: () => void
-  // Navigation
-  onNavigate?: (destination: string) => void
 }
 
 export const Thread: FC<ThreadCustomProps> = ({
@@ -91,16 +98,75 @@ export const Thread: FC<ThreadCustomProps> = ({
   mcpAbilities,
   mcpError,
   onRetryMCP,
-  // Navigation
-  onNavigate,
 }) => {
   const [selectedScripts, setSelectedScripts] = useState<Script[]>([])
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(false)
   const [rightSidebarOpen, setRightSidebarOpen] = useState(false)
+  const [activeSettingsTab, setActiveSettingsTab] = useState<SettingsTabType | null>(null)
 
-  const handleNavigation = (itemId: string) => {
-    if (onNavigate) {
-      onNavigate(itemId)
+  // Get settings panel based on active tab
+  const getSettingsPanel = () => {
+    if (!activeSettingsTab) return null
+
+    switch (activeSettingsTab) {
+      case 'WebSocket':
+        return (
+          <KeyPanel
+            confirmationDescription="Submitting this form will generate a new WebSocket key. Be aware that any scripts or applications using this key will need to be updated."
+            description="Applications need this key to connect to the approver. Treat it like a password — do not share it. The key is stored securely on your device."
+            getKeyInfo={window.electronAPI.getWSKeyInfo}
+            keyName="Connection key"
+            onKeyGenerated={window.electronAPI.onWSKeyGenerated}
+            onUnmount={() => window.electronAPI.removeAllListeners('ws-key-generated')}
+            regenerateKey={window.electronAPI.regenerateWSKey}
+            title="WebSocket"
+          />
+        )
+      case 'Security':
+        return (
+          <KeyPanel
+            confirmationDescription="Are you sure you want to regenerate the encryption key? This will invalidate all previously encrypted data."
+            description="The encryption key we use to encrypt data that Keyboard will save for you."
+            getKeyInfo={window.electronAPI.getEncryptionKeyInfo}
+            keyName="Encryption key"
+            onKeyGenerated={window.electronAPI.onEncryptionKeyGenerated}
+            onUnmount={() => window.electronAPI.removeAllListeners('encryption-key-generated')}
+            regenerateKey={async () => {
+              const keyInfo = await window.electronAPI.getEncryptionKeyInfo()
+              if (keyInfo.source === 'environment') {
+                alert('Cannot regenerate encryption key when using environment variable.')
+                return
+              }
+              return window.electronAPI.regenerateEncryptionKey()
+            }}
+            title="Security"
+          />
+        )
+      case 'Security Policies':
+        return <SecurityPolicyPanel />
+      case 'AI Providers':
+        return <AIProvidersPanel />
+      case 'AI Credits':
+        return <AICreditsPanel />
+      case 'Notifications':
+        return <NotificationPanel />
+      case 'Connectors':
+        return <ConnectorsPanel />
+      case 'Triggers':
+        return <TriggersPanel />
+      case 'Advanced':
+        return <AdvancedPanel />
+      default:
+        return null
+    }
+  }
+
+  const handleSettingsTabClick = (tab: SettingsTabType) => {
+    if (activeSettingsTab === tab) {
+      // Toggle off if clicking same tab
+      setActiveSettingsTab(null)
+    } else {
+      setActiveSettingsTab(tab)
     }
   }
 
@@ -108,14 +174,21 @@ export const Thread: FC<ThreadCustomProps> = ({
     <LazyMotion features={domAnimation}>
       <MotionConfig reducedMotion="user">
         <div className="flex h-full w-full gap-0 overflow-hidden">
-          {/* Left Sidebar */}
+          {/* Left Sidebar - Settings Navigation */}
           {leftSidebarOpen && (
-            <div className="h-full py-[10px] pr-[10px]">
+            <div className="h-full shrink-0 border-r border-[#dbdbdb]">
               <ThreadLeftSidebar
                 isOpen={leftSidebarOpen}
-                activeItem="agentic-chat"
-                onItemClick={handleNavigation}
+                activeTab={activeSettingsTab}
+                onTabClick={handleSettingsTabClick}
               />
+            </div>
+          )}
+
+          {/* Settings Panel - Shown when a settings tab is active */}
+          {leftSidebarOpen && activeSettingsTab && (
+            <div className="h-full w-[400px] shrink-0 overflow-auto border-r border-[#dbdbdb] bg-white">
+              {getSettingsPanel()}
             </div>
           )}
 
@@ -132,9 +205,14 @@ export const Thread: FC<ThreadCustomProps> = ({
                 {/* Left sidebar toggle */}
                 <button
                   type="button"
-                  onClick={() => setLeftSidebarOpen(!leftSidebarOpen)}
+                  onClick={() => {
+                    setLeftSidebarOpen(!leftSidebarOpen)
+                    if (leftSidebarOpen) {
+                      setActiveSettingsTab(null)
+                    }
+                  }}
                   className="flex items-center justify-center p-[2px] hover:bg-[#ebebeb] rounded-md transition-colors"
-                  aria-label={leftSidebarOpen ? 'Close left sidebar' : 'Open left sidebar'}
+                  aria-label={leftSidebarOpen ? 'Close settings' : 'Open settings'}
                 >
                   {leftSidebarOpen ? (
                     <PanelLeftCloseIcon className="size-[20px] text-[#171717]" />
@@ -151,7 +229,7 @@ export const Thread: FC<ThreadCustomProps> = ({
                 type="button"
                 onClick={() => setRightSidebarOpen(!rightSidebarOpen)}
                 className="flex items-center justify-center p-[2px] hover:bg-[#ebebeb] rounded-md transition-colors"
-                aria-label={rightSidebarOpen ? 'Close right sidebar' : 'Open right sidebar'}
+                aria-label={rightSidebarOpen ? 'Close sidebar' : 'Open sidebar'}
               >
                 {rightSidebarOpen ? (
                   <PanelRightCloseIcon className="size-[20px] text-[#171717]" />
@@ -194,7 +272,7 @@ export const Thread: FC<ThreadCustomProps> = ({
 
           {/* Right Sidebar */}
           {rightSidebarOpen && (
-            <div className="h-full py-[10px] pl-[10px]">
+            <div className="h-full py-[10px] pl-[10px] shrink-0 min-w-[300px]">
               <ThreadSidebar
                 isOpen={rightSidebarOpen}
                 onClose={() => setRightSidebarOpen(false)}
