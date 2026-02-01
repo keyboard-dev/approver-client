@@ -6,6 +6,8 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   CopyIcon,
+  PanelRightCloseIcon,
+  PanelRightOpenIcon,
   PencilIcon,
   RefreshCwIcon,
   Square,
@@ -37,14 +39,34 @@ import {
   UserMessageAttachments,
 } from './attachment'
 import { MarkdownText } from './markdown-text'
+import { ThreadSidebar } from './thread-sidebar'
 import { ToolFallback } from './tool-fallback'
 import { TooltipIconButton } from './tooltip-icon-button'
+
+interface ProviderConfig {
+  id: string
+  name: string
+  models: Array<{ id: string, name: string }>
+  supportsMCP?: boolean
+}
 
 interface ThreadCustomProps {
   currentApprovalMessage?: Message
   onApproveMessage?: (message: Message) => void
   onRejectMessage?: (message: Message) => void
   onClearMessage?: () => void
+  // Provider/Model selection
+  providers?: ProviderConfig[]
+  availableProviders?: string[]
+  selectedProvider?: string
+  selectedModel?: string
+  onProviderChange?: (providerId: string, defaultModelId?: string) => void
+  onModelChange?: (modelId: string) => void
+  // MCP status
+  mcpConnected?: boolean
+  mcpAbilities?: number
+  mcpError?: string | null
+  onRetryMCP?: () => void
 }
 
 export const Thread: FC<ThreadCustomProps> = ({
@@ -52,48 +74,103 @@ export const Thread: FC<ThreadCustomProps> = ({
   onApproveMessage,
   onRejectMessage,
   onClearMessage,
+  // Provider/Model props
+  providers = [],
+  availableProviders = [],
+  selectedProvider,
+  selectedModel,
+  onProviderChange,
+  onModelChange,
+  // MCP props
+  mcpConnected,
+  mcpAbilities,
+  mcpError,
+  onRetryMCP,
 }) => {
   const [selectedScripts, setSelectedScripts] = useState<Script[]>([])
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   return (
     <LazyMotion features={domAnimation}>
       <MotionConfig reducedMotion="user">
-        <ThreadPrimitive.Root
-          className="aui-root aui-thread-root @container flex h-full flex-col bg-[#f5f5f5] rounded-[20px] overflow-hidden"
-          style={{
-            ['--thread-max-width' as string]: '44rem',
-          }}
-        >
-          <ThreadPrimitive.Viewport className="aui-thread-viewport relative flex flex-1 flex-col overflow-y-auto overflow-x-hidden px-4 min-h-0">
-            <ThreadPrimitive.If empty>
-              <ThreadWelcome />
-            </ThreadPrimitive.If>
+        <div className="flex h-full w-full gap-0 overflow-hidden">
+          {/* Main Chat Panel */}
+          <ThreadPrimitive.Root
+            className="aui-root aui-thread-root @container flex h-full flex-1 flex-col bg-[#f5f5f5] border border-[#dbdbdb] rounded-[20px] overflow-hidden"
+            style={{
+              ['--thread-max-width' as string]: '44rem',
+            }}
+          >
+            {/* Header with title and sidebar toggle */}
+            <div className="flex items-center justify-between p-[16px] border-b border-[#eaeaea]">
+              <p className="font-semibold text-[16px] text-[#171717]">
+                New chat
+              </p>
+              <button
+                type="button"
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="flex items-center justify-center p-[2px] hover:bg-[#ebebeb] rounded-md transition-colors"
+                aria-label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
+              >
+                {sidebarOpen ? (
+                  <PanelRightCloseIcon className="size-[20px] text-[#171717]" />
+                ) : (
+                  <PanelRightOpenIcon className="size-[20px] text-[#171717]" />
+                )}
+              </button>
+            </div>
 
-            <ThreadPrimitive.Messages
-              components={{
-                UserMessage,
-                EditComposer,
-                AssistantMessage,
-              }}
+            <ThreadPrimitive.Viewport className="aui-thread-viewport relative flex flex-1 flex-col overflow-y-auto overflow-x-hidden px-4 min-h-0">
+              <ThreadPrimitive.If empty>
+                <ThreadWelcome />
+              </ThreadPrimitive.If>
+
+              <ThreadPrimitive.Messages
+                components={{
+                  UserMessage,
+                  EditComposer,
+                  AssistantMessage,
+                }}
+              />
+
+              <ApprovalMessage
+                currentApprovalMessage={currentApprovalMessage}
+                onApproveMessage={onApproveMessage}
+                onRejectMessage={onRejectMessage}
+                onClearMessage={onClearMessage}
+              />
+
+              <ThreadPrimitive.If empty={false}>
+                <div className="aui-thread-viewport-spacer min-h-8 grow" />
+              </ThreadPrimitive.If>
+            </ThreadPrimitive.Viewport>
+
+            <Composer
+              selectedScripts={selectedScripts}
+              onScriptSelect={setSelectedScripts}
             />
+          </ThreadPrimitive.Root>
 
-            <ApprovalMessage
-              currentApprovalMessage={currentApprovalMessage}
-              onApproveMessage={onApproveMessage}
-              onRejectMessage={onRejectMessage}
-              onClearMessage={onClearMessage}
-            />
-
-            <ThreadPrimitive.If empty={false}>
-              <div className="aui-thread-viewport-spacer min-h-8 grow" />
-            </ThreadPrimitive.If>
-          </ThreadPrimitive.Viewport>
-
-          <Composer
-            selectedScripts={selectedScripts}
-            onScriptSelect={setSelectedScripts}
-          />
-        </ThreadPrimitive.Root>
+          {/* Sidebar */}
+          {sidebarOpen && (
+            <div className="h-full py-[10px] pl-[10px]">
+              <ThreadSidebar
+                isOpen={sidebarOpen}
+                onClose={() => setSidebarOpen(false)}
+                providers={providers}
+                availableProviders={availableProviders}
+                selectedProvider={selectedProvider}
+                selectedModel={selectedModel}
+                onProviderChange={onProviderChange}
+                onModelChange={onModelChange}
+                mcpConnected={mcpConnected}
+                mcpAbilities={mcpAbilities}
+                mcpError={mcpError}
+                onRetryMCP={onRetryMCP}
+              />
+            </div>
+          )}
+        </div>
       </MotionConfig>
     </LazyMotion>
   )
@@ -137,7 +214,17 @@ const ThreadWelcome: FC = () => {
           exit={{ opacity: 0, y: 20 }}
           className="bg-white/10 backdrop-blur-sm px-5 py-2.5 rounded-full"
         >
-          <span className="text-3xl md:text-4xl lg:text-5xl font-normal text-[#171717] tracking-wide text-center">
+          <span
+            className="text-center"
+            style={{
+              color: '#171717',
+              fontFamily: '"FS Mondwest Regular", sans-serif',
+              fontSize: '3.25rem',
+              fontStyle: 'normal',
+              fontWeight: 400,
+              lineHeight: 'normal',
+            }}
+          >
             What can we automate for you today?
           </span>
         </m.div>

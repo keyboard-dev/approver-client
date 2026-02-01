@@ -11,12 +11,6 @@ import { MCPChatComponent } from './MCPChatComponent'
 import { Badge } from './ui/badge'
 import { Button } from './ui/button'
 import { Card, CardContent, CardHeader } from './ui/card'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from './ui/dropdown-menu'
 import { TooltipProvider } from './ui/tooltip'
 
 interface AssistantUIChatProps {
@@ -190,69 +184,26 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
 
   const runtime = useLocalRuntime(mcpChat.adapter)
 
+  // Handler for provider change
+  const handleProviderChange = (providerId: string, defaultModelId?: string) => {
+    setSelectedProvider(providerId)
+    if (defaultModelId) {
+      setSelectedModel(defaultModelId)
+    }
+  }
+
   return (
     <TooltipProvider>
       <AssistantRuntimeProvider runtime={runtime}>
         <Card className="w-full h-full flex flex-col overflow-hidden">
           <CardHeader className="pb-3">
-            {/* Compact single-row header */}
+            {/* Simplified header with just Back button */}
             <div className="flex items-center justify-between gap-3">
               <Button variant="outline" size="sm" onClick={onBack}>
                 ← Back
               </Button>
 
-              <div className="flex items-center gap-3 flex-1">
-                {/* Provider Dropdown */}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" disabled={availableProviders.length === 0}>
-                      <span className="text-xs font-medium">
-                        {currentProvider?.name || 'Provider'}
-                      </span>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent>
-                    {PROVIDERS
-                      .filter(p => availableProviders.includes(p.id))
-                      .map(provider => (
-                        <DropdownMenuItem
-                          key={provider.id}
-                          onClick={() => {
-                            setSelectedProvider(provider.id)
-                            if (provider.models[0]) {
-                              setSelectedModel(provider.models[0].id)
-                            }
-                          }}
-                        >
-                          {provider.name}
-                        </DropdownMenuItem>
-                      ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
-                {/* Model Dropdown */}
-                {currentProvider && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="sm" className="max-w-[200px]">
-                        <span className="text-xs font-medium truncate">
-                          {currentProvider.models.find(m => m.id === selectedModel)?.name || 'Model'}
-                        </span>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent>
-                      {currentProvider.models.map(model => (
-                        <DropdownMenuItem
-                          key={model.id}
-                          onClick={() => setSelectedModel(model.id)}
-                        >
-                          {model.name}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
-
+              <div className="flex items-center gap-2">
                 {selectedProvider === 'mcp' && (
                   <Badge variant="outline" className="text-xs">
                     🔌 MCP Legacy Mode
@@ -264,42 +215,9 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
                     No providers configured
                   </Badge>
                 )}
-              </div>
 
-              {/* MCP Status & Controls */}
-              {currentProvider?.supportsMCP && selectedProvider !== 'mcp' && (
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-2 bg-background border rounded-lg px-3 py-1.5">
-                    <span className="text-xs font-medium">🚀</span>
-                    {mcpChat.mcpConnected && (
-                      <Badge variant="secondary" className="text-xs h-5">
-                        {mcpChat.mcpAbilities}
-                      </Badge>
-                    )}
-                    {mcpChat.mcpConnected
-                      ? (
-                          <Badge variant="default" className="text-xs h-5 bg-green-100 text-green-800 border-0">
-                            Connected
-                          </Badge>
-                        )
-                      : mcpChat.mcpError
-                        ? (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={mcpChat.refreshMCPConnection}
-                              className="text-xs h-5 px-2"
-                            >
-                              Retry
-                            </Button>
-                          )
-                        : (
-                            <Badge variant="secondary" className="text-xs h-5">
-                              Connecting...
-                            </Badge>
-                          )}
-                  </div>
-
+                {/* Execution panel toggle */}
+                {currentProvider?.supportsMCP && selectedProvider !== 'mcp' && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -310,8 +228,8 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
                     {' '}
                     {mcpChat.executions.length}
                   </Button>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </CardHeader>
 
@@ -344,6 +262,18 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
                           onApproveMessage={onApproveMessage}
                           onRejectMessage={onRejectMessage}
                           onClearMessage={onClearApprovalMessage}
+                          // Provider/Model props
+                          providers={PROVIDERS}
+                          availableProviders={availableProviders}
+                          selectedProvider={selectedProvider}
+                          selectedModel={selectedModel}
+                          onProviderChange={handleProviderChange}
+                          onModelChange={setSelectedModel}
+                          // MCP props
+                          mcpConnected={mcpChat.mcpConnected}
+                          mcpAbilities={mcpChat.mcpAbilities}
+                          mcpError={mcpChat.mcpError}
+                          onRetryMCP={mcpChat.refreshMCPConnection}
                         />
                       </div>
                     </div>
