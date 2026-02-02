@@ -351,10 +351,10 @@ const ThreadWelcome: FC = () => {
             className="text-center"
             style={{
               color: '#171717',
-              fontFamily: '"FS Mondwest Regular", sans-serif',
+              fontFamily: '"Doto", sans-serif',
               fontSize: '3.25rem',
               fontStyle: 'normal',
-              fontWeight: 400,
+              fontWeight: 200,
               lineHeight: 'normal',
             }}
           >
