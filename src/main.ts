@@ -694,6 +694,9 @@ class MenuBarNotificationApp {
     })
     // Handle codespace coming online - auto-connect to it
     sseService.on('codespace-online', async (data: CodespaceData) => {
+      if (!this.executionPreferenceManager) {
+        return
+      }
       const preference = await this.executionPreferenceManager.getPreference()
       this.executorWSClient?.setExecutionPreference(preference)
       await this.authService.getValidAccessToken()
