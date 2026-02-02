@@ -218,7 +218,6 @@ export const ChatPage: React.FC = () => {
   // Render chat interface
   return (
     <AssistantUIChat
-      onBack={handleBack}
       currentApprovalMessage={approvalMessage || undefined}
       onApproveMessage={handleApprove}
       onRejectMessage={handleReject}

@@ -6,6 +6,7 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   CopyIcon,
+  MessageSquareIcon,
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
   PanelRightCloseIcon,
@@ -161,6 +162,9 @@ export const Thread: FC<ThreadCustomProps> = ({
     }
   }
 
+  // Whether to show the chat panel (hide when settings is active)
+  const showChat = !activeSettingsTab
+
   const handleSettingsTabClick = (tab: SettingsTabType) => {
     if (activeSettingsTab === tab) {
       // Toggle off if clicking same tab
@@ -170,10 +174,14 @@ export const Thread: FC<ThreadCustomProps> = ({
     }
   }
 
+  const handleBackToChat = () => {
+    setActiveSettingsTab(null)
+  }
+
   return (
     <LazyMotion features={domAnimation}>
       <MotionConfig reducedMotion="user">
-        <div className="flex h-full w-full gap-0 overflow-hidden">
+        <div className="flex h-full w-full gap-0 overflow-hidden relative">
           {/* Left Sidebar - Settings Navigation */}
           {leftSidebarOpen && (
             <div className="h-full shrink-0 border-r border-[#dbdbdb]">
@@ -185,93 +193,95 @@ export const Thread: FC<ThreadCustomProps> = ({
             </div>
           )}
 
-          {/* Settings Panel - Shown when a settings tab is active */}
+          {/* Settings Panel - Shown when a settings tab is active (takes full remaining width) */}
           {leftSidebarOpen && activeSettingsTab && (
-            <div className="h-full w-[400px] shrink-0 overflow-auto border-r border-[#dbdbdb] bg-white">
+            <div className="h-full flex-1 overflow-auto bg-white">
               {getSettingsPanel()}
             </div>
           )}
 
-          {/* Main Chat Panel */}
-          <ThreadPrimitive.Root
-            className="aui-root aui-thread-root @container flex h-full flex-1 flex-col bg-[#f5f5f5] border border-[#dbdbdb] rounded-[20px] overflow-hidden"
-            style={{
-              ['--thread-max-width' as string]: '44rem',
-            }}
-          >
-            {/* Header with title and sidebar toggles */}
-            <div className="flex items-center justify-between p-[16px] border-b border-[#eaeaea]">
-              <div className="flex items-center gap-[10px]">
-                {/* Left sidebar toggle */}
+          {/* Main Chat Panel - Hidden when settings tab is active */}
+          {showChat && (
+            <ThreadPrimitive.Root
+              className="aui-root aui-thread-root @container flex h-full flex-1 flex-col bg-[#f5f5f5] border border-[#dbdbdb] rounded-[20px] overflow-hidden"
+              style={{
+                ['--thread-max-width' as string]: '44rem',
+              }}
+            >
+              {/* Header with title and sidebar toggles */}
+              <div className="flex items-center justify-between p-[16px] border-b border-[#eaeaea]">
+                <div className="flex items-center gap-[10px]">
+                  {/* Left sidebar toggle */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLeftSidebarOpen(!leftSidebarOpen)
+                      if (leftSidebarOpen) {
+                        setActiveSettingsTab(null)
+                      }
+                    }}
+                    className="flex items-center justify-center p-[2px] hover:bg-[#ebebeb] rounded-md transition-colors"
+                    aria-label={leftSidebarOpen ? 'Close settings' : 'Open settings'}
+                  >
+                    {leftSidebarOpen ? (
+                      <PanelLeftCloseIcon className="size-[20px] text-[#171717]" />
+                    ) : (
+                      <PanelLeftOpenIcon className="size-[20px] text-[#171717]" />
+                    )}
+                  </button>
+                  <p className="font-semibold text-[16px] text-[#171717]">
+                    New chat
+                  </p>
+                </div>
+                {/* Right sidebar toggle */}
                 <button
                   type="button"
-                  onClick={() => {
-                    setLeftSidebarOpen(!leftSidebarOpen)
-                    if (leftSidebarOpen) {
-                      setActiveSettingsTab(null)
-                    }
-                  }}
+                  onClick={() => setRightSidebarOpen(!rightSidebarOpen)}
                   className="flex items-center justify-center p-[2px] hover:bg-[#ebebeb] rounded-md transition-colors"
-                  aria-label={leftSidebarOpen ? 'Close settings' : 'Open settings'}
+                  aria-label={rightSidebarOpen ? 'Close sidebar' : 'Open sidebar'}
                 >
-                  {leftSidebarOpen ? (
-                    <PanelLeftCloseIcon className="size-[20px] text-[#171717]" />
+                  {rightSidebarOpen ? (
+                    <PanelRightCloseIcon className="size-[20px] text-[#171717]" />
                   ) : (
-                    <PanelLeftOpenIcon className="size-[20px] text-[#171717]" />
+                    <PanelRightOpenIcon className="size-[20px] text-[#171717]" />
                   )}
                 </button>
-                <p className="font-semibold text-[16px] text-[#171717]">
-                  New chat
-                </p>
               </div>
-              {/* Right sidebar toggle */}
-              <button
-                type="button"
-                onClick={() => setRightSidebarOpen(!rightSidebarOpen)}
-                className="flex items-center justify-center p-[2px] hover:bg-[#ebebeb] rounded-md transition-colors"
-                aria-label={rightSidebarOpen ? 'Close sidebar' : 'Open sidebar'}
-              >
-                {rightSidebarOpen ? (
-                  <PanelRightCloseIcon className="size-[20px] text-[#171717]" />
-                ) : (
-                  <PanelRightOpenIcon className="size-[20px] text-[#171717]" />
-                )}
-              </button>
-            </div>
 
-            <ThreadPrimitive.Viewport className="aui-thread-viewport relative flex flex-1 flex-col overflow-y-auto overflow-x-hidden px-4 min-h-0">
-              <ThreadPrimitive.If empty>
-                <ThreadWelcome />
-              </ThreadPrimitive.If>
+              <ThreadPrimitive.Viewport className="aui-thread-viewport relative flex flex-1 flex-col overflow-y-auto overflow-x-hidden px-4 min-h-0">
+                <ThreadPrimitive.If empty>
+                  <ThreadWelcome />
+                </ThreadPrimitive.If>
 
-              <ThreadPrimitive.Messages
-                components={{
-                  UserMessage,
-                  EditComposer,
-                  AssistantMessage,
-                }}
+                <ThreadPrimitive.Messages
+                  components={{
+                    UserMessage,
+                    EditComposer,
+                    AssistantMessage,
+                  }}
+                />
+
+                <ApprovalMessage
+                  currentApprovalMessage={currentApprovalMessage}
+                  onApproveMessage={onApproveMessage}
+                  onRejectMessage={onRejectMessage}
+                  onClearMessage={onClearMessage}
+                />
+
+                <ThreadPrimitive.If empty={false}>
+                  <div className="aui-thread-viewport-spacer min-h-8 grow" />
+                </ThreadPrimitive.If>
+              </ThreadPrimitive.Viewport>
+
+              <Composer
+                selectedScripts={selectedScripts}
+                onScriptSelect={setSelectedScripts}
               />
+            </ThreadPrimitive.Root>
+          )}
 
-              <ApprovalMessage
-                currentApprovalMessage={currentApprovalMessage}
-                onApproveMessage={onApproveMessage}
-                onRejectMessage={onRejectMessage}
-                onClearMessage={onClearMessage}
-              />
-
-              <ThreadPrimitive.If empty={false}>
-                <div className="aui-thread-viewport-spacer min-h-8 grow" />
-              </ThreadPrimitive.If>
-            </ThreadPrimitive.Viewport>
-
-            <Composer
-              selectedScripts={selectedScripts}
-              onScriptSelect={setSelectedScripts}
-            />
-          </ThreadPrimitive.Root>
-
-          {/* Right Sidebar */}
-          {rightSidebarOpen && (
+          {/* Right Sidebar - Only show when chat is visible */}
+          {showChat && rightSidebarOpen && (
             <div className="h-full py-[10px] pl-[10px] shrink-0 min-w-[300px]">
               <ThreadSidebar
                 isOpen={rightSidebarOpen}
@@ -288,6 +298,26 @@ export const Thread: FC<ThreadCustomProps> = ({
                 onRetryMCP={onRetryMCP}
               />
             </div>
+          )}
+
+          {/* Floating "New chat" button - Shown when settings panel is active */}
+          {!showChat && (
+            <m.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="absolute top-4 right-4 z-10"
+            >
+              <button
+                type="button"
+                onClick={handleBackToChat}
+                className="flex items-center gap-2 bg-white border border-[#dbdbdb] rounded-full px-4 py-2 shadow-lg hover:shadow-xl hover:bg-[#fafafa] transition-all"
+              >
+                <MessageSquareIcon className="size-5 text-[#171717]" />
+                <span className="font-semibold text-[14px] text-[#171717]">
+                  New chat
+                </span>
+              </button>
+            </m.div>
           )}
         </div>
       </MotionConfig>
