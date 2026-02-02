@@ -17,12 +17,13 @@ import { Layout } from './Layout'
  * - Layout uses React Router's Outlet to render child route content
  *
  * Current routes:
- * - / : Main view (message list or current message)
+ * - / : Chat interface (homepage)
+ * - /approvals : Message approvals list
  * - /home : New home screen with integrated navigation (Home, Agentic chat, Flow shortcuts, Task approvals, Settings)
  * - /home/:tab : Home screen with specific tab
  * - /home/:tab/:messageId : Home screen with specific tab and message context
  * - /messages/:messageId : Message detail view (Security Evaluation Request)
- * - /chat : Chat interface (legacy, redirects to home/agentic-chat)
+ * - /chat : Chat interface (alias for homepage)
  * - /chat/:messageId : Chat interface with approval message context
  * - /settings : Settings with default tab
  * - /settings/:tab : Settings with specific tab (WebSocket, Security, Notifications, Connectors, Advanced)
@@ -33,7 +34,8 @@ export const AppRoutes = () => {
   return (
     <Routes>
       <Route element={<Layout />}>
-        <Route path="/" element={<AppContent />} />
+        <Route path="/" element={<ChatPage />} />
+        <Route path="/approvals" element={<AppContent />} />
         <Route path="/home" element={<HomeScreen />} />
         <Route path="/home/:tab" element={<HomeScreen />} />
         <Route path="/home/:tab/:messageId" element={<HomeScreen />} />

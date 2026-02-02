@@ -191,7 +191,7 @@ export const Thread: FC<ThreadCustomProps> = ({
                 activeTab={activeSettingsTab}
                 onTabClick={handleSettingsTabClick}
                 onChatClick={handleBackToChat}
-                onApprovalRequestsClick={() => navigate('/')}
+                onApprovalRequestsClick={() => navigate('/approvals')}
               />
             </div>
           )}
@@ -442,7 +442,7 @@ const Composer: FC<ComposerProps> = ({ selectedScripts = [], onScriptSelect }) =
   }
 
   return (
-    <div className="aui-composer-wrapper sticky bottom-0 mx-auto flex w-full max-w-[var(--thread-max-width)] flex-col gap-2.5 overflow-visible px-5 pb-10">
+    <div className="aui-composer-wrapper sticky bottom-0 flex w-full flex-col gap-2.5 overflow-visible px-5 pb-10">
       <ThreadScrollToBottom />
 
       {/* Script Selector Dropdown (shown when expanded) */}

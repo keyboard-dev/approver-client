@@ -343,7 +343,7 @@ export const AppContent: React.FC = () => {
     setCurrentMessage(null)
     setCurrentShareMessage(null)
     setShowPrompterOnly(false)
-    navigate('/') // Use React Router to navigate home
+    navigate('/approvals') // Use React Router to navigate to approvals
     refreshMessages() // Refresh to show updated status
   }
 
@@ -495,7 +495,7 @@ export const AppContent: React.FC = () => {
 
   const handleBackFromPrompter = () => {
     setShowPrompterOnly(false)
-    navigate('/')
+    navigate('/approvals')
   }
 
   const getMessageScreen = () => {
@@ -573,7 +573,7 @@ export const AppContent: React.FC = () => {
                 <div className="flex items-center space-x-3">
                   <Button
                     variant="outline"
-                    onClick={() => navigate('/chat')}
+                    onClick={() => navigate('/')}
                     className="flex items-center space-x-2"
                   >
                     <span>Chat</span>

@@ -115,7 +115,7 @@ export const MessageDetailScreen: React.FC = () => {
 
   // Back handler
   const handleBack = () => {
-    navigate('/')
+    navigate('/approvals')
   }
 
   // Loading state

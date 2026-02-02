@@ -179,7 +179,7 @@ export const ChatPage: React.FC = () => {
 
   // Back handler
   const handleBack = () => {
-    navigate('/')
+    navigate('/approvals')
   }
 
   // Loading state (only show when fetching approval message)
