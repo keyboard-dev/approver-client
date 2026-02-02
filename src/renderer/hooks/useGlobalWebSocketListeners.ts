@@ -43,9 +43,10 @@ export const useGlobalWebSocketListeners = () => {
         // For Security Evaluation Request and code response approval, navigate to detail view
         // BUT only if we're not on the home route (/) where chat mode might be active
         if (MESSAGE_TYPES_WITH_NAVIGATION.includes(message.title)) {
-          // If we're on the home route, emit a custom event for AppContent to potentially handle
+          // If we're on a chat route (/ or /chat), emit a custom event for inline display
           // If we're on other routes, auto-navigate to dedicated approval page
-          if (location.pathname !== '/chat') {
+          const isChatRoute = location.pathname === '/' || location.pathname.startsWith('/chat')
+          if (!isChatRoute) {
             navigate(`/messages/${message.id}`)
           }
           else {
