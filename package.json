@@ -51,6 +51,7 @@
     "clsx": "^2.1.1",
     "cors": "^2.8.5",
     "electron-squirrel-startup": "^1.0.1",
+    "electron-updater": "^6.7.3",
     "express": "^4.21.2",
     "jose": "^6.1.0",
     "lodash": "^4.17.21",
