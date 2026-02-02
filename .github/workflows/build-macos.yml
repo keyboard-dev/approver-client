@@ -111,11 +111,36 @@ jobs:
           echo "Build artifact found: $ARTIFACT_PATH"
           ls -lh "$ARTIFACT_PATH"
 
+      - name: Generate update manifest
+        run: |
+          ARTIFACT_PATH="out/make/zip/darwin/universal/${{ steps.version.outputs.artifact_name }}"
+          SHA512=$(shasum -a 512 "$ARTIFACT_PATH" | awk '{print $1}' | xxd -r -p | base64)
+          SIZE=$(stat -f%z "$ARTIFACT_PATH")
+          VERSION="${{ steps.version.outputs.version }}"
+          FILENAME="${{ steps.version.outputs.artifact_name }}"
+          RELEASE_DATE=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
+
+          cat > out/make/zip/darwin/universal/latest-mac.yml << EOF
+          version: ${VERSION}
+          files:
+            - url: ${FILENAME}
+              sha512: ${SHA512}
+              size: ${SIZE}
+          path: ${FILENAME}
+          sha512: ${SHA512}
+          releaseDate: '${RELEASE_DATE}'
+          EOF
+
+          echo "Generated latest-mac.yml:"
+          cat out/make/zip/darwin/universal/latest-mac.yml
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: macos-universal-build
-          path: out/make/zip/darwin/universal/${{ steps.version.outputs.artifact_name }}
+          path: |
+            out/make/zip/darwin/universal/${{ steps.version.outputs.artifact_name }}
+            out/make/zip/darwin/universal/latest-mac.yml
           retention-days: 30
 
       - name: Cleanup keychain and secrets
@@ -160,6 +185,8 @@ jobs:
 
             ---
             *This is a pre-release build. Please report any issues.*
-          files: ./artifacts/${{ needs.build-macos.outputs.artifact_name }}
+          files: |
+            ./artifacts/${{ needs.build-macos.outputs.artifact_name }}
+            ./artifacts/latest-mac.yml
           prerelease: true
           generate_release_notes: true
