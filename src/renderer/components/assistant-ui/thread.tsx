@@ -28,6 +28,7 @@ import { LazyMotion, MotionConfig, domAnimation } from 'motion/react'
 import * as m from 'motion/react-m'
 import type { FC } from 'react'
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 import { Message, Script } from '../../../types'
 import { cn } from '../../lib/utils'
@@ -99,6 +100,7 @@ export const Thread: FC<ThreadCustomProps> = ({
   mcpError,
   onRetryMCP,
 }) => {
+  const navigate = useNavigate()
   const [selectedScripts, setSelectedScripts] = useState<Script[]>([])
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(false)
   const [rightSidebarOpen, setRightSidebarOpen] = useState(false)
@@ -189,6 +191,7 @@ export const Thread: FC<ThreadCustomProps> = ({
                 activeTab={activeSettingsTab}
                 onTabClick={handleSettingsTabClick}
                 onChatClick={handleBackToChat}
+                onApprovalRequestsClick={() => navigate('/')}
               />
             </div>
           )}

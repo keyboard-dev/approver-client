@@ -1,4 +1,4 @@
-import { MessageSquareIcon } from 'lucide-react'
+import { ClipboardCheckIcon, MessageSquareIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { cn } from '../../lib/utils'
 
@@ -24,6 +24,7 @@ interface ThreadLeftSidebarProps {
   activeTab?: SettingsTabType | null
   onTabClick?: (tab: SettingsTabType) => void
   onChatClick?: () => void
+  onApprovalRequestsClick?: () => void
 }
 
 export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
@@ -31,6 +32,7 @@ export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
   activeTab,
   onTabClick,
   onChatClick,
+  onApprovalRequestsClick,
 }) => {
   if (!isOpen) return null
 
@@ -55,6 +57,21 @@ export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
           isChatActive ? 'text-[#171717] font-semibold' : 'text-[#737373] font-medium'
         )}>
           Chat
+        </span>
+      </button>
+
+      {/* Approval Requests Option */}
+      <button
+        type="button"
+        onClick={onApprovalRequestsClick}
+        className={cn(
+          'flex items-center gap-[10px] px-[16px] py-[10px] w-full text-left transition-colors',
+          'hover:bg-[#e5e5e5]'
+        )}
+      >
+        <ClipboardCheckIcon className="size-[20px] text-[#171717]" />
+        <span className="text-[14px] leading-normal text-[#737373] font-medium">
+          Approval Requests
         </span>
       </button>
 
