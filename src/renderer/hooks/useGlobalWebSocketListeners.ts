@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Message, ShareMessage } from '../../types'
+import { currentThreadRef } from '../components/screens/ChatPage'
 import { useDatabase } from '../providers/DatabaseProvider'
 import { useAuth } from './useAuth'
 
@@ -37,22 +38,32 @@ export const useGlobalWebSocketListeners = () => {
       }
 
       try {
+        // Check if we're on a chat route and have thread context
+        const isChatRoute = location.pathname === '/' || location.pathname.startsWith('/chat')
+
+        // Attach thread context if we're in a chat and have a thread ID
+        const messageWithThread: Message = {
+          ...message,
+          ...(isChatRoute && currentThreadRef.threadId ? {
+            threadId: currentThreadRef.threadId,
+            threadTitle: currentThreadRef.threadTitle,
+          } : {}),
+        }
+
         // Save to database first (critical for persistence)
-        await addMessage(message)
+        await addMessage(messageWithThread)
 
         // For Security Evaluation Request and code response approval, navigate to detail view
         // BUT only if we're not on the home route (/) where chat mode might be active
         if (MESSAGE_TYPES_WITH_NAVIGATION.includes(message.title)) {
           // If we're on a chat route (/ or /chat), emit a custom event for inline display
           // If we're on other routes, auto-navigate to dedicated approval page
-          const isChatRoute = location.pathname === '/' || location.pathname.startsWith('/chat')
           if (!isChatRoute) {
             navigate(`/messages/${message.id}`)
           }
           else {
-            // On home route - emit custom event that App.tsx can listen for
-
-            window.dispatchEvent(new CustomEvent('chat-approval-message', { detail: message }))
+            // On chat route - emit custom event with thread context for inline display
+            window.dispatchEvent(new CustomEvent('chat-approval-message', { detail: messageWithThread }))
           }
         }
         // For other message types, don't navigate - let the current route handle the message

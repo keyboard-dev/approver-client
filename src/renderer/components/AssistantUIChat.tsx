@@ -6,6 +6,7 @@ import { useMCPEnhancedChat } from '../hooks/useMCPEnhancedChat'
 import { useWebSocketConnection } from '../hooks/useWebSocketConnection'
 import { AgenticStatusIndicator } from './AgenticStatusIndicator'
 import { Thread } from './assistant-ui/thread'
+import { ThreadTracker } from './assistant-ui/ThreadTracker'
 import { MCPChatComponent } from './MCPChatComponent'
 import { TooltipProvider } from './ui/tooltip'
 
@@ -185,6 +186,8 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
   return (
     <TooltipProvider>
       <AssistantRuntimeProvider runtime={runtime}>
+        {/* Track current thread for approval message association */}
+        <ThreadTracker />
         <div className="w-full h-full flex flex-col overflow-hidden">
           {selectedProvider === 'mcp'
             ? (

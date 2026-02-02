@@ -291,6 +291,27 @@
   color: #721c24;
 }
 
+/* Thread Badge Styles */
+.thread-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.5rem;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  background: #e5e5e5;
+  color: #525252;
+  margin-right: 0.5rem;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thread-badge:hover {
+  background: #d4d4d4;
+}
+
 .draggable {
   -webkit-app-region: drag;
 }
