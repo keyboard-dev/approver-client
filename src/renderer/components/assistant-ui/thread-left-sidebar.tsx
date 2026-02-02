@@ -1,3 +1,4 @@
+import { MessageSquareIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { cn } from '../../lib/utils'
 
@@ -22,17 +23,44 @@ interface ThreadLeftSidebarProps {
   isOpen: boolean
   activeTab?: SettingsTabType | null
   onTabClick?: (tab: SettingsTabType) => void
+  onChatClick?: () => void
 }
 
 export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
   isOpen,
   activeTab,
   onTabClick,
+  onChatClick,
 }) => {
   if (!isOpen) return null
 
+  // Chat is active when no settings tab is selected
+  const isChatActive = !activeTab
+
   return (
     <div className="flex flex-col h-full w-[180px] shrink-0 overflow-y-auto">
+      {/* Chat Option */}
+      <button
+        type="button"
+        onClick={onChatClick}
+        className={cn(
+          'flex items-center gap-[10px] px-[16px] py-[10px] w-full text-left transition-colors',
+          'hover:bg-[#e5e5e5]',
+          isChatActive ? 'bg-[#e5e5e5]' : ''
+        )}
+      >
+        <MessageSquareIcon className="size-[20px] text-[#171717]" />
+        <span className={cn(
+          'text-[14px] leading-normal',
+          isChatActive ? 'text-[#171717] font-semibold' : 'text-[#737373] font-medium'
+        )}>
+          Chat
+        </span>
+      </button>
+
+      {/* Divider */}
+      <div className="h-[1px] bg-[#dbdbdb] mx-[16px] my-[8px]" />
+
       {/* Settings Header */}
       <div className="px-[16px] py-[8px]">
         <p className="font-semibold text-[14px] text-[#737373] leading-normal">
@@ -49,7 +77,7 @@ export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
           className={cn(
             'px-[16px] py-[8px] w-full text-left transition-colors',
             'hover:bg-[#e5e5e5]',
-            activeTab === tab ? 'text-[#171717] font-semibold' : 'text-[#737373] font-medium'
+            activeTab === tab ? 'bg-[#e5e5e5] text-[#171717] font-semibold' : 'text-[#737373] font-medium'
           )}
         >
           <span className="text-[14px] leading-normal">

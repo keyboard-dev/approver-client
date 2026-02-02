@@ -6,7 +6,6 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   CopyIcon,
-  MessageSquareIcon,
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
   PanelRightCloseIcon,
@@ -181,7 +180,7 @@ export const Thread: FC<ThreadCustomProps> = ({
   return (
     <LazyMotion features={domAnimation}>
       <MotionConfig reducedMotion="user">
-        <div className="flex h-full w-full gap-0 overflow-hidden relative">
+        <div className="flex h-full w-full gap-0 overflow-hidden">
           {/* Left Sidebar - Settings Navigation */}
           {leftSidebarOpen && (
             <div className="h-full shrink-0 border-r border-[#dbdbdb]">
@@ -189,6 +188,7 @@ export const Thread: FC<ThreadCustomProps> = ({
                 isOpen={leftSidebarOpen}
                 activeTab={activeSettingsTab}
                 onTabClick={handleSettingsTabClick}
+                onChatClick={handleBackToChat}
               />
             </div>
           )}
@@ -300,25 +300,6 @@ export const Thread: FC<ThreadCustomProps> = ({
             </div>
           )}
 
-          {/* Floating "New chat" button - Shown when settings panel is active */}
-          {!showChat && (
-            <m.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="absolute top-4 right-4 z-10"
-            >
-              <button
-                type="button"
-                onClick={handleBackToChat}
-                className="flex items-center gap-2 bg-white border border-[#dbdbdb] rounded-full px-4 py-2 shadow-lg hover:shadow-xl hover:bg-[#fafafa] transition-all"
-              >
-                <MessageSquareIcon className="size-5 text-[#171717]" />
-                <span className="font-semibold text-[14px] text-[#171717]">
-                  New chat
-                </span>
-              </button>
-            </m.div>
-          )}
         </div>
       </MotionConfig>
     </LazyMotion>
