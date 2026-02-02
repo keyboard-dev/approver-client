@@ -175,22 +175,17 @@ export const Thread: FC<ThreadCustomProps> = ({
     }
   }
 
-  const handleBackToChat = () => {
-    setActiveSettingsTab(null)
-  }
-
   return (
     <LazyMotion features={domAnimation}>
       <MotionConfig reducedMotion="user">
         <div className="flex h-full w-full gap-0 overflow-hidden">
-          {/* Left Sidebar - Settings Navigation */}
+          {/* Left Sidebar - Thread List & Settings Navigation */}
           {leftSidebarOpen && (
             <div className="h-full shrink-0 border-r border-[#dbdbdb]">
               <ThreadLeftSidebar
                 isOpen={leftSidebarOpen}
                 activeTab={activeSettingsTab}
                 onTabClick={handleSettingsTabClick}
-                onChatClick={handleBackToChat}
                 onApprovalRequestsClick={() => navigate('/approvals')}
               />
             </div>

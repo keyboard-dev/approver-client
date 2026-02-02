@@ -2,17 +2,15 @@ import type { FC } from 'react'
 import {
   ThreadListItemPrimitive,
   ThreadListPrimitive,
-  useAssistantState,
 } from '@assistant-ui/react'
-import { ArchiveIcon, PlusIcon } from 'lucide-react'
+import { ArchiveIcon, PlusIcon, TrashIcon } from 'lucide-react'
 
-import { Button } from '../ui/button'
+import { cn } from '../../lib/utils'
 import { TooltipIconButton } from './tooltip-icon-button'
-import { Skeleton } from '../ui/skeleton'
 
 export const ThreadList: FC = () => {
   return (
-    <ThreadListPrimitive.Root className="aui-root aui-thread-list-root flex flex-col items-stretch gap-1.5">
+    <ThreadListPrimitive.Root className="aui-root aui-thread-list-root flex flex-col items-stretch gap-0.5">
       <ThreadListNew />
       <ThreadListItems />
     </ThreadListPrimitive.Root>
@@ -22,59 +20,47 @@ export const ThreadList: FC = () => {
 const ThreadListNew: FC = () => {
   return (
     <ThreadListPrimitive.New asChild>
-      <Button
-        className="aui-thread-list-new flex items-center justify-start gap-1 rounded-lg px-2.5 py-2 text-start hover:bg-muted data-active:bg-muted"
-        variant="ghost"
+      <button
+        type="button"
+        className={cn(
+          'flex items-center gap-[10px] px-[16px] py-[10px] w-full text-left transition-colors',
+          'hover:bg-[#e5e5e5] rounded-md'
+        )}
       >
-        <PlusIcon />
-        New Thread
-      </Button>
+        <PlusIcon className="size-[18px] text-[#171717]" />
+        <span className="text-[14px] leading-normal text-[#171717] font-medium">
+          New Chat
+        </span>
+      </button>
     </ThreadListPrimitive.New>
   )
 }
 
 const ThreadListItems: FC = () => {
-  const isLoading = useAssistantState(({ threads }) => threads.isLoading)
-
-  if (isLoading) {
-    return <ThreadListSkeleton />
-  }
-
   return <ThreadListPrimitive.Items components={{ ThreadListItem }} />
-}
-
-const ThreadListSkeleton: FC = () => {
-  return (
-    <>
-      {Array.from({ length: 5 }, (_, i) => (
-        <div
-          key={i}
-          role="status"
-          aria-label="Loading threads"
-          aria-live="polite"
-          className="aui-thread-list-skeleton-wrapper flex items-center gap-2 rounded-md px-3 py-2"
-        >
-          <Skeleton className="aui-thread-list-skeleton h-[22px] flex-grow" />
-        </div>
-      ))}
-    </>
-  )
 }
 
 const ThreadListItem: FC = () => {
   return (
-    <ThreadListItemPrimitive.Root className="aui-thread-list-item flex items-center gap-2 rounded-lg transition-all hover:bg-muted focus-visible:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none data-active:bg-muted">
-      <ThreadListItemPrimitive.Trigger className="aui-thread-list-item-trigger flex-grow px-3 py-2 text-start">
+    <ThreadListItemPrimitive.Root className={cn(
+      'aui-thread-list-item group flex items-center gap-2 rounded-md transition-all',
+      'hover:bg-[#e5e5e5] focus-visible:bg-[#e5e5e5] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+      'data-[active]:bg-[#e5e5e5]'
+    )}>
+      <ThreadListItemPrimitive.Trigger className="aui-thread-list-item-trigger flex-grow px-[16px] py-[8px] text-start min-w-0">
         <ThreadListItemTitle />
       </ThreadListItemPrimitive.Trigger>
-      <ThreadListItemArchive />
+      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity pr-2">
+        <ThreadListItemArchive />
+        <ThreadListItemDelete />
+      </div>
     </ThreadListItemPrimitive.Root>
   )
 }
 
 const ThreadListItemTitle: FC = () => {
   return (
-    <span className="aui-thread-list-item-title text-sm">
+    <span className="aui-thread-list-item-title text-[14px] leading-normal text-[#737373] font-medium truncate block">
       <ThreadListItemPrimitive.Title fallback="New Chat" />
     </span>
   )
@@ -84,12 +70,26 @@ const ThreadListItemArchive: FC = () => {
   return (
     <ThreadListItemPrimitive.Archive asChild>
       <TooltipIconButton
-        className="aui-thread-list-item-archive mr-3 ml-auto size-4 p-0 text-foreground hover:text-primary"
+        className="size-6 p-1 text-[#737373] hover:text-[#171717] hover:bg-[#dbdbdb] rounded"
         variant="ghost"
         tooltip="Archive thread"
       >
-        <ArchiveIcon />
+        <ArchiveIcon className="size-4" />
       </TooltipIconButton>
     </ThreadListItemPrimitive.Archive>
+  )
+}
+
+const ThreadListItemDelete: FC = () => {
+  return (
+    <ThreadListItemPrimitive.Delete asChild>
+      <TooltipIconButton
+        className="size-6 p-1 text-[#737373] hover:text-red-600 hover:bg-red-50 rounded"
+        variant="ghost"
+        tooltip="Delete thread"
+      >
+        <TrashIcon className="size-4" />
+      </TooltipIconButton>
+    </ThreadListItemPrimitive.Delete>
   )
 }

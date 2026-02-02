@@ -1,6 +1,8 @@
-import { ClipboardCheckIcon, MessageSquareIcon } from 'lucide-react'
+import { ClipboardCheckIcon, ChevronDownIcon, ChevronRightIcon, SettingsIcon } from 'lucide-react'
 import type { FC } from 'react'
+import { useState } from 'react'
 import { cn } from '../../lib/utils'
+import { ThreadList } from './thread-list'
 
 /**
  * Settings tabs matching the SettingsScreen
@@ -23,7 +25,6 @@ interface ThreadLeftSidebarProps {
   isOpen: boolean
   activeTab?: SettingsTabType | null
   onTabClick?: (tab: SettingsTabType) => void
-  onChatClick?: () => void
   onApprovalRequestsClick?: () => void
 }
 
@@ -31,77 +32,79 @@ export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
   isOpen,
   activeTab,
   onTabClick,
-  onChatClick,
   onApprovalRequestsClick,
 }) => {
+  const [settingsExpanded, setSettingsExpanded] = useState(false)
+
   if (!isOpen) return null
 
-  // Chat is active when no settings tab is selected
-  const isChatActive = !activeTab
-
   return (
-    <div className="flex flex-col h-full w-[180px] shrink-0 overflow-y-auto">
-      {/* Chat Option */}
-      <button
-        type="button"
-        onClick={onChatClick}
-        className={cn(
-          'flex items-center gap-[10px] px-[16px] py-[10px] w-full text-left transition-colors',
-          'hover:bg-[#e5e5e5]',
-          isChatActive ? 'bg-[#e5e5e5]' : ''
-        )}
-      >
-        <MessageSquareIcon className="size-[20px] text-[#171717]" />
-        <span className={cn(
-          'text-[14px] leading-normal',
-          isChatActive ? 'text-[#171717] font-semibold' : 'text-[#737373] font-medium'
-        )}>
-          Chat
-        </span>
-      </button>
-
-      {/* Approval Requests Option */}
-      <button
-        type="button"
-        onClick={onApprovalRequestsClick}
-        className={cn(
-          'flex items-center gap-[10px] px-[16px] py-[10px] w-full text-left transition-colors',
-          'hover:bg-[#e5e5e5]'
-        )}
-      >
-        <ClipboardCheckIcon className="size-[20px] text-[#171717]" />
-        <span className="text-[14px] leading-normal text-[#737373] font-medium">
-          Approval Requests
-        </span>
-      </button>
-
-      {/* Divider */}
-      <div className="h-[1px] bg-[#dbdbdb] mx-[16px] my-[8px]" />
-
-      {/* Settings Header */}
-      <div className="px-[16px] py-[8px]">
-        <p className="font-semibold text-[14px] text-[#737373] leading-normal">
-          Settings
-        </p>
+    <div className="flex flex-col h-full w-[220px] shrink-0 overflow-hidden bg-white">
+      {/* Thread List Section */}
+      <div className="flex-1 overflow-y-auto py-2">
+        <ThreadList />
       </div>
 
-      {/* Settings Navigation */}
-      {SETTINGS_TABS.map((tab) => (
+      {/* Bottom Section - Approval Requests & Settings */}
+      <div className="border-t border-[#dbdbdb] py-2">
+        {/* Approval Requests Option */}
         <button
-          key={tab}
           type="button"
-          onClick={() => onTabClick?.(tab)}
+          onClick={onApprovalRequestsClick}
           className={cn(
-            'px-[16px] py-[8px] w-full text-left transition-colors',
-            'hover:bg-[#e5e5e5]',
-            activeTab === tab ? 'bg-[#e5e5e5] text-[#171717] font-semibold' : 'text-[#737373] font-medium'
+            'flex items-center gap-[10px] px-[16px] py-[10px] w-full text-left transition-colors',
+            'hover:bg-[#e5e5e5]'
           )}
         >
-          <span className="text-[14px] leading-normal">
-            {tab}
+          <ClipboardCheckIcon className="size-[18px] text-[#737373]" />
+          <span className="text-[14px] leading-normal text-[#737373] font-medium">
+            Approval Requests
           </span>
         </button>
-      ))}
+
+        {/* Settings Collapsible */}
+        <button
+          type="button"
+          onClick={() => setSettingsExpanded(!settingsExpanded)}
+          className={cn(
+            'flex items-center gap-[10px] px-[16px] py-[10px] w-full text-left transition-colors',
+            'hover:bg-[#e5e5e5]',
+            activeTab ? 'bg-[#e5e5e5]' : ''
+          )}
+        >
+          <SettingsIcon className="size-[18px] text-[#737373]" />
+          <span className="text-[14px] leading-normal text-[#737373] font-medium flex-1">
+            Settings
+          </span>
+          {settingsExpanded ? (
+            <ChevronDownIcon className="size-[16px] text-[#737373]" />
+          ) : (
+            <ChevronRightIcon className="size-[16px] text-[#737373]" />
+          )}
+        </button>
+
+        {/* Settings Navigation - Collapsible */}
+        {settingsExpanded && (
+          <div className="pl-[28px]">
+            {SETTINGS_TABS.map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => onTabClick?.(tab)}
+                className={cn(
+                  'px-[16px] py-[6px] w-full text-left transition-colors rounded-md',
+                  'hover:bg-[#e5e5e5]',
+                  activeTab === tab ? 'bg-[#e5e5e5] text-[#171717] font-semibold' : 'text-[#737373] font-medium'
+                )}
+              >
+                <span className="text-[13px] leading-normal">
+                  {tab}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
