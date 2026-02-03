@@ -65,14 +65,15 @@ export const useGlobalWebSocketListeners = () => {
 
         // Check if this message is from our app via fingerprint matching
         // This helps distinguish our chat's run-code requests from external MCP clients
-        // Check both Security Evaluation Request AND code response approval since both come from run-code
-        const isApprovalType = message.title === 'code response approval' || message.title === 'Security Evaluation Request'
+        // Only Security Evaluation Request has the explanation - code response approval comes after execution
+        const isSecurityEvaluation = message.title === 'Security Evaluation Request'
 
-        console.log('[FINGERPRINT] Approval message received, title:', message.title)
-        console.log('[FINGERPRINT] Approval message explanation:', message.explanation ? message.explanation.slice(0, 50) + '...' : 'NONE')
-        console.log('[FINGERPRINT] Is approval type:', isApprovalType)
+        console.log('[FINGERPRINT] Message received, title:', message.title)
+        if (isSecurityEvaluation) {
+          console.log('[FINGERPRINT] Approval message explanation:', message.explanation ? message.explanation.slice(0, 50) + '...' : 'NONE')
+        }
 
-        const messageIsFromOurApp = isApprovalType
+        const messageIsFromOurApp = isSecurityEvaluation
           && !!message.explanation
           && isFromOurApp(message.explanation)
 
@@ -99,16 +100,29 @@ export const useGlobalWebSocketListeners = () => {
         console.log('[RENDERER-DEBUG] Message title matches navigation types:', MESSAGE_TYPES_WITH_NAVIGATION.includes(message.title))
 
         if (MESSAGE_TYPES_WITH_NAVIGATION.includes(message.title)) {
-          // If we're on a chat route (/ or /chat), emit a custom event for inline display
-          // If we're on other routes, auto-navigate to dedicated approval page
-          if (!isChatRoute) {
-            console.log('[RENDERER-DEBUG] Not on chat route, navigating to:', `/messages/${message.id}`)
-            navigate(`/messages/${message.id}`)
+          // For Security Evaluation Request: use fingerprint to decide inline vs full view
+          // For code response approval: always inline if on chat route (no fingerprint to check)
+          if (isSecurityEvaluation) {
+            // Security Evaluation Request - use fingerprint matching
+            if (!isChatRoute || !messageIsFromOurApp) {
+              console.log('[RENDERER-DEBUG] Security eval NOT from our app, navigating to full view:', `/messages/${message.id}`)
+              navigate(`/messages/${message.id}`)
+            }
+            else {
+              console.log('[RENDERER-DEBUG] Security eval from our app, dispatching inline event')
+              window.dispatchEvent(new CustomEvent('chat-approval-message', { detail: messageWithThread }))
+            }
           }
           else {
-            // On chat route - emit custom event with thread context for inline display
-            console.log('[RENDERER-DEBUG] On chat route, dispatching chat-approval-message event')
-            window.dispatchEvent(new CustomEvent('chat-approval-message', { detail: messageWithThread }))
+            // code response approval - no fingerprint, use original behavior
+            if (!isChatRoute) {
+              console.log('[RENDERER-DEBUG] Code response, not on chat route, navigating to:', `/messages/${message.id}`)
+              navigate(`/messages/${message.id}`)
+            }
+            else {
+              console.log('[RENDERER-DEBUG] Code response on chat route, dispatching inline event')
+              window.dispatchEvent(new CustomEvent('chat-approval-message', { detail: messageWithThread }))
+            }
           }
         }
         else {
