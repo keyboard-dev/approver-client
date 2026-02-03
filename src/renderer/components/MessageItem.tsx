@@ -1,3 +1,4 @@
+import { MessageSquareIcon } from 'lucide-react'
 import React from 'react'
 import { Message } from '../../types'
 
@@ -49,6 +50,12 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, onClick }) => {
         <div className="message-item-sender">
           {message.sender ? `From: ${message.sender}` : ''}
         </div>
+        {message.threadId && (
+          <span className="thread-badge" title={`From chat: ${message.threadTitle || 'New Chat'}`}>
+            <MessageSquareIcon className="w-3 h-3 inline mr-1" />
+            {message.threadTitle || 'Chat'}
+          </span>
+        )}
         {message.priority && (
           <span className={`priority-badge ${message.priority}`}>
             {message.priority}

@@ -153,6 +153,8 @@ export class WindowManager {
     if (this.mainWindow) {
       this.mainWindow.webContents.send(channel, ...args)
     }
+    else {
+    }
   }
 
   public showMessage(message: Message): void {

@@ -606,7 +606,6 @@ export class ExecutorWebSocketClient {
       this.ws = new WebSocket(target.url, { headers })
 
       this.ws!.on('open', () => {
-        // Reset reconnect state on successful connection
         this.reconnectAttempts = 0
 
         // Clear any pending reconnect timeout
@@ -633,7 +632,7 @@ export class ExecutorWebSocketClient {
 
           const message = JSON.parse(data.toString()) as ExecutorMessage
 
-          // Forward to message handler
+          // DEBUG: Log all incoming WebSocket messages
           this.onMessageReceived?.(message)
         }
         catch (error) {

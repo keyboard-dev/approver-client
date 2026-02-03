@@ -126,7 +126,7 @@ export const SettingsScreen: React.FC = () => {
   return (
     <>
       <button
-        onClick={() => navigate('/')}
+        onClick={() => navigate('/approvals')}
         className="text-[#737373]"
       >
         &lt;  Back to requests

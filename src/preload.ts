@@ -544,7 +544,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('show-message', callback)
   },
   onWebSocketMessage: (callback: (event: IpcRendererEvent, message: Message) => void): void => {
-    ipcRenderer.on('websocket-message', callback)
+    ipcRenderer.on('websocket-message', (event, message) => {
+      callback(event, message)
+    })
   },
   onCollectionShareRequest: (callback: (event: IpcRendererEvent, shareMessage: ShareMessage) => void): void => {
     ipcRenderer.on('collection-share-request', callback)
