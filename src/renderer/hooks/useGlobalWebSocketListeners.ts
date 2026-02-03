@@ -24,22 +24,43 @@ export const useGlobalWebSocketListeners = () => {
   const navigate = useNavigate()
   const location = useLocation()
   const { authStatus } = useAuth()
-  const { addMessage, addShareMessage } = useDatabase()
+  const { addMessage, addShareMessage, isInitialized } = useDatabase()
 
   // Define message types that should trigger automatic navigation to detail view
   const MESSAGE_TYPES_WITH_NAVIGATION = ['Security Evaluation Request', 'code response approval']
 
   useEffect(() => {
+    console.log('[RENDERER-DEBUG] useGlobalWebSocketListeners useEffect running')
+    console.log('[RENDERER-DEBUG] Auth status:', authStatus.authenticated)
+    console.log('[RENDERER-DEBUG] Database initialized:', isInitialized)
+
+    // Don't register listeners until database is initialized
+    if (!isInitialized) {
+      console.log('[RENDERER-DEBUG] Database not initialized yet, skipping listener registration')
+      return
+    }
+
     // Listen for websocket messages
     const handleWebSocketMessage = async (_event: unknown, message: Message) => {
+      console.log('[RENDERER-DEBUG] handleWebSocketMessage called!')
+      console.log('[RENDERER-DEBUG] Received message:', JSON.stringify(message, null, 2))
+      console.log('[RENDERER-DEBUG] Message title:', message.title)
+      console.log('[RENDERER-DEBUG] Message id:', message.id)
+      console.log('[RENDERER-DEBUG] Auth status authenticated:', authStatus.authenticated)
+      console.log('[RENDERER-DEBUG] Database initialized:', isInitialized)
+
       // Only handle messages if authenticated
       if (!authStatus.authenticated) {
+        console.log('[RENDERER-DEBUG] WARNING: Not authenticated, ignoring message')
         return
       }
 
       try {
         // Check if we're on a chat route and have thread context
         const isChatRoute = location.pathname === '/' || location.pathname.startsWith('/chat')
+        console.log('[RENDERER-DEBUG] Current pathname:', location.pathname)
+        console.log('[RENDERER-DEBUG] Is chat route:', isChatRoute)
+        console.log('[RENDERER-DEBUG] currentThreadRef:', currentThreadRef)
 
         // Attach thread context if we're in a chat and have a thread ID
         const messageWithThread: Message = {
@@ -50,26 +71,37 @@ export const useGlobalWebSocketListeners = () => {
           } : {}),
         }
 
+        console.log('[RENDERER-DEBUG] Saving message to database...')
         // Save to database first (critical for persistence)
         await addMessage(messageWithThread)
+        console.log('[RENDERER-DEBUG] Message saved to database successfully')
 
         // For Security Evaluation Request and code response approval, navigate to detail view
         // BUT only if we're not on the home route (/) where chat mode might be active
+        console.log('[RENDERER-DEBUG] MESSAGE_TYPES_WITH_NAVIGATION:', MESSAGE_TYPES_WITH_NAVIGATION)
+        console.log('[RENDERER-DEBUG] Message title matches navigation types:', MESSAGE_TYPES_WITH_NAVIGATION.includes(message.title))
+
         if (MESSAGE_TYPES_WITH_NAVIGATION.includes(message.title)) {
           // If we're on a chat route (/ or /chat), emit a custom event for inline display
           // If we're on other routes, auto-navigate to dedicated approval page
           if (!isChatRoute) {
+            console.log('[RENDERER-DEBUG] Not on chat route, navigating to:', `/messages/${message.id}`)
             navigate(`/messages/${message.id}`)
           }
           else {
             // On chat route - emit custom event with thread context for inline display
+            console.log('[RENDERER-DEBUG] On chat route, dispatching chat-approval-message event')
             window.dispatchEvent(new CustomEvent('chat-approval-message', { detail: messageWithThread }))
           }
+        }
+        else {
+          console.log('[RENDERER-DEBUG] Message title not in navigation types, not navigating')
         }
         // For other message types, don't navigate - let the current route handle the message
         // The message is already saved to DB, and route-specific components can query it
       }
       catch (error) {
+        console.error('[RENDERER-DEBUG] Error handling message:', error)
         if (MESSAGE_TYPES_WITH_NAVIGATION.includes(message.title)) {
           if (location.pathname !== '/') {
             navigate(`/messages/${message.id}`)
@@ -110,17 +142,26 @@ export const useGlobalWebSocketListeners = () => {
     }
 
     // Register event listeners
+    console.log('[RENDERER-DEBUG] Registering websocket-message listener')
     window.electronAPI.onWebSocketMessage(handleWebSocketMessage)
+    console.log('[RENDERER-DEBUG] websocket-message listener registered')
+
+    console.log('[RENDERER-DEBUG] Registering collection-share-request listener')
     window.electronAPI.onCollectionShareRequest(handleCollectionShareRequest)
+
+    console.log('[RENDERER-DEBUG] Registering show-share-message listener')
     window.electronAPI.onShowShareMessage(handleShowShareMessage)
+
+    console.log('[RENDERER-DEBUG] All listeners registered successfully')
 
     // Cleanup: Remove only these specific listeners
     // NOTE: We use removeAllListeners here because the current preload API doesn't
     // return cleanup functions. This is safe because Layout unmounts only when the app closes.
     return () => {
+      console.log('[RENDERER-DEBUG] Cleaning up listeners')
       window.electronAPI.removeAllListeners('websocket-message')
       window.electronAPI.removeAllListeners('collection-share-request')
       window.electronAPI.removeAllListeners('show-share-message')
     }
-  }, [authStatus.authenticated, navigate, location.pathname, addMessage, addShareMessage])
+  }, [authStatus.authenticated, navigate, location.pathname, addMessage, addShareMessage, isInitialized])
 }

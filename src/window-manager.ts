@@ -150,8 +150,17 @@ export class WindowManager {
   }
 
   public sendMessage(channel: string, ...args: unknown[]): void {
+    console.log('[WINDOW-DEBUG] sendMessage called')
+    console.log('[WINDOW-DEBUG] Channel:', channel)
+    console.log('[WINDOW-DEBUG] mainWindow exists:', !!this.mainWindow)
     if (this.mainWindow) {
+      console.log('[WINDOW-DEBUG] mainWindow.webContents exists:', !!this.mainWindow.webContents)
+      console.log('[WINDOW-DEBUG] Sending to webContents...')
       this.mainWindow.webContents.send(channel, ...args)
+      console.log('[WINDOW-DEBUG] Message sent to webContents successfully')
+    }
+    else {
+      console.log('[WINDOW-DEBUG] WARNING: mainWindow is null, cannot send message!')
     }
   }
 

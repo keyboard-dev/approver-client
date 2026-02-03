@@ -276,6 +276,7 @@ class MenuBarNotificationApp {
 
     // Initialize executor WebSocket client
     this.executorWSClient = new ExecutorWebSocketClient((message) => {
+      console.log('[MAIN-DEBUG] ExecutorWSClient received message, forwarding to handleExecutorMessage')
       this.handleExecutorMessage(message)
     })
 
@@ -709,50 +710,66 @@ class MenuBarNotificationApp {
    * Handle messages received from the executor WebSocket server
    */
   private handleExecutorMessage(message: { type: string, message?: Message, data?: unknown, id?: string, providerId?: string, requestId?: string }): void {
+    console.log('[MAIN-DEBUG] handleExecutorMessage called with message type:', message.type)
+    console.log('[MAIN-DEBUG] Full message:', JSON.stringify(message, null, 2))
     try {
-      // console.log('message', message)
       switch (message.type) {
         case 'websocket-message':
+          console.log('[MAIN-DEBUG] Handling websocket-message type')
           // Forward to existing message handling
           if (message.message) {
+            console.log('[MAIN-DEBUG] Message has nested message, forwarding to handleIncomingMessage')
+            console.log('[MAIN-DEBUG] Nested message title:', message.message.title)
+            console.log('[MAIN-DEBUG] Nested message id:', message.message.id)
             this.handleIncomingMessage(message.message)
+          }
+          else {
+            console.log('[MAIN-DEBUG] WARNING: websocket-message type but no nested message!')
           }
           break
 
         case 'collection-share-request':
+          console.log('[MAIN-DEBUG] Handling collection-share-request type')
           // Handle collection share requests
           this.handleCollectionShareRequest(message as never)
           break
 
         case 'prompter-request':
+          console.log('[MAIN-DEBUG] Handling prompter-request type')
           // Handle prompter requests
           this.handlePrompterRequest(message as never)
           break
 
         case 'prompt-response':
+          console.log('[MAIN-DEBUG] Handling prompt-response type')
           // Handle prompt responses
           this.handlePromptResponse(message as never)
           break
 
         case 'request-provider-token':
+          console.log('[MAIN-DEBUG] Handling request-provider-token type')
           // Handle provider token requests from executor - delegate to OAuthService
           this.oauthService.handleExecutorProviderTokenRequest(message)
           break
 
         case 'request-provider-status':
+          console.log('[MAIN-DEBUG] Handling request-provider-status type')
           // Handle provider status requests from executor - delegate to OAuthService
           this.oauthService.handleExecutorProviderStatusRequest(message)
           break
 
         case 'request-token':
+          console.log('[MAIN-DEBUG] Handling request-token type')
           // Handle legacy OAuth token requests from executor - delegate to AuthService
           this.handleExecutorTokenRequest(message)
           break
 
         default:
+          console.log('[MAIN-DEBUG] WARNING: Unhandled message type:', message.type)
       }
     }
     catch (error) {
+      console.error('[MAIN-DEBUG] Error in handleExecutorMessage:', error)
     }
   }
 
@@ -1497,6 +1514,11 @@ class MenuBarNotificationApp {
   }
 
   private handleIncomingMessage(message: Message): void {
+    console.log('[MAIN-DEBUG] handleIncomingMessage called')
+    console.log('[MAIN-DEBUG] Message title:', message.title)
+    console.log('[MAIN-DEBUG] Message id:', message.id)
+    console.log('[MAIN-DEBUG] Message status (before):', message.status)
+
     // Add timestamp if not provided
     if (!message.timestamp) {
       message.timestamp = Date.now()
@@ -1512,53 +1534,85 @@ class MenuBarNotificationApp {
 
     switch (message.title) {
       case 'Security Evaluation Request': {
+        console.log('[MAIN-DEBUG] Processing Security Evaluation Request')
         const { risk_level } = message
-        if (!risk_level) break
+        if (!risk_level) {
+          console.log('[MAIN-DEBUG] No risk_level found in message')
+          break
+        }
+
+        console.log('[MAIN-DEBUG] Risk level:', risk_level)
+        console.log('[MAIN-DEBUG] Automatic code approval setting:', this.automaticCodeApproval)
 
         const riskLevelIndex = CODE_APPROVAL_ORDER.indexOf(risk_level)
         const automaticCodeApprovalIndex = CODE_APPROVAL_ORDER.indexOf(this.automaticCodeApproval)
+        console.log('[MAIN-DEBUG] Risk level index:', riskLevelIndex, 'Auto approval index:', automaticCodeApprovalIndex)
+
         if (riskLevelIndex <= automaticCodeApprovalIndex) {
           message.status = 'approved'
+          console.log('[MAIN-DEBUG] Auto-approving message based on risk level')
         }
 
         break
       }
 
       case 'code response approval': {
+        console.log('[MAIN-DEBUG] Processing code response approval')
         const { codespaceResponse } = message
-        if (!codespaceResponse) break
+        if (!codespaceResponse) {
+          console.log('[MAIN-DEBUG] No codespaceResponse found in message')
+          break
+        }
 
         const { data: codespaceResponseData } = codespaceResponse
-        if (!codespaceResponseData) break
+        if (!codespaceResponseData) {
+          console.log('[MAIN-DEBUG] No codespaceResponseData found')
+          break
+        }
         const { stderr } = codespaceResponseData
+        console.log('[MAIN-DEBUG] stderr present:', !!stderr)
+        console.log('[MAIN-DEBUG] Automatic response approval setting:', this.automaticResponseApproval)
 
         switch (this.automaticResponseApproval) {
           case 'always':
             message.status = 'approved'
+            console.log('[MAIN-DEBUG] Auto-approving response (always)')
             break
           case 'success only':
             if (!stderr) {
               message.status = 'approved'
+              console.log('[MAIN-DEBUG] Auto-approving response (success only, no stderr)')
             }
             break
           default:
+            console.log('[MAIN-DEBUG] Not auto-approving response')
             break
         }
 
         break
       }
+
+      default:
+        console.log('[MAIN-DEBUG] Unknown message title, not auto-processing:', message.title)
     }
 
+    console.log('[MAIN-DEBUG] Message status (after processing):', message.status)
+
     if (message.status === 'approved') {
+      console.log('[MAIN-DEBUG] Message is approved, calling handleApproveMessage')
       this.handleApproveMessage(message)
     }
     else {
+      console.log('[MAIN-DEBUG] Message is pending, showing window')
       this.windowManager.showWindow()
     }
 
     // Send to renderer for storage in IndexedDB and display
+    console.log('[MAIN-DEBUG] Sending websocket-message to renderer via windowManager.sendMessage')
+    console.log('[MAIN-DEBUG] windowManager exists:', !!this.windowManager)
 
     this.windowManager.sendMessage('websocket-message', message)
+    console.log('[MAIN-DEBUG] websocket-message sent to renderer')
 
     // Auto-show window for high priority messages
     // this.windowManager.showWindow()

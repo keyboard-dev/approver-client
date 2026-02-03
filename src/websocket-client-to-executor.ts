@@ -606,6 +606,10 @@ export class ExecutorWebSocketClient {
       this.ws = new WebSocket(target.url, { headers })
 
       this.ws!.on('open', () => {
+        console.log('[WS-DEBUG] WebSocket connection OPENED to:', target.url)
+        console.log('[WS-DEBUG] Target type:', target.type)
+        console.log('[WS-DEBUG] Target name:', target.name)
+
         // Reset reconnect state on successful connection
         this.reconnectAttempts = 0
 
@@ -633,10 +637,18 @@ export class ExecutorWebSocketClient {
 
           const message = JSON.parse(data.toString()) as ExecutorMessage
 
+          // DEBUG: Log all incoming WebSocket messages
+          console.log('[WS-DEBUG] Raw WebSocket message received:', JSON.stringify(message, null, 2))
+          console.log('[WS-DEBUG] Message type:', message.type)
+          console.log('[WS-DEBUG] Message has onMessageReceived callback:', !!this.onMessageReceived)
+
           // Forward to message handler
           this.onMessageReceived?.(message)
+          console.log('[WS-DEBUG] Message forwarded to onMessageReceived callback')
         }
         catch (error) {
+          console.error('[WS-DEBUG] Error parsing WebSocket message:', error)
+          console.error('[WS-DEBUG] Raw data:', data.toString())
         }
       })
 
