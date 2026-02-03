@@ -1,43 +1,86 @@
 import type { FC } from 'react'
+import { useState } from 'react'
 import {
   ThreadListItemPrimitive,
   ThreadListPrimitive,
 } from '@assistant-ui/react'
-import { ArchiveIcon, PlusIcon, TrashIcon } from 'lucide-react'
+import { ArchiveIcon, ChevronDownIcon, ChevronUpIcon, PlusIcon, TrashIcon } from 'lucide-react'
 
 import { cn } from '../../lib/utils'
 import { TooltipIconButton } from './tooltip-icon-button'
 
-export const ThreadList: FC = () => {
+const VISIBLE_CHAT_LIMIT = 5
+
+/**
+ * New Chat button - exported for use in sidebar
+ */
+export const NewChatButton: FC = () => {
   return (
-    <ThreadListPrimitive.Root className="aui-root aui-thread-list-root flex flex-col items-stretch gap-0.5">
-      <ThreadListNew />
-      <ThreadListItems />
+    <ThreadListPrimitive.Root className="aui-root">
+      <ThreadListPrimitive.New asChild>
+        <button
+          type="button"
+          className={cn(
+            'flex items-center gap-[10px] px-[16px] py-[10px] w-full text-left transition-colors',
+            'hover:bg-[#e5e5e5] rounded-md',
+          )}
+        >
+          <PlusIcon className="size-[18px] text-[#171717]" />
+          <span className="text-[14px] leading-normal text-[#171717] font-medium">
+            New Chat
+          </span>
+        </button>
+      </ThreadListPrimitive.New>
     </ThreadListPrimitive.Root>
   )
 }
 
-const ThreadListNew: FC = () => {
+/**
+ * Thread list items with expand/collapse - exported for use in sidebar
+ */
+export const ThreadListItems: FC = () => {
+  const [expanded, setExpanded] = useState(false)
+
   return (
-    <ThreadListPrimitive.New asChild>
-      <button
-        type="button"
+    <div className="flex flex-col">
+      <ThreadListPrimitive.Root
         className={cn(
-          'flex items-center gap-[10px] px-[16px] py-[10px] w-full text-left transition-colors',
-          'hover:bg-[#e5e5e5] rounded-md',
+          'aui-root aui-thread-list-root flex flex-col items-stretch gap-0.5',
+          !expanded && 'thread-list-collapsed',
         )}
       >
-        <PlusIcon className="size-[18px] text-[#171717]" />
-        <span className="text-[14px] leading-normal text-[#171717] font-medium">
-          New Chat
-        </span>
-      </button>
-    </ThreadListPrimitive.New>
+        <ThreadListPrimitive.Items components={{ ThreadListItem }} />
+      </ThreadListPrimitive.Root>
+      <ExpandCollapseButton expanded={expanded} onToggle={() => setExpanded(!expanded)} />
+      <style>{`
+        .thread-list-collapsed .aui-thread-list-item:nth-child(n+${VISIBLE_CHAT_LIMIT + 1}) {
+          display: none;
+        }
+      `}</style>
+    </div>
   )
 }
 
-const ThreadListItems: FC = () => {
-  return <ThreadListPrimitive.Items components={{ ThreadListItem }} />
+const ExpandCollapseButton: FC<{ expanded: boolean; onToggle: () => void }> = ({ expanded, onToggle }) => {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className={cn(
+        'flex items-center justify-center gap-1 px-[16px] py-[6px] w-full text-left transition-colors',
+        'hover:bg-[#e5e5e5] rounded-md',
+      )}
+    >
+      {expanded ? (
+        <ChevronUpIcon className="size-[14px] text-[#737373]" />
+      ) : (
+        <ChevronDownIcon className="size-[14px] text-[#737373]" />
+      )}
+      <span className="text-[12px] leading-normal text-[#737373] font-medium">
+        {expanded ? 'Show less' : 'Show all'}
+      </span>
+    </button>
+  )
 }
 
 const ThreadListItem: FC = () => {
@@ -92,5 +135,17 @@ const ThreadListItemDelete: FC = () => {
         <TrashIcon className="size-4" />
       </TooltipIconButton>
     </ThreadListItemPrimitive.Delete>
+  )
+}
+
+/**
+ * Full ThreadList component (kept for backward compatibility)
+ */
+export const ThreadList: FC = () => {
+  return (
+    <div className="flex flex-col">
+      <NewChatButton />
+      <ThreadListItems />
+    </div>
   )
 }
