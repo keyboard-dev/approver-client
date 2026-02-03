@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { Message, ShareMessage } from '../../types'
 import { currentThreadRef } from '../components/screens/ChatPage'
 import { useDatabase } from '../providers/DatabaseProvider'
+import { isFromOurApp } from '../services/pending-tool-calls'
 import { useAuth } from './useAuth'
 
 /**
@@ -62,9 +63,25 @@ export const useGlobalWebSocketListeners = () => {
         console.log('[RENDERER-DEBUG] Is chat route:', isChatRoute)
         console.log('[RENDERER-DEBUG] currentThreadRef:', currentThreadRef)
 
+        // Check if this message is from our app via fingerprint matching
+        // This helps distinguish our chat's run-code requests from external MCP clients
+        // Check both Security Evaluation Request AND code response approval since both come from run-code
+        const isApprovalType = message.title === 'code response approval' || message.title === 'Security Evaluation Request'
+
+        console.log('[FINGERPRINT] Approval message received, title:', message.title)
+        console.log('[FINGERPRINT] Approval message explanation:', message.explanation ? message.explanation.slice(0, 50) + '...' : 'NONE')
+        console.log('[FINGERPRINT] Is approval type:', isApprovalType)
+
+        const messageIsFromOurApp = isApprovalType
+          && !!message.explanation
+          && isFromOurApp(message.explanation)
+
+        console.log('[FINGERPRINT] isFromOurApp result:', messageIsFromOurApp)
+
         // Attach thread context if we're in a chat and have a thread ID
         const messageWithThread: Message = {
           ...message,
+          isFromOurApp: messageIsFromOurApp,
           ...(isChatRoute && currentThreadRef.threadId ? {
             threadId: currentThreadRef.threadId,
             threadTitle: currentThreadRef.threadTitle,

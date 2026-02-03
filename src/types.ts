@@ -20,6 +20,8 @@ export interface Message {
   threadId?: string
   /** The title of the chat thread this message originated from */
   threadTitle?: string
+  /** Whether this message originated from our app (matched via fingerprint) */
+  isFromOurApp?: boolean
 }
 
 export interface AuthTokens {
