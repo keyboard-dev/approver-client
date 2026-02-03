@@ -1,24 +1,37 @@
-import { ClipboardCheckIcon } from 'lucide-react'
-import type { FC } from 'react'
+import {
+  BellIcon,
+  ClipboardCheckIcon,
+  CogIcon,
+  CpuIcon,
+  CreditCardIcon,
+  PlugIcon,
+  ShieldIcon,
+  ShieldCheckIcon,
+  WifiIcon,
+  ZapIcon,
+} from 'lucide-react'
+import type { FC, ReactNode } from 'react'
 import { cn } from '../../lib/utils'
 import { NewChatButton, ThreadListItems } from './thread-list'
 
 /**
- * Settings tabs matching the SettingsScreen
+ * Settings tabs with icons
  */
-const SETTINGS_TABS = [
-  'WebSocket',
-  'Security',
-  'Security Policies',
-  'AI Providers',
-  'AI Credits',
-  'Notifications',
-  'Connectors',
-  'Triggers',
-  'Advanced',
-] as const
+const SETTINGS_TABS: Array<{ id: SettingsTabId; label: string; icon: ReactNode }> = [
+  { id: 'WebSocket', label: 'WebSocket', icon: <WifiIcon className="size-[16px]" /> },
+  { id: 'Security', label: 'Security', icon: <ShieldIcon className="size-[16px]" /> },
+  { id: 'Security Policies', label: 'Security Policies', icon: <ShieldCheckIcon className="size-[16px]" /> },
+  { id: 'AI Providers', label: 'AI Providers', icon: <CpuIcon className="size-[16px]" /> },
+  { id: 'AI Credits', label: 'AI Credits', icon: <CreditCardIcon className="size-[16px]" /> },
+  { id: 'Notifications', label: 'Notifications', icon: <BellIcon className="size-[16px]" /> },
+  { id: 'Connectors', label: 'Connectors', icon: <PlugIcon className="size-[16px]" /> },
+  { id: 'Triggers', label: 'Triggers', icon: <ZapIcon className="size-[16px]" /> },
+  { id: 'Advanced', label: 'Advanced', icon: <CogIcon className="size-[16px]" /> },
+]
 
-export type SettingsTabType = typeof SETTINGS_TABS[number]
+type SettingsTabId = 'WebSocket' | 'Security' | 'Security Policies' | 'AI Providers' | 'AI Credits' | 'Notifications' | 'Connectors' | 'Triggers' | 'Advanced'
+
+export type SettingsTabType = SettingsTabId
 
 interface ThreadLeftSidebarProps {
   isOpen: boolean
@@ -63,17 +76,20 @@ export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
         <div className="pl-[28px]">
           {SETTINGS_TABS.map(tab => (
             <button
-              key={tab}
+              key={tab.id}
               type="button"
-              onClick={() => onTabClick?.(tab)}
+              onClick={() => onTabClick?.(tab.id)}
               className={cn(
-                'px-[16px] py-[6px] w-full text-left transition-colors rounded-md',
+                'flex items-center gap-[8px] px-[12px] py-[6px] w-full text-left transition-colors rounded-md',
                 'hover:bg-[#e5e5e5]',
-                activeTab === tab ? 'bg-[#e5e5e5] text-[#171717] font-semibold' : 'text-[#737373] font-medium',
+                activeTab === tab.id ? 'bg-[#e5e5e5] text-[#171717] font-semibold' : 'text-[#737373] font-medium',
               )}
             >
+              <span className={activeTab === tab.id ? 'text-[#171717]' : 'text-[#737373]'}>
+                {tab.icon}
+              </span>
               <span className="text-[13px] leading-normal">
-                {tab}
+                {tab.label}
               </span>
             </button>
           ))}
