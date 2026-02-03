@@ -25,6 +25,7 @@ interface ThreadLeftSidebarProps {
   activeTab?: SettingsTabType | null
   onTabClick?: (tab: SettingsTabType) => void
   onApprovalRequestsClick?: () => void
+  onChatSelect?: () => void
 }
 
 export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
@@ -32,6 +33,7 @@ export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
   activeTab,
   onTabClick,
   onApprovalRequestsClick,
+  onChatSelect,
 }) => {
   if (!isOpen) return null
 
@@ -40,7 +42,7 @@ export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
       {/* Top Section - New Chat, Approval Requests & Settings */}
       <div className="py-2">
         {/* New Chat Button */}
-        <NewChatButton />
+        <NewChatButton onChatSelect={onChatSelect} />
 
         {/* Approval Requests Option */}
         <button
@@ -80,7 +82,7 @@ export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
 
       {/* Bottom Section - Chat History */}
       <div className="flex-1 overflow-y-auto border-t border-[#dbdbdb] py-2">
-        <ThreadListItems />
+        <ThreadListItems onChatSelect={onChatSelect} />
       </div>
     </div>
   )

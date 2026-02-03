@@ -11,15 +11,20 @@ import { TooltipIconButton } from './tooltip-icon-button'
 
 const VISIBLE_CHAT_LIMIT = 5
 
+interface NewChatButtonProps {
+  onChatSelect?: () => void
+}
+
 /**
  * New Chat button - exported for use in sidebar
  */
-export const NewChatButton: FC = () => {
+export const NewChatButton: FC<NewChatButtonProps> = ({ onChatSelect }) => {
   return (
     <ThreadListPrimitive.Root className="aui-root">
       <ThreadListPrimitive.New asChild>
         <button
           type="button"
+          onClick={onChatSelect}
           className={cn(
             'flex items-center gap-[10px] px-[16px] py-[10px] w-full text-left transition-colors',
             'hover:bg-[#e5e5e5] rounded-md',
@@ -35,10 +40,14 @@ export const NewChatButton: FC = () => {
   )
 }
 
+interface ThreadListItemsProps {
+  onChatSelect?: () => void
+}
+
 /**
  * Thread list items with expand/collapse - exported for use in sidebar
  */
-export const ThreadListItems: FC = () => {
+export const ThreadListItems: FC<ThreadListItemsProps> = ({ onChatSelect }) => {
   const [expanded, setExpanded] = useState(false)
 
   return (
@@ -49,7 +58,7 @@ export const ThreadListItems: FC = () => {
           !expanded && 'thread-list-collapsed',
         )}
       >
-        <ThreadListPrimitive.Items components={{ ThreadListItem }} />
+        <ThreadListPrimitive.Items components={{ ThreadListItem: () => <ThreadListItem onChatSelect={onChatSelect} /> }} />
       </ThreadListPrimitive.Root>
       <ExpandCollapseButton expanded={expanded} onToggle={() => setExpanded(!expanded)} />
       <style>{`
@@ -83,15 +92,23 @@ const ExpandCollapseButton: FC<{ expanded: boolean; onToggle: () => void }> = ({
   )
 }
 
-const ThreadListItem: FC = () => {
+interface ThreadListItemProps {
+  onChatSelect?: () => void
+}
+
+const ThreadListItem: FC<ThreadListItemProps> = ({ onChatSelect }) => {
   return (
-    <ThreadListItemPrimitive.Root className={cn(
-      'aui-thread-list-item group flex items-center gap-2 rounded-md transition-all',
-      'hover:bg-[#e5e5e5] focus-visible:bg-[#e5e5e5] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
-      'data-[active]:bg-[#e5e5e5]',
-    )}
+    <ThreadListItemPrimitive.Root
+      className={cn(
+        'aui-thread-list-item group flex items-center gap-2 rounded-md transition-all',
+        'hover:bg-[#e5e5e5] focus-visible:bg-[#e5e5e5] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+        'data-[active]:bg-[#e5e5e5]',
+      )}
     >
-      <ThreadListItemPrimitive.Trigger className="aui-thread-list-item-trigger flex-grow px-[16px] py-[8px] text-start min-w-0">
+      <ThreadListItemPrimitive.Trigger
+        className="aui-thread-list-item-trigger flex-grow px-[16px] py-[8px] text-start min-w-0"
+        onClick={onChatSelect}
+      >
         <ThreadListItemTitle />
       </ThreadListItemPrimitive.Trigger>
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity pr-2">

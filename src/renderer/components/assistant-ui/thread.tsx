@@ -188,6 +188,7 @@ export const Thread: FC<ThreadCustomProps> = ({
                 activeTab={activeSettingsTab}
                 onTabClick={handleSettingsTabClick}
                 onApprovalRequestsClick={() => navigate('/approvals')}
+                onChatSelect={() => setActiveSettingsTab(null)}
               />
             </div>
           )}
