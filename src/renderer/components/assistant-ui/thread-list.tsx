@@ -1,15 +1,12 @@
 import type { FC } from 'react'
-import { useState } from 'react'
 import {
   ThreadListItemPrimitive,
   ThreadListPrimitive,
 } from '@assistant-ui/react'
-import { ArchiveIcon, ChevronDownIcon, ChevronUpIcon, PlusIcon, TrashIcon } from 'lucide-react'
+import { ArchiveIcon, PlusIcon, TrashIcon } from 'lucide-react'
 
 import { cn } from '../../lib/utils'
 import { TooltipIconButton } from './tooltip-icon-button'
-
-const VISIBLE_CHAT_LIMIT = 5
 
 interface NewChatButtonProps {
   onChatSelect?: () => void
@@ -45,50 +42,13 @@ interface ThreadListItemsProps {
 }
 
 /**
- * Thread list items with expand/collapse - exported for use in sidebar
+ * Thread list items - exported for use in sidebar
  */
 export const ThreadListItems: FC<ThreadListItemsProps> = ({ onChatSelect }) => {
-  const [expanded, setExpanded] = useState(false)
-
   return (
-    <div className="flex flex-col">
-      <ThreadListPrimitive.Root
-        className={cn(
-          'aui-root aui-thread-list-root flex flex-col items-stretch gap-0.5',
-          !expanded && 'thread-list-collapsed',
-        )}
-      >
-        <ThreadListPrimitive.Items components={{ ThreadListItem: () => <ThreadListItem onChatSelect={onChatSelect} /> }} />
-      </ThreadListPrimitive.Root>
-      <ExpandCollapseButton expanded={expanded} onToggle={() => setExpanded(!expanded)} />
-      <style>{`
-        .thread-list-collapsed .aui-thread-list-item:nth-child(n+${VISIBLE_CHAT_LIMIT + 1}) {
-          display: none;
-        }
-      `}</style>
-    </div>
-  )
-}
-
-const ExpandCollapseButton: FC<{ expanded: boolean; onToggle: () => void }> = ({ expanded, onToggle }) => {
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      className={cn(
-        'flex items-center justify-center gap-1 px-[16px] py-[6px] w-full text-left transition-colors',
-        'hover:bg-[#e5e5e5] rounded-md',
-      )}
-    >
-      {expanded ? (
-        <ChevronUpIcon className="size-[14px] text-[#737373]" />
-      ) : (
-        <ChevronDownIcon className="size-[14px] text-[#737373]" />
-      )}
-      <span className="text-[12px] leading-normal text-[#737373] font-medium">
-        {expanded ? 'Show less' : 'Show all'}
-      </span>
-    </button>
+    <ThreadListPrimitive.Root className="aui-root aui-thread-list-root flex flex-col items-stretch gap-0.5">
+      <ThreadListPrimitive.Items components={{ ThreadListItem: () => <ThreadListItem onChatSelect={onChatSelect} /> }} />
+    </ThreadListPrimitive.Root>
   )
 }
 
