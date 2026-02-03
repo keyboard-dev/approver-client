@@ -186,8 +186,8 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
   return (
     <TooltipProvider>
       <AssistantRuntimeProvider runtime={runtime}>
-        {/* Track current thread for approval message association */}
-        <ThreadTracker />
+        {/* Track current thread for approval message association and title generation */}
+        <ThreadTracker onTitleCallbackReady={mcpChat.setThreadTitleCallback} />
         <div className="w-full h-full flex flex-col overflow-hidden">
           {selectedProvider === 'mcp'
             ? (

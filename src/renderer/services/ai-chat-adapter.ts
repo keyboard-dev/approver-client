@@ -22,9 +22,19 @@ export class AIChatAdapter implements ChatModelAdapter {
   private onTaskProgress?: (progress: { step: number, totalSteps: number, currentAction: string, isComplete: boolean }) => void
   private pingInterval: NodeJS.Timeout | null = null
   private isToolsExecuting = false
+  private onThreadTitleGenerated?: (title: string) => void
+  private titleGeneratedForThread = false
 
   constructor(provider: string = 'openai', model?: string, mcpEnabled: boolean = false) {
     this.currentProvider = { provider, model, mcpEnabled }
+  }
+
+  setThreadTitleCallback(callback: (title: string) => void) {
+    this.onThreadTitleGenerated = callback
+  }
+
+  resetTitleGeneration() {
+    this.titleGeneratedForThread = false
   }
 
   setProvider(provider: string, model?: string, mcpEnabled?: boolean) {
@@ -99,6 +109,39 @@ export class AIChatAdapter implements ChatModelAdapter {
 
   private cleanup() {
     this.stopPeriodicPing()
+  }
+
+  /**
+   * Generate a thread title using AI based on the user's first message
+   */
+  private async generateThreadTitle(userMessage: string): Promise<void> {
+    if (this.titleGeneratedForThread || !this.onThreadTitleGenerated) {
+      return
+    }
+
+    this.titleGeneratedForThread = true
+
+    try {
+      const response = await window.electronAPI.sendAIMessage(
+        'keyboard',
+        [
+          {
+            role: 'system',
+            content: 'Generate a brief 3-6 word title for this chat based on the user message. Return ONLY the title, no quotes or punctuation.',
+          },
+          { role: 'user', content: userMessage },
+        ],
+        { model: 'claude-haiku-4-5-20251001' },
+      )
+
+      const title = response?.trim()
+      if (title && title.length > 0) {
+        this.onThreadTitleGenerated(title)
+      }
+    }
+    catch (error) {
+      // Silently fail - keep default "New Chat" title
+    }
   }
 
   private extractKeywords(text: string): string[] {
@@ -816,6 +859,13 @@ ${analysisResponse}`
           content: textContent,
         }
       })
+
+      // Check if this is the first user message and generate thread title
+      const userMessages = aiMessages.filter(m => m.role === 'user')
+      if (userMessages.length === 1 && userMessages[0]?.content) {
+        // Generate title asynchronously (non-blocking)
+        this.generateThreadTitle(userMessages[0].content)
+      }
 
       // Inject enhanced context into system prompt for keyboard provider
       if (this.currentProvider.provider === 'keyboard' && this.currentProvider.mcpEnabled && aiMessages.length > 0) {

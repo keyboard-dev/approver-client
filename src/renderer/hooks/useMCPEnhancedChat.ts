@@ -71,6 +71,7 @@ export interface MCPEnhancedChatState {
   setAbilityExecutionState: (isExecuting: boolean, abilityName?: string) => void
   setAgenticMode: (enabled: boolean) => void
   setSelectedScripts: (scripts: Script[]) => void
+  setThreadTitleCallback: (callback: (title: string) => void) => void
 
   // Execution tracking functions
   addExecution: (abilityName: string, parameters: Record<string, unknown>, provider?: string) => string
@@ -210,6 +211,11 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
     adapter.setSelectedScripts(scripts)
   }, [adapter])
 
+  // Set thread title callback
+  const setThreadTitleCallback = useCallback((callback: (title: string) => void) => {
+    adapter.setThreadTitleCallback(callback)
+  }, [adapter])
+
   return {
     adapter,
     mcpEnabled,
@@ -226,6 +232,7 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
     setAbilityExecutionState, // Expose for adapter to call
     setAgenticMode,
     setSelectedScripts,
+    setThreadTitleCallback,
     addExecution,
     updateExecution,
     clearExecutions,
