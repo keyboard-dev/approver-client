@@ -126,6 +126,7 @@ jobs:
 
       - name: Build macOS universal binary
         env:
+          APP_NAME: ${{ env.APP_NAME }}
           DOTENV_PRIVATE_KEY: ${{ secrets.DOTENV_PRIVATE_KEY }}
         run: dotenvx run -- npm run build-mac-universal
 
