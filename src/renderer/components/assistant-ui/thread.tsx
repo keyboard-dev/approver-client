@@ -170,7 +170,8 @@ export const Thread: FC<ThreadCustomProps> = ({
     if (activeSettingsTab === tab) {
       // Toggle off if clicking same tab
       setActiveSettingsTab(null)
-    } else {
+    }
+    else {
       setActiveSettingsTab(tab)
     }
   }
@@ -221,11 +222,13 @@ export const Thread: FC<ThreadCustomProps> = ({
                     className="flex items-center justify-center p-[2px] hover:bg-[#ebebeb] rounded-md transition-colors"
                     aria-label={leftSidebarOpen ? 'Close settings' : 'Open settings'}
                   >
-                    {leftSidebarOpen ? (
-                      <PanelLeftCloseIcon className="size-[20px] text-[#171717]" />
-                    ) : (
-                      <PanelLeftOpenIcon className="size-[20px] text-[#171717]" />
-                    )}
+                    {leftSidebarOpen
+                      ? (
+                          <PanelLeftCloseIcon className="size-[20px] text-[#171717]" />
+                        )
+                      : (
+                          <PanelLeftOpenIcon className="size-[20px] text-[#171717]" />
+                        )}
                   </button>
                   <p className="font-semibold text-[16px] text-[#171717]">
                     New chat
@@ -238,11 +241,13 @@ export const Thread: FC<ThreadCustomProps> = ({
                   className="flex items-center justify-center p-[2px] hover:bg-[#ebebeb] rounded-md transition-colors"
                   aria-label={rightSidebarOpen ? 'Close sidebar' : 'Open sidebar'}
                 >
-                  {rightSidebarOpen ? (
-                    <PanelRightCloseIcon className="size-[20px] text-[#171717]" />
-                  ) : (
-                    <PanelRightOpenIcon className="size-[20px] text-[#171717]" />
-                  )}
+                  {rightSidebarOpen
+                    ? (
+                        <PanelRightCloseIcon className="size-[20px] text-[#171717]" />
+                      )
+                    : (
+                        <PanelRightOpenIcon className="size-[20px] text-[#171717]" />
+                      )}
                 </button>
               </div>
 
@@ -475,7 +480,9 @@ const Composer: FC<ComposerProps> = ({ selectedScripts = [], onScriptSelect }) =
             </button>
             {selectedScripts.length > 0 && (
               <span className="text-xs text-[#737373] bg-[#ebebeb] px-2 py-0.5 rounded-full">
-                {selectedScripts.length} selected
+                {selectedScripts.length}
+                {' '}
+                selected
               </span>
             )}
           </div>

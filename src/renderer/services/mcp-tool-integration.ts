@@ -229,8 +229,6 @@ export function useMCPIntegration(
           ? abilityArgs.explanation_of_code
           : undefined
 
-        console.log('[FINGERPRINT] run-code called, explanation_of_code:', explanation ? explanation.slice(0, 50) + '...' : 'NONE')
-
         const fingerprint = explanation ? generateFingerprint(explanation) : undefined
 
         // Register a pending call that can be resolved by approval

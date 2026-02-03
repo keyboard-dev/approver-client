@@ -24,7 +24,7 @@ const ThreadListNew: FC = () => {
         type="button"
         className={cn(
           'flex items-center gap-[10px] px-[16px] py-[10px] w-full text-left transition-colors',
-          'hover:bg-[#e5e5e5] rounded-md'
+          'hover:bg-[#e5e5e5] rounded-md',
         )}
       >
         <PlusIcon className="size-[18px] text-[#171717]" />
@@ -45,8 +45,9 @@ const ThreadListItem: FC = () => {
     <ThreadListItemPrimitive.Root className={cn(
       'aui-thread-list-item group flex items-center gap-2 rounded-md transition-all',
       'hover:bg-[#e5e5e5] focus-visible:bg-[#e5e5e5] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
-      'data-[active]:bg-[#e5e5e5]'
-    )}>
+      'data-[active]:bg-[#e5e5e5]',
+    )}
+    >
       <ThreadListItemPrimitive.Trigger className="aui-thread-list-item-trigger flex-grow px-[16px] py-[8px] text-start min-w-0">
         <ThreadListItemTitle />
       </ThreadListItemPrimitive.Trigger>

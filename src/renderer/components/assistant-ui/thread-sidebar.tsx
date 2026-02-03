@@ -75,7 +75,7 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
           <ChevronDownIcon
             className={cn(
               'size-[24px] text-[#171717] transition-transform duration-200',
-              !modelPreferencesOpen && '-rotate-90'
+              !modelPreferencesOpen && '-rotate-90',
             )}
           />
           <p className="flex-1 font-semibold text-[16px] text-[#171717] leading-normal">
@@ -109,8 +109,9 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
                     >
                       <span className={cn(
                         'font-medium text-[14px]',
-                        provider.id === selectedProvider ? 'text-[#171717]' : 'text-[#737373]'
-                      )}>
+                        provider.id === selectedProvider ? 'text-[#171717]' : 'text-[#737373]',
+                      )}
+                      >
                         {provider.name}
                       </span>
                     </DropdownMenuItem>
@@ -141,8 +142,9 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
                     >
                       <span className={cn(
                         'font-medium text-[14px]',
-                        model.id === selectedModel ? 'text-[#171717]' : 'text-[#737373]'
-                      )}>
+                        model.id === selectedModel ? 'text-[#171717]' : 'text-[#737373]',
+                      )}
+                      >
                         {model.name}
                       </span>
                     </DropdownMenuItem>
@@ -167,7 +169,7 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
           <ChevronDownIcon
             className={cn(
               'size-[24px] text-[#171717] transition-transform duration-200',
-              !connectorsOpen && '-rotate-90'
+              !connectorsOpen && '-rotate-90',
             )}
           />
           <p className="flex-1 font-semibold text-[16px] text-[#171717] leading-normal">
@@ -183,48 +185,54 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
 
             {/* Connection status box */}
             <div className="bg-[#fafafa] border border-[#dbdbdb] flex flex-col p-[10px] rounded-[12px] w-full">
-              {mcpConnected ? (
-                <>
-                  <div className="flex items-center justify-between">
-                    <p className="font-medium text-[14px] text-[#737373] leading-normal">
-                      MCP Server
-                    </p>
-                    <Badge className="text-xs h-5 bg-[#22c55e] text-white border-0 hover:bg-[#22c55e]">
-                      Connected
-                    </Badge>
-                  </div>
-                  {mcpAbilities !== undefined && (
-                    <p className="font-medium text-[12px] text-[#a5a5a5] leading-normal mt-1">
-                      {mcpAbilities} abilities available
-                    </p>
-                  )}
-                </>
-              ) : mcpError ? (
-                <div className="flex items-center justify-between">
-                  <p className="font-medium text-[14px] text-[#737373] leading-normal">
-                    MCP Server
-                  </p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={onRetryMCP}
-                    className="text-xs h-5 px-2"
-                  >
-                    Retry
-                  </Button>
-                </div>
-              ) : (
-                <div className="flex items-center justify-between">
-                  <p className="font-medium text-[14px] text-[#737373] leading-normal">
-                    {mcpConnected === false ? 'None in use' : 'Connecting...'}
-                  </p>
-                  {mcpConnected !== false && (
-                    <Badge variant="secondary" className="text-xs h-5">
-                      Connecting...
-                    </Badge>
-                  )}
-                </div>
-              )}
+              {mcpConnected
+                ? (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <p className="font-medium text-[14px] text-[#737373] leading-normal">
+                          MCP Server
+                        </p>
+                        <Badge className="text-xs h-5 bg-[#22c55e] text-white border-0 hover:bg-[#22c55e]">
+                          Connected
+                        </Badge>
+                      </div>
+                      {mcpAbilities !== undefined && (
+                        <p className="font-medium text-[12px] text-[#a5a5a5] leading-normal mt-1">
+                          {mcpAbilities}
+                          {' '}
+                          abilities available
+                        </p>
+                      )}
+                    </>
+                  )
+                : mcpError
+                  ? (
+                      <div className="flex items-center justify-between">
+                        <p className="font-medium text-[14px] text-[#737373] leading-normal">
+                          MCP Server
+                        </p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={onRetryMCP}
+                          className="text-xs h-5 px-2"
+                        >
+                          Retry
+                        </Button>
+                      </div>
+                    )
+                  : (
+                      <div className="flex items-center justify-between">
+                        <p className="font-medium text-[14px] text-[#737373] leading-normal">
+                          {mcpConnected === false ? 'None in use' : 'Connecting...'}
+                        </p>
+                        {mcpConnected !== false && (
+                          <Badge variant="secondary" className="text-xs h-5">
+                            Connecting...
+                          </Badge>
+                        )}
+                      </div>
+                    )}
             </div>
 
             {/* Connect more apps button */}
@@ -241,10 +249,12 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
             {/* Docs link */}
             <div className="flex flex-col gap-[6px] w-full">
               <p className="font-medium text-[14px] text-[#a5a5a5] leading-normal">
-                See our{' '}
+                See our
+                {' '}
                 <span className="font-semibold text-[#171717] cursor-pointer hover:underline">
                   docs
-                </span>{' '}
+                </span>
+                {' '}
                 to learn more about how connectors work or how to connect any app.
               </p>
             </div>

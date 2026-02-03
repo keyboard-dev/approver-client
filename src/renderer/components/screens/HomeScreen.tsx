@@ -80,9 +80,10 @@ export const HomeScreen: React.FC = () => {
             setApprovalMessage(fetchedMessage)
           }
         }
-      } catch (err) {
-        console.error('Failed to load approval message:', err)
-      } finally {
+      }
+      catch (err) {
+      }
+      finally {
         setIsLoading(false)
       }
     }
@@ -128,8 +129,8 @@ export const HomeScreen: React.FC = () => {
       }
 
       setApprovalMessage(null)
-    } catch (error) {
-      console.error('Failed to approve message:', error)
+    }
+    catch (error) {
     }
   }
 
@@ -142,8 +143,8 @@ export const HomeScreen: React.FC = () => {
 
       await window.electronAPI.sendMessageResponse(updatedMessage)
       setApprovalMessage(null)
-    } catch (error) {
-      console.error('Failed to reject message:', error)
+    }
+    catch (error) {
     }
   }
 

@@ -40,13 +40,10 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({ children }) 
   useEffect(() => {
     const initDatabase = async () => {
       try {
-        console.log('[DB-DEBUG] Starting database initialization...')
         await databaseService.initialize()
-        console.log('[DB-DEBUG] Database initialized successfully')
         setIsInitialized(true)
       }
       catch (error) {
-        console.error('[DB-DEBUG] Database initialization failed:', error)
       }
     }
 

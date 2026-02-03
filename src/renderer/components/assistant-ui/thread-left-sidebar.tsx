@@ -53,7 +53,7 @@ export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
           onClick={onApprovalRequestsClick}
           className={cn(
             'flex items-center gap-[10px] px-[16px] py-[10px] w-full text-left transition-colors',
-            'hover:bg-[#e5e5e5]'
+            'hover:bg-[#e5e5e5]',
           )}
         >
           <ClipboardCheckIcon className="size-[18px] text-[#737373]" />
@@ -69,24 +69,26 @@ export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
           className={cn(
             'flex items-center gap-[10px] px-[16px] py-[10px] w-full text-left transition-colors',
             'hover:bg-[#e5e5e5]',
-            activeTab ? 'bg-[#e5e5e5]' : ''
+            activeTab ? 'bg-[#e5e5e5]' : '',
           )}
         >
           <SettingsIcon className="size-[18px] text-[#737373]" />
           <span className="text-[14px] leading-normal text-[#737373] font-medium flex-1">
             Settings
           </span>
-          {settingsExpanded ? (
-            <ChevronDownIcon className="size-[16px] text-[#737373]" />
-          ) : (
-            <ChevronRightIcon className="size-[16px] text-[#737373]" />
-          )}
+          {settingsExpanded
+            ? (
+                <ChevronDownIcon className="size-[16px] text-[#737373]" />
+              )
+            : (
+                <ChevronRightIcon className="size-[16px] text-[#737373]" />
+              )}
         </button>
 
         {/* Settings Navigation - Collapsible */}
         {settingsExpanded && (
           <div className="pl-[28px]">
-            {SETTINGS_TABS.map((tab) => (
+            {SETTINGS_TABS.map(tab => (
               <button
                 key={tab}
                 type="button"
@@ -94,7 +96,7 @@ export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
                 className={cn(
                   'px-[16px] py-[6px] w-full text-left transition-colors rounded-md',
                   'hover:bg-[#e5e5e5]',
-                  activeTab === tab ? 'bg-[#e5e5e5] text-[#171717] font-semibold' : 'text-[#737373] font-medium'
+                  activeTab === tab ? 'bg-[#e5e5e5] text-[#171717] font-semibold' : 'text-[#737373] font-medium',
                 )}
               >
                 <span className="text-[13px] leading-normal">

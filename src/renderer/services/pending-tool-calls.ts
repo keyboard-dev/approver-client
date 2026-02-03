@@ -38,7 +38,6 @@ export function generateFingerprint(text: string): string {
   const normalized = text.toLowerCase().trim()
   // Use btoa for base64 encoding (works in browser/electron renderer)
   const fingerprint = btoa(normalized)
-  console.log('[FINGERPRINT] Generated fingerprint:', fingerprint.slice(0, 20) + '...')
   return fingerprint
 }
 
@@ -49,8 +48,6 @@ export function generateFingerprint(text: string): string {
 export function findPendingCallByFingerprint(explanation: string): string | null {
   const fingerprint = generateFingerprint(explanation)
   const pendingCallId = fingerprintIndex.get(fingerprint) || null
-  console.log('[FINGERPRINT] Looking up fingerprint, found:', pendingCallId ? 'YES' : 'NO')
-  console.log('[FINGERPRINT] Current fingerprint index size:', fingerprintIndex.size)
   return pendingCallId
 }
 
@@ -86,9 +83,6 @@ export function registerPendingCall(toolName: string, fingerprint?: string): {
     // Index by fingerprint for quick lookup
     if (fingerprint) {
       fingerprintIndex.set(fingerprint, id)
-      console.log('[FINGERPRINT] Registered pending call with fingerprint:', fingerprint.slice(0, 20) + '...')
-      console.log('[FINGERPRINT] Pending call ID:', id)
-      console.log('[FINGERPRINT] Fingerprint index size now:', fingerprintIndex.size)
     }
   }
 
