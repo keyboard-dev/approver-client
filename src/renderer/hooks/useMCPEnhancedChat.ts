@@ -148,6 +148,7 @@ export interface MCPEnhancedChatState {
   // Connection requirements functions
   clearConnectionPrompt: () => void
   skipConnectionCheckOnce: () => void
+  getContinuationMessage: () => Promise<string | null>
 
   // Execution tracking functions
   addExecution: (abilityName: string, parameters: Record<string, unknown>, provider?: string) => string
@@ -374,6 +375,65 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
     }
   }, [adapter])
 
+  // Get continuation message for "continue anyway" flow
+  const getContinuationMessage = useCallback(async (): Promise<string | null> => {
+    const originalMessage = adapter.getLastConnectionCheckMessage()
+    if (!originalMessage) return null
+
+    // Skip connection check on next run
+    adapter.setSkipConnectionCheck(true)
+    adapter.clearLastConnectionCheckMessage()
+
+    // Clear the prompt
+    setMissingConnections([])
+    setShowConnectionPrompt(false)
+    const currentThreadId = currentThreadRef.threadId
+    if (currentThreadId) {
+      clearThreadConnectionRequirements(currentThreadId)
+    }
+
+    // Fetch connected accounts to provide context
+    let connectedAccountsContext = ''
+    try {
+      const [pipedreamResponse, composioResponse, localStatus] = await Promise.all([
+        window.electronAPI?.fetchPipedreamAccountsDetailed?.().catch(() => null),
+        window.electronAPI?.listComposioConnectedAccounts?.().catch(() => null),
+        window.electronAPI?.getProviderAuthStatus?.().catch(() => ({})),
+      ])
+
+      const connectedApps: string[] = []
+
+      // Pipedream accounts
+      if (pipedreamResponse?.success && pipedreamResponse?.data) {
+        const accounts = (pipedreamResponse.data as { accounts?: Array<{ app: { name: string } }> }).accounts || []
+        connectedApps.push(...accounts.map(a => a.app.name))
+      }
+
+      // Composio accounts
+      if (composioResponse?.success && composioResponse?.data) {
+        const items = (composioResponse.data as { items?: Array<{ appName?: string, status: string }> }).items || []
+        connectedApps.push(...items.filter(a => a.status === 'ACTIVE').map(a => a.appName || 'Unknown'))
+      }
+
+      // Local providers
+      if (localStatus) {
+        const authenticated = Object.entries(localStatus as Record<string, { authenticated?: boolean }>)
+          .filter(([_, status]) => status?.authenticated)
+          .map(([provider]) => provider)
+        connectedApps.push(...authenticated)
+      }
+
+      if (connectedApps.length > 0) {
+        connectedAccountsContext = `\n\n**Note:** I'll proceed with your available connected services: ${[...new Set(connectedApps)].join(', ')}.`
+      }
+    }
+    catch {
+      // Ignore errors fetching connected accounts
+    }
+
+    return `${originalMessage}${connectedAccountsContext}`
+  }, [adapter])
+
   // Set up connection requirements callback on adapter
   useEffect(() => {
     adapter.setMissingConnectionsCallback(handleMissingConnections)
@@ -417,6 +477,7 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
     // Connection requirements functions
     clearConnectionPrompt,
     skipConnectionCheckOnce,
+    getContinuationMessage,
     // Execution tracking
     addExecution,
     updateExecution,

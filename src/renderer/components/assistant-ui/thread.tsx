@@ -22,6 +22,7 @@ import {
   ErrorPrimitive,
   MessagePrimitive,
   ThreadPrimitive,
+  useThreadRuntime,
 } from '@assistant-ui/react'
 
 import { LazyMotion, MotionConfig, domAnimation } from 'motion/react'
@@ -95,6 +96,7 @@ interface ThreadCustomProps {
   showConnectionPrompt?: boolean
   onClearConnectionPrompt?: () => void
   onSkipConnectionCheck?: () => void
+  getContinuationMessage?: () => Promise<string | null>
 }
 
 export const Thread: FC<ThreadCustomProps> = ({
@@ -119,6 +121,7 @@ export const Thread: FC<ThreadCustomProps> = ({
   showConnectionPrompt = false,
   onClearConnectionPrompt,
   onSkipConnectionCheck,
+  getContinuationMessage,
 }) => {
   const navigate = useNavigate()
   const [selectedScripts, setSelectedScripts] = useState<Script[]>([])
@@ -128,6 +131,7 @@ export const Thread: FC<ThreadCustomProps> = ({
   const [thinkingExpanded, setThinkingExpanded] = useState(false)
   const [connectingServiceId, setConnectingServiceId] = useState<string | null>(null)
   const [connectAppsModalOpen, setConnectAppsModalOpen] = useState(false)
+  const threadRuntime = useThreadRuntime()
 
   // Handle connection button click
   const handleConnect = useCallback(async (connection: MissingConnectionProp) => {
@@ -171,11 +175,23 @@ export const Thread: FC<ThreadCustomProps> = ({
     }
   }, [])
 
-  // Handle dismiss connection prompt
-  const handleDismissConnectionPrompt = useCallback(() => {
+  // Handle dismiss connection prompt - continues with the original message
+  const handleDismissConnectionPrompt = useCallback(async () => {
+    if (getContinuationMessage) {
+      const continuationMessage = await getContinuationMessage()
+      if (continuationMessage && threadRuntime) {
+        // Send the continuation message to the AI
+        threadRuntime.append({
+          role: 'user',
+          content: [{ type: 'text', text: continuationMessage }],
+        })
+        return
+      }
+    }
+    // Fallback to just clearing the prompt
     onClearConnectionPrompt?.()
     onSkipConnectionCheck?.()
-  }, [onClearConnectionPrompt, onSkipConnectionCheck])
+  }, [onClearConnectionPrompt, onSkipConnectionCheck, getContinuationMessage, threadRuntime])
 
   // Get settings panel based on active tab
   const getSettingsPanel = () => {

@@ -42,6 +42,7 @@ export class AIChatAdapter implements ChatModelAdapter {
   private titleGeneratedForThread = false
   private onMissingConnectionsDetected?: (result: ConnectionCheckResult) => void
   private skipConnectionCheck = false
+  private lastUserMessageForConnectionCheck: string | null = null
 
   constructor(provider: string = 'openai', model?: string, mcpEnabled: boolean = false) {
     this.currentProvider = { provider, model, mcpEnabled }
@@ -59,6 +60,20 @@ export class AIChatAdapter implements ChatModelAdapter {
    */
   setSkipConnectionCheck(skip: boolean) {
     this.skipConnectionCheck = skip
+  }
+
+  /**
+   * Get the last user message that triggered a connection check
+   */
+  getLastConnectionCheckMessage(): string | null {
+    return this.lastUserMessageForConnectionCheck
+  }
+
+  /**
+   * Clear the stored connection check message
+   */
+  clearLastConnectionCheckMessage() {
+    this.lastUserMessageForConnectionCheck = null
   }
 
   setThreadTitleCallback(callback: (title: string) => void) {
@@ -1061,6 +1076,9 @@ ${analysisResponse}`
           const connectionResult = await this.checkConnectionRequirements(lastUserMessage.content)
 
           if (!connectionResult.hasAllConnections && connectionResult.missingConnections.length > 0) {
+            // Store the user message for potential "continue anyway" flow
+            this.lastUserMessageForConnectionCheck = lastUserMessage.content
+
             // Notify callback about missing connections
             if (this.onMissingConnectionsDetected) {
               this.onMissingConnectionsDetected(connectionResult)
