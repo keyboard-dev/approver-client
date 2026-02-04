@@ -1,6 +1,6 @@
 {
   "name": "keyboard-ai",
-  "version": "0.2.1",
+  "version": "0.2.0",
   "description": "Desktop notification app for MCP approval workflow",
   "main": "dist/main.js",
   "author": "keyboard.dev team",
