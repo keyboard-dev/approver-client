@@ -1,7 +1,7 @@
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
 import { useMcpClient } from '../hooks/useMcpClient'
 import { AbilityDiscoveryService, type AbilitySearchResult } from './ability-discovery'
-import { registerPendingCall, removePendingCall } from './pending-tool-calls'
+import { generateFingerprint, registerPendingCall, removePendingCall } from './pending-tool-calls'
 import { ResultProcessorService } from './result-processor'
 import { toolCacheService } from './tool-cache-service'
 import { webSearchTool } from './web-search-tool'
@@ -223,8 +223,16 @@ export function useMCPIntegration(
       let pendingCallId: string | null = null
 
       if (toolsRequiringApproval.includes(name)) {
+        // Generate fingerprint from explanation_of_code for run-code requests
+        // This lets us identify approval messages that came from our app
+        const explanation = typeof abilityArgs.explanation_of_code === 'string'
+          ? abilityArgs.explanation_of_code
+          : undefined
+
+        const fingerprint = explanation ? generateFingerprint(explanation) : undefined
+
         // Register a pending call that can be resolved by approval
-        const pending = registerPendingCall(name)
+        const pending = registerPendingCall(name, fingerprint)
         pendingCallId = pending.id
         try {
           result = await Promise.race([

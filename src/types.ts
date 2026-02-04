@@ -16,6 +16,12 @@ export interface Message {
   risk_level?: 'low' | 'medium' | 'high'
   providers?: string[]
   codespaceResponse?: { data: Record<string, unknown> & { stdout?: string, stderr?: string } }
+  /** The chat thread ID this message originated from */
+  threadId?: string
+  /** The title of the chat thread this message originated from */
+  threadTitle?: string
+  /** Whether this message originated from our app (matched via fingerprint) */
+  isFromOurApp?: boolean
 }
 
 export interface AuthTokens {

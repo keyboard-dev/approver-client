@@ -662,6 +662,9 @@ class MenuBarNotificationApp {
     })
     // Handle codespace coming online - auto-connect to it
     sseService.on('codespace-online', async () => {
+      if (!this.executionPreferenceManager) {
+        return
+      }
       const preference = await this.executionPreferenceManager.getPreference()
       this.executorWSClient?.setExecutionPreference(preference)
       await this.authService.getValidAccessToken()
@@ -675,42 +678,36 @@ class MenuBarNotificationApp {
    */
   private handleExecutorMessage(message: { type: string, message?: Message, data?: unknown, id?: string, providerId?: string, requestId?: string }): void {
     try {
-      // console.log('message', message)
       switch (message.type) {
         case 'websocket-message':
-          // Forward to existing message handling
           if (message.message) {
             this.handleIncomingMessage(message.message)
+          }
+          else {
           }
           break
 
         case 'collection-share-request':
-          // Handle collection share requests
           this.handleCollectionShareRequest(message as never)
           break
 
         case 'prompter-request':
-          // Handle prompter requests
           this.handlePrompterRequest(message as never)
           break
 
         case 'prompt-response':
-          // Handle prompt responses
           this.handlePromptResponse(message as never)
           break
 
         case 'request-provider-token':
-          // Handle provider token requests from executor - delegate to OAuthService
           this.oauthService.handleExecutorProviderTokenRequest(message)
           break
 
         case 'request-provider-status':
-          // Handle provider status requests from executor - delegate to OAuthService
           this.oauthService.handleExecutorProviderStatusRequest(message)
           break
 
         case 'request-token':
-          // Handle legacy OAuth token requests from executor - delegate to AuthService
           this.handleExecutorTokenRequest(message)
           break
 
@@ -1439,7 +1436,6 @@ class MenuBarNotificationApp {
   }
 
   private handleIncomingMessage(message: Message): void {
-    // Add timestamp if not provided
     if (!message.timestamp) {
       message.timestamp = Date.now()
     }
@@ -1455,7 +1451,9 @@ class MenuBarNotificationApp {
     switch (message.title) {
       case 'Security Evaluation Request': {
         const { risk_level } = message
-        if (!risk_level) break
+        if (!risk_level) {
+          break
+        }
 
         const riskLevelIndex = CODE_APPROVAL_ORDER.indexOf(risk_level)
         const automaticCodeApprovalIndex = CODE_APPROVAL_ORDER.indexOf(this.automaticCodeApproval)
@@ -1468,12 +1466,15 @@ class MenuBarNotificationApp {
 
       case 'code response approval': {
         const { codespaceResponse } = message
-        if (!codespaceResponse) break
+        if (!codespaceResponse) {
+          break
+        }
 
         const { data: codespaceResponseData } = codespaceResponse
-        if (!codespaceResponseData) break
+        if (!codespaceResponseData) {
+          break
+        }
         const { stderr } = codespaceResponseData
-
         switch (this.automaticResponseApproval) {
           case 'always':
             message.status = 'approved'
@@ -1489,6 +1490,8 @@ class MenuBarNotificationApp {
 
         break
       }
+
+      default:
     }
 
     if (message.status === 'approved') {
@@ -1499,14 +1502,7 @@ class MenuBarNotificationApp {
     }
 
     // Send to renderer for storage in IndexedDB and display
-
     this.windowManager.sendMessage('websocket-message', message)
-
-    // Auto-show window for high priority messages
-    // this.windowManager.showWindow()
-    // if (message.priority === 'high') {
-    //   this.windowManager.showWindow()
-    // }
   }
 
   private showNotification(message: Message): void {

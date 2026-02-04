@@ -7,19 +7,70 @@ on:
         description: 'Create GitHub release'
         type: boolean
         default: true
+      prerelease:
+        description: 'Mark as pre-release'
+        type: boolean
+        default: true
   push:
+    branches:
+      - main
+      - develop
+      - tim/auto-update-2
     tags:
       - 'v*.*.*'
 
 env:
-  NODE_ENV: production
+  NODE_ENV: development
 
 jobs:
+  cleanup-old-runs:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Delete old workflow runs
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const workflow_id = context.workflow;
+            const current_run_id = context.runId;
+
+            // Get all workflow runs for this workflow
+            const runs = await github.rest.actions.listWorkflowRuns({
+              owner,
+              repo,
+              workflow_id,
+              per_page: 100
+            });
+
+            console.log(`Found ${runs.data.workflow_runs.length} workflow runs`);
+
+            // Delete all runs except the current one
+            for (const run of runs.data.workflow_runs) {
+              if (run.id !== current_run_id) {
+                try {
+                  await github.rest.actions.deleteWorkflowRun({
+                    owner,
+                    repo,
+                    run_id: run.id
+                  });
+                  console.log(`Deleted run ${run.id}`);
+                } catch (error) {
+                  console.log(`Failed to delete run ${run.id}: ${error.message}`);
+                }
+              }
+            }
+
   build-macos:
-    runs-on: macos-13
+    needs: cleanup-old-runs
+    runs-on: macos-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
       artifact_name: ${{ steps.version.outputs.artifact_name }}
+      forge_artifact_name: ${{ steps.version.outputs.forge_artifact_name }}
+      app_name: ${{ steps.version.outputs.app_name }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -36,7 +87,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Extract version from package.json
+      - name: Extract version and set app name
         id: version
         run: |
           if [[ "${{ github.ref_type }}" == "tag" ]]; then
@@ -45,9 +96,16 @@ jobs:
           else
             VERSION=$(node -p "require('./package.json').version")
           fi
+
+          # Always use KeyboardAI as base name (Forge doesn't respect branch-specific names)
+          APP_NAME="KeyboardAI"
+
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "artifact_name=KeyboardAI-darwin-universal-${VERSION}.zip" >> $GITHUB_OUTPUT
-          echo "Building version: $VERSION"
+          echo "app_name=$APP_NAME" >> $GITHUB_OUTPUT
+          echo "forge_artifact_name=${APP_NAME}-darwin-universal-${VERSION}.zip" >> $GITHUB_OUTPUT
+          echo "artifact_name=keyboard-approver.App-darwin-universal-latest.zip" >> $GITHUB_OUTPUT
+          echo "APP_NAME=$APP_NAME" >> $GITHUB_ENV
+          echo "Building version: $VERSION with app name: $APP_NAME"
 
       - name: Create encrypted .env file
         run: echo "${{ secrets.DOTENV_FILE }}" > .env
@@ -60,6 +118,9 @@ jobs:
           KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
           KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
 
+          # CRITICAL: Mask the password immediately
+          echo "::add-mask::$KEYCHAIN_PASSWORD"
+
           # Create keychain
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
@@ -67,7 +128,10 @@ jobs:
 
           # Extract certificate from encrypted env and import
           CERTIFICATE=$(dotenvx get MACOS_CERTIFICATE)
+          echo "::add-mask::$CERTIFICATE"
+
           CERTIFICATE_PASSWORD=$(dotenvx get MACOS_CERTIFICATE_PWD)
+          echo "::add-mask::$CERTIFICATE_PASSWORD"
 
           # Decode and import certificate
           echo "$CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
@@ -87,29 +151,46 @@ jobs:
           # Set as default keychain
           security default-keychain -s "$KEYCHAIN_PATH"
 
-          # Store keychain path for cleanup
+          # Store keychain path for cleanup (password is already masked)
           echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> $GITHUB_ENV
           echo "KEYCHAIN_PASSWORD=$KEYCHAIN_PASSWORD" >> $GITHUB_ENV
 
           # Clean up temp certificate file
           rm -f "$RUNNER_TEMP/certificate.p12"
 
+      - name: Create Apple API key file for notarization
+        env:
+          DOTENV_PRIVATE_KEY: ${{ secrets.DOTENV_PRIVATE_KEY }}
+        run: |
+          # Extract the base64-encoded .p8 key content and write to file
+          APPLE_API_KEY_CONTENT=$(dotenvx get APPLE_API_KEY_CONTENT)
+          echo "::add-mask::$APPLE_API_KEY_CONTENT"
+
+          echo "$APPLE_API_KEY_CONTENT" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
+          echo "APPLE_API_KEY=$RUNNER_TEMP/AuthKey.p8" >> $GITHUB_ENV
+          echo "Apple API key file created at $RUNNER_TEMP/AuthKey.p8"
+
       - name: Build macOS universal binary
         env:
           DOTENV_PRIVATE_KEY: ${{ secrets.DOTENV_PRIVATE_KEY }}
         run: dotenvx run -- npm run build-mac-universal
 
-      - name: Verify build output
+      - name: Verify and rename build output
         run: |
-          ARTIFACT_PATH="out/make/zip/darwin/universal/${{ steps.version.outputs.artifact_name }}"
-          if [ ! -f "$ARTIFACT_PATH" ]; then
-            echo "Error: Expected artifact not found at $ARTIFACT_PATH"
+          FORGE_ARTIFACT="out/make/zip/darwin/universal/${{ steps.version.outputs.forge_artifact_name }}"
+          FINAL_ARTIFACT="out/make/zip/darwin/universal/${{ steps.version.outputs.artifact_name }}"
+
+          if [ ! -f "$FORGE_ARTIFACT" ]; then
+            echo "Error: Expected artifact not found at $FORGE_ARTIFACT"
             echo "Contents of out/make/zip/darwin/universal/:"
             ls -la out/make/zip/darwin/universal/ || echo "Directory does not exist"
             exit 1
           fi
-          echo "Build artifact found: $ARTIFACT_PATH"
-          ls -lh "$ARTIFACT_PATH"
+
+          # Rename to desired artifact name
+          mv "$FORGE_ARTIFACT" "$FINAL_ARTIFACT"
+          echo "Build artifact renamed to: $FINAL_ARTIFACT"
+          ls -lh "$FINAL_ARTIFACT"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -125,6 +206,7 @@ jobs:
             security delete-keychain "$KEYCHAIN_PATH" || true
           fi
           rm -f .env
+          rm -f "$RUNNER_TEMP/AuthKey.p8"
 
   create-release:
     needs: build-macos
@@ -142,24 +224,43 @@ jobs:
       - name: List downloaded artifacts
         run: ls -la ./artifacts
 
-      - name: Create pre-release
+      - name: Determine release type
+        id: release_type
+        run: |
+          # Prerelease if: develop branch, or workflow_dispatch with prerelease=true
+          # Full release if: main branch, or workflow_dispatch with prerelease=false
+          if [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
+            echo "prerelease=true" >> $GITHUB_OUTPUT
+            echo "tag_suffix=-beta" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "prerelease=false" >> $GITHUB_OUTPUT
+            echo "tag_suffix=" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "prerelease=${{ inputs.prerelease }}" >> $GITHUB_OUTPUT
+            echo "tag_suffix=${{ inputs.prerelease == true && '-beta' || '' }}" >> $GITHUB_OUTPUT
+          else
+            echo "prerelease=true" >> $GITHUB_OUTPUT
+            echo "tag_suffix=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', needs.build-macos.outputs.version) }}
-          name: KeyboardAI v${{ needs.build-macos.outputs.version }}
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}{1}', needs.build-macos.outputs.version, steps.release_type.outputs.tag_suffix) }}
+          name: ${{ needs.build-macos.outputs.app_name }} v${{ needs.build-macos.outputs.version }}${{ steps.release_type.outputs.prerelease == 'true' && ' (Pre-release)' || '' }}
           body: |
-            ## KeyboardAI v${{ needs.build-macos.outputs.version }}
+            ## ${{ needs.build-macos.outputs.app_name }} v${{ needs.build-macos.outputs.version }}
 
             ### Downloads
             - **macOS (Universal)**: `${{ needs.build-macos.outputs.artifact_name }}`
 
             ### Installation
             1. Download the `.zip` file for your platform
-            2. Extract and move `KeyboardAI.app` to your Applications folder
+            2. Extract and move `${{ needs.build-macos.outputs.app_name }}.app` to your Applications folder
             3. On first launch, right-click and select "Open" to bypass Gatekeeper
 
             ---
-            *This is a pre-release build. Please report any issues.*
+            ${{ steps.release_type.outputs.prerelease == 'true' && '*This is a pre-release build. Please report any issues.*' || '*This is a stable release.*' }}
           files: ./artifacts/${{ needs.build-macos.outputs.artifact_name }}
-          prerelease: true
+          prerelease: ${{ steps.release_type.outputs.prerelease == 'true' }}
           generate_release_notes: true

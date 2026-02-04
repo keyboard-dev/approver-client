@@ -12,6 +12,15 @@ import { AssistantUIChat } from '../AssistantUIChat'
 import { Card, CardContent } from '../ui/card'
 
 /**
+ * Global ref to track current thread info for approval message association.
+ * This is updated by AssistantUIChat when the thread changes.
+ */
+export const currentThreadRef = {
+  threadId: null as string | null,
+  threadTitle: 'New Chat' as string,
+}
+
+/**
  * ChatPage - Chat interface with optional approval message handling using routing
  *
  * This component:
@@ -179,7 +188,7 @@ export const ChatPage: React.FC = () => {
 
   // Back handler
   const handleBack = () => {
-    navigate('/')
+    navigate('/approvals')
   }
 
   // Loading state (only show when fetching approval message)
@@ -218,7 +227,6 @@ export const ChatPage: React.FC = () => {
   // Render chat interface
   return (
     <AssistantUIChat
-      onBack={handleBack}
       currentApprovalMessage={approvalMessage || undefined}
       onApproveMessage={handleApprove}
       onRejectMessage={handleReject}
