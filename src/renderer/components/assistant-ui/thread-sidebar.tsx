@@ -16,6 +16,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '../ui/tooltip'
 
 // =============================================================================
 // Types
@@ -44,7 +50,7 @@ const SourceTag: FC<{ source: SourceType }> = ({ source }) => {
     composio: 'Composio',
   }
   return (
-    <span className="bg-[#f0f0f0] text-black text-[14px] font-medium px-2 py-1 rounded-full whitespace-nowrap">
+    <span className="bg-[#f0f0f0] text-black text-[11px] font-medium px-1.5 py-0.5 rounded-full whitespace-nowrap">
       {labelMap[source]}
     </span>
   )
@@ -62,20 +68,29 @@ interface ConnectedAppRowProps {
 
 const ConnectedAppRow: FC<ConnectedAppRowProps> = ({ app, onConnect, onDisconnect }) => {
   return (
-    <div className="flex items-center gap-[10px] w-full">
+    <div className="flex items-center gap-[6px] w-full min-w-0">
       {/* Icon + Name */}
-      <div className="flex-1 flex items-center gap-[10px]">
-        <div className="bg-white border border-[#e5e5e5] rounded-[4px] p-[5px] flex items-center shrink-0">
+      <div className="flex-1 flex items-center gap-[6px] min-w-0">
+        <div className="bg-white border border-[#e5e5e5] rounded-[4px] p-[4px] flex items-center shrink-0">
           <img
             src={app.icon}
             alt={app.name}
-            className="w-[22px] h-[22px] object-contain"
+            className="w-[18px] h-[18px] object-contain"
             onError={(e) => {
               (e.target as HTMLImageElement).src = squaresIconUrl
             }}
           />
         </div>
-        <span className="font-medium text-[14px] text-[#171717]">{app.name}</span>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="font-medium text-[13px] text-[#171717] truncate min-w-0 cursor-default">
+              {app.name}
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="bg-[#171717] text-white border-none">
+            <p>{app.name}</p>
+          </TooltipContent>
+        </Tooltip>
       </div>
 
       {/* Source Tag */}
@@ -83,20 +98,20 @@ const ConnectedAppRow: FC<ConnectedAppRowProps> = ({ app, onConnect, onDisconnec
 
       {/* Action Button */}
       {app.isConnecting || app.isDisconnecting ? (
-        <Loader2 className="w-6 h-6 animate-spin text-[#737373]" />
+        <Loader2 className="w-5 h-5 animate-spin text-[#737373] shrink-0" />
       ) : app.isConnected ? (
         <button
-          className="px-3 py-1 text-[14px] font-medium text-[#d23535] hover:bg-[#FEE2E2] rounded-[4px] transition-colors"
+          className="px-2 py-0.5 text-[12px] font-medium text-[#d23535] hover:bg-[#FEE2E2] rounded-[4px] transition-colors shrink-0"
           onClick={onDisconnect}
         >
           Remove
         </button>
       ) : (
         <button
-          className="flex items-center gap-1 px-3 py-1 bg-white border border-[#e5e5e5] rounded-[4px] text-[14px] font-medium text-[#171717] hover:border-[#ccc] transition-colors"
+          className="flex items-center gap-1 px-2 py-0.5 bg-white border border-[#e5e5e5] rounded-[4px] text-[12px] font-medium text-[#171717] hover:border-[#ccc] transition-colors shrink-0"
           onClick={onConnect}
         >
-          <ExternalLink className="w-4 h-4" />
+          <ExternalLink className="w-3 h-3" />
           Connect
         </button>
       )}
@@ -238,7 +253,7 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
   const currentModelName = currentProvider?.models.find(m => m.id === selectedModel)?.name || 'Select model'
 
   return (
-    <div className="flex flex-col gap-[10px] h-full max-w-[500px] min-w-[300px] overflow-x-clip overflow-y-auto">
+    <div className="flex flex-col gap-[10px] h-full w-full overflow-x-clip overflow-y-auto">
       {/* Overview Header */}
       <div className="flex items-center justify-center px-[15px]">
         <p className="flex-1 font-semibold text-[14px] text-[#737373] leading-normal">
@@ -365,22 +380,24 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
             </p>
 
             {/* Connected Apps List */}
-            <div className="bg-[#fafafa] border border-[#dbdbdb] flex flex-col gap-[10px] p-[10px] rounded-[12px] w-full">
-              {connectedApps.length > 0 ? (
-                connectedApps.map(app => (
-                  <ConnectedAppRow
-                    key={app.id}
-                    app={app}
-                    onConnect={() => {}}
-                    onDisconnect={() => handleDisconnect(app)}
-                  />
-                ))
-              ) : (
-                <p className="font-medium text-[14px] text-[#737373] leading-normal">
-                  None in use
-                </p>
-              )}
-            </div>
+            <TooltipProvider delayDuration={300}>
+              <div className="bg-[#fafafa] border border-[#dbdbdb] flex flex-col gap-[8px] p-[10px] rounded-[12px] w-full overflow-hidden">
+                {connectedApps.length > 0 ? (
+                  connectedApps.map(app => (
+                    <ConnectedAppRow
+                      key={app.id}
+                      app={app}
+                      onConnect={() => {}}
+                      onDisconnect={() => handleDisconnect(app)}
+                    />
+                  ))
+                ) : (
+                  <p className="font-medium text-[14px] text-[#737373] leading-normal">
+                    None in use
+                  </p>
+                )}
+              </div>
+            </TooltipProvider>
 
             {/* Connect more apps button */}
             <button
