@@ -235,6 +235,9 @@ jobs:
           elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
             echo "prerelease=false" >> $GITHUB_OUTPUT
             echo "tag_suffix=" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == "refs/heads/tim/auto-update-2" ]]; then
+            echo "prerelease=true" >> $GITHUB_OUTPUT
+            echo "tag_suffix=-test" >> $GITHUB_OUTPUT
           elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             echo "prerelease=${{ inputs.prerelease }}" >> $GITHUB_OUTPUT
             echo "tag_suffix=${{ inputs.prerelease == true && '-beta' || '' }}" >> $GITHUB_OUTPUT
