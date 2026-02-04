@@ -35,6 +35,7 @@ import { cn } from '../../lib/utils'
 import { contextService } from '../../services/context-service'
 import { ScriptSelector } from '../ScriptSelector'
 import { Button } from '../ui/button'
+import { ConnectAppsModal } from '../ui/ConnectAppsModal'
 import { ApprovalMessage } from './ApprovalMessage'
 import {
   ComposerAddAttachment,
@@ -126,6 +127,7 @@ export const Thread: FC<ThreadCustomProps> = ({
   const [activeSettingsTab, setActiveSettingsTab] = useState<SettingsTabType | null>(null)
   const [thinkingExpanded, setThinkingExpanded] = useState(false)
   const [connectingServiceId, setConnectingServiceId] = useState<string | null>(null)
+  const [connectAppsModalOpen, setConnectAppsModalOpen] = useState(false)
 
   // Handle connection button click
   const handleConnect = useCallback(async (connection: MissingConnectionProp) => {
@@ -354,6 +356,7 @@ export const Thread: FC<ThreadCustomProps> = ({
                     onDismiss={handleDismissConnectionPrompt}
                     isExpanded={thinkingExpanded}
                     onToggleExpanded={() => setThinkingExpanded(!thinkingExpanded)}
+                    onSearchConnectors={() => setConnectAppsModalOpen(true)}
                   />
                 )}
 
@@ -388,6 +391,12 @@ export const Thread: FC<ThreadCustomProps> = ({
               />
             </div>
           )}
+
+          {/* Connect Apps Modal - for searching connectors */}
+          <ConnectAppsModal
+            isOpen={connectAppsModalOpen}
+            onClose={() => setConnectAppsModalOpen(false)}
+          />
 
         </div>
       </MotionConfig>

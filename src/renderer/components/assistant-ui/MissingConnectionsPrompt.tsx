@@ -77,7 +77,7 @@ const ConnectionRow: React.FC<{
  * Main MissingConnectionsPrompt component
  */
 export const MissingConnectionsPrompt: React.FC<MissingConnectionsPromptProps> = ({
-  message = 'To complete your request, I would need:',
+  message = 'To complete your request, I would need to the relevant apps, please connect to the relevant ones below:',
   missingConnections,
   onConnect,
   className = '',

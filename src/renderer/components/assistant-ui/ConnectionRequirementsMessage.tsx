@@ -5,7 +5,7 @@
  * but missing. Displays the AI's explanation along with the connection prompt UI.
  */
 
-import { Sparkles } from 'lucide-react'
+import { Search, Sparkles } from 'lucide-react'
 import React from 'react'
 
 import { MissingConnection, MissingConnectionsPrompt } from './MissingConnectionsPrompt'
@@ -25,6 +25,8 @@ export interface ConnectionRequirementsMessageProps {
   isExpanded?: boolean
   /** Toggle thinking section expansion */
   onToggleExpanded?: () => void
+  /** Callback to open the connectors search modal */
+  onSearchConnectors?: () => void
 }
 
 export const ConnectionRequirementsMessage: React.FC<ConnectionRequirementsMessageProps> = ({
@@ -35,6 +37,7 @@ export const ConnectionRequirementsMessage: React.FC<ConnectionRequirementsMessa
   onDismiss,
   isExpanded = false,
   onToggleExpanded,
+  onSearchConnectors,
 }) => {
   return (
     <div
@@ -87,11 +90,23 @@ export const ConnectionRequirementsMessage: React.FC<ConnectionRequirementsMessa
 
         {/* Connection prompt */}
         <MissingConnectionsPrompt
-          message="To complete your request, I would need:"
+          message="To complete your request, I would need to the relevant apps, please connect to the relevant ones below:"
           missingConnections={missingConnections}
           onConnect={onConnect}
           className="mt-[4px]"
         />
+
+        {/* Search for more apps link */}
+        {onSearchConnectors && (
+          <button
+            type="button"
+            onClick={onSearchConnectors}
+            className="flex items-center gap-[6px] text-[14px] font-medium text-[#0066cc] hover:text-[#0052a3] transition-colors mt-[8px] self-start"
+          >
+            <Search className="w-[14px] h-[14px]" />
+            <span>Don't see the app you need? Try searching for it</span>
+          </button>
+        )}
 
         {/* Dismiss button (optional) */}
         {onDismiss && (
