@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { cn } from '../../lib/utils'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
+import { ConnectAppsModal } from '../ui/ConnectAppsModal'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -50,6 +51,7 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
 }) => {
   const [modelPreferencesOpen, setModelPreferencesOpen] = useState(true)
   const [connectorsOpen, setConnectorsOpen] = useState(true)
+  const [connectAppsModalOpen, setConnectAppsModalOpen] = useState(false)
 
   if (!isOpen) return null
 
@@ -238,6 +240,7 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
             {/* Connect more apps button */}
             <button
               type="button"
+              onClick={() => setConnectAppsModalOpen(true)}
               className="bg-[#fafafa] border border-[#dbdbdb] flex gap-[4px] items-center justify-center px-[20px] py-[4px] rounded-[12px] self-start hover:bg-[#f5f5f5] transition-colors"
             >
               <PlusIcon className="size-[24px] text-[#171717]" />
@@ -245,6 +248,12 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
                 Connect more apps
               </p>
             </button>
+
+            {/* Connect Apps Modal */}
+            <ConnectAppsModal
+              isOpen={connectAppsModalOpen}
+              onClose={() => setConnectAppsModalOpen(false)}
+            />
 
             {/* Docs link */}
             <div className="flex flex-col gap-[6px] w-full">
