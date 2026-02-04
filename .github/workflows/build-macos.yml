@@ -21,6 +21,7 @@ on:
 
 env:
   NODE_ENV: development
+  TEST_BRANCHES: tim/auto-update-2  # Comma-separated list of test branches
 
 jobs:
   cleanup-old-runs:
@@ -106,6 +107,15 @@ jobs:
           echo "artifact_name=keyboard-approver.App-darwin-universal-latest.zip" >> $GITHUB_OUTPUT
           echo "APP_NAME=$APP_NAME" >> $GITHUB_ENV
           echo "Building version: $VERSION with app name: $APP_NAME"
+
+          # Check if current branch is a test branch
+          CURRENT_BRANCH="${{ github.ref_name }}"
+          if [[ ",$TEST_BRANCHES," == *",$CURRENT_BRANCH,"* ]]; then
+            echo "IS_TEST_BUILD=true" >> $GITHUB_ENV
+            echo "OAUTH_SERVER_URL=http://localhost:4000" >> $GITHUB_ENV
+            echo "VITE_API_URL=http://localhost:4000" >> $GITHUB_ENV
+            echo "Test build detected - using localhost:4000 for API URLs"
+          fi
 
       - name: Create encrypted .env file
         run: echo "${{ secrets.DOTENV_FILE }}" > .env
@@ -227,15 +237,17 @@ jobs:
       - name: Determine release type
         id: release_type
         run: |
-          # Prerelease if: develop branch, or workflow_dispatch with prerelease=true
+          # Prerelease if: develop branch, test branches, or workflow_dispatch with prerelease=true
           # Full release if: main branch, or workflow_dispatch with prerelease=false
+          CURRENT_BRANCH="${{ github.ref_name }}"
+
           if [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
             echo "prerelease=true" >> $GITHUB_OUTPUT
             echo "tag_suffix=-beta" >> $GITHUB_OUTPUT
           elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
             echo "prerelease=false" >> $GITHUB_OUTPUT
             echo "tag_suffix=" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.ref }}" == "refs/heads/tim/auto-update-2" ]]; then
+          elif [[ ",$TEST_BRANCHES," == *",$CURRENT_BRANCH,"* ]]; then
             echo "prerelease=true" >> $GITHUB_OUTPUT
             echo "tag_suffix=-test" >> $GITHUB_OUTPUT
           elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
