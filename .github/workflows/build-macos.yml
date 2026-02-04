@@ -192,6 +192,7 @@ jobs:
       - name: Build macOS universal binary
         env:
           DOTENV_PRIVATE_KEY: ${{ secrets.DOTENV_PRIVATE_KEY }}
+          NODE_ENV: production
         run: dotenvx run -- npm run build-mac-universal
 
       - name: Verify and rename build output
