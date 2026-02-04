@@ -286,7 +286,7 @@ export const Thread: FC<ThreadCustomProps> = ({
 
           {/* Right Sidebar - Only show when chat is visible */}
           {showChat && rightSidebarOpen && (
-            <div className="h-full py-[10px] pl-[10px] shrink-0 min-w-[300px]">
+            <div className="h-full py-[10px] pl-[10px] shrink-0 w-[280px]">
               <ThreadSidebar
                 isOpen={rightSidebarOpen}
                 onClose={() => setRightSidebarOpen(false)}
