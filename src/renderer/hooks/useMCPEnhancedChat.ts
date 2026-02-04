@@ -1,7 +1,75 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Script } from '../../types'
 import { AIChatAdapter, ConnectionCheckResult, MissingConnectionInfo } from '../services/ai-chat-adapter'
 import { useMCPIntegration } from '../services/mcp-tool-integration'
+import { currentThreadRef } from '../components/screens/ChatPage'
+
+// =============================================================================
+// Thread-scoped Connection Requirements Storage
+// =============================================================================
+
+const THREAD_CONNECTIONS_KEY = 'keyboard_thread_connection_requirements'
+
+interface ThreadConnectionRequirements {
+  threadId: string
+  missingConnections: MissingConnectionInfo[]
+  timestamp: number
+}
+
+function getThreadConnectionRequirements(threadId: string): MissingConnectionInfo[] | null {
+  try {
+    const stored = localStorage.getItem(THREAD_CONNECTIONS_KEY)
+    if (!stored) return null
+
+    const data = JSON.parse(stored) as Record<string, ThreadConnectionRequirements>
+    const threadData = data[threadId]
+
+    // Expire after 1 hour
+    if (threadData && Date.now() - threadData.timestamp < 60 * 60 * 1000) {
+      return threadData.missingConnections
+    }
+    return null
+  }
+  catch {
+    return null
+  }
+}
+
+function setThreadConnectionRequirements(threadId: string, connections: MissingConnectionInfo[]): void {
+  try {
+    const stored = localStorage.getItem(THREAD_CONNECTIONS_KEY)
+    const data: Record<string, ThreadConnectionRequirements> = stored ? JSON.parse(stored) : {}
+
+    if (connections.length === 0) {
+      // Remove entry if no connections
+      delete data[threadId]
+    }
+    else {
+      data[threadId] = {
+        threadId,
+        missingConnections: connections,
+        timestamp: Date.now(),
+      }
+    }
+
+    // Clean up old entries (older than 1 hour)
+    const now = Date.now()
+    for (const key of Object.keys(data)) {
+      if (now - data[key].timestamp > 60 * 60 * 1000) {
+        delete data[key]
+      }
+    }
+
+    localStorage.setItem(THREAD_CONNECTIONS_KEY, JSON.stringify(data))
+  }
+  catch {
+    // Ignore localStorage errors
+  }
+}
+
+function clearThreadConnectionRequirements(threadId: string): void {
+  setThreadConnectionRequirements(threadId, [])
+}
 
 export interface MCPEnhancedChatConfig {
   provider: string
@@ -104,12 +172,50 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
   const [executions, setExecutions] = useState<AbilityExecution[]>([])
   const [scripts, setScripts] = useState<Script[]>([])
 
-  // Connection requirements state
+  // Connection requirements state (thread-scoped)
   const [missingConnections, setMissingConnections] = useState<MissingConnectionInfo[]>([])
   const [showConnectionPrompt, setShowConnectionPrompt] = useState(false)
+  const lastThreadIdRef = useRef<string | null>(null)
 
   // Ability messages state
   const [abilityMessages, setAbilityMessages] = useState<AbilityMessage[]>([])
+
+  // Track thread changes and clear/restore connection prompt accordingly
+  useEffect(() => {
+    const checkThreadChange = () => {
+      const currentThreadId = currentThreadRef.threadId
+
+      if (currentThreadId && currentThreadId !== lastThreadIdRef.current) {
+        // Thread changed - clear current prompt and check if new thread has saved requirements
+        const previousThreadId = lastThreadIdRef.current
+        lastThreadIdRef.current = currentThreadId
+
+        // Save current requirements to old thread (if any)
+        if (previousThreadId && missingConnections.length > 0) {
+          setThreadConnectionRequirements(previousThreadId, missingConnections)
+        }
+
+        // Check if new thread has saved requirements
+        const savedRequirements = getThreadConnectionRequirements(currentThreadId)
+        if (savedRequirements && savedRequirements.length > 0) {
+          setMissingConnections(savedRequirements)
+          setShowConnectionPrompt(true)
+        }
+        else {
+          // Clear prompt for new thread
+          setMissingConnections([])
+          setShowConnectionPrompt(false)
+        }
+      }
+    }
+
+    // Check immediately
+    checkThreadChange()
+
+    // Poll for thread changes (since currentThreadRef is a mutable ref)
+    const interval = setInterval(checkThreadChange, 500)
+    return () => clearInterval(interval)
+  }, [missingConnections])
 
   // Simple ability execution state management
   // The adapter will call these functions directly during ability execution
@@ -231,16 +337,28 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
     adapter.setThreadTitleCallback(callback)
   }, [adapter])
 
-  // Connection requirements callback
+  // Connection requirements callback (saves to current thread)
   const handleMissingConnections = useCallback((result: ConnectionCheckResult) => {
     setMissingConnections(result.missingConnections)
     setShowConnectionPrompt(result.missingConnections.length > 0)
+
+    // Save to localStorage for the current thread
+    const currentThreadId = currentThreadRef.threadId
+    if (currentThreadId) {
+      setThreadConnectionRequirements(currentThreadId, result.missingConnections)
+    }
   }, [])
 
-  // Clear connection prompt
+  // Clear connection prompt (also clears from localStorage for current thread)
   const clearConnectionPrompt = useCallback(() => {
     setMissingConnections([])
     setShowConnectionPrompt(false)
+
+    // Clear from localStorage for the current thread
+    const currentThreadId = currentThreadRef.threadId
+    if (currentThreadId) {
+      clearThreadConnectionRequirements(currentThreadId)
+    }
   }, [])
 
   // Skip connection check once (for "continue anyway" flow)
@@ -248,6 +366,12 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
     adapter.setSkipConnectionCheck(true)
     setMissingConnections([])
     setShowConnectionPrompt(false)
+
+    // Clear from localStorage for the current thread
+    const currentThreadId = currentThreadRef.threadId
+    if (currentThreadId) {
+      clearThreadConnectionRequirements(currentThreadId)
+    }
   }, [adapter])
 
   // Set up connection requirements callback on adapter
