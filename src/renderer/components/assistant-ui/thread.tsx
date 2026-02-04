@@ -132,32 +132,30 @@ export const Thread: FC<ThreadCustomProps> = ({
     setConnectingServiceId(connection.id)
 
     try {
-      const { getServiceInfo } = await import('../../services/connection-detection-service')
-      const serviceInfo = getServiceInfo(connection.id)
-      if (!serviceInfo) {
-        throw new Error(`Unknown service: ${connection.id}`)
-      }
-
       switch (connection.source) {
-        case 'local':
-          if (serviceInfo.localProviderId) {
+        case 'local': {
+          // For local OAuth, we need to look up the provider ID from SERVICE_MAPPINGS
+          const { getServiceInfo } = await import('../../services/connection-detection-service')
+          const serviceInfo = getServiceInfo(connection.id)
+          if (serviceInfo?.localProviderId) {
             await window.electronAPI.startServerProviderOAuth('keyboard-api', serviceInfo.localProviderId)
           }
           break
+        }
 
-        case 'pipedream':
-          if (serviceInfo.pipedreamSlug) {
-            const { pipedreamService } = await import('../../services/pipedream-service')
-            await pipedreamService.openConnectLink(serviceInfo.pipedreamSlug)
-          }
+        case 'pipedream': {
+          // Use the connection.id directly as the pipedream slug
+          const { pipedreamService } = await import('../../services/pipedream-service')
+          await pipedreamService.openConnectLink(connection.id)
           break
+        }
 
-        case 'composio':
-          if (serviceInfo.composioSlug) {
-            const { openConnectionUrl } = await import('../../services/composio-service')
-            await openConnectionUrl(serviceInfo.composioSlug)
-          }
+        case 'composio': {
+          // Use the connection.id directly as the composio slug
+          const { openConnectionUrl } = await import('../../services/composio-service')
+          await openConnectionUrl(connection.id)
           break
+        }
       }
     }
     catch (error) {

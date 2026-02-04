@@ -121,6 +121,21 @@ export class ContextService {
   }
 
   /**
+   * Get connected accounts for connection requirement checks
+   * Lightweight method that uses cached context without building full system prompt
+   */
+  async getConnectedAccounts(): Promise<{
+    pipedream: PipedreamAccount[]
+    composio: ComposioAccountContext[]
+  }> {
+    const context = await this.getEnhancedContext()
+    return {
+      pipedream: context.pipedreamAccounts,
+      composio: context.composioAccounts,
+    }
+  }
+
+  /**
    * Build enhanced system prompt with all context
    */
   async buildEnhancedSystemPrompt(userMessage: string): Promise<string> {

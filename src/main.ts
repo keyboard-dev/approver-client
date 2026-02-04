@@ -2605,6 +2605,7 @@ class MenuBarNotificationApp {
         }
 
         const url = `${this.OAUTH_SERVER_URL}/api/pipedream/apps${params.toString() ? `?${params.toString()}` : ''}`
+        console.log('[Pipedream] Fetching apps from:', url)
 
         const response = await fetch(url, {
           headers: {
@@ -3787,6 +3788,7 @@ class MenuBarNotificationApp {
         }
 
         const url = `${this.OAUTH_SERVER_URL}/api/composio/apps${queryParams.toString() ? `?${queryParams.toString()}` : ''}`
+        console.log('[Composio] Fetching apps from:', url)
         const response = await fetch(url, {
           method: 'GET',
           headers: {

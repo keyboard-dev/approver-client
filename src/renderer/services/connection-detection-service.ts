@@ -342,6 +342,78 @@ export interface ConnectionDetectionResult {
   missingConnections: RequiredConnection[]
 }
 
+export interface CredentialAnalysisResult {
+  likelyHasCredentials: boolean
+  searchTermsIfNoCredentials: string[]
+}
+
+/**
+ * AI-powered analysis of whether user likely has required credentials
+ * based on their connected accounts and the task they want to perform
+ */
+export async function analyzeCredentialRequirements(
+  userMessage: string,
+  connectedAccounts: Array<{ id: string, app: string, name?: string }>,
+): Promise<CredentialAnalysisResult> {
+  try {
+    const accountsJson = JSON.stringify(connectedAccounts, null, 2)
+
+    const analysisPrompt = `You are analyzing whether a user has the required app connections to complete their task.
+
+CONNECTED ACCOUNTS (what the user already has):
+${accountsJson}
+
+USER'S REQUEST:
+"${userMessage}"
+
+Analyze whether the connected accounts likely provide the credentials needed for this task.
+Consider:
+- "gcal" or "google_calendar" or "google_sheets" all indicate Google OAuth access
+- Similar apps from the same provider often share OAuth (e.g., any Google app = Google access)
+- Exact matches are best, but related services often work
+
+Respond with ONLY valid JSON (no markdown, no explanation):
+{
+  "likelyHasCredentials": true/false,
+  "searchTermsIfNoCredentials": ["term1", "term2"]
+}
+
+If likelyHasCredentials is true, searchTermsIfNoCredentials should be an empty array.
+If likelyHasCredentials is false, provide search terms the user could use to find the right connector.`
+
+    const response = await window.electronAPI.sendAIMessage(
+      'keyboard',
+      [
+        { role: 'system', content: 'You analyze app connections. Respond only with valid JSON.' },
+        { role: 'user', content: analysisPrompt },
+      ],
+      { model: 'claude-haiku-4-5-20251001' },
+    )
+
+    // Parse JSON response
+    const jsonMatch = response.trim().match(/\{[\s\S]*\}/)
+    if (jsonMatch) {
+      const result = JSON.parse(jsonMatch[0])
+      console.log('[CredentialAnalysis] AI result:', result)
+      return {
+        likelyHasCredentials: result.likelyHasCredentials === true,
+        searchTermsIfNoCredentials: Array.isArray(result.searchTermsIfNoCredentials)
+          ? result.searchTermsIfNoCredentials
+          : [],
+      }
+    }
+
+    // Default to optimistic if parsing fails
+    console.log('[CredentialAnalysis] Failed to parse AI response, defaulting to optimistic')
+    return { likelyHasCredentials: true, searchTermsIfNoCredentials: [] }
+  }
+  catch (error) {
+    console.error('[CredentialAnalysis] Analysis failed:', error)
+    // Default to optimistic on error
+    return { likelyHasCredentials: true, searchTermsIfNoCredentials: [] }
+  }
+}
+
 /**
  * Quick keyword-based detection for common services
  * Returns service IDs found in the message
@@ -436,17 +508,22 @@ export async function detectRequiredServices(
 ): Promise<string[]> {
   // First, do quick keyword detection
   const keywordResults = quickKeywordDetection(message)
+  console.log('[ConnectionDetection] Keyword detection results:', keywordResults)
 
   // If AI classification is enabled, also run AI detection
   if (useAIClassification) {
     try {
       const aiResults = await aiClassifyRequiredServices(message)
+      console.log('[ConnectionDetection] AI classification results:', aiResults)
 
       // Merge results, preferring AI results but including keyword matches
       const mergedSet = new Set([...keywordResults, ...aiResults])
-      return Array.from(mergedSet)
+      const finalResults = Array.from(mergedSet)
+      console.log('[ConnectionDetection] Final merged results:', finalResults)
+      return finalResults
     }
-    catch {
+    catch (error) {
+      console.log('[ConnectionDetection] AI classification failed, using keyword results:', error)
       // Fall back to keyword results if AI fails
       return keywordResults
     }
@@ -475,6 +552,7 @@ export const connectionDetectionService = {
   getServiceInfo,
   getAllServices,
   quickKeywordDetection,
+  analyzeCredentialRequirements,
   SERVICE_MAPPINGS,
 }
 

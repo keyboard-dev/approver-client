@@ -1,9 +1,6 @@
 import type { ChatModelAdapter } from '@assistant-ui/react'
 import { Script } from '../../types'
-import {
-  connectionDetectionService,
-  getServiceInfo,
-} from './connection-detection-service'
+import { analyzeCredentialRequirements } from './connection-detection-service'
 import { contextService } from './context-service'
 import { useMCPIntegration } from './mcp-tool-integration'
 
@@ -23,6 +20,7 @@ export interface MissingConnectionInfo {
   name: string
   icon: string
   source: 'pipedream' | 'composio' | 'local'
+  searchTerms?: string[] // Search terms for app connector search
 }
 
 export interface ConnectionCheckResult {
@@ -101,13 +99,44 @@ export class AIChatAdapter implements ChatModelAdapter {
 
   /**
    * Check if user message requires connections and if they are available
+   * Uses AI-powered analysis to determine if existing credentials likely work
    */
   async checkConnectionRequirements(userMessage: string): Promise<ConnectionCheckResult> {
     try {
-      // Detect required services using AI classification
-      const detectedServices = await connectionDetectionService.detectRequiredServices(userMessage, true)
+      // Get all connected accounts from context service (cached)
+      const connectedAccounts = await contextService.getConnectedAccounts()
+      const localStatus = await window.electronAPI?.getProviderAuthStatus?.().catch(() => ({}))
+      const providerStatus = (localStatus || {}) as Record<string, { authenticated?: boolean }>
 
-      if (detectedServices.length === 0) {
+      // Build simplified accounts array for AI analysis
+      const accountsForAnalysis = [
+        ...connectedAccounts.pipedream.map(a => ({
+          id: a.id,
+          app: a.app?.nameSlug || a.app?.name || 'unknown',
+          name: a.name,
+        })),
+        ...connectedAccounts.composio
+          .filter(a => a.status === 'ACTIVE')
+          .map(a => ({
+            id: a.id,
+            app: a.toolkit?.slug || 'unknown',
+          })),
+        ...Object.entries(providerStatus)
+          .filter(([_, status]) => status?.authenticated)
+          .map(([provider]) => ({
+            id: `local_${provider}`,
+            app: provider,
+          })),
+      ]
+
+      console.log('[ConnectionCheck] Accounts for AI analysis:', accountsForAnalysis)
+
+      // AI analyzes if user likely has needed credentials
+      const analysis = await analyzeCredentialRequirements(userMessage, accountsForAnalysis)
+
+      console.log('[ConnectionCheck] AI analysis result:', analysis)
+
+      if (analysis.likelyHasCredentials) {
         return {
           hasAllConnections: true,
           missingConnections: [],
@@ -115,88 +144,93 @@ export class AIChatAdapter implements ChatModelAdapter {
         }
       }
 
-      // Fetch current connection status
-      const [pipedreamResponse, composioResponse, localStatus] = await Promise.all([
-        window.electronAPI?.fetchPipedreamAccountsDetailed?.().catch(() => null),
-        window.electronAPI?.listComposioConnectedAccounts?.().catch(() => null),
-        window.electronAPI?.getProviderAuthStatus?.().catch(() => ({})),
-      ])
+      // User doesn't have credentials - search for real apps using AI-provided search terms
+      if (analysis.searchTermsIfNoCredentials.length > 0) {
+        const searchTerms = analysis.searchTermsIfNoCredentials
+        console.log('[ConnectionCheck] Searching for apps with terms:', searchTerms)
 
-      const pipedreamAccounts = (pipedreamResponse?.data as { accounts?: Array<{ app: { nameSlug: string } }> })?.accounts || []
-      const composioAccounts = (composioResponse?.data as { items?: Array<{ appName?: string, status: string, toolkit?: { slug: string } }> })?.items || []
-      const providerStatus = (localStatus || {}) as Record<string, { authenticated?: boolean }>
+        // Create search promises for each term (both Pipedream and Composio)
+        // Using IPC handlers directly
+        const searchPromises = searchTerms.flatMap(term => [
+          window.electronAPI?.fetchPipedreamApps?.({ query: term, limit: 100 }).catch(() => null),
+          window.electronAPI?.listComposioApps?.({ search: term, limit: 100 }).catch(() => null),
+        ])
 
-      // Check which services are missing
-      const missingConnections: MissingConnectionInfo[] = []
+        const results = await Promise.all(searchPromises)
+        console.log('[ConnectionCheck] Search results:', results)
 
-      for (const serviceId of detectedServices) {
-        const serviceInfo = getServiceInfo(serviceId)
-        if (!serviceInfo) continue
+        // Process results and deduplicate by id
+        const seenIds = new Set<string>()
+        const missingConnections: MissingConnectionInfo[] = []
 
-        let isConnected = false
-        let preferredSource: 'pipedream' | 'composio' | 'local' = 'pipedream'
+        results.forEach((result: unknown, index: number) => {
+          const isPipedream = index % 2 === 0
 
-        // Check local providers first
-        if (serviceInfo.localProviderId) {
-          const status = providerStatus[serviceInfo.localProviderId]
-          if (status?.authenticated) {
-            isConnected = true
+          if (isPipedream && result) {
+            // IPC handler returns: { success: boolean, data: { apps: [...] } }
+            const pipedreamResult = result as { success: boolean, data?: { apps?: Array<{ nameSlug: string, name: string, logoUrl?: string }> } }
+            if (pipedreamResult.success && pipedreamResult.data?.apps) {
+              for (const app of pipedreamResult.data.apps) {
+                if (!seenIds.has(app.nameSlug)) {
+                  seenIds.add(app.nameSlug)
+                  missingConnections.push({
+                    id: app.nameSlug,
+                    name: app.name,
+                    icon: app.logoUrl || '',
+                    source: 'pipedream',
+                  })
+                }
+              }
+            }
           }
-          preferredSource = 'local'
-        }
+          else if (!isPipedream && result) {
+            // IPC handler returns: { success: boolean, data: { items: [...] } }
+            const composioResult = result as { success: boolean, data?: { items?: Array<{ slug: string, name: string, logo?: string }> } }
+            if (composioResult.success && composioResult.data?.items) {
+              for (const app of composioResult.data.items) {
+                if (!seenIds.has(app.slug)) {
+                  seenIds.add(app.slug)
+                  missingConnections.push({
+                    id: app.slug,
+                    name: app.name,
+                    icon: app.logo || '',
+                    source: 'composio',
+                  })
+                }
+              }
+            }
+          }
+        })
 
-        // Check Pipedream
-        if (!isConnected && serviceInfo.pipedreamSlug) {
-          const found = pipedreamAccounts.find(
-            acc => acc.app.nameSlug.toLowerCase() === serviceInfo.pipedreamSlug?.toLowerCase(),
-          )
-          if (found) {
-            isConnected = true
-          }
-          if (!serviceInfo.localProviderId) {
-            preferredSource = 'pipedream'
-          }
-        }
+        console.log('[ConnectionCheck] Found apps:', missingConnections)
 
-        // Check Composio
-        if (!isConnected && serviceInfo.composioSlug) {
-          const found = composioAccounts.find((acc) => {
-            const appName = acc.appName?.toLowerCase() || ''
-            const toolkitSlug = acc.toolkit?.slug?.toLowerCase() || ''
-            const targetSlug = serviceInfo.composioSlug?.toLowerCase() || ''
-            return (appName === targetSlug || toolkitSlug === targetSlug) && acc.status === 'ACTIVE'
-          })
-          if (found) {
-            isConnected = true
+        // If we found real apps, return them (limit to top 6)
+        if (missingConnections.length > 0) {
+          return {
+            hasAllConnections: false,
+            missingConnections: missingConnections.slice(0, 6),
+            detectedServices: searchTerms,
           }
-          if (!serviceInfo.localProviderId && !serviceInfo.pipedreamSlug) {
-            preferredSource = 'composio'
-          }
-        }
-
-        if (!isConnected) {
-          missingConnections.push({
-            id: serviceId,
-            name: serviceInfo.name,
-            icon: serviceInfo.icon,
-            source: preferredSource,
-          })
         }
       }
 
+      // Fallback: return generic connection requirement with search terms
       return {
-        hasAllConnections: missingConnections.length === 0,
-        missingConnections,
-        detectedServices,
+        hasAllConnections: false,
+        missingConnections: [{
+          id: 'required_connection',
+          name: 'Required Connection',
+          icon: '',
+          source: 'pipedream',
+          searchTerms: analysis.searchTermsIfNoCredentials,
+        }],
+        detectedServices: analysis.searchTermsIfNoCredentials,
       }
     }
     catch (error) {
-      console.error('Error checking connection requirements:', error)
-      return {
-        hasAllConnections: true,
-        missingConnections: [],
-        detectedServices: [],
-      }
+      console.error('[ConnectionCheck] Error:', error)
+      // Default to proceeding on error
+      return { hasAllConnections: true, missingConnections: [], detectedServices: [] }
     }
   }
 
