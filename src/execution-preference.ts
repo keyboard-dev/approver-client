@@ -27,7 +27,7 @@ export class ExecutionPreferenceManager {
   private jwtToken: string
 
   constructor(config: ExecutionPreferenceConfig) {
-    this.baseUrl = config.baseUrl || 'https://api.keyboard.dev'
+    this.baseUrl = config.baseUrl || 'http://localhost:4000'
     this.jwtToken = config.jwtToken
   }
 

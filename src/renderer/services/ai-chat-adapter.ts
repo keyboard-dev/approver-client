@@ -147,41 +147,84 @@ export class AIChatAdapter implements ChatModelAdapter {
 
         const results = await Promise.all(searchPromises)
         const seenIds = new Set<string>()
-        const missingConnections: MissingConnectionInfo[] = []
+        const allApps: Array<{ app: typeof results[0]['apps'][0], searchTerm: string, relevanceScore: number }> = []
+
+        // Helper function to calculate relevance score for an app
+        const getRelevanceScore = (app: typeof results[0]['apps'][0], searchTerm: string): number => {
+          const termLower = searchTerm.toLowerCase()
+          const nameLower = app.name.toLowerCase()
+          const idLower = app.id.toLowerCase()
+
+          // Exact name match = highest priority
+          if (nameLower === termLower) return 100
+
+          // Exact ID/slug match
+          if (idLower === termLower) return 95
+          if (app.composioSlug?.toLowerCase() === termLower) return 95
+          if (app.pipedreamSlug?.toLowerCase() === termLower) return 95
+
+          // Name starts with search term (e.g., "Zoom" for search "zoom")
+          if (nameLower.startsWith(termLower)) return 80
+
+          // ID starts with search term
+          if (idLower.startsWith(termLower)) return 75
+
+          // Search term is a complete word in the name (e.g., "Zoom Meetings" contains "Zoom")
+          const nameWords = nameLower.split(/\s+/)
+          if (nameWords.includes(termLower)) return 70
+
+          // Name contains search term but as part of another word (e.g., "AgencyZoom" contains "zoom")
+          if (nameLower.includes(termLower)) return 30
+
+          // Default low score for other matches
+          return 10
+        }
 
         for (const result of results) {
           if (result.success && result.apps) {
+            // Find the search term that produced this result
+            const searchTermIndex = results.indexOf(result)
+            const searchTerm = searchTerms[searchTermIndex] || searchTerms[0]
+
             for (const app of result.apps) {
               if (!seenIds.has(app.id)) {
                 seenIds.add(app.id)
-
-                // Extract logo from the correct source based on platform
-                // Priority: top-level logo > composioData.meta.logo > pipedreamData.logoUrl
-                let icon = app.logo || ''
-                if (!icon && app.composioData?.meta?.logo) {
-                  icon = app.composioData.meta.logo
-                }
-                if (!icon && app.pipedreamData?.logoUrl) {
-                  icon = app.pipedreamData.logoUrl
-                }
-
-                // Determine source based on platforms array
-                const source: 'pipedream' | 'composio' | 'local' = app.platforms.includes('pipedream')
-                  ? 'pipedream'
-                  : app.platforms.includes('composio')
-                    ? 'composio'
-                    : 'local'
-
-                missingConnections.push({
-                  id: app.composioSlug || app.pipedreamSlug || app.id,
-                  name: app.name,
-                  icon,
-                  source,
-                })
+                const relevanceScore = getRelevanceScore(app, searchTerm)
+                allApps.push({ app, searchTerm, relevanceScore })
               }
             }
           }
         }
+
+        // Sort by relevance score (highest first)
+        allApps.sort((a, b) => b.relevanceScore - a.relevanceScore)
+
+        // Convert to MissingConnectionInfo
+        const missingConnections: MissingConnectionInfo[] = allApps.map(({ app }) => {
+          // Extract logo from the correct source based on platform
+          // Priority: top-level logo > composioData.meta.logo > pipedreamData.logoUrl
+          let icon = app.logo || ''
+          if (!icon && app.composioData?.meta?.logo) {
+            icon = app.composioData.meta.logo
+          }
+          if (!icon && app.pipedreamData?.logoUrl) {
+            icon = app.pipedreamData.logoUrl
+          }
+
+          // Determine source based on platforms array
+          const source: 'pipedream' | 'composio' | 'local' = app.platforms.includes('pipedream')
+            ? 'pipedream'
+            : app.platforms.includes('composio')
+              ? 'composio'
+              : 'local'
+
+          return {
+            id: app.composioSlug || app.pipedreamSlug || app.id,
+            name: app.name,
+            icon,
+            source,
+          }
+        })
 
         if (missingConnections.length > 0) {
           return {

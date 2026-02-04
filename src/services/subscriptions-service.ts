@@ -4,8 +4,8 @@
  */
 
 import * as fs from 'fs'
-import * as path from 'path'
 import * as os from 'os'
+import * as path from 'path'
 
 export interface SubscriptionCheckoutSuccess {
   success: true
@@ -40,8 +40,8 @@ export interface PaymentStatusError {
 
 export type PaymentStatusResponse = PaymentStatusSuccess | PaymentStatusError
 
-const SUBSCRIPTION_CHECKOUT_URL = 'https://api.keyboard.dev/api/payments/subscriptions/checkout'
-const PAYMENT_STATUS_URL = 'https://api.keyboard.dev/api/payments/status'
+const SUBSCRIPTION_CHECKOUT_URL = 'http://localhost:4000/api/payments/subscriptions/checkout'
+const PAYMENT_STATUS_URL = 'http://localhost:4000/api/payments/status'
 const STORAGE_DIR = path.join(os.homedir(), '.keyboard-mcp')
 const HOSTED_SERVER_STATUS_FILE = path.join(STORAGE_DIR, 'hosted-server-status.json')
 

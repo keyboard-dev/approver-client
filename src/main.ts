@@ -118,8 +118,8 @@ import { PaymentStatusResponse, SubscriptionCheckoutResponse, subscriptionsServi
 import { TrayManager } from './tray-manager'
 import { CollectionRequest, Message, ShareMessage } from './types'
 
-import { CODE_APPROVAL_ORDER, CodeApprovalLevel, RESPONSE_APPROVAL_ORDER, ResponseApprovalLevel } from './types/settings-types'
 import { SecurityPolicy } from './types/security-policy'
+import { CODE_APPROVAL_ORDER, CodeApprovalLevel, RESPONSE_APPROVAL_ORDER, ResponseApprovalLevel } from './types/settings-types'
 import { ExecutorWebSocketClient } from './websocket-client-to-executor'
 import { WindowManager } from './window-manager'
 
@@ -193,7 +193,7 @@ class MenuBarNotificationApp {
   private pendingCount: number = 0
   private readonly WS_PORT = 8080
   private readonly OAUTH_PORT = 8082
-  private readonly OAUTH_SERVER_URL = process.env.OAUTH_SERVER_URL || 'https://api.keyboard.dev'
+  private readonly OAUTH_SERVER_URL = process.env.OAUTH_SERVER_URL || 'http://localhost:4000'
   private readonly SKIP_AUTH = process.env.SKIP_AUTH === 'true'
   private readonly CUSTOM_PROTOCOL = 'mcpauth'
   private sseBackgroundService: SSEBackgroundService | null = null
@@ -220,7 +220,7 @@ class MenuBarNotificationApp {
   private readonly FULL_CODE_EXECUTION_FILE = path.join(os.homedir(), '.keyboard-mcp', 'full-code-execution')
 
   // Security policy management - now uses API
-  private readonly SECURITY_POLICY_API_URL = `https://api.keyboard.dev`
+  private readonly SECURITY_POLICY_API_URL = `http://localhost:4000`
 
   // Executor WebSocket client
   private executorWSClient: ExecutorWebSocketClient | null = null
@@ -377,7 +377,7 @@ class MenuBarNotificationApp {
       // Skip in development mode to avoid Squirrel errors on Windows
       const isDev = process.argv.includes('--dev') || !app.isPackaged
       if ((process.platform === 'darwin' || process.platform === 'win32') && !isDev) {
-        const feedURL = `https://api.keyboard.dev/update/${process.platform}/${app.getVersion()}`
+        const feedURL = `http://localhost:4000/update/${process.platform}/${app.getVersion()}`
         autoUpdater.setFeedURL({
           url: feedURL,
         })
@@ -544,7 +544,7 @@ class MenuBarNotificationApp {
 
   private initializeConnectedAccountsService(): void {
     this.connectedAccountsService = new ConnectedAccountsService({
-      tokenVaultUrl: process.env.TOKEN_VAULT_URL || 'https://api.keyboard.dev',
+      tokenVaultUrl: process.env.TOKEN_VAULT_URL || 'http://localhost:4000',
     })
   }
 
@@ -3869,7 +3869,7 @@ class MenuBarNotificationApp {
     })
 
     // Unified Triggers API (localhost:4000)
-    const UNIFIED_TRIGGERS_API_URL = process.env.UNIFIED_TRIGGERS_API_URL || `https://api.keyboard.dev`
+    const UNIFIED_TRIGGERS_API_URL = process.env.UNIFIED_TRIGGERS_API_URL || `http://localhost:4000`
 
     // Search triggers across both Pipedream and Composio
     ipcMain.handle('search-unified-triggers', async (_event, appName: string) => {

@@ -85,7 +85,7 @@ export const AddServerPopup: React.FC<ManualProviderFormProps> = ({
               className="border border-[#CCC] rounded-[0.38rem] px-[0.63rem] py-[0.38rem]"
               value={url}
               onChange={e => setUrl(e.target.value)}
-              placeholder="https://api.keyboard.dev"
+              placeholder="http://localhost:4000"
             />
           </div>
         </div>
