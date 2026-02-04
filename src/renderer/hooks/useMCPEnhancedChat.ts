@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Script } from '../../types'
-import { AIChatAdapter } from '../services/ai-chat-adapter'
+import { AIChatAdapter, ConnectionCheckResult, MissingConnectionInfo } from '../services/ai-chat-adapter'
 import { useMCPIntegration } from '../services/mcp-tool-integration'
 
 export interface MCPEnhancedChatConfig {
@@ -65,6 +65,10 @@ export interface MCPEnhancedChatState {
   isAgenticMode: boolean
   agenticProgress?: AgenticProgress
 
+  // Connection requirements state
+  missingConnections: MissingConnectionInfo[]
+  showConnectionPrompt: boolean
+
   // Control functions
   setMCPEnabled: (enabled: boolean) => void
   refreshMCPConnection: () => void
@@ -72,6 +76,10 @@ export interface MCPEnhancedChatState {
   setAgenticMode: (enabled: boolean) => void
   setSelectedScripts: (scripts: Script[]) => void
   setThreadTitleCallback: (callback: (title: string) => void) => void
+
+  // Connection requirements functions
+  clearConnectionPrompt: () => void
+  skipConnectionCheckOnce: () => void
 
   // Execution tracking functions
   addExecution: (abilityName: string, parameters: Record<string, unknown>, provider?: string) => string
@@ -95,6 +103,13 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
   const [agenticProgress, setAgenticProgress] = useState<AgenticProgress | undefined>()
   const [executions, setExecutions] = useState<AbilityExecution[]>([])
   const [scripts, setScripts] = useState<Script[]>([])
+
+  // Connection requirements state
+  const [missingConnections, setMissingConnections] = useState<MissingConnectionInfo[]>([])
+  const [showConnectionPrompt, setShowConnectionPrompt] = useState(false)
+
+  // Ability messages state
+  const [abilityMessages, setAbilityMessages] = useState<AbilityMessage[]>([])
 
   // Simple ability execution state management
   // The adapter will call these functions directly during ability execution
@@ -216,6 +231,44 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
     adapter.setThreadTitleCallback(callback)
   }, [adapter])
 
+  // Connection requirements callback
+  const handleMissingConnections = useCallback((result: ConnectionCheckResult) => {
+    setMissingConnections(result.missingConnections)
+    setShowConnectionPrompt(result.missingConnections.length > 0)
+  }, [])
+
+  // Clear connection prompt
+  const clearConnectionPrompt = useCallback(() => {
+    setMissingConnections([])
+    setShowConnectionPrompt(false)
+  }, [])
+
+  // Skip connection check once (for "continue anyway" flow)
+  const skipConnectionCheckOnce = useCallback(() => {
+    adapter.setSkipConnectionCheck(true)
+    setMissingConnections([])
+    setShowConnectionPrompt(false)
+  }, [adapter])
+
+  // Set up connection requirements callback on adapter
+  useEffect(() => {
+    adapter.setMissingConnectionsCallback(handleMissingConnections)
+  }, [adapter, handleMissingConnections])
+
+  // Ability message functions
+  const addAbilityMessage = useCallback((message: Omit<AbilityMessage, 'id' | 'timestamp'>) => {
+    const newMessage: AbilityMessage = {
+      ...message,
+      id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
+      timestamp: Date.now(),
+    }
+    setAbilityMessages(prev => [...prev, newMessage])
+  }, [])
+
+  const clearAbilityMessages = useCallback(() => {
+    setAbilityMessages([])
+  }, [])
+
   return {
     adapter,
     mcpEnabled,
@@ -227,14 +280,26 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
     executions,
     isAgenticMode,
     agenticProgress,
+    // Connection requirements state
+    missingConnections,
+    showConnectionPrompt,
+    // Control functions
     setMCPEnabled,
     refreshMCPConnection,
     setAbilityExecutionState, // Expose for adapter to call
     setAgenticMode,
     setSelectedScripts,
     setThreadTitleCallback,
+    // Connection requirements functions
+    clearConnectionPrompt,
+    skipConnectionCheckOnce,
+    // Execution tracking
     addExecution,
     updateExecution,
     clearExecutions,
+    // Ability messages
+    abilityMessages,
+    addAbilityMessage,
+    clearAbilityMessages,
   }
 }

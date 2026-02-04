@@ -228,6 +228,11 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
                       mcpAbilities={mcpChat.mcpAbilities}
                       mcpError={mcpChat.mcpError}
                       onRetryMCP={mcpChat.refreshMCPConnection}
+                      // Connection requirements props
+                      missingConnections={mcpChat.missingConnections}
+                      showConnectionPrompt={mcpChat.showConnectionPrompt}
+                      onClearConnectionPrompt={mcpChat.clearConnectionPrompt}
+                      onSkipConnectionCheck={mcpChat.skipConnectionCheckOnce}
                     />
                   </div>
                 </div>

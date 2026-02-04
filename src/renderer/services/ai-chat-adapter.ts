@@ -1,5 +1,9 @@
 import type { ChatModelAdapter } from '@assistant-ui/react'
 import { Script } from '../../types'
+import {
+  connectionDetectionService,
+  getServiceInfo,
+} from './connection-detection-service'
 import { contextService } from './context-service'
 import { useMCPIntegration } from './mcp-tool-integration'
 
@@ -14,6 +18,19 @@ interface AIProviderSelection {
   mcpEnabled?: boolean
 }
 
+export interface MissingConnectionInfo {
+  id: string
+  name: string
+  icon: string
+  source: 'pipedream' | 'composio' | 'local'
+}
+
+export interface ConnectionCheckResult {
+  hasAllConnections: boolean
+  missingConnections: MissingConnectionInfo[]
+  detectedServices: string[]
+}
+
 export class AIChatAdapter implements ChatModelAdapter {
   private currentProvider: AIProviderSelection = { provider: 'openai', model: 'gpt-3.5-turbo', mcpEnabled: false }
   private mcpIntegration: ReturnType<typeof useMCPIntegration> | null = null
@@ -24,9 +41,25 @@ export class AIChatAdapter implements ChatModelAdapter {
   private isToolsExecuting = false
   private onThreadTitleGenerated?: (title: string) => void
   private titleGeneratedForThread = false
+  private onMissingConnectionsDetected?: (result: ConnectionCheckResult) => void
+  private skipConnectionCheck = false
 
   constructor(provider: string = 'openai', model?: string, mcpEnabled: boolean = false) {
     this.currentProvider = { provider, model, mcpEnabled }
+  }
+
+  /**
+   * Set callback for when missing connections are detected
+   */
+  setMissingConnectionsCallback(callback: (result: ConnectionCheckResult) => void) {
+    this.onMissingConnectionsDetected = callback
+  }
+
+  /**
+   * Skip the next connection check (used when user dismisses the prompt)
+   */
+  setSkipConnectionCheck(skip: boolean) {
+    this.skipConnectionCheck = skip
   }
 
   setThreadTitleCallback(callback: (title: string) => void) {
@@ -64,6 +97,107 @@ export class AIChatAdapter implements ChatModelAdapter {
 
   setSelectedScripts(scripts: Script[]) {
     contextService.setSelectedScripts(scripts)
+  }
+
+  /**
+   * Check if user message requires connections and if they are available
+   */
+  async checkConnectionRequirements(userMessage: string): Promise<ConnectionCheckResult> {
+    try {
+      // Detect required services using AI classification
+      const detectedServices = await connectionDetectionService.detectRequiredServices(userMessage, true)
+
+      if (detectedServices.length === 0) {
+        return {
+          hasAllConnections: true,
+          missingConnections: [],
+          detectedServices: [],
+        }
+      }
+
+      // Fetch current connection status
+      const [pipedreamResponse, composioResponse, localStatus] = await Promise.all([
+        window.electronAPI?.fetchPipedreamAccountsDetailed?.().catch(() => null),
+        window.electronAPI?.listComposioConnectedAccounts?.().catch(() => null),
+        window.electronAPI?.getProviderAuthStatus?.().catch(() => ({})),
+      ])
+
+      const pipedreamAccounts = (pipedreamResponse?.data as { accounts?: Array<{ app: { nameSlug: string } }> })?.accounts || []
+      const composioAccounts = (composioResponse?.data as { items?: Array<{ appName?: string, status: string, toolkit?: { slug: string } }> })?.items || []
+      const providerStatus = (localStatus || {}) as Record<string, { authenticated?: boolean }>
+
+      // Check which services are missing
+      const missingConnections: MissingConnectionInfo[] = []
+
+      for (const serviceId of detectedServices) {
+        const serviceInfo = getServiceInfo(serviceId)
+        if (!serviceInfo) continue
+
+        let isConnected = false
+        let preferredSource: 'pipedream' | 'composio' | 'local' = 'pipedream'
+
+        // Check local providers first
+        if (serviceInfo.localProviderId) {
+          const status = providerStatus[serviceInfo.localProviderId]
+          if (status?.authenticated) {
+            isConnected = true
+          }
+          preferredSource = 'local'
+        }
+
+        // Check Pipedream
+        if (!isConnected && serviceInfo.pipedreamSlug) {
+          const found = pipedreamAccounts.find(
+            acc => acc.app.nameSlug.toLowerCase() === serviceInfo.pipedreamSlug?.toLowerCase(),
+          )
+          if (found) {
+            isConnected = true
+          }
+          if (!serviceInfo.localProviderId) {
+            preferredSource = 'pipedream'
+          }
+        }
+
+        // Check Composio
+        if (!isConnected && serviceInfo.composioSlug) {
+          const found = composioAccounts.find((acc) => {
+            const appName = acc.appName?.toLowerCase() || ''
+            const toolkitSlug = acc.toolkit?.slug?.toLowerCase() || ''
+            const targetSlug = serviceInfo.composioSlug?.toLowerCase() || ''
+            return (appName === targetSlug || toolkitSlug === targetSlug) && acc.status === 'ACTIVE'
+          })
+          if (found) {
+            isConnected = true
+          }
+          if (!serviceInfo.localProviderId && !serviceInfo.pipedreamSlug) {
+            preferredSource = 'composio'
+          }
+        }
+
+        if (!isConnected) {
+          missingConnections.push({
+            id: serviceId,
+            name: serviceInfo.name,
+            icon: serviceInfo.icon,
+            source: preferredSource,
+          })
+        }
+      }
+
+      return {
+        hasAllConnections: missingConnections.length === 0,
+        missingConnections,
+        detectedServices,
+      }
+    }
+    catch (error) {
+      console.error('Error checking connection requirements:', error)
+      return {
+        hasAllConnections: true,
+        missingConnections: [],
+        detectedServices: [],
+      }
+    }
   }
 
   private startPeriodicPing() {
@@ -866,6 +1000,33 @@ ${analysisResponse}`
         // Generate title asynchronously (non-blocking)
         this.generateThreadTitle(userMessages[0].content)
       }
+
+      // Check for missing connections before proceeding (only for keyboard provider with MCP)
+      if (this.currentProvider.provider === 'keyboard' && this.currentProvider.mcpEnabled && !this.skipConnectionCheck) {
+        const lastUserMessage = aiMessages.filter(m => m.role === 'user').pop()
+        if (lastUserMessage?.content) {
+          const connectionResult = await this.checkConnectionRequirements(lastUserMessage.content)
+
+          if (!connectionResult.hasAllConnections && connectionResult.missingConnections.length > 0) {
+            // Notify callback about missing connections
+            if (this.onMissingConnectionsDetected) {
+              this.onMissingConnectionsDetected(connectionResult)
+            }
+
+            // Yield a response indicating missing connections
+            const serviceNames = connectionResult.missingConnections.map(c => c.name).join(', ')
+            yield {
+              content: [{
+                type: 'text' as const,
+                text: `I don't have access to ${serviceNames} tools - I'm currently missing some app connections.\n\nTo complete your request, I would need access to the following services. Please connect them using the prompts above, then try again.`,
+              }],
+            }
+            return
+          }
+        }
+      }
+      // Reset skip flag after use
+      this.skipConnectionCheck = false
 
       // Inject enhanced context into system prompt for keyboard provider
       if (this.currentProvider.provider === 'keyboard' && this.currentProvider.mcpEnabled && aiMessages.length > 0) {

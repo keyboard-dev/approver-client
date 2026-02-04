@@ -27,7 +27,7 @@ import {
 import { LazyMotion, MotionConfig, domAnimation } from 'motion/react'
 import * as m from 'motion/react-m'
 import type { FC } from 'react'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { Message, Script } from '../../../types'
@@ -41,6 +41,7 @@ import {
   ComposerAttachments,
   UserMessageAttachments,
 } from './attachment'
+import { ConnectionRequirementsMessage } from './ConnectionRequirementsMessage'
 import { MarkdownText } from './markdown-text'
 import { SettingsTabType, ThreadLeftSidebar } from './thread-left-sidebar'
 import { ThreadSidebar } from './thread-sidebar'
@@ -63,6 +64,14 @@ interface ProviderConfig {
   supportsMCP?: boolean
 }
 
+interface MissingConnectionProp {
+  id: string
+  name: string
+  icon: string
+  source: 'pipedream' | 'composio' | 'local'
+  isConnecting?: boolean
+}
+
 interface ThreadCustomProps {
   currentApprovalMessage?: Message
   onApproveMessage?: (message: Message) => void
@@ -80,6 +89,11 @@ interface ThreadCustomProps {
   mcpAbilities?: number
   mcpError?: string | null
   onRetryMCP?: () => void
+  // Connection requirements
+  missingConnections?: MissingConnectionProp[]
+  showConnectionPrompt?: boolean
+  onClearConnectionPrompt?: () => void
+  onSkipConnectionCheck?: () => void
 }
 
 export const Thread: FC<ThreadCustomProps> = ({
@@ -99,12 +113,69 @@ export const Thread: FC<ThreadCustomProps> = ({
   mcpAbilities,
   mcpError,
   onRetryMCP,
+  // Connection requirements props
+  missingConnections = [],
+  showConnectionPrompt = false,
+  onClearConnectionPrompt,
+  onSkipConnectionCheck,
 }) => {
   const navigate = useNavigate()
   const [selectedScripts, setSelectedScripts] = useState<Script[]>([])
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(false)
   const [rightSidebarOpen, setRightSidebarOpen] = useState(false)
   const [activeSettingsTab, setActiveSettingsTab] = useState<SettingsTabType | null>(null)
+  const [thinkingExpanded, setThinkingExpanded] = useState(false)
+  const [connectingServiceId, setConnectingServiceId] = useState<string | null>(null)
+
+  // Handle connection button click
+  const handleConnect = useCallback(async (connection: MissingConnectionProp) => {
+    setConnectingServiceId(connection.id)
+
+    try {
+      const { getServiceInfo } = await import('../../services/connection-detection-service')
+      const serviceInfo = getServiceInfo(connection.id)
+      if (!serviceInfo) {
+        throw new Error(`Unknown service: ${connection.id}`)
+      }
+
+      switch (connection.source) {
+        case 'local':
+          if (serviceInfo.localProviderId) {
+            await window.electronAPI.startServerProviderOAuth('keyboard-api', serviceInfo.localProviderId)
+          }
+          break
+
+        case 'pipedream':
+          if (serviceInfo.pipedreamSlug) {
+            const { pipedreamService } = await import('../../services/pipedream-service')
+            await pipedreamService.openConnectLink(serviceInfo.pipedreamSlug)
+          }
+          break
+
+        case 'composio':
+          if (serviceInfo.composioSlug) {
+            const { openConnectionUrl } = await import('../../services/composio-service')
+            await openConnectionUrl(serviceInfo.composioSlug)
+          }
+          break
+      }
+    }
+    catch (error) {
+      console.error('Failed to connect:', error)
+    }
+    finally {
+      // Reset after a delay to allow the OAuth flow to complete
+      setTimeout(() => {
+        setConnectingServiceId(null)
+      }, 3000)
+    }
+  }, [])
+
+  // Handle dismiss connection prompt
+  const handleDismissConnectionPrompt = useCallback(() => {
+    onClearConnectionPrompt?.()
+    onSkipConnectionCheck?.()
+  }, [onClearConnectionPrompt, onSkipConnectionCheck])
 
   // Get settings panel based on active tab
   const getSettingsPanel = () => {
@@ -271,6 +342,22 @@ export const Thread: FC<ThreadCustomProps> = ({
                   onRejectMessage={onRejectMessage}
                   onClearMessage={onClearMessage}
                 />
+
+                {/* Connection Requirements Prompt - shown when connections are missing */}
+                {showConnectionPrompt && missingConnections.length > 0 && (
+                  <ConnectionRequirementsMessage
+                    thinkingTime={12}
+                    explanation="I don't have access to the required tools - I'm currently missing some app connections."
+                    missingConnections={missingConnections.map(c => ({
+                      ...c,
+                      isConnecting: connectingServiceId === c.id,
+                    }))}
+                    onConnect={handleConnect}
+                    onDismiss={handleDismissConnectionPrompt}
+                    isExpanded={thinkingExpanded}
+                    onToggleExpanded={() => setThinkingExpanded(!thinkingExpanded)}
+                  />
+                )}
 
                 <ThreadPrimitive.If empty={false}>
                   <div className="aui-thread-viewport-spacer min-h-8 grow" />
