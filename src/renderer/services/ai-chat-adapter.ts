@@ -1,5 +1,6 @@
 import type { ChatModelAdapter } from '@assistant-ui/react'
 import { Script } from '../../types'
+import { searchCombinedApps } from './combined-apps-service'
 import { analyzeCredentialRequirements } from './connection-detection-service'
 import { contextService } from './context-service'
 import { useMCPIntegration } from './mcp-tool-integration'
@@ -129,12 +130,7 @@ export class AIChatAdapter implements ChatModelAdapter {
           })),
       ]
 
-      console.log('[ConnectionCheck] Accounts for AI analysis:', accountsForAnalysis)
-
-      // AI analyzes if user likely has needed credentials
       const analysis = await analyzeCredentialRequirements(userMessage, accountsForAnalysis)
-
-      console.log('[ConnectionCheck] AI analysis result:', analysis)
 
       if (analysis.likelyHasCredentials) {
         return {
@@ -147,64 +143,46 @@ export class AIChatAdapter implements ChatModelAdapter {
       // User doesn't have credentials - search for real apps using AI-provided search terms
       if (analysis.searchTermsIfNoCredentials.length > 0) {
         const searchTerms = analysis.searchTermsIfNoCredentials
-        console.log('[ConnectionCheck] Searching for apps with terms:', searchTerms)
-
-        // Create search promises for each term (both Pipedream and Composio)
-        // Using IPC handlers directly
-        const searchPromises = searchTerms.flatMap(term => [
-          window.electronAPI?.fetchPipedreamApps?.({ query: term, limit: 100 }).catch(() => null),
-          window.electronAPI?.listComposioApps?.({ search: term, limit: 100 }).catch(() => null),
-        ])
+        const searchPromises = searchTerms.map(term => searchCombinedApps(term, false))
 
         const results = await Promise.all(searchPromises)
-        console.log('[ConnectionCheck] Search results:', results)
-
-        // Process results and deduplicate by id
         const seenIds = new Set<string>()
         const missingConnections: MissingConnectionInfo[] = []
 
-        results.forEach((result: unknown, index: number) => {
-          const isPipedream = index % 2 === 0
+        for (const result of results) {
+          if (result.success && result.apps) {
+            for (const app of result.apps) {
+              if (!seenIds.has(app.id)) {
+                seenIds.add(app.id)
 
-          if (isPipedream && result) {
-            // IPC handler returns: { success: boolean, data: { apps: [...] } }
-            const pipedreamResult = result as { success: boolean, data?: { apps?: Array<{ nameSlug: string, name: string, logoUrl?: string }> } }
-            if (pipedreamResult.success && pipedreamResult.data?.apps) {
-              for (const app of pipedreamResult.data.apps) {
-                if (!seenIds.has(app.nameSlug)) {
-                  seenIds.add(app.nameSlug)
-                  missingConnections.push({
-                    id: app.nameSlug,
-                    name: app.name,
-                    icon: app.logoUrl || '',
-                    source: 'pipedream',
-                  })
+                // Extract logo from the correct source based on platform
+                // Priority: top-level logo > composioData.meta.logo > pipedreamData.logoUrl
+                let icon = app.logo || ''
+                if (!icon && app.composioData?.meta?.logo) {
+                  icon = app.composioData.meta.logo
                 }
+                if (!icon && app.pipedreamData?.logoUrl) {
+                  icon = app.pipedreamData.logoUrl
+                }
+
+                // Determine source based on platforms array
+                const source: 'pipedream' | 'composio' | 'local' = app.platforms.includes('pipedream')
+                  ? 'pipedream'
+                  : app.platforms.includes('composio')
+                    ? 'composio'
+                    : 'local'
+
+                missingConnections.push({
+                  id: app.composioSlug || app.pipedreamSlug || app.id,
+                  name: app.name,
+                  icon,
+                  source,
+                })
               }
             }
           }
-          else if (!isPipedream && result) {
-            // IPC handler returns: { success: boolean, data: { items: [...] } }
-            const composioResult = result as { success: boolean, data?: { items?: Array<{ slug: string, name: string, logo?: string }> } }
-            if (composioResult.success && composioResult.data?.items) {
-              for (const app of composioResult.data.items) {
-                if (!seenIds.has(app.slug)) {
-                  seenIds.add(app.slug)
-                  missingConnections.push({
-                    id: app.slug,
-                    name: app.name,
-                    icon: app.logo || '',
-                    source: 'composio',
-                  })
-                }
-              }
-            }
-          }
-        })
+        }
 
-        console.log('[ConnectionCheck] Found apps:', missingConnections)
-
-        // If we found real apps, return them (limit to top 6)
         if (missingConnections.length > 0) {
           return {
             hasAllConnections: false,
@@ -228,8 +206,6 @@ export class AIChatAdapter implements ChatModelAdapter {
       }
     }
     catch (error) {
-      console.error('[ConnectionCheck] Error:', error)
-      // Default to proceeding on error
       return { hasAllConnections: true, missingConnections: [], detectedServices: [] }
     }
   }

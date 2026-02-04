@@ -134,9 +134,9 @@ export const Thread: FC<ThreadCustomProps> = ({
     try {
       switch (connection.source) {
         case 'local': {
-          // For local OAuth, we need to look up the provider ID from SERVICE_MAPPINGS
+          // For local OAuth, we need to look up the provider ID dynamically
           const { getServiceInfo } = await import('../../services/connection-detection-service')
-          const serviceInfo = getServiceInfo(connection.id)
+          const serviceInfo = await getServiceInfo(connection.id)
           if (serviceInfo?.localProviderId) {
             await window.electronAPI.startServerProviderOAuth('keyboard-api', serviceInfo.localProviderId)
           }

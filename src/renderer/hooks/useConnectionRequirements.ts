@@ -27,7 +27,7 @@ export interface ConnectionRequirementsState {
   /** Whether all required connections are present */
   hasAllConnections: boolean
   /** The services detected from the message */
-  detectedServices: string[]
+  detectedServices: ServiceInfo[]
   /** Error message if detection failed */
   error: string | null
   /** Whether the prompt should be shown */
@@ -87,7 +87,7 @@ export function useConnectionRequirements(): UseConnectionRequirementsReturn {
   const [isDetecting, setIsDetecting] = useState(false)
   const [missingConnections, setMissingConnections] = useState<MissingConnection[]>([])
   const [hasAllConnections, setHasAllConnections] = useState(true)
-  const [detectedServices, setDetectedServices] = useState<string[]>([])
+  const [detectedServices, setDetectedServices] = useState<ServiceInfo[]>([])
   const [error, setError] = useState<string | null>(null)
   const [showConnectionPrompt, setShowConnectionPrompt] = useState(false)
 
@@ -188,7 +188,7 @@ export function useConnectionRequirements(): UseConnectionRequirementsReturn {
       // First, refresh connection status
       await fetchConnectionStatus()
 
-      // Detect required services using AI classification
+      // Detect required services using AI classification - now returns ServiceInfo[]
       const services = await connectionDetectionService.detectRequiredServices(message, true)
       setDetectedServices(services)
 
@@ -203,19 +203,16 @@ export function useConnectionRequirements(): UseConnectionRequirementsReturn {
       // Check which services are missing
       const missing: MissingConnection[] = []
 
-      for (const serviceId of services) {
-        const serviceInfo = getServiceInfo(serviceId)
-        if (!serviceInfo) continue
-
+      for (const serviceInfo of services) {
         const { connected, source } = isServiceConnected(serviceInfo)
 
         if (!connected) {
           missing.push({
-            id: serviceId,
+            id: serviceInfo.id,
             name: serviceInfo.name,
             icon: serviceInfo.icon,
             source,
-            isConnecting: connectingServiceId === serviceId,
+            isConnecting: connectingServiceId === serviceInfo.id,
           })
         }
       }
@@ -240,7 +237,10 @@ export function useConnectionRequirements(): UseConnectionRequirementsReturn {
   // ==========================================================================
 
   const connectService = useCallback(async (connection: MissingConnection) => {
-    const serviceInfo = getServiceInfo(connection.id)
+    // Find the service info from detected services
+    const serviceInfo = detectedServices.find(s => s.id === connection.id)
+      || await getServiceInfo(connection.id)
+
     if (!serviceInfo) {
       throw new Error(`Unknown service: ${connection.id}`)
     }
@@ -314,7 +314,7 @@ export function useConnectionRequirements(): UseConnectionRequirementsReturn {
       )
       throw err
     }
-  }, [fetchConnectionStatus, isServiceConnected])
+  }, [fetchConnectionStatus, isServiceConnected, detectedServices])
 
   // ==========================================================================
   // Clear Prompt
@@ -338,19 +338,16 @@ export function useConnectionRequirements(): UseConnectionRequirementsReturn {
     if (detectedServices.length > 0) {
       const missing: MissingConnection[] = []
 
-      for (const serviceId of detectedServices) {
-        const serviceInfo = getServiceInfo(serviceId)
-        if (!serviceInfo) continue
-
+      for (const serviceInfo of detectedServices) {
         const { connected, source } = isServiceConnected(serviceInfo)
 
         if (!connected) {
           missing.push({
-            id: serviceId,
+            id: serviceInfo.id,
             name: serviceInfo.name,
             icon: serviceInfo.icon,
             source,
-            isConnecting: connectingServiceId === serviceId,
+            isConnecting: connectingServiceId === serviceInfo.id,
           })
         }
       }

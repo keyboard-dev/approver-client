@@ -2,327 +2,19 @@
  * Connection Detection Service
  *
  * Uses AI classification to detect which app connections are required
- * based on the user's message. Returns a list of services that need
- * to be connected before the task can be executed.
+ * based on the user's message. Dynamically fetches app info from
+ * Composio and Pipedream APIs instead of using hardcoded mappings.
  */
 
-// Known services and their common aliases/keywords for quick matching
-export const SERVICE_MAPPINGS: Record<string, ServiceInfo> = {
-  // Productivity & Notes
-  notion: {
-    id: 'notion',
-    name: 'Notion',
-    aliases: ['notion', 'notion.so'],
-    pipedreamSlug: 'notion',
-    composioSlug: 'notion',
-    icon: 'https://cdn.worldvectorlogo.com/logos/notion-logo-1.svg',
-  },
-  linear: {
-    id: 'linear',
-    name: 'Linear',
-    aliases: ['linear', 'linear.app'],
-    pipedreamSlug: 'linear_app',
-    composioSlug: 'linear',
-    icon: 'https://cdn.worldvectorlogo.com/logos/linear-1.svg',
-  },
-  asana: {
-    id: 'asana',
-    name: 'Asana',
-    aliases: ['asana'],
-    pipedreamSlug: 'asana',
-    composioSlug: 'asana',
-    icon: 'https://cdn.worldvectorlogo.com/logos/asana-logo.svg',
-  },
-  trello: {
-    id: 'trello',
-    name: 'Trello',
-    aliases: ['trello'],
-    pipedreamSlug: 'trello',
-    composioSlug: 'trello',
-    icon: 'https://cdn.worldvectorlogo.com/logos/trello.svg',
-  },
-  jira: {
-    id: 'jira',
-    name: 'Jira',
-    aliases: ['jira', 'atlassian jira'],
-    pipedreamSlug: 'jira',
-    composioSlug: 'jira',
-    icon: 'https://cdn.worldvectorlogo.com/logos/jira-1.svg',
-  },
+import { CombinedApp, searchCombinedApps } from './combined-apps-service'
 
-  // Communication
-  slack: {
-    id: 'slack',
-    name: 'Slack',
-    aliases: ['slack'],
-    pipedreamSlug: 'slack',
-    composioSlug: 'slack',
-    localProviderId: 'slack',
-    icon: 'https://cdn.worldvectorlogo.com/logos/slack-new-logo.svg',
-  },
-  discord: {
-    id: 'discord',
-    name: 'Discord',
-    aliases: ['discord'],
-    pipedreamSlug: 'discord',
-    composioSlug: 'discord',
-    icon: 'https://cdn.worldvectorlogo.com/logos/discord-6.svg',
-  },
-  teams: {
-    id: 'teams',
-    name: 'Microsoft Teams',
-    aliases: ['teams', 'microsoft teams', 'ms teams'],
-    pipedreamSlug: 'microsoft_teams',
-    composioSlug: 'microsoftteams',
-    icon: 'https://cdn.worldvectorlogo.com/logos/microsoft-teams-1.svg',
-  },
-
-  // Google Suite
-  google: {
-    id: 'google',
-    name: 'Google',
-    aliases: ['google', 'gmail', 'google drive', 'google docs', 'google sheets', 'google calendar', 'google slides'],
-    pipedreamSlug: 'google',
-    composioSlug: 'googlesheets',
-    localProviderId: 'google',
-    icon: 'https://cdn.worldvectorlogo.com/logos/google-icon.svg',
-  },
-  gmail: {
-    id: 'gmail',
-    name: 'Gmail',
-    aliases: ['gmail', 'google mail'],
-    pipedreamSlug: 'gmail',
-    composioSlug: 'gmail',
-    localProviderId: 'google',
-    icon: 'https://cdn.worldvectorlogo.com/logos/gmail-icon-2.svg',
-  },
-  googlecalendar: {
-    id: 'googlecalendar',
-    name: 'Google Calendar',
-    aliases: ['google calendar', 'gcal'],
-    pipedreamSlug: 'google_calendar',
-    composioSlug: 'googlecalendar',
-    localProviderId: 'google',
-    icon: 'https://cdn.worldvectorlogo.com/logos/google-calendar-2020.svg',
-  },
-  googlesheets: {
-    id: 'googlesheets',
-    name: 'Google Sheets',
-    aliases: ['google sheets', 'sheets', 'spreadsheet'],
-    pipedreamSlug: 'google_sheets',
-    composioSlug: 'googlesheets',
-    localProviderId: 'google',
-    icon: 'https://cdn.worldvectorlogo.com/logos/google-sheets-logo-icon.svg',
-  },
-  googledrive: {
-    id: 'googledrive',
-    name: 'Google Drive',
-    aliases: ['google drive', 'drive'],
-    pipedreamSlug: 'google_drive',
-    composioSlug: 'googledrive',
-    localProviderId: 'google',
-    icon: 'https://cdn.worldvectorlogo.com/logos/google-drive-icon.svg',
-  },
-
-  // Development
-  github: {
-    id: 'github',
-    name: 'GitHub',
-    aliases: ['github', 'gh'],
-    pipedreamSlug: 'github',
-    composioSlug: 'github',
-    localProviderId: 'github',
-    icon: 'https://cdn.worldvectorlogo.com/logos/github-icon-1.svg',
-  },
-  gitlab: {
-    id: 'gitlab',
-    name: 'GitLab',
-    aliases: ['gitlab'],
-    pipedreamSlug: 'gitlab',
-    composioSlug: 'gitlab',
-    icon: 'https://cdn.worldvectorlogo.com/logos/gitlab.svg',
-  },
-
-  // CRM & Sales
-  salesforce: {
-    id: 'salesforce',
-    name: 'Salesforce',
-    aliases: ['salesforce', 'sfdc'],
-    pipedreamSlug: 'salesforce_rest_api',
-    composioSlug: 'salesforce',
-    icon: 'https://cdn.worldvectorlogo.com/logos/salesforce-2.svg',
-  },
-  hubspot: {
-    id: 'hubspot',
-    name: 'HubSpot',
-    aliases: ['hubspot'],
-    pipedreamSlug: 'hubspot',
-    composioSlug: 'hubspot',
-    icon: 'https://cdn.worldvectorlogo.com/logos/hubspot.svg',
-  },
-
-  // Social Media
-  twitter: {
-    id: 'twitter',
-    name: 'Twitter/X',
-    aliases: ['twitter', 'x', 'tweet'],
-    pipedreamSlug: 'twitter',
-    composioSlug: 'twitter',
-    icon: 'https://cdn.worldvectorlogo.com/logos/x-2.svg',
-  },
-  linkedin: {
-    id: 'linkedin',
-    name: 'LinkedIn',
-    aliases: ['linkedin'],
-    pipedreamSlug: 'linkedin',
-    composioSlug: 'linkedin',
-    icon: 'https://cdn.worldvectorlogo.com/logos/linkedin-icon-2.svg',
-  },
-
-  // Finance
-  stripe: {
-    id: 'stripe',
-    name: 'Stripe',
-    aliases: ['stripe', 'payment'],
-    pipedreamSlug: 'stripe',
-    composioSlug: 'stripe',
-    icon: 'https://cdn.worldvectorlogo.com/logos/stripe-4.svg',
-  },
-  quickbooks: {
-    id: 'quickbooks',
-    name: 'QuickBooks',
-    aliases: ['quickbooks', 'qb'],
-    pipedreamSlug: 'quickbooks',
-    composioSlug: 'quickbooks',
-    icon: 'https://cdn.worldvectorlogo.com/logos/quickbooks-2.svg',
-  },
-
-  // Design
-  figma: {
-    id: 'figma',
-    name: 'Figma',
-    aliases: ['figma'],
-    pipedreamSlug: 'figma',
-    composioSlug: 'figma',
-    icon: 'https://cdn.worldvectorlogo.com/logos/figma-icon.svg',
-  },
-
-  // Storage
-  dropbox: {
-    id: 'dropbox',
-    name: 'Dropbox',
-    aliases: ['dropbox'],
-    pipedreamSlug: 'dropbox',
-    composioSlug: 'dropbox',
-    icon: 'https://cdn.worldvectorlogo.com/logos/dropbox-1.svg',
-  },
-
-  // Email Marketing
-  mailchimp: {
-    id: 'mailchimp',
-    name: 'Mailchimp',
-    aliases: ['mailchimp'],
-    pipedreamSlug: 'mailchimp',
-    composioSlug: 'mailchimp',
-    icon: 'https://cdn.worldvectorlogo.com/logos/mailchimp-freddie-icon.svg',
-  },
-
-  // Forms & Surveys
-  typeform: {
-    id: 'typeform',
-    name: 'Typeform',
-    aliases: ['typeform'],
-    pipedreamSlug: 'typeform',
-    composioSlug: 'typeform',
-    icon: 'https://cdn.worldvectorlogo.com/logos/typeform-1.svg',
-  },
-
-  // Calendar
-  calendly: {
-    id: 'calendly',
-    name: 'Calendly',
-    aliases: ['calendly'],
-    pipedreamSlug: 'calendly',
-    composioSlug: 'calendly',
-    icon: 'https://cdn.worldvectorlogo.com/logos/calendly-1.svg',
-  },
-
-  // AI Services
-  openai: {
-    id: 'openai',
-    name: 'OpenAI',
-    aliases: ['openai', 'chatgpt', 'gpt'],
-    pipedreamSlug: 'openai',
-    composioSlug: 'openai',
-    icon: 'https://cdn.worldvectorlogo.com/logos/openai-2.svg',
-  },
-
-  // Microsoft
-  microsoft: {
-    id: 'microsoft',
-    name: 'Microsoft',
-    aliases: ['microsoft', 'outlook', 'office 365', 'o365'],
-    pipedreamSlug: 'microsoft_outlook',
-    composioSlug: 'microsoftoutlook',
-    localProviderId: 'microsoft',
-    icon: 'https://cdn.worldvectorlogo.com/logos/microsoft-icon.svg',
-  },
-
-  // Airtable
-  airtable: {
-    id: 'airtable',
-    name: 'Airtable',
-    aliases: ['airtable'],
-    pipedreamSlug: 'airtable',
-    composioSlug: 'airtable',
-    icon: 'https://cdn.worldvectorlogo.com/logos/airtable.svg',
-  },
-
-  // Zapier alternative - Monday.com
-  monday: {
-    id: 'monday',
-    name: 'Monday.com',
-    aliases: ['monday', 'monday.com'],
-    pipedreamSlug: 'monday',
-    composioSlug: 'monday',
-    icon: 'https://cdn.worldvectorlogo.com/logos/monday-1.svg',
-  },
-
-  // Zoom
-  zoom: {
-    id: 'zoom',
-    name: 'Zoom',
-    aliases: ['zoom', 'zoom meeting'],
-    pipedreamSlug: 'zoom',
-    composioSlug: 'zoom',
-    icon: 'https://cdn.worldvectorlogo.com/logos/zoom-communications-logo.svg',
-  },
-
-  // Intercom
-  intercom: {
-    id: 'intercom',
-    name: 'Intercom',
-    aliases: ['intercom'],
-    pipedreamSlug: 'intercom',
-    composioSlug: 'intercom',
-    icon: 'https://cdn.worldvectorlogo.com/logos/intercom-1.svg',
-  },
-
-  // Zendesk
-  zendesk: {
-    id: 'zendesk',
-    name: 'Zendesk',
-    aliases: ['zendesk'],
-    pipedreamSlug: 'zendesk',
-    composioSlug: 'zendesk',
-    icon: 'https://cdn.worldvectorlogo.com/logos/zendesk-1.svg',
-  },
-}
+// =============================================================================
+// Types
+// =============================================================================
 
 export interface ServiceInfo {
   id: string
   name: string
-  aliases: string[]
   pipedreamSlug?: string
   composioSlug?: string
   localProviderId?: string
@@ -346,6 +38,127 @@ export interface CredentialAnalysisResult {
   likelyHasCredentials: boolean
   searchTermsIfNoCredentials: string[]
 }
+
+// Local providers that have special OAuth handling
+const LOCAL_PROVIDER_IDS: Record<string, string> = {
+  google: 'google',
+  gmail: 'google',
+  googlecalendar: 'google',
+  googlesheets: 'google',
+  googledrive: 'google',
+  googledocs: 'google',
+  googleslides: 'google',
+  github: 'github',
+  slack: 'slack',
+  microsoft: 'microsoft',
+  outlook: 'microsoft',
+  microsoftteams: 'microsoft',
+}
+
+// Cache for app lookups to avoid repeated API calls
+const appCache = new Map<string, CombinedApp>()
+let allAppsCache: CombinedApp[] | null = null
+let allAppsCacheTime = 0
+const CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+
+// =============================================================================
+// Helper Functions
+// =============================================================================
+
+/**
+ * Normalize app name for matching (lowercase, no spaces/underscores/hyphens)
+ */
+function normalizeAppName(name: string): string {
+  return name.toLowerCase().replace(/[\s_-]/g, '')
+}
+
+/**
+ * Get all apps from cache or fetch from APIs
+ */
+async function getAllApps(): Promise<CombinedApp[]> {
+  const now = Date.now()
+
+  // Return cache if still valid
+  if (allAppsCache && (now - allAppsCacheTime) < CACHE_TTL) {
+    return allAppsCache
+  }
+
+  // Fetch fresh data
+  const response = await searchCombinedApps('', false)
+  if (response.success && response.apps) {
+    allAppsCache = response.apps
+    allAppsCacheTime = now
+
+    // Populate individual app cache
+    for (const app of response.apps) {
+      appCache.set(app.id, app)
+      appCache.set(normalizeAppName(app.name), app)
+      if (app.composioSlug) {
+        appCache.set(normalizeAppName(app.composioSlug), app)
+      }
+      if (app.pipedreamSlug) {
+        appCache.set(normalizeAppName(app.pipedreamSlug), app)
+      }
+    }
+
+    return response.apps
+  }
+
+  return allAppsCache || []
+}
+
+/**
+ * Look up an app by name/slug from the combined apps service
+ */
+async function lookupApp(nameOrSlug: string): Promise<CombinedApp | undefined> {
+  const normalized = normalizeAppName(nameOrSlug)
+
+  // Check cache first
+  if (appCache.has(normalized)) {
+    return appCache.get(normalized)
+  }
+
+  // Try to search for the specific app
+  const response = await searchCombinedApps(nameOrSlug, false)
+  if (response.success && response.apps.length > 0) {
+    // Find exact or best match
+    const exactMatch = response.apps.find(
+      app =>
+        normalizeAppName(app.name) === normalized
+        || normalizeAppName(app.composioSlug || '') === normalized
+        || normalizeAppName(app.pipedreamSlug || '') === normalized,
+    )
+
+    const matchedApp = exactMatch || response.apps[0]
+
+    // Cache the result
+    appCache.set(normalized, matchedApp)
+
+    return matchedApp
+  }
+
+  return undefined
+}
+
+/**
+ * Convert a CombinedApp to ServiceInfo format
+ */
+function combinedAppToServiceInfo(app: CombinedApp): ServiceInfo {
+  const normalizedId = normalizeAppName(app.name)
+
+  return {
+    id: normalizedId,
+    name: app.name,
+    pipedreamSlug: app.pipedreamSlug,
+    composioSlug: app.composioSlug,
+    localProviderId: LOCAL_PROVIDER_IDS[normalizedId],
+    icon: app.logo || '',
+  }
+}
+
+// =============================================================================
+// API Functions
+// =============================================================================
 
 /**
  * AI-powered analysis of whether user likely has required credentials
@@ -415,43 +228,19 @@ If likelyHasCredentials is false, provide search terms the user could use to fin
 }
 
 /**
- * Quick keyword-based detection for common services
- * Returns service IDs found in the message
- */
-function quickKeywordDetection(message: string): string[] {
-  const lowerMessage = message.toLowerCase()
-  const detectedServices: string[] = []
-
-  for (const [serviceId, serviceInfo] of Object.entries(SERVICE_MAPPINGS)) {
-    for (const alias of serviceInfo.aliases) {
-      // Use word boundary matching to avoid false positives
-      const regex = new RegExp(`\\b${alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i')
-      if (regex.test(lowerMessage)) {
-        if (!detectedServices.includes(serviceId)) {
-          detectedServices.push(serviceId)
-        }
-        break
-      }
-    }
-  }
-
-  return detectedServices
-}
-
-/**
  * AI-based classification to detect required services
- * More accurate for complex or ambiguous requests
+ * Returns app names/slugs that the AI identifies as needed
  */
 async function aiClassifyRequiredServices(message: string): Promise<string[]> {
   try {
-    const serviceList = Object.entries(SERVICE_MAPPINGS)
-      .map(([id, info]) => `- ${id}: ${info.name} (${info.aliases.join(', ')})`)
-      .join('\n')
+    // Get available apps to give AI context
+    const apps = await getAllApps()
+    const appNames = apps.slice(0, 200).map(app => app.name).join(', ')
 
     const classificationPrompt = `You are a service detection assistant. Analyze the user's message and identify which external services/apps they need to connect to accomplish their task.
 
-Available services:
-${serviceList}
+Some available services include (but are not limited to):
+${appNames}
 
 User message: "${message}"
 
@@ -459,19 +248,21 @@ Instructions:
 1. Identify ALL services mentioned or implied in the message
 2. Consider the full context - if they mention "meeting notes" they might need a calendar or notes app
 3. Only include services that would require API/OAuth access to complete the task
-4. Return ONLY a JSON array of service IDs (lowercase), nothing else
+4. Return the EXACT app names as they appear in the list above when possible
+5. Return ONLY a JSON array of app names, nothing else
 
 Example responses:
-- For "Review today's meeting notes on Notion and sync tasks to Linear": ["notion", "linear"]
-- For "Send a Slack message about the GitHub PR": ["slack", "github"]
-- For "Create a Google Sheet from Airtable data": ["googlesheets", "airtable"]
+- For "Review today's meeting notes on Notion and sync tasks to Linear": ["Notion", "Linear"]
+- For "Send a Slack message about the GitHub PR": ["Slack", "GitHub"]
+- For "Create a Google Sheet from Airtable data": ["Google Sheets", "Airtable"]
+- For "Post a tweet about our new feature": ["Twitter"]
 
 Return the JSON array:`
 
     const response = await window.electronAPI.sendAIMessage(
       'keyboard',
       [
-        { role: 'system', content: 'You are a service detection assistant. Respond only with a valid JSON array of service IDs.' },
+        { role: 'system', content: 'You are a service detection assistant. Respond only with a valid JSON array of app names.' },
         { role: 'user', content: classificationPrompt },
       ],
       { model: 'claude-haiku-4-5-20251001' },
@@ -484,9 +275,7 @@ Return the JSON array:`
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0])
       if (Array.isArray(parsed)) {
-        // Filter to only known services
-        return parsed.filter((id: string) => typeof id === 'string' && SERVICE_MAPPINGS[id.toLowerCase()])
-          .map((id: string) => id.toLowerCase())
+        return parsed.filter((name: unknown) => typeof name === 'string')
       }
     }
 
@@ -499,61 +288,84 @@ Return the JSON array:`
 }
 
 /**
- * Main detection function - uses quick keyword matching first,
- * then falls back to AI classification for better accuracy
+ * Main detection function - uses AI classification to detect required services
+ * and looks up the app info from APIs
  */
 export async function detectRequiredServices(
   message: string,
   useAIClassification: boolean = true,
-): Promise<string[]> {
-  // First, do quick keyword detection
-  const keywordResults = quickKeywordDetection(message)
-  console.log('[ConnectionDetection] Keyword detection results:', keywordResults)
+): Promise<ServiceInfo[]> {
+  const detectedServices: ServiceInfo[] = []
 
-  // If AI classification is enabled, also run AI detection
   if (useAIClassification) {
     try {
       const aiResults = await aiClassifyRequiredServices(message)
       console.log('[ConnectionDetection] AI classification results:', aiResults)
 
-      // Merge results, preferring AI results but including keyword matches
-      const mergedSet = new Set([...keywordResults, ...aiResults])
-      const finalResults = Array.from(mergedSet)
-      console.log('[ConnectionDetection] Final merged results:', finalResults)
-      return finalResults
+      // Look up each detected service
+      for (const appName of aiResults) {
+        const app = await lookupApp(appName)
+        if (app) {
+          const serviceInfo = combinedAppToServiceInfo(app)
+          // Avoid duplicates
+          if (!detectedServices.find(s => s.id === serviceInfo.id)) {
+            detectedServices.push(serviceInfo)
+          }
+        }
+        else {
+          console.log(`[ConnectionDetection] Could not find app: ${appName}`)
+        }
+      }
+
+      console.log('[ConnectionDetection] Final detected services:', detectedServices)
     }
     catch (error) {
-      console.log('[ConnectionDetection] AI classification failed, using keyword results:', error)
-      // Fall back to keyword results if AI fails
-      return keywordResults
+      console.error('[ConnectionDetection] Detection failed:', error)
     }
   }
 
-  return keywordResults
+  return detectedServices
 }
 
 /**
- * Get service info by ID
+ * Get service info by looking up from APIs
  */
-export function getServiceInfo(serviceId: string): ServiceInfo | undefined {
-  return SERVICE_MAPPINGS[serviceId.toLowerCase()]
+export async function getServiceInfo(nameOrSlug: string): Promise<ServiceInfo | undefined> {
+  const app = await lookupApp(nameOrSlug)
+  if (app) {
+    return combinedAppToServiceInfo(app)
+  }
+  return undefined
 }
 
 /**
- * Get all known services
+ * Get all available services from APIs
  */
-export function getAllServices(): ServiceInfo[] {
-  return Object.values(SERVICE_MAPPINGS)
+export async function getAllServices(): Promise<ServiceInfo[]> {
+  const apps = await getAllApps()
+  return apps.map(combinedAppToServiceInfo)
 }
 
+/**
+ * Clear the app cache (useful for testing or when refreshing data)
+ */
+export function clearCache(): void {
+  appCache.clear()
+  allAppsCache = null
+  allAppsCacheTime = 0
+}
+
+// =============================================================================
 // Export singleton-style functions
+// =============================================================================
+
 export const connectionDetectionService = {
   detectRequiredServices,
   getServiceInfo,
   getAllServices,
-  quickKeywordDetection,
   analyzeCredentialRequirements,
-  SERVICE_MAPPINGS,
+  clearCache,
+  lookupApp,
 }
 
 export default connectionDetectionService
