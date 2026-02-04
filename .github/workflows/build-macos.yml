@@ -22,7 +22,48 @@ env:
   NODE_ENV: development
 
 jobs:
+  cleanup-old-runs:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Delete old workflow runs
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const workflow_id = context.workflow;
+            const current_run_id = context.runId;
+            
+            // Get all workflow runs for this workflow
+            const runs = await github.rest.actions.listWorkflowRuns({
+              owner,
+              repo,
+              workflow_id,
+              per_page: 100
+            });
+            
+            console.log(`Found ${runs.data.workflow_runs.length} workflow runs`);
+            
+            // Delete all runs except the current one
+            for (const run of runs.data.workflow_runs) {
+              if (run.id !== current_run_id) {
+                try {
+                  await github.rest.actions.deleteWorkflowRun({
+                    owner,
+                    repo,
+                    run_id: run.id
+                  });
+                  console.log(`Deleted run ${run.id}`);
+                } catch (error) {
+                  console.log(`Failed to delete run ${run.id}: ${error.message}`);
+                }
+              }
+            }
+
   build-macos:
+    needs: cleanup-old-runs
     runs-on: macos-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -55,12 +96,8 @@ jobs:
             VERSION=$(node -p "require('./package.json').version")
           fi
 
-          # Set app name based on branch
-          if [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
-            APP_NAME="KeyboardAI-develop"
-          else
-            APP_NAME="KeyboardAI"
-          fi
+          # Always use KeyboardAI as base name (Forge doesn't respect branch-specific names)
+          APP_NAME="KeyboardAI"
 
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "app_name=$APP_NAME" >> $GITHUB_OUTPUT
@@ -79,6 +116,9 @@ jobs:
           # Create a temporary keychain
           KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
           KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
+          
+          # CRITICAL: Mask the password immediately
+          echo "::add-mask::$KEYCHAIN_PASSWORD"
 
           # Create keychain
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
@@ -87,7 +127,10 @@ jobs:
 
           # Extract certificate from encrypted env and import
           CERTIFICATE=$(dotenvx get MACOS_CERTIFICATE)
+          echo "::add-mask::$CERTIFICATE"
+          
           CERTIFICATE_PASSWORD=$(dotenvx get MACOS_CERTIFICATE_PWD)
+          echo "::add-mask::$CERTIFICATE_PASSWORD"
 
           # Decode and import certificate
           echo "$CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
@@ -107,7 +150,7 @@ jobs:
           # Set as default keychain
           security default-keychain -s "$KEYCHAIN_PATH"
 
-          # Store keychain path for cleanup
+          # Store keychain path for cleanup (password is already masked)
           echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> $GITHUB_ENV
           echo "KEYCHAIN_PASSWORD=$KEYCHAIN_PASSWORD" >> $GITHUB_ENV
 
@@ -120,6 +163,8 @@ jobs:
         run: |
           # Extract the base64-encoded .p8 key content and write to file
           APPLE_API_KEY_CONTENT=$(dotenvx get APPLE_API_KEY_CONTENT)
+          echo "::add-mask::$APPLE_API_KEY_CONTENT"
+          
           echo "$APPLE_API_KEY_CONTENT" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
           echo "APPLE_API_KEY=$RUNNER_TEMP/AuthKey.p8" >> $GITHUB_ENV
           echo "Apple API key file created at $RUNNER_TEMP/AuthKey.p8"
@@ -127,10 +172,7 @@ jobs:
       - name: Build macOS universal binary
         env:
           DOTENV_PRIVATE_KEY: ${{ secrets.DOTENV_PRIVATE_KEY }}
-          APP_NAME: ${{ env.APP_NAME }}
-        run: |
-          echo "Building with APP_NAME: ${{ env.APP_NAME }}"
-          APP_NAME="${{ env.APP_NAME }}" dotenvx run -- npm run build-mac-universal
+        run: dotenvx run -- npm run build-mac-universal
 
       - name: Verify and rename build output
         run: |
