@@ -5,7 +5,7 @@ require('@dotenvx/dotenvx').config()
 module.exports = {
   packagerConfig: {
     asar: true,
-    name: 'KeyboardAI',
+    name: process.env.APP_NAME || 'KeyboardAI',
     // Use platform-specific icons
     ...(process.platform === 'darwin' && { icon: 'assets/keyboard-dock.icns' }),
     ...(process.platform === 'win32' && { icon: 'assets/keyboard-dock.ico' }),
@@ -15,7 +15,7 @@ module.exports = {
         schemes: ['mcpauth'],
       },
     ],
-    ...(process.env.NODE_ENV !== 'development' && !process.env.SKIP_SIGNING && {
+    ...(!process.env.SKIP_SIGNING && process.env.APPLE_API_KEY && {
       osxSign: {},
       osxNotarize: {
         appleApiKey: process.env.APPLE_API_KEY,
