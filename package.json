@@ -11,7 +11,7 @@
     "dev:renderer": "vite --host",
     "start": "electron-forge start",
     "dev": "npm run build && npm run copy-assets && electron dist/main.js --dev",
-    "copy-assets": "cpy \"assets/**\" dist/assets",
+    "copy-assets": "cpy \"assets/**\" dist/assets && cpy dev-app-update.yml dist",
     "create-windows-icon": "node scripts/create-windows-icon.js",
     "build-mac-universal": "npm run build && electron-forge make --platform=darwin --arch=universal",
     "build-mac-dev": "SKIP_SIGNING=true npm run build-mac-universal",
@@ -51,6 +51,7 @@
     "clsx": "^2.1.1",
     "cors": "^2.8.5",
     "electron-squirrel-startup": "^1.0.1",
+    "electron-updater": "^6.3.9",
     "express": "^4.21.2",
     "jose": "^6.1.0",
     "lodash": "^4.17.21",
@@ -150,6 +151,12 @@
     },
     "linux": {
       "icon": "assets/keyboard-dock.png"
-    }
+    },
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "https://api.keyboard.dev/update"
+      }
+    ]
   }
 }

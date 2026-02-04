@@ -92,7 +92,7 @@ else {
 }
 
 import * as crypto from 'crypto'
-import { app, autoUpdater, BrowserWindow, ipcMain, Menu, Notification, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, Menu, Notification, shell } from 'electron'
 import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
@@ -100,6 +100,7 @@ import * as WebSocket from 'ws'
 import { aiRuntime, initializeAIProviders } from './ai-provider/setup'
 import { webSearch } from './ai-provider/utils/dedicated-web'
 import { getQueuedProtocolUrls, initializeApp as initializeElectronApp, type AppInitializerResult } from './app-initializer'
+import { AutoUpdateManager } from './auto-update-manager'
 import { setEncryptionKeyProvider } from './encryption'
 import { ExecutionPreference, ExecutionPreferenceManager } from './execution-preference'
 import { GithubService } from './Github'
@@ -113,13 +114,13 @@ import { AuthService } from './services/auth-service'
 import { ConnectedAccountsService } from './services/connected-accounts-service'
 import { CheckoutResponse, CreditsResponse, creditsService } from './services/credits-service'
 import { OAuthService } from './services/oauth-service'
-import { CodespaceData, SSEBackgroundService } from './services/SSEBackgroundService'
+import { SSEBackgroundService } from './services/SSEBackgroundService'
 import { PaymentStatusResponse, SubscriptionCheckoutResponse, subscriptionsService } from './services/subscriptions-service'
 import { TrayManager } from './tray-manager'
 import { CollectionRequest, Message, ShareMessage } from './types'
 
-import { CODE_APPROVAL_ORDER, CodeApprovalLevel, RESPONSE_APPROVAL_ORDER, ResponseApprovalLevel } from './types/settings-types'
 import { SecurityPolicy } from './types/security-policy'
+import { CODE_APPROVAL_ORDER, CodeApprovalLevel, RESPONSE_APPROVAL_ORDER, ResponseApprovalLevel } from './types/settings-types'
 import { ExecutorWebSocketClient } from './websocket-client-to-executor'
 import { WindowManager } from './window-manager'
 
@@ -188,6 +189,7 @@ export interface Script {
 class MenuBarNotificationApp {
   private trayManager: TrayManager
   private windowManager: WindowManager
+  private autoUpdateManager: AutoUpdateManager
   private wsServer: WebSocket.Server | null = null
   private restApiServer: RestAPIServerInterface | null = null
   private pendingCount: number = 0
@@ -263,10 +265,14 @@ class MenuBarNotificationApp {
         app.quit()
       },
       onCheckForUpdates: () => {
-        this.checkForUpdates()
+        this.autoUpdateManager.checkForUpdates()
       },
       getMessages: () => [], // Messages now stored in renderer DB
       getPendingCount: () => this.pendingCount,
+    })
+
+    this.autoUpdateManager = new AutoUpdateManager({
+      sendToRenderer: (channel, data) => this.windowManager.sendMessage(channel, data),
     })
 
     // Set up encryption key provider
@@ -373,46 +379,8 @@ class MenuBarNotificationApp {
       // Try to connect to executor with onboarding token
       await this.connectToExecutorWithToken()
 
-      // Configure auto-updater (only on macOS and Windows)
-      // Skip in development mode to avoid Squirrel errors on Windows
-      const isDev = process.argv.includes('--dev') || !app.isPackaged
-      if ((process.platform === 'darwin' || process.platform === 'win32') && !isDev) {
-        const feedURL = `https://api.keyboard.dev/update/${process.platform}/${app.getVersion()}`
-        autoUpdater.setFeedURL({
-          url: feedURL,
-        })
-
-        // Auto-updater event handlers
-        autoUpdater.on('checking-for-update', () => {
-
-        })
-
-        autoUpdater.on('update-available', () => {
-
-        })
-
-        autoUpdater.on('update-not-available', () => {
-
-        })
-
-        autoUpdater.on('update-downloaded', () => {
-          // Notify user and ask if they want to restart
-          const notification = new Notification({
-            title: 'Update Ready',
-            body: 'A new version has been downloaded. Restart now to apply the update?',
-          })
-          notification.show()
-          notification.on('click', () => {
-            autoUpdater.quitAndInstall()
-          })
-        })
-
-        autoUpdater.on('error', (error) => {
-        })
-
-        // Check for updates
-        autoUpdater.checkForUpdates()
-      }
+      // Initialize auto-updater
+      await this.autoUpdateManager.initialize()
 
       this.trayManager.createTray()
       this.setupApplicationMenu()
@@ -428,7 +396,7 @@ class MenuBarNotificationApp {
         // On macOS, show window when app is activated
         this.windowManager.showWindow()
       })
-    }).catch((error) => {
+    }).catch(() => {
       try {
         this.windowManager.showWindow()
       }
@@ -693,7 +661,7 @@ class MenuBarNotificationApp {
     sseService.on('connected', () => {
     })
     // Handle codespace coming online - auto-connect to it
-    sseService.on('codespace-online', async (data: CodespaceData) => {
+    sseService.on('codespace-online', async () => {
       const preference = await this.executionPreferenceManager.getPreference()
       this.executorWSClient?.setExecutionPreference(preference)
       await this.authService.getValidAccessToken()
@@ -1150,29 +1118,6 @@ class MenuBarNotificationApp {
     return true
   }
 
-  private checkForUpdates(): void {
-    if (process.platform === 'darwin' || process.platform === 'win32') {
-      autoUpdater.checkForUpdates()
-      // Show a notification that we're checking
-      const notification = new Notification({
-        title: 'Checking for Updates',
-        body: `Looking for new versions... current version: ${app.getVersion()}`,
-      })
-      notification.show()
-    }
-    else {
-      const notification = new Notification({
-        title: 'Updates Not Supported',
-        body: 'Automatic updates are only available on macOS and Windows.',
-      })
-      notification.show()
-    }
-  }
-
-  private installUpdate(): void {
-    autoUpdater.quitAndInstall()
-  }
-
   private setupApplicationMenu(): void {
     const template: Electron.MenuItemConstructorOptions[] = []
 
@@ -1185,11 +1130,11 @@ class MenuBarNotificationApp {
           { type: 'separator' },
           {
             label: 'Check for Updates...',
-            click: () => this.checkForUpdates(),
+            click: () => this.autoUpdateManager.checkForUpdates(),
           },
           {
             label: 'Install Update',
-            click: () => this.installUpdate(),
+            click: () => this.autoUpdateManager.quitAndInstall(),
           },
           { type: 'separator' },
           { role: 'services', submenu: [] },
@@ -1267,7 +1212,7 @@ class MenuBarNotificationApp {
               { type: 'separator' as const },
               {
                 label: 'Check for Updates...',
-                click: () => this.checkForUpdates(),
+                click: () => this.autoUpdateManager.checkForUpdates(),
               },
             ]
           : []),
@@ -2092,66 +2037,8 @@ class MenuBarNotificationApp {
       return await this.executorWSClient.sendManualPing()
     })
 
-    // Auto-updater IPC handlers (only available on macOS and Windows)
-    ipcMain.handle('check-for-updates', async (): Promise<void> => {
-      if (process.platform === 'darwin' || process.platform === 'win32') {
-        autoUpdater.checkForUpdates()
-      }
-      else {
-        throw new Error('Auto-updater not supported on this platform')
-      }
-    })
-
-    ipcMain.handle('download-update', async (): Promise<void> => {
-      if (process.platform === 'darwin' || process.platform === 'win32') {
-        // On macOS and Windows, updates are downloaded automatically
-        throw new Error('Manual update download not supported')
-      }
-      else {
-        throw new Error('Auto-updater not supported on this platform')
-      }
-    })
-
-    ipcMain.handle('quit-and-install', async (): Promise<void> => {
-      if (process.platform === 'darwin' || process.platform === 'win32') {
-        autoUpdater.quitAndInstall()
-      }
-      else {
-        throw new Error('Auto-updater not supported on this platform')
-      }
-    })
-
-    // Test methods for development
-    ipcMain.handle('test-update-available', async (): Promise<void> => {
-      this.windowManager.sendMessage('update-available', {
-        version: '1.0.1',
-        releaseDate: new Date().toISOString(),
-        releaseName: 'Test Update',
-        releaseNotes: 'This is a test update notification',
-      })
-    })
-
-    ipcMain.handle('test-download-update', async (): Promise<void> => {
-      // Simulate download progress
-      for (let i = 0; i <= 100; i += 10) {
-        this.windowManager.sendMessage('download-progress', {
-          percent: i,
-          transferred: i * 1024 * 1024,
-          total: 100 * 1024 * 1024,
-          bytesPerSecond: 1024 * 1024,
-        })
-        await new Promise(resolve => setTimeout(resolve, 200))
-      }
-    })
-
-    ipcMain.handle('test-update-downloaded', async (): Promise<void> => {
-      this.windowManager.sendMessage('update-downloaded', {
-        version: '1.0.1',
-        releaseDate: new Date().toISOString(),
-        releaseName: 'Test Update',
-        releaseNotes: 'This is a test update notification',
-      })
-    })
+    // Auto-updater IPC handlers - delegated to AutoUpdateManager
+    this.autoUpdateManager.setupIPCHandlers()
 
     // AI Provider management IPC handlers
     ipcMain.handle('set-ai-provider-key', async (_event, provider: string, apiKey: string): Promise<void> => {
@@ -4106,13 +3993,13 @@ class MenuBarNotificationApp {
       },
     })
 
-    this.restApiServer.start().catch((error: Error) => {
+    this.restApiServer.start().catch(() => {
     })
   }
 
   private cleanup(): void {
     if (this.restApiServer) {
-      this.restApiServer.stop().catch((error: Error) => {
+      this.restApiServer.stop().catch(() => {
       })
     }
 
