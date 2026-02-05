@@ -37,8 +37,8 @@ export interface CheckoutError {
 
 export type CheckoutResponse = CheckoutSuccess | CheckoutError
 
-const CREDITS_API_URL = 'http://localhost:4000/api/credits/balance'
-const CHECKOUT_API_URL = 'http://localhost:4000/api/payments/checkout/custom'
+const CREDITS_API_URL = 'https://api.keyboard.dev/api/credits/balance'
+const CHECKOUT_API_URL = 'https://api.keyboard.dev/api/payments/checkout/custom'
 
 export class CreditsService {
   /**

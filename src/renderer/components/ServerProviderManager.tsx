@@ -313,7 +313,7 @@ export const ServerProviderManager: React.FC<ServerProviderManagerProps> = ({ cl
                 type="url"
                 value={newServer.url}
                 onChange={e => handleInputChange('url', e.target.value)}
-                placeholder="http://localhost:4000"
+                placeholder="https://api.keyboard.dev"
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               <p className="text-xs text-gray-500 mt-1">

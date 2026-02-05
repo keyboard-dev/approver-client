@@ -1481,7 +1481,7 @@ export const TriggersPanel: React.FC = () => {
   // ============== MAIN RENDER ==============
 
   return (
-    <div className="flex flex-col w-full h-full overflow-hidden">
+    <div className="flex flex-col w-full h-full overflow-y-auto">
       <div className="p-6">
         <h2 className="text-[1.25rem] font-bold mb-4">Triggers</h2>
         <p className="text-[#737373] mb-6">

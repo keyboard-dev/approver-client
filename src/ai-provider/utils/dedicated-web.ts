@@ -20,7 +20,7 @@ export const webSearch = async function (args: WebSearchQueryArgs) {
     },
     body: raw,
   }
-  const response = await fetch('http://localhost:4000/api/search/developer-docs/web-search', requestOptions)
+  const response = await fetch('https://api.keyboard.dev/api/search/developer-docs/web-search', requestOptions)
   const result = await response.json()
 
   return JSON.stringify(result, null, 2)

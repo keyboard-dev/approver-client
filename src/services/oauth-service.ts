@@ -554,7 +554,7 @@ export class OAuthService {
   async fetchOnboardingGithubProvider(): Promise<void> {
     const provider = 'onboarding'
 
-    const response = await fetch(`http://localhost:4000/auth/keyboard_github/onboarding`)
+    const response = await fetch(`https://api.keyboard.dev/auth/keyboard_github/onboarding`)
     const data = await response.json() as OnboardingGitHubResponse
     const sessionId = data.session_id
     const authUrl = data.authorization_url

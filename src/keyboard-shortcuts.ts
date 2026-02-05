@@ -3,7 +3,7 @@ import { decrypt, encrypt } from './encryption'
 
 // Get API URL from environment or default to empty string
 const getApiUrl = () => {
-  return process.env.API_URL || 'http://localhost:4000'
+  return process.env.API_URL || 'https://api.keyboard.dev'
 }
 
 // Type definitions for API responses

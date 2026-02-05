@@ -93,7 +93,7 @@ export function useKeyboardApiConnectors(): UseKeyboardApiConnectorsReturn {
         const newServer = {
           id: 'keyboard-api',
           name: 'Keyboard API',
-          url: 'http://localhost:4000',
+          url: 'https://api.keyboard.dev',
         }
         await window.electronAPI.addServerProvider(newServer)
         keyboardApiServer = newServer

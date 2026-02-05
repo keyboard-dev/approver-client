@@ -2,7 +2,7 @@ import { AuthTokens } from '../../types'
 import { AIMessage, AIProvider, AIProviderConfig } from '../index'
 
 // API URL - configurable via environment variable for local development
-const KEYBOARD_API_URL = process.env.KEYBOARD_API_URL || 'http://localhost:4000'
+const KEYBOARD_API_URL = process.env.KEYBOARD_API_URL || 'https://api.keyboard.dev'
 
 export class KeyboardProvider implements AIProvider {
   name = 'keyboard'

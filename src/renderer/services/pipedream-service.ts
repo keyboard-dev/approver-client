@@ -5,7 +5,7 @@
  * on the remote-oauth-server (api.keyboard.dev)
  */
 
-const API_BASE = 'http://localhost:4000/api/pipedream'
+const API_BASE = 'https://api.keyboard.dev/api/pipedream'
 
 // =============================================================================
 // Types
