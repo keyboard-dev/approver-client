@@ -4,6 +4,7 @@ import { searchCombinedApps } from './combined-apps-service'
 import { analyzeCredentialRequirements } from './connection-detection-service'
 import { contextService } from './context-service'
 import { useMCPIntegration } from './mcp-tool-integration'
+import { runCodeResultContext } from './run-code-result-context'
 
 interface AIMessage {
   role: 'user' | 'assistant' | 'system'
@@ -910,7 +911,22 @@ Respond with only one word: "simple", "web-search", or "agentic"`
             const resultString = typeof executionResult === 'object'
               ? JSON.stringify(executionResult, null, 2)
               : String(executionResult)
-            abilitiesRan += `\n**Result:** ${resultString}`
+
+            // Store result in context service for intelligent summarization
+            // This keeps full results if under 25k tokens, otherwise summarizes
+            const storedResult = runCodeResultContext.storeResult(abilityName, resultString)
+
+            // Use the context-appropriate content (full or summarized)
+            const contextContent = storedResult.wasSummarized
+              ? storedResult.summary
+              : resultString
+
+            abilitiesRan += `\n**Result:** ${contextContent}`
+
+            // If result was summarized, mention it so AI knows full data was captured
+            if (storedResult.wasSummarized) {
+              abilitiesRan += `\n_[Result was large (${storedResult.tokenCount} tokens) - summarized with key data preserved. IDs, URLs, and important values extracted for future use.]_`
+            }
 
             if (abortSignal?.aborted) {
               throw new Error('Request was aborted')

@@ -2,6 +2,7 @@ import { CodespaceInfo, Script } from '../../types'
 import { generatePlanningToken, toolsToAbilities } from './ability-tools'
 import type { MCPAbilityFunction } from './mcp-tool-integration'
 import type { PipedreamAccount } from './pipedream-service'
+import { runCodeResultContext } from './run-code-result-context'
 
 export interface UserTokensResponse {
   tokensAvailable?: string[]
@@ -229,6 +230,17 @@ ${JSON.stringify(composioAccountsList, null, 2)}
 Note: These are Composio-managed OAuth connections. The appName (toolkit slug) identifies the service (e.g., "slack", "github", "googlecalendar"). Use the accountId when deploying Composio triggers or making authenticated API calls through Composio.`
       : ''
 
+    // Get previous run-code execution results for context
+    const previousResultsContext = runCodeResultContext.getExtractedDataSummary()
+    const previousResultsSection = previousResultsContext
+      ? `
+
+PREVIOUS EXECUTION CONTEXT:
+${previousResultsContext}
+
+Note: These IDs, URLs, and data values are from previous tool executions in this session. Use them when making follow-up API calls or referencing created resources.`
+      : ''
+
     return `You are a helpful AI assistant with access to a secure code execution environment.  Any code you will try to execute will also be reviewed by a human before execution so you can execute and write code with confidence.
 
 This is a real planning token to pass the run-code ability.  Make sure to use it when calling the run-code ability.
@@ -258,7 +270,7 @@ API RESEARCH GUIDANCE:
 - Only after you tried to use the web-search ability, and it didn't work, then you can use the run-code ability to execute code but the idea is to use the web-search ability first.
 
 Full abilities description and schema:
-${abilitiesList}${additionalToolsSection}${pipedreamAccountsSection}${composioAccountsSection}
+${abilitiesList}${additionalToolsSection}${pipedreamAccountsSection}${composioAccountsSection}${previousResultsSection}
 
 INSTRUCTIONS:
 - You can execute abilities directly using JSON format: {"ability": "ability-name", "parameters": {...}}

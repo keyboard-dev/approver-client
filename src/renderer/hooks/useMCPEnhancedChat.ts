@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Script } from '../../types'
 import { AIChatAdapter, ConnectionCheckResult, MissingConnectionInfo } from '../services/ai-chat-adapter'
 import { useMCPIntegration } from '../services/mcp-tool-integration'
+import { runCodeResultContext } from '../services/run-code-result-context'
 import { currentThreadRef } from '../components/screens/ChatPage'
 
 // =============================================================================
@@ -198,6 +199,10 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
         if (previousThreadId && missingConnections.length > 0) {
           setThreadConnectionRequirements(previousThreadId, missingConnections)
         }
+
+        // Clear run-code result context when switching threads
+        // This ensures results from one conversation don't pollute another
+        runCodeResultContext.clearResults()
 
         // Check if new thread has saved requirements
         const savedRequirements = getThreadConnectionRequirements(currentThreadId)
