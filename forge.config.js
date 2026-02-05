@@ -5,7 +5,7 @@ require('@dotenvx/dotenvx').config()
 module.exports = {
   packagerConfig: {
     asar: true,
-    name: 'KeyboardAI',
+    name: process.env.APP_NAME || 'KeyboardAI',
     // Include app-update.yml in production builds
     extraResource: [
       'app-update.yml',
@@ -19,7 +19,7 @@ module.exports = {
         schemes: ['mcpauth'],
       },
     ],
-    ...(process.env.NODE_ENV !== 'development' && !process.env.SKIP_SIGNING && {
+    ...(!process.env.SKIP_SIGNING && process.env.APPLE_API_KEY && {
       osxSign: {},
       osxNotarize: {
         appleApiKey: process.env.APPLE_API_KEY,

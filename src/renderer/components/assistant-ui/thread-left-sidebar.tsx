@@ -17,7 +17,7 @@ import { NewChatButton, ThreadListItems } from './thread-list'
 /**
  * Settings tabs with icons
  */
-const SETTINGS_TABS: Array<{ id: SettingsTabId; label: string; icon: ReactNode }> = [
+const SETTINGS_TABS: Array<{ id: SettingsTabId, label: string, icon: ReactNode }> = [
   { id: 'WebSocket', label: 'WebSocket', icon: <WifiIcon className="size-[16px]" /> },
   { id: 'Security', label: 'Security', icon: <ShieldIcon className="size-[16px]" /> },
   { id: 'Security Policies', label: 'Security Policies', icon: <ShieldCheckIcon className="size-[16px]" /> },

@@ -1,7 +1,75 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Script } from '../../types'
-import { AIChatAdapter } from '../services/ai-chat-adapter'
+import { AIChatAdapter, ConnectionCheckResult, MissingConnectionInfo } from '../services/ai-chat-adapter'
 import { useMCPIntegration } from '../services/mcp-tool-integration'
+import { currentThreadRef } from '../components/screens/ChatPage'
+
+// =============================================================================
+// Thread-scoped Connection Requirements Storage
+// =============================================================================
+
+const THREAD_CONNECTIONS_KEY = 'keyboard_thread_connection_requirements'
+
+interface ThreadConnectionRequirements {
+  threadId: string
+  missingConnections: MissingConnectionInfo[]
+  timestamp: number
+}
+
+function getThreadConnectionRequirements(threadId: string): MissingConnectionInfo[] | null {
+  try {
+    const stored = localStorage.getItem(THREAD_CONNECTIONS_KEY)
+    if (!stored) return null
+
+    const data = JSON.parse(stored) as Record<string, ThreadConnectionRequirements>
+    const threadData = data[threadId]
+
+    // Expire after 1 hour
+    if (threadData && Date.now() - threadData.timestamp < 60 * 60 * 1000) {
+      return threadData.missingConnections
+    }
+    return null
+  }
+  catch {
+    return null
+  }
+}
+
+function setThreadConnectionRequirements(threadId: string, connections: MissingConnectionInfo[]): void {
+  try {
+    const stored = localStorage.getItem(THREAD_CONNECTIONS_KEY)
+    const data: Record<string, ThreadConnectionRequirements> = stored ? JSON.parse(stored) : {}
+
+    if (connections.length === 0) {
+      // Remove entry if no connections
+      delete data[threadId]
+    }
+    else {
+      data[threadId] = {
+        threadId,
+        missingConnections: connections,
+        timestamp: Date.now(),
+      }
+    }
+
+    // Clean up old entries (older than 1 hour)
+    const now = Date.now()
+    for (const key of Object.keys(data)) {
+      if (now - data[key].timestamp > 60 * 60 * 1000) {
+        delete data[key]
+      }
+    }
+
+    localStorage.setItem(THREAD_CONNECTIONS_KEY, JSON.stringify(data))
+  }
+  catch {
+    // Ignore localStorage errors
+  }
+}
+
+function clearThreadConnectionRequirements(threadId: string): void {
+  setThreadConnectionRequirements(threadId, [])
+}
 
 export interface MCPEnhancedChatConfig {
   provider: string
@@ -65,6 +133,10 @@ export interface MCPEnhancedChatState {
   isAgenticMode: boolean
   agenticProgress?: AgenticProgress
 
+  // Connection requirements state
+  missingConnections: MissingConnectionInfo[]
+  showConnectionPrompt: boolean
+
   // Control functions
   setMCPEnabled: (enabled: boolean) => void
   refreshMCPConnection: () => void
@@ -72,6 +144,11 @@ export interface MCPEnhancedChatState {
   setAgenticMode: (enabled: boolean) => void
   setSelectedScripts: (scripts: Script[]) => void
   setThreadTitleCallback: (callback: (title: string) => void) => void
+
+  // Connection requirements functions
+  clearConnectionPrompt: () => void
+  skipConnectionCheckOnce: () => void
+  getContinuationMessage: () => Promise<string | null>
 
   // Execution tracking functions
   addExecution: (abilityName: string, parameters: Record<string, unknown>, provider?: string) => string
@@ -95,6 +172,51 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
   const [agenticProgress, setAgenticProgress] = useState<AgenticProgress | undefined>()
   const [executions, setExecutions] = useState<AbilityExecution[]>([])
   const [scripts, setScripts] = useState<Script[]>([])
+
+  // Connection requirements state (thread-scoped)
+  const [missingConnections, setMissingConnections] = useState<MissingConnectionInfo[]>([])
+  const [showConnectionPrompt, setShowConnectionPrompt] = useState(false)
+  const lastThreadIdRef = useRef<string | null>(null)
+
+  // Ability messages state
+  const [abilityMessages, setAbilityMessages] = useState<AbilityMessage[]>([])
+
+  // Track thread changes and clear/restore connection prompt accordingly
+  useEffect(() => {
+    const checkThreadChange = () => {
+      const currentThreadId = currentThreadRef.threadId
+
+      if (currentThreadId && currentThreadId !== lastThreadIdRef.current) {
+        // Thread changed - clear current prompt and check if new thread has saved requirements
+        const previousThreadId = lastThreadIdRef.current
+        lastThreadIdRef.current = currentThreadId
+
+        // Save current requirements to old thread (if any)
+        if (previousThreadId && missingConnections.length > 0) {
+          setThreadConnectionRequirements(previousThreadId, missingConnections)
+        }
+
+        // Check if new thread has saved requirements
+        const savedRequirements = getThreadConnectionRequirements(currentThreadId)
+        if (savedRequirements && savedRequirements.length > 0) {
+          setMissingConnections(savedRequirements)
+          setShowConnectionPrompt(true)
+        }
+        else {
+          // Clear prompt for new thread
+          setMissingConnections([])
+          setShowConnectionPrompt(false)
+        }
+      }
+    }
+
+    // Check immediately
+    checkThreadChange()
+
+    // Poll for thread changes (since currentThreadRef is a mutable ref)
+    const interval = setInterval(checkThreadChange, 500)
+    return () => clearInterval(interval)
+  }, [missingConnections])
 
   // Simple ability execution state management
   // The adapter will call these functions directly during ability execution
@@ -216,6 +338,121 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
     adapter.setThreadTitleCallback(callback)
   }, [adapter])
 
+  // Connection requirements callback (saves to current thread)
+  const handleMissingConnections = useCallback((result: ConnectionCheckResult) => {
+    setMissingConnections(result.missingConnections)
+    setShowConnectionPrompt(result.missingConnections.length > 0)
+
+    // Save to localStorage for the current thread
+    const currentThreadId = currentThreadRef.threadId
+    if (currentThreadId) {
+      setThreadConnectionRequirements(currentThreadId, result.missingConnections)
+    }
+  }, [])
+
+  // Clear connection prompt (also clears from localStorage for current thread)
+  const clearConnectionPrompt = useCallback(() => {
+    setMissingConnections([])
+    setShowConnectionPrompt(false)
+
+    // Clear from localStorage for the current thread
+    const currentThreadId = currentThreadRef.threadId
+    if (currentThreadId) {
+      clearThreadConnectionRequirements(currentThreadId)
+    }
+  }, [])
+
+  // Skip connection check once (for "continue anyway" flow)
+  const skipConnectionCheckOnce = useCallback(() => {
+    adapter.setSkipConnectionCheck(true)
+    setMissingConnections([])
+    setShowConnectionPrompt(false)
+
+    // Clear from localStorage for the current thread
+    const currentThreadId = currentThreadRef.threadId
+    if (currentThreadId) {
+      clearThreadConnectionRequirements(currentThreadId)
+    }
+  }, [adapter])
+
+  // Get continuation message for "continue anyway" flow
+  const getContinuationMessage = useCallback(async (): Promise<string | null> => {
+    const originalMessage = adapter.getLastConnectionCheckMessage()
+    if (!originalMessage) return null
+
+    // Skip connection check on next run
+    adapter.setSkipConnectionCheck(true)
+    adapter.clearLastConnectionCheckMessage()
+
+    // Clear the prompt
+    setMissingConnections([])
+    setShowConnectionPrompt(false)
+    const currentThreadId = currentThreadRef.threadId
+    if (currentThreadId) {
+      clearThreadConnectionRequirements(currentThreadId)
+    }
+
+    // Fetch connected accounts to provide context
+    let connectedAccountsContext = ''
+    try {
+      const [pipedreamResponse, composioResponse, localStatus] = await Promise.all([
+        window.electronAPI?.fetchPipedreamAccountsDetailed?.().catch(() => null),
+        window.electronAPI?.listComposioConnectedAccounts?.().catch(() => null),
+        window.electronAPI?.getProviderAuthStatus?.().catch(() => ({})),
+      ])
+
+      const connectedApps: string[] = []
+
+      // Pipedream accounts
+      if (pipedreamResponse?.success && pipedreamResponse?.data) {
+        const accounts = (pipedreamResponse.data as { accounts?: Array<{ app: { name: string } }> }).accounts || []
+        connectedApps.push(...accounts.map(a => a.app.name))
+      }
+
+      // Composio accounts
+      if (composioResponse?.success && composioResponse?.data) {
+        const items = (composioResponse.data as { items?: Array<{ appName?: string, status: string }> }).items || []
+        connectedApps.push(...items.filter(a => a.status === 'ACTIVE').map(a => a.appName || 'Unknown'))
+      }
+
+      // Local providers
+      if (localStatus) {
+        const authenticated = Object.entries(localStatus as Record<string, { authenticated?: boolean }>)
+          .filter(([_, status]) => status?.authenticated)
+          .map(([provider]) => provider)
+        connectedApps.push(...authenticated)
+      }
+
+      if (connectedApps.length > 0) {
+        connectedAccountsContext = `\n\n**Note:** I'll proceed with your available connected services: ${[...new Set(connectedApps)].join(', ')}.`
+      }
+    }
+    catch {
+      // Ignore errors fetching connected accounts
+    }
+
+    return `${originalMessage}${connectedAccountsContext}`
+  }, [adapter])
+
+  // Set up connection requirements callback on adapter
+  useEffect(() => {
+    adapter.setMissingConnectionsCallback(handleMissingConnections)
+  }, [adapter, handleMissingConnections])
+
+  // Ability message functions
+  const addAbilityMessage = useCallback((message: Omit<AbilityMessage, 'id' | 'timestamp'>) => {
+    const newMessage: AbilityMessage = {
+      ...message,
+      id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
+      timestamp: Date.now(),
+    }
+    setAbilityMessages(prev => [...prev, newMessage])
+  }, [])
+
+  const clearAbilityMessages = useCallback(() => {
+    setAbilityMessages([])
+  }, [])
+
   return {
     adapter,
     mcpEnabled,
@@ -227,14 +464,27 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
     executions,
     isAgenticMode,
     agenticProgress,
+    // Connection requirements state
+    missingConnections,
+    showConnectionPrompt,
+    // Control functions
     setMCPEnabled,
     refreshMCPConnection,
     setAbilityExecutionState, // Expose for adapter to call
     setAgenticMode,
     setSelectedScripts,
     setThreadTitleCallback,
+    // Connection requirements functions
+    clearConnectionPrompt,
+    skipConnectionCheckOnce,
+    getContinuationMessage,
+    // Execution tracking
     addExecution,
     updateExecution,
     clearExecutions,
+    // Ability messages
+    abilityMessages,
+    addAbilityMessage,
+    clearAbilityMessages,
   }
 }

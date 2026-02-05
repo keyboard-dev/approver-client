@@ -2492,7 +2492,6 @@ class MenuBarNotificationApp {
         }
 
         const url = `${this.OAUTH_SERVER_URL}/api/pipedream/apps${params.toString() ? `?${params.toString()}` : ''}`
-
         const response = await fetch(url, {
           headers: {
             Authorization: `Bearer ${accessToken}`,
