@@ -118,8 +118,10 @@ export class AIChatAdapter implements ChatModelAdapter {
   /**
    * Check if user message requires connections and if they are available
    * Uses AI-powered analysis to determine if existing credentials likely work
+   *
+   * @param conversationHistory - Full conversation history for context
    */
-  async checkConnectionRequirements(userMessage: string): Promise<ConnectionCheckResult> {
+  async checkConnectionRequirements(conversationHistory: Array<{ role: 'user' | 'assistant' | 'system', content: string }>): Promise<ConnectionCheckResult> {
     try {
       // Get all connected accounts from context service (cached)
       const connectedAccounts = await contextService.getConnectedAccounts()
@@ -147,7 +149,8 @@ export class AIChatAdapter implements ChatModelAdapter {
           })),
       ]
 
-      const analysis = await analyzeCredentialRequirements(userMessage, accountsForAnalysis)
+      // Pass full conversation history for proper context
+      const analysis = await analyzeCredentialRequirements(conversationHistory, accountsForAnalysis)
 
       if (analysis.likelyHasCredentials) {
         return {
@@ -1059,7 +1062,8 @@ ${analysisResponse}`
       if (this.currentProvider.provider === 'keyboard' && this.currentProvider.mcpEnabled && !this.skipConnectionCheck) {
         const lastUserMessage = aiMessages.filter(m => m.role === 'user').pop()
         if (lastUserMessage?.content) {
-          const connectionResult = await this.checkConnectionRequirements(lastUserMessage.content)
+          // Pass full conversation history for proper context understanding
+          const connectionResult = await this.checkConnectionRequirements(aiMessages)
 
           if (!connectionResult.hasAllConnections && connectionResult.missingConnections.length > 0) {
             // Store the user message for potential "continue anyway" flow

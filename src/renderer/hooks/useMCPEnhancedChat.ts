@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Script } from '../../types'
 import { AIChatAdapter, ConnectionCheckResult, MissingConnectionInfo } from '../services/ai-chat-adapter'
-import { contextService } from '../services/context-service'
 import { useMCPIntegration } from '../services/mcp-tool-integration'
 import { currentThreadRef } from '../components/screens/ChatPage'
 
@@ -378,9 +377,6 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
     if (currentThreadId) {
       clearThreadConnectionRequirements(currentThreadId)
     }
-
-    // Clear context cache to ensure fresh data (user may have just connected accounts)
-    contextService.clearCache()
   }, [adapter])
 
   // Get continuation message for "continue anyway" flow
@@ -399,9 +395,6 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
     if (currentThreadId) {
       clearThreadConnectionRequirements(currentThreadId)
     }
-
-    // Clear context cache to ensure fresh data (user may have just connected accounts)
-    contextService.clearCache()
 
     // Fetch connected accounts to provide context
     let connectedAccountsContext = ''

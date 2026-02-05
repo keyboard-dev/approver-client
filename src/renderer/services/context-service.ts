@@ -38,12 +38,9 @@ export interface EnhancedContext {
   selectedScripts: Script[]
   pipedreamAccounts: PipedreamAccount[]
   composioAccounts: ComposioAccountContext[]
-  timestamp: number
 }
 
 export class ContextService {
-  private cachedContext: EnhancedContext | null = null
-  private contextExpiry: number = 5 * 60 * 1000 // 5 minutes
   private mcpFunctions: MCPAbilityFunction[] = []
   private selectedScripts: Script[] = []
 
@@ -59,8 +56,6 @@ export class ContextService {
    */
   setSelectedScripts(scripts: Script[]): void {
     this.selectedScripts = scripts
-    // Clear cached context when scripts change
-    this.cachedContext = null
   }
 
   /**
@@ -84,13 +79,9 @@ export class ContextService {
 
   /**
    * Get comprehensive context for AI system prompt
+   * Always fetches fresh data to ensure up-to-date connected accounts
    */
   async getEnhancedContext(): Promise<EnhancedContext> {
-    // Check if we have valid cached context
-    if (this.cachedContext && (Date.now() - this.cachedContext.timestamp) < this.contextExpiry) {
-      return this.cachedContext
-    }
-
     // Generate new planning token
     const planningToken = generatePlanningToken()
 
@@ -103,7 +94,7 @@ export class ContextService {
       this.fetchComposioAccounts(),
     ])
 
-    const context: EnhancedContext = {
+    return {
       planningToken,
       userTokens: userTokens.status === 'fulfilled' ? userTokens.value : [],
       codespaceInfo: codespaceInfo.status === 'fulfilled' ? codespaceInfo.value : null,
@@ -111,13 +102,7 @@ export class ContextService {
       selectedScripts: this.selectedScripts,
       pipedreamAccounts: pipedreamAccounts.status === 'fulfilled' ? pipedreamAccounts.value : [],
       composioAccounts: composioAccounts.status === 'fulfilled' ? composioAccounts.value : [],
-      timestamp: Date.now(),
     }
-
-    // Cache the context
-    this.cachedContext = context
-
-    return context
   }
 
   /**
@@ -383,19 +368,6 @@ USER REQUEST: ${userMessage}`
     }
   }
 
-  /**
-   * Clear cached context (useful for forcing refresh)
-   */
-  clearCache(): void {
-    this.cachedContext = null
-  }
-
-  /**
-   * Check if context is stale and needs refresh
-   */
-  isContextStale(): boolean {
-    return !this.cachedContext || (Date.now() - this.cachedContext.timestamp) >= this.contextExpiry
-  }
 }
 
 // Export singleton instance

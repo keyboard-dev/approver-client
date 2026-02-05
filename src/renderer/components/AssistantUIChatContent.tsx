@@ -63,15 +63,7 @@ export const PROVIDERS: ProviderConfig[] = [
       { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
       { id: 'gemini-pro', name: 'Gemini Pro' },
     ],
-  },
-  {
-    id: 'mcp',
-    name: 'MCP Server (Legacy)',
-    supportsMCP: false,
-    models: [
-      { id: 'mcp-tools', name: 'MCP Tools & Resources' },
-    ],
-  },
+  }
 ]
 
 /**
