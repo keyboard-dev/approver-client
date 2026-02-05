@@ -141,7 +141,7 @@ export const AICreditsPanel: React.FC = () => {
   }
 
   return (
-    <div className="grow shrink min-w-0 h-full py-[0.5rem] flex flex-col gap-[0.63rem]">
+    <div className="grow shrink min-w-0 h-full py-[0.5rem] flex flex-col gap-[0.63rem] overflow-y-auto">
       <div className="text-[1.13rem] px-[0.94rem]">
         AI Credits
       </div>

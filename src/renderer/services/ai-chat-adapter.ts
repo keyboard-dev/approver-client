@@ -1,5 +1,7 @@
 import type { ChatModelAdapter } from '@assistant-ui/react'
 import { Script } from '../../types'
+import { searchCombinedApps } from './combined-apps-service'
+import { analyzeCredentialRequirements } from './connection-detection-service'
 import { contextService } from './context-service'
 import { useMCPIntegration } from './mcp-tool-integration'
 
@@ -14,6 +16,20 @@ interface AIProviderSelection {
   mcpEnabled?: boolean
 }
 
+export interface MissingConnectionInfo {
+  id: string
+  name: string
+  icon: string
+  source: 'pipedream' | 'composio' | 'local'
+  searchTerms?: string[] // Search terms for app connector search
+}
+
+export interface ConnectionCheckResult {
+  hasAllConnections: boolean
+  missingConnections: MissingConnectionInfo[]
+  detectedServices: string[]
+}
+
 export class AIChatAdapter implements ChatModelAdapter {
   private currentProvider: AIProviderSelection = { provider: 'openai', model: 'gpt-3.5-turbo', mcpEnabled: false }
   private mcpIntegration: ReturnType<typeof useMCPIntegration> | null = null
@@ -24,9 +40,40 @@ export class AIChatAdapter implements ChatModelAdapter {
   private isToolsExecuting = false
   private onThreadTitleGenerated?: (title: string) => void
   private titleGeneratedForThread = false
+  private onMissingConnectionsDetected?: (result: ConnectionCheckResult) => void
+  private skipConnectionCheck = false
+  private lastUserMessageForConnectionCheck: string | null = null
 
   constructor(provider: string = 'openai', model?: string, mcpEnabled: boolean = false) {
     this.currentProvider = { provider, model, mcpEnabled }
+  }
+
+  /**
+   * Set callback for when missing connections are detected
+   */
+  setMissingConnectionsCallback(callback: (result: ConnectionCheckResult) => void) {
+    this.onMissingConnectionsDetected = callback
+  }
+
+  /**
+   * Skip the next connection check (used when user dismisses the prompt)
+   */
+  setSkipConnectionCheck(skip: boolean) {
+    this.skipConnectionCheck = skip
+  }
+
+  /**
+   * Get the last user message that triggered a connection check
+   */
+  getLastConnectionCheckMessage(): string | null {
+    return this.lastUserMessageForConnectionCheck
+  }
+
+  /**
+   * Clear the stored connection check message
+   */
+  clearLastConnectionCheckMessage() {
+    this.lastUserMessageForConnectionCheck = null
   }
 
   setThreadTitleCallback(callback: (title: string) => void) {
@@ -64,6 +111,161 @@ export class AIChatAdapter implements ChatModelAdapter {
 
   setSelectedScripts(scripts: Script[]) {
     contextService.setSelectedScripts(scripts)
+  }
+
+  /**
+   * Check if user message requires connections and if they are available
+   * Uses AI-powered analysis to determine if existing credentials likely work
+   */
+  async checkConnectionRequirements(userMessage: string): Promise<ConnectionCheckResult> {
+    try {
+      // Get all connected accounts from context service (cached)
+      const connectedAccounts = await contextService.getConnectedAccounts()
+      const localStatus = await window.electronAPI?.getProviderAuthStatus?.().catch(() => ({}))
+      const providerStatus = (localStatus || {}) as Record<string, { authenticated?: boolean }>
+
+      // Build simplified accounts array for AI analysis
+      const accountsForAnalysis = [
+        ...connectedAccounts.pipedream.map(a => ({
+          id: a.id,
+          app: a.app?.nameSlug || a.app?.name || 'unknown',
+          name: a.name,
+        })),
+        ...connectedAccounts.composio
+          .filter(a => a.status === 'ACTIVE')
+          .map(a => ({
+            id: a.id,
+            app: a.toolkit?.slug || 'unknown',
+          })),
+        ...Object.entries(providerStatus)
+          .filter(([_, status]) => status?.authenticated)
+          .map(([provider]) => ({
+            id: `local_${provider}`,
+            app: provider,
+          })),
+      ]
+
+      const analysis = await analyzeCredentialRequirements(userMessage, accountsForAnalysis)
+
+      if (analysis.likelyHasCredentials) {
+        return {
+          hasAllConnections: true,
+          missingConnections: [],
+          detectedServices: [],
+        }
+      }
+
+      // User doesn't have credentials - search for real apps using AI-provided search terms
+      if (analysis.searchTermsIfNoCredentials.length > 0) {
+        const searchTerms = analysis.searchTermsIfNoCredentials
+        const searchPromises = searchTerms.map(term => searchCombinedApps(term, false))
+
+        const results = await Promise.all(searchPromises)
+        const seenIds = new Set<string>()
+        const allApps: Array<{ app: typeof results[0]['apps'][0], searchTerm: string, relevanceScore: number }> = []
+
+        // Helper function to calculate relevance score for an app
+        const getRelevanceScore = (app: typeof results[0]['apps'][0], searchTerm: string): number => {
+          const termLower = searchTerm.toLowerCase()
+          const nameLower = app.name.toLowerCase()
+          const idLower = app.id.toLowerCase()
+
+          // Exact name match = highest priority
+          if (nameLower === termLower) return 100
+
+          // Exact ID/slug match
+          if (idLower === termLower) return 95
+          if (app.composioSlug?.toLowerCase() === termLower) return 95
+          if (app.pipedreamSlug?.toLowerCase() === termLower) return 95
+
+          // Name starts with search term (e.g., "Zoom" for search "zoom")
+          if (nameLower.startsWith(termLower)) return 80
+
+          // ID starts with search term
+          if (idLower.startsWith(termLower)) return 75
+
+          // Search term is a complete word in the name (e.g., "Zoom Meetings" contains "Zoom")
+          const nameWords = nameLower.split(/\s+/)
+          if (nameWords.includes(termLower)) return 70
+
+          // Name contains search term but as part of another word (e.g., "AgencyZoom" contains "zoom")
+          if (nameLower.includes(termLower)) return 30
+
+          // Default low score for other matches
+          return 10
+        }
+
+        for (const result of results) {
+          if (result.success && result.apps) {
+            // Find the search term that produced this result
+            const searchTermIndex = results.indexOf(result)
+            const searchTerm = searchTerms[searchTermIndex] || searchTerms[0]
+
+            for (const app of result.apps) {
+              if (!seenIds.has(app.id)) {
+                seenIds.add(app.id)
+                const relevanceScore = getRelevanceScore(app, searchTerm)
+                allApps.push({ app, searchTerm, relevanceScore })
+              }
+            }
+          }
+        }
+
+        // Sort by relevance score (highest first)
+        allApps.sort((a, b) => b.relevanceScore - a.relevanceScore)
+
+        // Convert to MissingConnectionInfo
+        const missingConnections: MissingConnectionInfo[] = allApps.map(({ app }) => {
+          // Extract logo from the correct source based on platform
+          // Priority: top-level logo > composioData.meta.logo > pipedreamData.logoUrl
+          let icon = app.logo || ''
+          if (!icon && app.composioData?.meta?.logo) {
+            icon = app.composioData.meta.logo
+          }
+          if (!icon && app.pipedreamData?.logoUrl) {
+            icon = app.pipedreamData.logoUrl
+          }
+
+          // Determine source based on platforms array
+          const source: 'pipedream' | 'composio' | 'local' = app.platforms.includes('pipedream')
+            ? 'pipedream'
+            : app.platforms.includes('composio')
+              ? 'composio'
+              : 'local'
+
+          return {
+            id: app.composioSlug || app.pipedreamSlug || app.id,
+            name: app.name,
+            icon,
+            source,
+          }
+        })
+
+        if (missingConnections.length > 0) {
+          return {
+            hasAllConnections: false,
+            missingConnections: missingConnections.slice(0, 6),
+            detectedServices: searchTerms,
+          }
+        }
+      }
+
+      // Fallback: return generic connection requirement with search terms
+      return {
+        hasAllConnections: false,
+        missingConnections: [{
+          id: 'required_connection',
+          name: 'Required Connection',
+          icon: '',
+          source: 'pipedream',
+          searchTerms: analysis.searchTermsIfNoCredentials,
+        }],
+        detectedServices: analysis.searchTermsIfNoCredentials,
+      }
+    }
+    catch (error) {
+      return { hasAllConnections: true, missingConnections: [], detectedServices: [] }
+    }
   }
 
   private startPeriodicPing() {
@@ -866,6 +1068,36 @@ ${analysisResponse}`
         // Generate title asynchronously (non-blocking)
         this.generateThreadTitle(userMessages[0].content)
       }
+
+      // Check for missing connections before proceeding (only for keyboard provider with MCP)
+      if (this.currentProvider.provider === 'keyboard' && this.currentProvider.mcpEnabled && !this.skipConnectionCheck) {
+        const lastUserMessage = aiMessages.filter(m => m.role === 'user').pop()
+        if (lastUserMessage?.content) {
+          const connectionResult = await this.checkConnectionRequirements(lastUserMessage.content)
+
+          if (!connectionResult.hasAllConnections && connectionResult.missingConnections.length > 0) {
+            // Store the user message for potential "continue anyway" flow
+            this.lastUserMessageForConnectionCheck = lastUserMessage.content
+
+            // Notify callback about missing connections
+            if (this.onMissingConnectionsDetected) {
+              this.onMissingConnectionsDetected(connectionResult)
+            }
+
+            // Yield a response indicating missing connections
+            const serviceNames = connectionResult.missingConnections.map(c => c.name).join(', ')
+            yield {
+              content: [{
+                type: 'text' as const,
+                text: `I don't have access to ${serviceNames} tools - I'm currently missing some app connections.\n\nTo complete your request, I would need access to the following services. Please connect them using the prompts above, then try again.`,
+              }],
+            }
+            return
+          }
+        }
+      }
+      // Reset skip flag after use
+      this.skipConnectionCheck = false
 
       // Inject enhanced context into system prompt for keyboard provider
       if (this.currentProvider.provider === 'keyboard' && this.currentProvider.mcpEnabled && aiMessages.length > 0) {

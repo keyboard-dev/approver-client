@@ -22,7 +22,7 @@ export const ConnectorPanel: React.FC = () => {
 
   return (
     <div
-      className="relative grow shrink min-w-0 h-full py-[0.5rem] flex flex-col gap-[0.63rem]"
+      className="relative grow shrink min-w-0 h-full py-[0.5rem] flex flex-col gap-[0.63rem] overflow-y-auto"
     >
       {(!isAuthenticated || isSkippingAuth) && (
         <Confirmation
