@@ -113,7 +113,7 @@ jobs:
           echo "version=$VERSION" >> $env:GITHUB_OUTPUT
           echo "app_name=$APP_NAME" >> $env:GITHUB_OUTPUT
           echo "forge_artifact_name=Keyboard.Approver-Setup-Win-latest.exe" >> $env:GITHUB_OUTPUT
-          echo "artifact_name=keyboard-approver.App-win32-x64-latest.exe" >> $env:GITHUB_OUTPUT
+          echo "artifact_name=Keyboard.Approver-Setup-Win-latest.exe" >> $env:GITHUB_OUTPUT
           echo "APP_NAME=$APP_NAME" >> $env:GITHUB_ENV
           echo "Building version: $VERSION with app name: $APP_NAME"
 
