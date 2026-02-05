@@ -491,6 +491,17 @@ class MenuBarNotificationApp {
           jwtToken: accessToken,
           baseUrl: this.OAUTH_SERVER_URL,
         })
+
+        // CRITICAL FIX: Fetch and apply execution preference immediately after initialization
+        try {
+          const preference = await this.executionPreferenceManager.getPreference()
+          if (this.executorWSClient) {
+            this.executorWSClient.setExecutionPreference(preference)
+          }
+        }
+        catch (prefError) {
+          // Silently fail - will use default preference
+        }
       }
     }
     catch (error) {

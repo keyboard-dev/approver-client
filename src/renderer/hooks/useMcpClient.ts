@@ -33,7 +33,7 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
   const [state, setState] = useState<UseMcpClientResult['state']>('discovering')
   const [tools, setTools] = useState<Tool[]>([])
   const [resources, setResources] = useState<Resource[]>([])
-  const [prompts, setPrompts] = useState<Array<{ name: string, description?: string }>>([])
+  const [prompts] = useState<Array<{ name: string, description?: string }>>([])
   const [error, setError] = useState<string | undefined>()
   const [accessToken, setAccessToken] = useState<string | null>(null)
 
@@ -211,7 +211,7 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
 
     hasConnectedRef.current = true
 
-    connect(accessToken, options.serverUrl).catch((err) => {
+    connect(accessToken, options.serverUrl).catch(() => {
       hasConnectedRef.current = false // Reset on failure so retry can work
     })
   }, [accessToken, options.serverUrl, connect])
@@ -293,7 +293,7 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
       setError(undefined)
       hasConnectedRef.current = false // Reset connection tracking for retry
 
-      connect(accessToken, options.serverUrl).catch((err) => {
+      connect(accessToken, options.serverUrl).catch(() => {
         hasConnectedRef.current = false
       })
     }
