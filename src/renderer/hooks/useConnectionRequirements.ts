@@ -126,7 +126,6 @@ export function useConnectionRequirements(): UseConnectionRequirementsReturn {
       }
     }
     catch (err) {
-      console.error('Failed to fetch connection status:', err)
     }
   }, [])
 

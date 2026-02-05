@@ -207,7 +207,6 @@ If likelyHasCredentials is false, provide search terms the user could use to fin
     const jsonMatch = response.trim().match(/\{[\s\S]*\}/)
     if (jsonMatch) {
       const result = JSON.parse(jsonMatch[0])
-      console.log('[CredentialAnalysis] AI result:', result)
       return {
         likelyHasCredentials: result.likelyHasCredentials === true,
         searchTermsIfNoCredentials: Array.isArray(result.searchTermsIfNoCredentials)
@@ -217,12 +216,9 @@ If likelyHasCredentials is false, provide search terms the user could use to fin
     }
 
     // Default to optimistic if parsing fails
-    console.log('[CredentialAnalysis] Failed to parse AI response, defaulting to optimistic')
     return { likelyHasCredentials: true, searchTermsIfNoCredentials: [] }
   }
   catch (error) {
-    console.error('[CredentialAnalysis] Analysis failed:', error)
-    // Default to optimistic on error
     return { likelyHasCredentials: true, searchTermsIfNoCredentials: [] }
   }
 }
@@ -282,7 +278,6 @@ Return the JSON array:`
     return []
   }
   catch (error) {
-    console.error('AI classification failed:', error)
     return []
   }
 }
@@ -300,9 +295,6 @@ export async function detectRequiredServices(
   if (useAIClassification) {
     try {
       const aiResults = await aiClassifyRequiredServices(message)
-      console.log('[ConnectionDetection] AI classification results:', aiResults)
-
-      // Look up each detected service
       for (const appName of aiResults) {
         const app = await lookupApp(appName)
         if (app) {
@@ -313,14 +305,10 @@ export async function detectRequiredServices(
           }
         }
         else {
-          console.log(`[ConnectionDetection] Could not find app: ${appName}`)
         }
       }
-
-      console.log('[ConnectionDetection] Final detected services:', detectedServices)
     }
     catch (error) {
-      console.error('[ConnectionDetection] Detection failed:', error)
     }
   }
 

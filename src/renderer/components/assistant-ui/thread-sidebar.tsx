@@ -97,24 +97,28 @@ const ConnectedAppRow: FC<ConnectedAppRowProps> = ({ app, onConnect, onDisconnec
       <SourceTag source={app.source} />
 
       {/* Action Button */}
-      {app.isConnecting || app.isDisconnecting ? (
-        <Loader2 className="w-5 h-5 animate-spin text-[#737373] shrink-0" />
-      ) : app.isConnected ? (
-        <button
-          className="px-2 py-0.5 text-[12px] font-medium text-[#d23535] hover:bg-[#FEE2E2] rounded-[4px] transition-colors shrink-0"
-          onClick={onDisconnect}
-        >
-          Remove
-        </button>
-      ) : (
-        <button
-          className="flex items-center gap-1 px-2 py-0.5 bg-white border border-[#e5e5e5] rounded-[4px] text-[12px] font-medium text-[#171717] hover:border-[#ccc] transition-colors shrink-0"
-          onClick={onConnect}
-        >
-          <ExternalLink className="w-3 h-3" />
-          Connect
-        </button>
-      )}
+      {app.isConnecting || app.isDisconnecting
+        ? (
+            <Loader2 className="w-5 h-5 animate-spin text-[#737373] shrink-0" />
+          )
+        : app.isConnected
+          ? (
+              <button
+                className="px-2 py-0.5 text-[12px] font-medium text-[#d23535] hover:bg-[#FEE2E2] rounded-[4px] transition-colors shrink-0"
+                onClick={onDisconnect}
+              >
+                Remove
+              </button>
+            )
+          : (
+              <button
+                className="flex items-center gap-1 px-2 py-0.5 bg-white border border-[#e5e5e5] rounded-[4px] text-[12px] font-medium text-[#171717] hover:border-[#ccc] transition-colors shrink-0"
+                onClick={onConnect}
+              >
+                <ExternalLink className="w-3 h-3" />
+                Connect
+              </button>
+            )}
     </div>
   )
 }
@@ -212,7 +216,7 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
       isDisconnecting: pipedreamDisconnectingAccountId === account.id,
     })),
     // Composio connected accounts
-    ...composioAccounts.map(account => {
+    ...composioAccounts.map((account) => {
       const appIdentifier = account.appName || account.toolkit?.slug || ''
       const matchingApp = composioApps.find(app =>
         (app.name?.toLowerCase() || '') === appIdentifier.toLowerCase()
@@ -237,10 +241,12 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
         if (app.source === 'local') {
           const providerId = app.id.replace('local-', '')
           await disconnectProvider(providerId)
-        } else if (app.source === 'pipedream') {
+        }
+        else if (app.source === 'pipedream') {
           const accountId = app.id.replace('pipedream-', '')
           await disconnectPipedreamAccount(accountId)
-        } else if (app.source === 'composio') {
+        }
+        else if (app.source === 'composio') {
           const accountId = app.id.replace('composio-', '')
           await disconnectComposioAccount(accountId)
         }
@@ -382,20 +388,22 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
             {/* Connected Apps List */}
             <TooltipProvider delayDuration={300}>
               <div className="bg-[#fafafa] border border-[#dbdbdb] flex flex-col gap-[8px] p-[10px] rounded-[12px] w-full overflow-hidden">
-                {connectedApps.length > 0 ? (
-                  connectedApps.map(app => (
-                    <ConnectedAppRow
-                      key={app.id}
-                      app={app}
-                      onConnect={() => {}}
-                      onDisconnect={() => handleDisconnect(app)}
-                    />
-                  ))
-                ) : (
-                  <p className="font-medium text-[14px] text-[#737373] leading-normal">
-                    None in use
-                  </p>
-                )}
+                {connectedApps.length > 0
+                  ? (
+                      connectedApps.map(app => (
+                        <ConnectedAppRow
+                          key={app.id}
+                          app={app}
+                          onConnect={() => {}}
+                          onDisconnect={() => handleDisconnect(app)}
+                        />
+                      ))
+                    )
+                  : (
+                      <p className="font-medium text-[14px] text-[#737373] leading-normal">
+                        None in use
+                      </p>
+                    )}
               </div>
             </TooltipProvider>
 

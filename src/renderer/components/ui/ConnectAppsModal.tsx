@@ -353,7 +353,7 @@ export const ConnectAppsModal: React.FC<ConnectAppsModalProps> = ({
   const showPipedreamDefaults = !isSearching && pipedreamDefaultApps.length > 0
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={isOpen} onOpenChange={open => !open && onClose()}>
       <DialogPortal>
         <DialogOverlay />
         <DialogPrimitive.Content
@@ -364,279 +364,279 @@ export const ConnectAppsModal: React.FC<ConnectAppsModalProps> = ({
             Connect apps
           </DialogTitle>
 
-        {/* Search Input */}
-        <div className="relative w-full">
-          <Search className="absolute left-[8px] top-1/2 -translate-y-1/2 w-[12px] h-[12px] text-[#737373]" />
-          <input
-            type="text"
-            placeholder="Search 3000+ apps..."
-            value={searchQuery}
-            onChange={e => handleSearchChange(e.target.value)}
-            className="w-full h-[32px] pl-[30px] pr-[30px] py-[8px] bg-[#fafafa] border border-[#dbdbdb] rounded-[12px] text-[14px] font-medium text-[#171717] placeholder:text-[#737373] focus:outline-none focus:border-[#a5a5a5]"
-          />
-          {searchQuery && (
-            <button
-              onClick={handleClearSearch}
-              className="absolute right-[8px] top-1/2 -translate-y-1/2 text-[#737373] hover:text-[#171717]"
-            >
-              <X className="w-[12px] h-[12px]" />
-            </button>
-          )}
-        </div>
-
-        {/* Error Display */}
-        {(connectError || localError || pipedreamAppsError || composioAccountsError || composioAppsError) && (
-          <div className="p-3 bg-[#FEE] border border-[#D23535] rounded-lg text-[#D23535] text-sm">
-            {connectError || localError || pipedreamAppsError || composioAccountsError || composioAppsError}
-          </div>
-        )}
-
-        {/* Connectors List */}
-        <div className="flex-1 bg-[#fafafa] border border-[#dbdbdb] rounded-[12px] p-[10px] overflow-y-auto flex flex-col gap-[10px]">
-          {/* Loading State */}
-          {localLoading && (
-            <div className="text-center py-4 text-[#737373]">
-              Loading connectors...
-            </div>
-          )}
-
-          {/* Local Connectors */}
-          {filteredLocalProviders.map((provider) => {
-            const isAuthenticated = providerStatus[provider.id]?.authenticated || false
-            return (
-              <ConnectorRow
-                key={`local-${provider.id}`}
-                icon={provider.icon}
-                name={provider.name}
-                source="local"
-                isConnected={isAuthenticated}
-                isConnecting={connectingProviderId === provider.id}
-                isDisconnecting={disconnectingProviderId === provider.id}
-                disabled={!provider.configured}
-                onConnect={() => handleConnectLocal(provider.id)}
-                onDisconnect={() => handleDisconnectLocal(provider)}
-              />
-            )
-          })}
-
-          {/* Connected Pipedream Accounts */}
-          {filteredPipedreamAccounts.map(account => (
-            <ConnectorRow
-              key={`pipedream-connected-${account.id}`}
-              icon={account.app.logoUrl || squaresIconUrl}
-              name={account.app.name}
-              source="pipedream"
-              isConnected={true}
-              isConnecting={false}
-              isDisconnecting={pipedreamDisconnectingAccountId === account.id}
-              onConnect={() => {}}
-              onDisconnect={() => handleDisconnectPipedream(account)}
+          {/* Search Input */}
+          <div className="relative w-full">
+            <Search className="absolute left-[8px] top-1/2 -translate-y-1/2 w-[12px] h-[12px] text-[#737373]" />
+            <input
+              type="text"
+              placeholder="Search 3000+ apps..."
+              value={searchQuery}
+              onChange={e => handleSearchChange(e.target.value)}
+              className="w-full h-[32px] pl-[30px] pr-[30px] py-[8px] bg-[#fafafa] border border-[#dbdbdb] rounded-[12px] text-[14px] font-medium text-[#171717] placeholder:text-[#737373] focus:outline-none focus:border-[#a5a5a5]"
             />
-          ))}
+            {searchQuery && (
+              <button
+                onClick={handleClearSearch}
+                className="absolute right-[8px] top-1/2 -translate-y-1/2 text-[#737373] hover:text-[#171717]"
+              >
+                <X className="w-[12px] h-[12px]" />
+              </button>
+            )}
+          </div>
 
-          {/* Connected Composio Accounts */}
-          {composioAccountsLoading && (
-            <div className="text-center py-4 text-[#737373]">
-              Loading Composio accounts...
+          {/* Error Display */}
+          {(connectError || localError || pipedreamAppsError || composioAccountsError || composioAppsError) && (
+            <div className="p-3 bg-[#FEE] border border-[#D23535] rounded-lg text-[#D23535] text-sm">
+              {connectError || localError || pipedreamAppsError || composioAccountsError || composioAppsError}
             </div>
           )}
-          {filteredComposioAccounts.map((account) => {
-            // Get app identifier - prefer appName, fallback to toolkit.slug
-            const appIdentifier = account.appName || account.toolkit?.slug || ''
-            const appIdentifierLower = appIdentifier.toLowerCase()
 
-            // Find matching app for logo and display name
-            const matchingApp = composioApps.find(app =>
-              (app.name?.toLowerCase() || '') === appIdentifierLower
-              || (app.slug?.toLowerCase() || '') === appIdentifierLower,
-            )
+          {/* Connectors List */}
+          <div className="flex-1 bg-[#fafafa] border border-[#dbdbdb] rounded-[12px] p-[10px] overflow-y-auto flex flex-col gap-[10px]">
+            {/* Loading State */}
+            {localLoading && (
+              <div className="text-center py-4 text-[#737373]">
+                Loading connectors...
+              </div>
+            )}
 
-            // Get logo from matched app or use default
-            const logo = matchingApp?.meta?.logo || matchingApp?.logo || squaresIconUrl
+            {/* Local Connectors */}
+            {filteredLocalProviders.map((provider) => {
+              const isAuthenticated = providerStatus[provider.id]?.authenticated || false
+              return (
+                <ConnectorRow
+                  key={`local-${provider.id}`}
+                  icon={provider.icon}
+                  name={provider.name}
+                  source="local"
+                  isConnected={isAuthenticated}
+                  isConnecting={connectingProviderId === provider.id}
+                  isDisconnecting={disconnectingProviderId === provider.id}
+                  disabled={!provider.configured}
+                  onConnect={() => handleConnectLocal(provider.id)}
+                  onDisconnect={() => handleDisconnectLocal(provider)}
+                />
+              )
+            })}
 
-            // Get display name - prefer matched app name, fallback to identifier, then 'Unknown App'
-            const displayName = matchingApp?.name || appIdentifier || 'Unknown App'
-
-            return (
+            {/* Connected Pipedream Accounts */}
+            {filteredPipedreamAccounts.map(account => (
               <ConnectorRow
-                key={`composio-connected-${account.id}`}
-                icon={logo}
-                name={displayName}
-                source="composio"
+                key={`pipedream-connected-${account.id}`}
+                icon={account.app.logoUrl || squaresIconUrl}
+                name={account.app.name}
+                source="pipedream"
                 isConnected={true}
                 isConnecting={false}
-                isDisconnecting={composioDisconnectingAccountId === account.id}
+                isDisconnecting={pipedreamDisconnectingAccountId === account.id}
                 onConnect={() => {}}
-                onDisconnect={() => handleDisconnectComposio(account)}
+                onDisconnect={() => handleDisconnectPipedream(account)}
               />
-            )
-          })}
+            ))}
 
-          {/* Pipedream Apps (search results) */}
-          {isSearching && (
-            <>
-              {pipedreamAppsLoading && (
-                <div className="text-center py-4 text-[#737373]">
-                  Searching Pipedream apps...
-                </div>
-              )}
-              {showPipedreamResults && pipedreamApps.map(app => (
+            {/* Connected Composio Accounts */}
+            {composioAccountsLoading && (
+              <div className="text-center py-4 text-[#737373]">
+                Loading Composio accounts...
+              </div>
+            )}
+            {filteredComposioAccounts.map((account) => {
+            // Get app identifier - prefer appName, fallback to toolkit.slug
+              const appIdentifier = account.appName || account.toolkit?.slug || ''
+              const appIdentifierLower = appIdentifier.toLowerCase()
+
+              // Find matching app for logo and display name
+              const matchingApp = composioApps.find(app =>
+                (app.name?.toLowerCase() || '') === appIdentifierLower
+                || (app.slug?.toLowerCase() || '') === appIdentifierLower,
+              )
+
+              // Get logo from matched app or use default
+              const logo = matchingApp?.meta?.logo || matchingApp?.logo || squaresIconUrl
+
+              // Get display name - prefer matched app name, fallback to identifier, then 'Unknown App'
+              const displayName = matchingApp?.name || appIdentifier || 'Unknown App'
+
+              return (
                 <ConnectorRow
-                  key={`pipedream-${app.id}`}
-                  icon={app.logoUrl || squaresIconUrl}
-                  name={app.name}
-                  source="pipedream"
-                  isConnected={false}
-                  isConnecting={pipedreamConnectingApp === app.nameSlug}
-                  isDisconnecting={false}
-                  onConnect={() => handleConnectPipedream(app.nameSlug)}
-                  onDisconnect={() => {}}
+                  key={`composio-connected-${account.id}`}
+                  icon={logo}
+                  name={displayName}
+                  source="composio"
+                  isConnected={true}
+                  isConnecting={false}
+                  isDisconnecting={composioDisconnectingAccountId === account.id}
+                  onConnect={() => {}}
+                  onDisconnect={() => handleDisconnectComposio(account)}
                 />
-              ))}
-            </>
-          )}
+              )
+            })}
 
-          {/* Composio Apps (search results) */}
-          {isSearching && (
-            <>
-              {composioAppsLoading && (
-                <div className="text-center py-4 text-[#737373]">
-                  Searching Composio apps...
-                </div>
-              )}
-              {composioApps
-                .filter(app =>
-                  // Filter out already connected apps
-                  !composioAccounts.some((acc) => {
-                    const accAppName = acc.appName?.toLowerCase() || ''
-                    const accToolkitSlug = acc.toolkit?.slug?.toLowerCase() || ''
-                    const appName = app.name?.toLowerCase() || ''
-                    const appSlug = app.slug?.toLowerCase() || ''
-                    return accAppName === appName || accAppName === appSlug
-                      || accToolkitSlug === appName || accToolkitSlug === appSlug
-                  }),
-                )
-                .map(app => (
+            {/* Pipedream Apps (search results) */}
+            {isSearching && (
+              <>
+                {pipedreamAppsLoading && (
+                  <div className="text-center py-4 text-[#737373]">
+                    Searching Pipedream apps...
+                  </div>
+                )}
+                {showPipedreamResults && pipedreamApps.map(app => (
                   <ConnectorRow
-                    key={`composio-${app.slug}`}
-                    icon={app.meta?.logo || app.logo || squaresIconUrl}
-                    name={app.name || app.slug || 'Unknown'}
-                    source="composio"
+                    key={`pipedream-${app.id}`}
+                    icon={app.logoUrl || squaresIconUrl}
+                    name={app.name}
+                    source="pipedream"
                     isConnected={false}
-                    isConnecting={composioConnectingApp === app.slug}
+                    isConnecting={pipedreamConnectingApp === app.nameSlug}
                     isDisconnecting={false}
-                    onConnect={() => handleConnectComposio(app.slug)}
+                    onConnect={() => handleConnectPipedream(app.nameSlug)}
                     onDisconnect={() => {}}
                   />
                 ))}
-            </>
-          )}
+              </>
+            )}
 
-          {/* No results message */}
-          {isSearching
-            && !pipedreamAppsLoading
-            && !composioAppsLoading
-            && pipedreamApps.length === 0
-            && composioApps.length === 0
-            && filteredLocalProviders.length === 0
-            && filteredComposioAccounts.length === 0 && (
-            <div className="text-center py-6 text-[#737373]">
-              No connectors found for "
-              {searchQuery}
-              "
-            </div>
-          )}
-
-          {/* Pipedream Default Apps (when not searching) */}
-          {!isSearching && (
-            <>
-              {pipedreamDefaultAppsLoading && (
-                <div className="text-center py-4 text-[#737373]">
-                  Loading more apps...
-                </div>
-              )}
-              {showPipedreamDefaults && pipedreamDefaultApps.map(app => (
-                <ConnectorRow
-                  key={`pipedream-default-${app.id}`}
-                  icon={app.logoUrl || squaresIconUrl}
-                  name={app.name}
-                  source="pipedream"
-                  isConnected={false}
-                  isConnecting={pipedreamConnectingApp === app.nameSlug}
-                  isDisconnecting={false}
-                  onConnect={() => handleConnectPipedream(app.nameSlug)}
-                  onDisconnect={() => {}}
-                />
-              ))}
-            </>
-          )}
-
-          {/* Composio Default Apps (when not searching) */}
-          {!isSearching && (
-            <>
-              {composioAppsLoading && (
-                <div className="text-center py-4 text-[#737373]">
-                  Loading Composio apps...
-                </div>
-              )}
-              {composioApps
-                .filter(app =>
+            {/* Composio Apps (search results) */}
+            {isSearching && (
+              <>
+                {composioAppsLoading && (
+                  <div className="text-center py-4 text-[#737373]">
+                    Searching Composio apps...
+                  </div>
+                )}
+                {composioApps
+                  .filter(app =>
                   // Filter out already connected apps
-                  !composioAccounts.some((acc) => {
-                    const accAppName = acc.appName?.toLowerCase() || ''
-                    const accToolkitSlug = acc.toolkit?.slug?.toLowerCase() || ''
-                    const appName = app.name?.toLowerCase() || ''
-                    const appSlug = app.slug?.toLowerCase() || ''
-                    return accAppName === appName || accAppName === appSlug
-                      || accToolkitSlug === appName || accToolkitSlug === appSlug
-                  }),
-                )
-                .map(app => (
+                    !composioAccounts.some((acc) => {
+                      const accAppName = acc.appName?.toLowerCase() || ''
+                      const accToolkitSlug = acc.toolkit?.slug?.toLowerCase() || ''
+                      const appName = app.name?.toLowerCase() || ''
+                      const appSlug = app.slug?.toLowerCase() || ''
+                      return accAppName === appName || accAppName === appSlug
+                        || accToolkitSlug === appName || accToolkitSlug === appSlug
+                    }),
+                  )
+                  .map(app => (
+                    <ConnectorRow
+                      key={`composio-${app.slug}`}
+                      icon={app.meta?.logo || app.logo || squaresIconUrl}
+                      name={app.name || app.slug || 'Unknown'}
+                      source="composio"
+                      isConnected={false}
+                      isConnecting={composioConnectingApp === app.slug}
+                      isDisconnecting={false}
+                      onConnect={() => handleConnectComposio(app.slug)}
+                      onDisconnect={() => {}}
+                    />
+                  ))}
+              </>
+            )}
+
+            {/* No results message */}
+            {isSearching
+              && !pipedreamAppsLoading
+              && !composioAppsLoading
+              && pipedreamApps.length === 0
+              && composioApps.length === 0
+              && filteredLocalProviders.length === 0
+              && filteredComposioAccounts.length === 0 && (
+              <div className="text-center py-6 text-[#737373]">
+                No connectors found for "
+                {searchQuery}
+                "
+              </div>
+            )}
+
+            {/* Pipedream Default Apps (when not searching) */}
+            {!isSearching && (
+              <>
+                {pipedreamDefaultAppsLoading && (
+                  <div className="text-center py-4 text-[#737373]">
+                    Loading more apps...
+                  </div>
+                )}
+                {showPipedreamDefaults && pipedreamDefaultApps.map(app => (
                   <ConnectorRow
-                    key={`composio-default-${app.slug}`}
-                    icon={app.meta?.logo || app.logo || squaresIconUrl}
-                    name={app.name || app.slug || 'Unknown'}
-                    source="composio"
+                    key={`pipedream-default-${app.id}`}
+                    icon={app.logoUrl || squaresIconUrl}
+                    name={app.name}
+                    source="pipedream"
                     isConnected={false}
-                    isConnecting={composioConnectingApp === app.slug}
+                    isConnecting={pipedreamConnectingApp === app.nameSlug}
                     isDisconnecting={false}
-                    onConnect={() => handleConnectComposio(app.slug)}
+                    onConnect={() => handleConnectPipedream(app.nameSlug)}
                     onDisconnect={() => {}}
                   />
                 ))}
-            </>
-          )}
+              </>
+            )}
 
-          {/* Empty State */}
-          {!localLoading
-            && !composioAccountsLoading
-            && !composioAppsLoading
-            && filteredLocalProviders.length === 0
-            && filteredPipedreamAccounts.length === 0
-            && filteredComposioAccounts.length === 0
-            && !showPipedreamResults
-            && !showPipedreamDefaults
-            && composioApps.length === 0
-            && !isSearching && (
-            <div className="text-center py-6 text-[#737373]">
-              No connectors available
-            </div>
-          )}
-        </div>
+            {/* Composio Default Apps (when not searching) */}
+            {!isSearching && (
+              <>
+                {composioAppsLoading && (
+                  <div className="text-center py-4 text-[#737373]">
+                    Loading Composio apps...
+                  </div>
+                )}
+                {composioApps
+                  .filter(app =>
+                  // Filter out already connected apps
+                    !composioAccounts.some((acc) => {
+                      const accAppName = acc.appName?.toLowerCase() || ''
+                      const accToolkitSlug = acc.toolkit?.slug?.toLowerCase() || ''
+                      const appName = app.name?.toLowerCase() || ''
+                      const appSlug = app.slug?.toLowerCase() || ''
+                      return accAppName === appName || accAppName === appSlug
+                        || accToolkitSlug === appName || accToolkitSlug === appSlug
+                    }),
+                  )
+                  .map(app => (
+                    <ConnectorRow
+                      key={`composio-default-${app.slug}`}
+                      icon={app.meta?.logo || app.logo || squaresIconUrl}
+                      name={app.name || app.slug || 'Unknown'}
+                      source="composio"
+                      isConnected={false}
+                      isConnecting={composioConnectingApp === app.slug}
+                      isDisconnecting={false}
+                      onConnect={() => handleConnectComposio(app.slug)}
+                      onDisconnect={() => {}}
+                    />
+                  ))}
+              </>
+            )}
 
-        {/* Docs Link */}
-        <p className="text-[14px] font-medium text-[#a5a5a5] leading-normal">
-          See our
-          {' '}
-          <button
-            className="font-semibold text-[#171717] hover:underline"
-            onClick={() => window.electronAPI.openExternalUrl('https://docs.keyboard.dev/')}
-          >
-            docs
-          </button>
-          {' '}
-          to learn more about how connectors work or how to connect any app.
-        </p>
+            {/* Empty State */}
+            {!localLoading
+              && !composioAccountsLoading
+              && !composioAppsLoading
+              && filteredLocalProviders.length === 0
+              && filteredPipedreamAccounts.length === 0
+              && filteredComposioAccounts.length === 0
+              && !showPipedreamResults
+              && !showPipedreamDefaults
+              && composioApps.length === 0
+              && !isSearching && (
+              <div className="text-center py-6 text-[#737373]">
+                No connectors available
+              </div>
+            )}
+          </div>
+
+          {/* Docs Link */}
+          <p className="text-[14px] font-medium text-[#a5a5a5] leading-normal">
+            See our
+            {' '}
+            <button
+              className="font-semibold text-[#171717] hover:underline"
+              onClick={() => window.electronAPI.openExternalUrl('https://docs.keyboard.dev/')}
+            >
+              docs
+            </button>
+            {' '}
+            to learn more about how connectors work or how to connect any app.
+          </p>
         </DialogPrimitive.Content>
       </DialogPortal>
     </Dialog>

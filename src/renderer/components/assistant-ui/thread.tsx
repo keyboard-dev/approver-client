@@ -165,7 +165,6 @@ export const Thread: FC<ThreadCustomProps> = ({
       }
     }
     catch (error) {
-      console.error('Failed to connect:', error)
     }
     finally {
       // Reset after a delay to allow the OAuth flow to complete
