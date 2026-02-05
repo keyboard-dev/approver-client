@@ -433,20 +433,20 @@ const ThreadScrollToBottom: FC = () => {
   )
 }
 
-// Floral background image from design
-const floralBackgroundUrl = 'https://www.figma.com/api/mcp/asset/9bad4c51-8496-484a-b2f4-c2ec2d303fe0'
+// Hero background image from design (keyboard with dotted pattern)
+const heroBackgroundUrl = 'https://www.figma.com/api/mcp/asset/9221d5d0-b8f5-4ab0-838d-9b6ddcc17b97'
 
 const ThreadWelcome: FC = () => {
   return (
     <div className="aui-thread-welcome-root flex w-full flex-grow flex-col relative">
-      {/* Background image with gradient overlay */}
-      <div className="absolute inset-0 overflow-hidden rounded-[20px]">
+      {/* Background image with gradient overlay - keyboard design */}
+      <div className="absolute inset-0 overflow-hidden">
         <img
-          src={floralBackgroundUrl}
+          src={heroBackgroundUrl}
           alt=""
-          className="absolute inset-0 w-full h-full object-cover opacity-50"
+          className="absolute w-full h-[156.89%] left-0 top-[-22.95%] object-cover"
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#f5f5f5]" style={{ backgroundImage: 'linear-gradient(to bottom, rgba(245,245,245,0) 0%, #f5f5f5 85%)' }} />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#f5f5f5]" style={{ backgroundImage: 'linear-gradient(to bottom, rgba(245,245,245,0) 0%, #f5f5f5 85.2%)' }} />
       </div>
 
       {/* Centered headline */}
