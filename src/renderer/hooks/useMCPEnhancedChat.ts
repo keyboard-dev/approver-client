@@ -137,6 +137,8 @@ export interface MCPEnhancedChatState {
   // Connection requirements state
   missingConnections: MissingConnectionInfo[]
   showConnectionPrompt: boolean
+  /** AI reasoning explaining why connections are needed */
+  connectionReasoning?: string
 
   // Control functions
   setMCPEnabled: (enabled: boolean) => void
@@ -177,6 +179,7 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
   // Connection requirements state (thread-scoped)
   const [missingConnections, setMissingConnections] = useState<MissingConnectionInfo[]>([])
   const [showConnectionPrompt, setShowConnectionPrompt] = useState(false)
+  const [connectionReasoning, setConnectionReasoning] = useState<string | undefined>()
   const lastThreadIdRef = useRef<string | null>(null)
 
   // Ability messages state
@@ -343,6 +346,7 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
   const handleMissingConnections = useCallback((result: ConnectionCheckResult) => {
     setMissingConnections(result.missingConnections)
     setShowConnectionPrompt(result.missingConnections.length > 0)
+    setConnectionReasoning(result.reasoning)
 
     // Save to localStorage for the current thread
     const currentThreadId = currentThreadRef.threadId
@@ -474,6 +478,7 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
     // Connection requirements state
     missingConnections,
     showConnectionPrompt,
+    connectionReasoning,
     // Control functions
     setMCPEnabled,
     refreshMCPConnection,

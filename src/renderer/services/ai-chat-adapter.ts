@@ -28,6 +28,8 @@ export interface ConnectionCheckResult {
   hasAllConnections: boolean
   missingConnections: MissingConnectionInfo[]
   detectedServices: string[]
+  /** AI reasoning explaining why connections are needed */
+  reasoning?: string
 }
 
 export class AIChatAdapter implements ChatModelAdapter {
@@ -228,6 +230,7 @@ export class AIChatAdapter implements ChatModelAdapter {
             hasAllConnections: false,
             missingConnections: missingConnections.slice(0, 6),
             detectedServices: searchTerms,
+            reasoning: analysis.reasoning,
           }
         }
       }
@@ -243,6 +246,7 @@ export class AIChatAdapter implements ChatModelAdapter {
           searchTerms: analysis.searchTermsIfNoCredentials,
         }],
         detectedServices: analysis.searchTermsIfNoCredentials,
+        reasoning: analysis.reasoning,
       }
     }
     catch (error) {

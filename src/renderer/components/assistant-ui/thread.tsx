@@ -45,6 +45,7 @@ import {
 } from './attachment'
 import { ConnectionRequirementsMessage } from './ConnectionRequirementsMessage'
 import { MarkdownText } from './markdown-text'
+import { Reasoning, ReasoningGroup } from './reasoning'
 import { SettingsTabType, ThreadLeftSidebar } from './thread-left-sidebar'
 import { ThreadSidebar } from './thread-sidebar'
 import { ToolFallback } from './tool-fallback'
@@ -97,6 +98,8 @@ interface ThreadCustomProps {
   onClearConnectionPrompt?: () => void
   onSkipConnectionCheck?: () => void
   getContinuationMessage?: () => Promise<string | null>
+  /** AI reasoning explaining why connections are needed */
+  connectionReasoning?: string
 }
 
 export const Thread: FC<ThreadCustomProps> = ({
@@ -122,6 +125,7 @@ export const Thread: FC<ThreadCustomProps> = ({
   onClearConnectionPrompt,
   onSkipConnectionCheck,
   getContinuationMessage,
+  connectionReasoning,
 }) => {
   const navigate = useNavigate()
   const [selectedScripts, setSelectedScripts] = useState<Script[]>([])
@@ -361,7 +365,6 @@ export const Thread: FC<ThreadCustomProps> = ({
                 {/* Connection Requirements Prompt - shown when connections are missing */}
                 {showConnectionPrompt && missingConnections.length > 0 && (
                   <ConnectionRequirementsMessage
-                    thinkingTime={12}
                     explanation="I don't have access to the required tools - I'm currently missing some app connections."
                     missingConnections={missingConnections.map(c => ({
                       ...c,
@@ -372,6 +375,7 @@ export const Thread: FC<ThreadCustomProps> = ({
                     isExpanded={thinkingExpanded}
                     onToggleExpanded={() => setThinkingExpanded(!thinkingExpanded)}
                     onSearchConnectors={() => setConnectAppsModalOpen(true)}
+                    reasoningContent={connectionReasoning}
                   />
                 )}
 
@@ -693,6 +697,8 @@ const AssistantMessage: FC = () => {
             <MessagePrimitive.Parts
               components={{
                 Text: MarkdownText,
+                Reasoning,
+                ReasoningGroup,
                 tools: { Fallback: ToolFallback },
               }}
             />

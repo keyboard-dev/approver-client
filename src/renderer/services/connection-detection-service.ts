@@ -38,6 +38,8 @@ export interface ConnectionDetectionResult {
 export interface CredentialAnalysisResult {
   likelyHasCredentials: boolean
   searchTermsIfNoCredentials: string[]
+  /** AI reasoning explaining why connections are needed */
+  reasoning?: string
 }
 
 // Cache for app lookups to avoid repeated API calls
@@ -188,11 +190,12 @@ Consider:
 Respond with ONLY valid JSON (no markdown, no explanation):
 {
   "likelyHasCredentials": true/false,
-  "searchTermsIfNoCredentials": ["term1", "term2"]
+  "searchTermsIfNoCredentials": ["term1", "term2"],
+  "reasoning": "Brief explanation of your analysis"
 }
 
-If likelyHasCredentials is true, searchTermsIfNoCredentials should be an empty array.
-If likelyHasCredentials is false, provide search terms the user could use to find the right connector.`
+If likelyHasCredentials is true, searchTermsIfNoCredentials should be an empty array and reasoning should explain which accounts match.
+If likelyHasCredentials is false, reasoning should briefly explain what services are needed and why the current accounts don't cover the request.`
 
     const response = await window.electronAPI.sendAIMessage(
       'keyboard',
@@ -212,6 +215,7 @@ If likelyHasCredentials is false, provide search terms the user could use to fin
         searchTermsIfNoCredentials: Array.isArray(result.searchTermsIfNoCredentials)
           ? result.searchTermsIfNoCredentials
           : [],
+        reasoning: typeof result.reasoning === 'string' ? result.reasoning : undefined,
       }
     }
 

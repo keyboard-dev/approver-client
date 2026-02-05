@@ -234,6 +234,7 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
                       onClearConnectionPrompt={mcpChat.clearConnectionPrompt}
                       onSkipConnectionCheck={mcpChat.skipConnectionCheckOnce}
                       getContinuationMessage={mcpChat.getContinuationMessage}
+                      connectionReasoning={mcpChat.connectionReasoning}
                     />
                   </div>
                 </div>
