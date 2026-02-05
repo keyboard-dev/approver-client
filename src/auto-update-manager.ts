@@ -1,8 +1,13 @@
-/* eslint-disable custom/no-console */
 import { app, ipcMain, Notification } from 'electron'
 import type { AppUpdater, ProgressInfo, UpdateInfo } from 'electron-updater'
+import log from 'electron-log/main'
 import { readFileSync } from 'fs'
 import { join } from 'path'
+
+// Configure electron-log
+log.transports.file.level = 'info'
+log.transports.console.level = 'info'
+log.transports.file.fileName = 'main.log'
 
 /**
  * Get the actual app version from package.json.
@@ -60,10 +65,13 @@ export class AutoUpdateManager {
   }
 
   /**
-   * Helper method to log with consistent prefix
+   * Helper method to log with consistent prefix.
+   * Uses electron-log which writes to both console and persistent log files.
+   * On Windows: %USERPROFILE%\AppData\Roaming\KeyboardAI\logs\main.log
+   * On macOS: ~/Library/Logs/KeyboardAI/main.log
    */
   private log(...args: unknown[]): void {
-    console.log('[AutoUpdater]', ...args)
+    log.info('[AutoUpdater]', ...args)
   }
 
   /**
