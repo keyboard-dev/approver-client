@@ -379,7 +379,6 @@ USER REQUEST: ${userMessage}`
       return []
     }
   }
-
 }
 
 // Export singleton instance

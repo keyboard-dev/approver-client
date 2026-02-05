@@ -134,18 +134,13 @@ async function lookupApp(nameOrSlug: string): Promise<CombinedApp | undefined> {
 async function combinedAppToServiceInfo(app: CombinedApp): Promise<ServiceInfo> {
   const normalizedId = normalizeAppName(app.name)
 
-  console.log(`[connection-detection-service] combinedAppToServiceInfo for "${app.name}" (pipedream: ${app.pipedreamSlug}, composio: ${app.composioSlug})`)
-
-  // Dynamically check if there's a local provider for this app
   const localProviderId = await getLocalProviderId(app.name)
     || await getLocalProviderId(app.pipedreamSlug || '')
     || await getLocalProviderId(app.composioSlug || '')
 
   if (localProviderId) {
-    console.log(`[connection-detection-service] ✅ Found local provider "${localProviderId}" for "${app.name}"`)
   }
   else {
-    console.log(`[connection-detection-service] No local provider found for "${app.name}"`)
   }
 
   return {

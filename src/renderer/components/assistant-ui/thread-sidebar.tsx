@@ -9,16 +9,16 @@ import { usePopup } from '../../hooks/usePopup'
 import { cn } from '../../lib/utils'
 import { ConnectAppsModal } from '../ui/ConnectAppsModal'
 import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
 } from '../ui/dropdown-menu'
 import {
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
 } from '../ui/tooltip'
 
 // =============================================================================

@@ -40,19 +40,14 @@ export async function getLocalProviders(): Promise<LocalProvider[]> {
 
   // Return cache if still valid
   if (cachedProviders && (now - cacheTimestamp) < CACHE_TTL) {
-    console.log('[local-providers-service] Returning cached providers:', cachedProviders.map(p => p.id))
     return cachedProviders
   }
 
   try {
-    console.log('[local-providers-service] Fetching local providers from Keyboard API...')
-
-    // Ensure keyboard-api server exists
     const serverProviders = await window.electronAPI.getServerProviders()
-    let keyboardApiServer = serverProviders.find(s => s.id === 'keyboard-api')
+    const keyboardApiServer = serverProviders.find(s => s.id === 'keyboard-api')
 
     if (!keyboardApiServer) {
-      console.log('[local-providers-service] keyboard-api server not found, adding it...')
       const newServer = {
         id: 'keyboard-api',
         name: 'Keyboard API',
@@ -63,8 +58,6 @@ export async function getLocalProviders(): Promise<LocalProvider[]> {
 
     // Fetch providers
     const fetchedProviders = await window.electronAPI.fetchServerProviders('keyboard-api')
-    console.log('[local-providers-service] Raw fetched providers:', fetchedProviders)
-
     if (fetchedProviders && fetchedProviders.length > 0) {
       cachedProviders = fetchedProviders
         .map((p: { name: string, logoUrl?: string, configured: boolean }) => ({
@@ -75,18 +68,14 @@ export async function getLocalProviders(): Promise<LocalProvider[]> {
         }))
         .filter(p => p.name.toLowerCase() !== 'onboarding')
 
-      console.log('[local-providers-service] Processed providers:', cachedProviders.map(p => ({ id: p.id, name: p.name, configured: p.configured })))
       cacheTimestamp = now
       return cachedProviders
     }
   }
   catch (error) {
-    console.error('[local-providers-service] Error fetching providers:', error)
-    // Fall through to fallback
   }
 
   // Fallback to known default providers
-  console.log('[local-providers-service] Using fallback providers')
   cachedProviders = [
     { id: 'google', name: 'Google', icon: getProviderIcon(undefined, 'google'), configured: true },
     { id: 'github', name: 'GitHub', icon: getProviderIcon(undefined, 'github'), configured: true },
@@ -124,13 +113,8 @@ export async function getLocalProviderId(appName: string): Promise<string | null
   const providers = await getLocalProviders()
   const normalized = appName.toLowerCase().replace(/[\s_-]/g, '')
 
-  console.log(`[local-providers-service] getLocalProviderId("${appName}") - normalized: "${normalized}"`)
-  console.log(`[local-providers-service] Available provider IDs:`, providers.map(p => p.id))
-
-  // First try exact match
   const exactMatch = providers.find(p => p.id === normalized)
   if (exactMatch) {
-    console.log(`[local-providers-service] Exact match found: "${exactMatch.id}"`)
     return exactMatch.id
   }
 
@@ -142,10 +126,8 @@ export async function getLocalProviderId(appName: string): Promise<string | null
   })
 
   if (fuzzyMatch) {
-    console.log(`[local-providers-service] Fuzzy match found: "${fuzzyMatch.id}" (appName "${normalized}" contains "${fuzzyMatch.id}")`)
   }
   else {
-    console.log(`[local-providers-service] No match found for "${normalized}"`)
   }
 
   return fuzzyMatch?.id || null

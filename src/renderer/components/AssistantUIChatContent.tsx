@@ -63,7 +63,7 @@ export const PROVIDERS: ProviderConfig[] = [
       { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
       { id: 'gemini-pro', name: 'Gemini Pro' },
     ],
-  }
+  },
 ]
 
 /**

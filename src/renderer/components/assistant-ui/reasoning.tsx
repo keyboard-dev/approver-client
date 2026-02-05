@@ -77,7 +77,8 @@ export const ReasoningGroup: FC<PropsWithChildren<ReasoningGroupProps>> = ({
             {' for '}
             {displayTime}
             {' '}
-            second{displayTime !== 1 ? 's' : ''}
+            second
+            {displayTime !== 1 ? 's' : ''}
             {isReasoningStreaming && '...'}
           </p>
         </div>
