@@ -1,0 +1,266 @@
+name: Build Windows App
+
+on:
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: 'Create GitHub release'
+        type: boolean
+        default: true
+      prerelease:
+        description: 'Mark as pre-release'
+        type: boolean
+        default: true
+  push:
+    branches:
+      - main
+      - develop
+      - tim/auto-update-2
+    tags:
+      - 'v*.*.*'
+
+env:
+  NODE_ENV: development
+  TEST_BRANCHES: tim/auto-update-2  # Comma-separated list of test branches
+
+jobs:
+  cleanup-old-runs:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Delete old workflow runs
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const current_run_id = context.runId;
+
+            // Get all workflow runs for this repository
+            const runs = await github.rest.actions.listWorkflowRunsForRepo({
+              owner,
+              repo,
+              per_page: 100
+            });
+
+            console.log(`Found ${runs.data.workflow_runs.length} total workflow runs`);
+
+            // Filter to only this workflow's runs (by workflow name)
+            const thisWorkflowRuns = runs.data.workflow_runs.filter(
+              run => run.name === context.workflow
+            );
+
+            console.log(`Found ${thisWorkflowRuns.length} runs for workflow: ${context.workflow}`);
+
+            // Delete all runs except the current one
+            let deleted = 0;
+            for (const run of thisWorkflowRuns) {
+              if (run.id !== current_run_id) {
+                try {
+                  await github.rest.actions.deleteWorkflowRun({
+                    owner,
+                    repo,
+                    run_id: run.id
+                  });
+                  console.log(`Deleted run ${run.id} (${run.display_title})`);
+                  deleted++;
+                } catch (error) {
+                  console.log(`Failed to delete run ${run.id}: ${error.message}`);
+                }
+              }
+            }
+
+            console.log(`Successfully deleted ${deleted} old workflow runs`);
+
+  build-windows:
+    needs: cleanup-old-runs
+    runs-on: windows-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      artifact_name: ${{ steps.version.outputs.artifact_name }}
+      forge_artifact_name: ${{ steps.version.outputs.forge_artifact_name }}
+      app_name: ${{ steps.version.outputs.app_name }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dotenvx globally
+        run: npm install -g @dotenvx/dotenvx
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Extract version and set app name
+        id: version
+        shell: powershell
+        run: |
+          if ("${{ github.ref_type }}" -eq "tag") {
+            $VERSION = "${{ github.ref_name }}" -replace "^v", ""
+          } else {
+            $VERSION = node -p "require('./package.json').version"
+          }
+
+          # Always use KeyboardAI as base name (Forge doesn't respect branch-specific names)
+          $APP_NAME = "KeyboardAI"
+
+          echo "version=$VERSION" >> $env:GITHUB_OUTPUT
+          echo "app_name=$APP_NAME" >> $env:GITHUB_OUTPUT
+          echo "forge_artifact_name=KeyboardAISetup.exe" >> $env:GITHUB_OUTPUT
+          echo "artifact_name=keyboard-approver.App-win32-x64-latest.exe" >> $env:GITHUB_OUTPUT
+          echo "APP_NAME=$APP_NAME" >> $env:GITHUB_ENV
+          echo "Building version: $VERSION with app name: $APP_NAME"
+
+          # Check if current branch is a test branch
+          $CURRENT_BRANCH = "${{ github.ref_name }}"
+          $TEST_BRANCHES_LIST = "$env:TEST_BRANCHES"
+          if ($TEST_BRANCHES_LIST -split "," -contains $CURRENT_BRANCH) {
+            echo "IS_TEST_BUILD=true" >> $env:GITHUB_ENV
+            echo "OAUTH_SERVER_URL=http://localhost:4000" >> $env:GITHUB_ENV
+            echo "VITE_API_URL=http://localhost:4000" >> $env:GITHUB_ENV
+            echo "Test build detected - using localhost:4000 for API URLs"
+          }
+
+      - name: Create encrypted .env file
+        run: echo "${{ secrets.DOTENV_FILE }}" > .env
+
+      - name: Import Windows code signing certificate (optional)
+        if: false  # Disabled for now - enable when Windows signing certificate is available
+        env:
+          DOTENV_PRIVATE_KEY: ${{ secrets.DOTENV_PRIVATE_KEY }}
+        shell: powershell
+        run: |
+          # This step is optional and only runs if Windows signing secrets are configured
+          # Extract certificate from encrypted env and import to Windows certificate store
+          $CERTIFICATE = dotenvx get WINDOWS_CERTIFICATE
+          echo "::add-mask::$CERTIFICATE"
+
+          $CERTIFICATE_PASSWORD = dotenvx get WINDOWS_CERTIFICATE_PWD
+          echo "::add-mask::$CERTIFICATE_PASSWORD"
+
+          # Decode and import certificate
+          $certBytes = [Convert]::FromBase64String($CERTIFICATE)
+          $certPath = "$env:RUNNER_TEMP\certificate.pfx"
+          [IO.File]::WriteAllBytes($certPath, $certBytes)
+
+          # Import to certificate store
+          $securePassword = ConvertTo-SecureString -String $CERTIFICATE_PASSWORD -AsPlainText -Force
+          Import-PfxCertificate -FilePath $certPath -CertStoreLocation Cert:\CurrentUser\My -Password $securePassword
+
+          # Clean up temp certificate file
+          Remove-Item $certPath -Force
+
+      - name: Build Windows binaries
+        env:
+          DOTENV_PRIVATE_KEY: ${{ secrets.DOTENV_PRIVATE_KEY }}
+          NODE_ENV: production
+        run: dotenvx run -- npm run build-win-universal
+
+      - name: Verify and rename build output
+        shell: powershell
+        run: |
+          $FORGE_ARTIFACT = "out/make/squirrel.windows/x64/${{ steps.version.outputs.forge_artifact_name }}"
+          $FINAL_ARTIFACT = "out/make/squirrel.windows/x64/${{ steps.version.outputs.artifact_name }}"
+
+          if (-not (Test-Path $FORGE_ARTIFACT)) {
+            echo "Error: Expected artifact not found at $FORGE_ARTIFACT"
+            echo "Contents of out/make/squirrel.windows/x64/:"
+            if (Test-Path "out/make/squirrel.windows/x64/") {
+              Get-ChildItem "out/make/squirrel.windows/x64/" | Format-Table -AutoSize
+            } else {
+              echo "Directory does not exist"
+            }
+            exit 1
+          }
+
+          # Rename to desired artifact name
+          Move-Item -Path $FORGE_ARTIFACT -Destination $FINAL_ARTIFACT -Force
+          echo "Build artifact renamed to: $FINAL_ARTIFACT"
+          Get-Item $FINAL_ARTIFACT | Format-List Length, LastWriteTime, FullName
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-x64-build
+          path: out/make/squirrel.windows/x64/${{ steps.version.outputs.artifact_name }}
+          retention-days: 30
+
+      - name: Cleanup secrets
+        if: always()
+        shell: powershell
+        run: |
+          if (Test-Path .env) {
+            Remove-Item .env -Force
+          }
+
+  create-release:
+    needs: build-windows
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.create_release)
+    permissions:
+      contents: write
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-x64-build
+          path: ./artifacts
+
+      - name: List downloaded artifacts
+        run: ls -la ./artifacts
+
+      - name: Determine release type
+        id: release_type
+        run: |
+          # Prerelease if: develop branch, test branches, or workflow_dispatch with prerelease=true
+          # Full release if: main branch, or workflow_dispatch with prerelease=false
+          CURRENT_BRANCH="${{ github.ref_name }}"
+
+          if [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
+            echo "prerelease=true" >> $GITHUB_OUTPUT
+            echo "tag_suffix=-beta" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "prerelease=false" >> $GITHUB_OUTPUT
+            echo "tag_suffix=" >> $GITHUB_OUTPUT
+          elif [[ ",$TEST_BRANCHES," == *",$CURRENT_BRANCH,"* ]]; then
+            echo "prerelease=true" >> $GITHUB_OUTPUT
+            echo "tag_suffix=-test" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "prerelease=${{ inputs.prerelease }}" >> $GITHUB_OUTPUT
+            echo "tag_suffix=${{ inputs.prerelease == true && '-beta' || '' }}" >> $GITHUB_OUTPUT
+          else
+            echo "prerelease=true" >> $GITHUB_OUTPUT
+            echo "tag_suffix=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}{1}', needs.build-windows.outputs.version, steps.release_type.outputs.tag_suffix) }}
+          name: ${{ needs.build-windows.outputs.app_name }} v${{ needs.build-windows.outputs.version }}${{ steps.release_type.outputs.prerelease == 'true' && ' (Pre-release)' || '' }}
+          body: |
+            ## ${{ needs.build-windows.outputs.app_name }} v${{ needs.build-windows.outputs.version }}
+
+            ### Downloads
+            - **Windows (x64)**: `${{ needs.build-windows.outputs.artifact_name }}`
+
+            ### Installation
+            1. Download the `.exe` installer for Windows
+            2. Run the installer - it will install the application and create a desktop shortcut
+            3. The app will launch automatically after installation
+
+            ### Notes
+            - Windows may show a SmartScreen warning for unsigned applications - click "More info" then "Run anyway"
+            - The installer will automatically handle updates in the future
+
+            ---
+            ${{ steps.release_type.outputs.prerelease == 'true' && '*This is a pre-release build. Please report any issues.*' || '*This is a stable release.*' }}
+          files: ./artifacts/${{ needs.build-windows.outputs.artifact_name }}
+          prerelease: ${{ steps.release_type.outputs.prerelease == 'true' }}
+          generate_release_notes: true
