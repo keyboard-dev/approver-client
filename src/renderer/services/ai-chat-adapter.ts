@@ -1089,6 +1089,7 @@ ${analysisResponse}`
           if (lastUserMessage?.role === 'user') {
             // Get enhanced context with planning token, user tokens, and codespace info
             const enhancedSystemPrompt = await contextService.buildEnhancedSystemPrompt(lastUserMessage.content)
+            console.log('[AIChatAdapter] Enhanced system prompt:', enhancedSystemPrompt)
             const existingSystemIndex = aiMessages.findIndex(m => m.role === 'system')
             if (existingSystemIndex >= 0) {
               // Replace existing system message with enhanced one
