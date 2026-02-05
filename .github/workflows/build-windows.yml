@@ -112,7 +112,7 @@ jobs:
 
           echo "version=$VERSION" >> $env:GITHUB_OUTPUT
           echo "app_name=$APP_NAME" >> $env:GITHUB_OUTPUT
-          echo "forge_artifact_name=KeyboardAISetup.exe" >> $env:GITHUB_OUTPUT
+          echo "forge_artifact_name=Keyboard.Approver-Setup-Win-latest.exe" >> $env:GITHUB_OUTPUT
           echo "artifact_name=keyboard-approver.App-win32-x64-latest.exe" >> $env:GITHUB_OUTPUT
           echo "APP_NAME=$APP_NAME" >> $env:GITHUB_ENV
           echo "Building version: $VERSION with app name: $APP_NAME"
@@ -165,14 +165,14 @@ jobs:
       - name: Verify and rename build output
         shell: powershell
         run: |
-          $FORGE_ARTIFACT = "out/make/squirrel.windows/x64/${{ steps.version.outputs.forge_artifact_name }}"
-          $FINAL_ARTIFACT = "out/make/squirrel.windows/x64/${{ steps.version.outputs.artifact_name }}"
+          $FORGE_ARTIFACT = "dist-universal/${{ steps.version.outputs.forge_artifact_name }}"
+          $FINAL_ARTIFACT = "dist-universal/${{ steps.version.outputs.artifact_name }}"
 
           if (-not (Test-Path $FORGE_ARTIFACT)) {
             echo "Error: Expected artifact not found at $FORGE_ARTIFACT"
-            echo "Contents of out/make/squirrel.windows/x64/:"
-            if (Test-Path "out/make/squirrel.windows/x64/") {
-              Get-ChildItem "out/make/squirrel.windows/x64/" | Format-Table -AutoSize
+            echo "Contents of dist-universal/:"
+            if (Test-Path "dist-universal/") {
+              Get-ChildItem "dist-universal/" | Format-Table -AutoSize
             } else {
               echo "Directory does not exist"
             }
@@ -188,7 +188,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-x64-build
-          path: out/make/squirrel.windows/x64/${{ steps.version.outputs.artifact_name }}
+          path: dist-universal/${{ steps.version.outputs.artifact_name }}
           retention-days: 30
 
       - name: Cleanup secrets
