@@ -5,6 +5,7 @@ import { registerPendingCall, removePendingCall } from './pending-tool-calls'
 import { ResultProcessorService } from './result-processor'
 import { toolCacheService } from './tool-cache-service'
 import { webSearchTool } from './web-search-tool'
+import { keyboardShortcutTool } from './keyboard-shortcut-tool'
 
 /**
  * Universal MCP Ability Integration Service
@@ -207,6 +208,81 @@ export function useMCPIntegration(
         }
 
         return result
+      }
+
+      // Intercept save-keyboard-shortcut-script-template calls and route to local implementation
+      if (functionName === 'save-keyboard-shortcut-script-template') {
+        // Validate required parameters
+        if (!args.name || typeof args.name !== 'string') {
+          throw new Error('Name parameter is required for saving a script template and must be a string')
+        }
+        if (!args.description || typeof args.description !== 'string') {
+          throw new Error('Description parameter is required for saving a script template and must be a string')
+        }
+        if (!args.script || typeof args.script !== 'string') {
+          throw new Error('Script parameter is required for saving a script template and must be a string')
+        }
+
+        const result = await keyboardShortcutTool.saveScript({
+          name: args.name,
+          description: args.description,
+          schema: typeof args.schema === 'object' ? args.schema as Record<string, any> : {},
+          script: args.script,
+          tags: Array.isArray(args.tags) ? args.tags as string[] : [],
+        })
+
+        // Update execution with success/error
+        if (executionId) {
+          executionTracker?.updateExecution(executionId, {
+            status: result.success ? 'success' : 'error',
+            response: result,
+            metadata: {
+              isLocalExecution: true,
+              intercepted: true,
+            },
+          })
+        }
+
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to save script template')
+        }
+
+        return JSON.stringify(result, null, 2)
+      }
+
+      // Intercept update-keyboard-shortcut-script-template calls and route to local implementation
+      if (functionName === 'update-keyboard-shortcut-script-template') {
+        // Validate required parameters
+        if (!args.id || typeof args.id !== 'string') {
+          throw new Error('Script ID is required for updating a script template and must be a string')
+        }
+
+        const result = await keyboardShortcutTool.updateScript({
+          id: args.id,
+          name: typeof args.name === 'string' ? args.name : undefined,
+          description: typeof args.description === 'string' ? args.description : undefined,
+          schema: typeof args.schema === 'object' ? args.schema as Record<string, any> : undefined,
+          script: typeof args.script === 'string' ? args.script : undefined,
+          tags: Array.isArray(args.tags) ? args.tags as string[] : undefined,
+        })
+
+        // Update execution with success/error
+        if (executionId) {
+          executionTracker?.updateExecution(executionId, {
+            status: result.success ? 'success' : 'error',
+            response: result,
+            metadata: {
+              isLocalExecution: true,
+              intercepted: true,
+            },
+          })
+        }
+
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to update script template')
+        }
+
+        return JSON.stringify(result, null, 2)
       }
 
       // Note: Removed blocking "client not ready" check for resilient execution
