@@ -1,5 +1,5 @@
 /* eslint-disable css/use-baseline */
-@import url('https://fonts.googleapis.com/css2?family=Doto:wght@100..900&family=Jersey+10&family=Pixelify+Sans:wght@400..700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Doto:wght@100..900&family=Inter+Tight:ital,wght@0,100..900;1,100..900&family=Jersey+10&family=Pixelify+Sans:wght@400..700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -52,6 +52,19 @@
   font-weight: 100 900;
   font-style: italic;
   font-display: block;
+}
+
+@font-face {
+  font-family: 'FS Mondwest';
+  src: url('../../assets/fonts/fs-mondwest-regular.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+/* FS Mondwest utility class - used by hero headline */
+.font-mondwest {
+  font-family: 'FS Mondwest', sans-serif;
 }
 
 @layer base {

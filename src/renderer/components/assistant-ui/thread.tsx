@@ -449,22 +449,22 @@ const ThreadWelcome: FC = () => {
         <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#f5f5f5]" style={{ backgroundImage: 'linear-gradient(to bottom, rgba(245,245,245,0) 0%, #f5f5f5 85.2%)' }} />
       </div>
 
-      {/* Centered headline */}
-      <div className="flex w-full flex-grow flex-col items-center justify-center relative z-10 py-16">
+      {/* Centered headline - positioned like Figma design */}
+      <div className="absolute left-1/2 -translate-x-1/2 top-[13rem] z-10 w-[90%] max-w-[800px]">
         <m.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 20 }}
-          className="bg-white/10 backdrop-blur-sm px-5 py-2.5 rounded-full"
+          className="bg-white/10 backdrop-blur-lg px-5 py-2.5 rounded-full"
         >
           <span
-            className="text-center"
+            className="text-center block"
             style={{
               color: '#171717',
               fontFamily: '"Doto", sans-serif',
-              fontSize: '3.25rem',
+              fontSize: '2rem',
               fontStyle: 'normal',
-              fontWeight: 200,
+              fontWeight: 700,
               lineHeight: 'normal',
             }}
           >
