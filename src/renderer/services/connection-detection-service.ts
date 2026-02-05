@@ -7,6 +7,7 @@
  */
 
 import { CombinedApp, searchCombinedApps } from './combined-apps-service'
+import { getLocalProviderId } from './local-providers-service'
 
 // =============================================================================
 // Types
@@ -37,22 +38,6 @@ export interface ConnectionDetectionResult {
 export interface CredentialAnalysisResult {
   likelyHasCredentials: boolean
   searchTermsIfNoCredentials: string[]
-}
-
-// Local providers that have special OAuth handling
-const LOCAL_PROVIDER_IDS: Record<string, string> = {
-  google: 'google',
-  gmail: 'google',
-  googlecalendar: 'google',
-  googlesheets: 'google',
-  googledrive: 'google',
-  googledocs: 'google',
-  googleslides: 'google',
-  github: 'github',
-  slack: 'slack',
-  microsoft: 'microsoft',
-  outlook: 'microsoft',
-  microsoftteams: 'microsoft',
 }
 
 // Cache for app lookups to avoid repeated API calls
@@ -142,16 +127,31 @@ async function lookupApp(nameOrSlug: string): Promise<CombinedApp | undefined> {
 
 /**
  * Convert a CombinedApp to ServiceInfo format
+ * Now async to dynamically fetch local provider ID
  */
-function combinedAppToServiceInfo(app: CombinedApp): ServiceInfo {
+async function combinedAppToServiceInfo(app: CombinedApp): Promise<ServiceInfo> {
   const normalizedId = normalizeAppName(app.name)
+
+  console.log(`[connection-detection-service] combinedAppToServiceInfo for "${app.name}" (pipedream: ${app.pipedreamSlug}, composio: ${app.composioSlug})`)
+
+  // Dynamically check if there's a local provider for this app
+  const localProviderId = await getLocalProviderId(app.name)
+    || await getLocalProviderId(app.pipedreamSlug || '')
+    || await getLocalProviderId(app.composioSlug || '')
+
+  if (localProviderId) {
+    console.log(`[connection-detection-service] ✅ Found local provider "${localProviderId}" for "${app.name}"`)
+  }
+  else {
+    console.log(`[connection-detection-service] No local provider found for "${app.name}"`)
+  }
 
   return {
     id: normalizedId,
     name: app.name,
     pipedreamSlug: app.pipedreamSlug,
     composioSlug: app.composioSlug,
-    localProviderId: LOCAL_PROVIDER_IDS[normalizedId],
+    localProviderId: localProviderId || undefined,
     icon: app.logo || '',
   }
 }
@@ -298,7 +298,7 @@ export async function detectRequiredServices(
       for (const appName of aiResults) {
         const app = await lookupApp(appName)
         if (app) {
-          const serviceInfo = combinedAppToServiceInfo(app)
+          const serviceInfo = await combinedAppToServiceInfo(app)
           // Avoid duplicates
           if (!detectedServices.find(s => s.id === serviceInfo.id)) {
             detectedServices.push(serviceInfo)
@@ -321,7 +321,7 @@ export async function detectRequiredServices(
 export async function getServiceInfo(nameOrSlug: string): Promise<ServiceInfo | undefined> {
   const app = await lookupApp(nameOrSlug)
   if (app) {
-    return combinedAppToServiceInfo(app)
+    return await combinedAppToServiceInfo(app)
   }
   return undefined
 }
@@ -331,7 +331,7 @@ export async function getServiceInfo(nameOrSlug: string): Promise<ServiceInfo | 
  */
 export async function getAllServices(): Promise<ServiceInfo[]> {
   const apps = await getAllApps()
-  return apps.map(combinedAppToServiceInfo)
+  return await Promise.all(apps.map(combinedAppToServiceInfo))
 }
 
 /**
