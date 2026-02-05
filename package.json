@@ -17,7 +17,7 @@
     "build-mac-dev": "SKIP_SIGNING=true npm run build-mac-universal",
     "check-build": "tail -f build.log",
     "build-win": "npm run build && electron-forge make --platform=win32 --arch=x64,ia32,arm64",
-    "build-win-universal": "npm install && npm run build && node scripts/build-win-universal.js",
+    "build-win-universal": "npm run build && node scripts/build-win-universal.js",
     "check-certificates": "node scripts/check-certificates.js",
     "test-client": "node test-client.js",
     "test-approval": "node test-approval-client.js",
