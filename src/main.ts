@@ -93,6 +93,7 @@ else {
 
 import * as crypto from 'crypto'
 import { app, BrowserWindow, ipcMain, Menu, Notification, shell } from 'electron'
+import log from 'electron-log/main'
 import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
@@ -101,6 +102,15 @@ import { aiRuntime, initializeAIProviders } from './ai-provider/setup'
 import { webSearch } from './ai-provider/utils/dedicated-web'
 import { getQueuedProtocolUrls, initializeApp as initializeElectronApp, type AppInitializerResult } from './app-initializer'
 import { AutoUpdateManager } from './auto-update-manager'
+
+// Configure electron-log at the very start
+log.transports.file.level = 'info'
+log.transports.console.level = 'info'
+log.info('[Main] Application starting...')
+log.info('[Main] App name:', app.getName())
+log.info('[Main] App version:', app.getVersion())
+log.info('[Main] Platform:', process.platform)
+log.info('[Main] Log file path:', log.transports.file.getFile().path)
 import { setEncryptionKeyProvider } from './encryption'
 import { ExecutionPreference, ExecutionPreferenceManager } from './execution-preference'
 import { GithubService } from './Github'
