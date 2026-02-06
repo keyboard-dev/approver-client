@@ -1,5 +1,6 @@
 import React, { ReactNode } from 'react'
 import { AuthProvider } from '../hooks/useAuth'
+import { InboxProvider } from '../hooks/useInbox'
 import { OAuthProvidersProvider } from '../hooks/useOAuthProviders'
 import { PopupProvider } from '../hooks/usePopup'
 import { DatabaseProvider } from './DatabaseProvider'
@@ -30,6 +31,8 @@ export const Providers: React.FC<ProvidersProps> = ({ children }) => {
     { component: AuthProvider, props: {} },
     // OAuthProvidersProvider - handles OAuth provider statuses
     { component: OAuthProvidersProvider, props: {} },
+    // InboxProvider - handles inbox notifications (updates, expired providers, etc.)
+    { component: InboxProvider, props: {} },
     // PopupProvider - handles modal/popup state
     { component: PopupProvider, props: {} },
     // Add new providers here as your app grows:

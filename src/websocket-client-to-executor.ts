@@ -1,10 +1,10 @@
 // import { Notification } from 'electron'
 import WebSocket from 'ws'
+import { ExecutionPreference } from './execution-preference'
 import { GithubService } from './Github'
 import { CodespaceConnectionInfo, GitHubCodespacesService } from './github-codespaces'
+import { KeyboardEnvironmentManager } from './keyboard-environment'
 import { Message } from './types'
-import { KeyboardEnvironmentManager, KeyboardEnvironmentConfig } from './keyboard-environment'
-import { ExecutionPreference } from './execution-preference'
 
 export interface IWindowManager {
   sendMessage(channel: string, ...args: unknown[]): void
@@ -64,19 +64,6 @@ export class ExecutorWebSocketClient {
     this.windowManager = windowManager
   }
 
-  // Debug notification helper for production debugging
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  private showDebugNotification(title: string, body: string): void {
-    return
-    // try {
-    //   if (Notification.isSupported()) {
-    //     new Notification({ title: `[DEBUG] ${title}`, body }).show()
-    //   }
-    // }
-    // catch {
-    //   // Silently fail if notification fails
-    // }
-  }
 
   // Set the GitHub token to use for authentication
   setGitHubToken(token: string | null): void {
@@ -119,7 +106,7 @@ export class ExecutorWebSocketClient {
       this.startPersistentRetry()
 
       // Use async connect with auto-discovery
-      this.connect().catch((error) => {
+      this.connect().catch(() => {
       })
     }
     // If token is cleared and we're connected, disconnect
@@ -137,7 +124,7 @@ export class ExecutorWebSocketClient {
       this.startPersistentRetry()
 
       // Use async connect with auto-discovery
-      this.connect().catch((error) => {
+      this.connect().catch(() => {
       })
     }
     // If token is cleared and we're connected, disconnect
@@ -948,7 +935,7 @@ export class ExecutorWebSocketClient {
     this.persistentRetryInterval = setInterval(() => {
       // Only attempt if we have tokens and are not connected
       if ((this.githubToken || this.keyboardEnvironmentManager) && (!this.ws || this.ws.readyState !== WebSocket.OPEN)) {
-        this.connect().catch((error) => {
+        this.connect().catch(() => {
         })
       }
     }, this.PERSISTENT_RETRY_INTERVAL)
