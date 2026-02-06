@@ -7,8 +7,6 @@ import { useKeyboardApiConnectors } from '../../hooks/useKeyboardApiConnectors'
 import { usePipedream } from '../../hooks/usePipedream'
 import { usePopup } from '../../hooks/usePopup'
 import { cn } from '../../lib/utils'
-import { Badge } from '../ui/badge'
-import { Button } from '../ui/button'
 import { ConnectAppsModal } from '../ui/ConnectAppsModal'
 import {
   DropdownMenu,
@@ -382,7 +380,7 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
         {connectorsOpen && (
           <>
             <p className="font-medium text-[14px] text-[#737373] leading-normal">
-              Apps used in this chat
+              Apps available in this chat
             </p>
 
             {/* Connected Apps List */}

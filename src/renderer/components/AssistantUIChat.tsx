@@ -62,14 +62,6 @@ const PROVIDERS: ProviderConfig[] = [
       { id: 'gemini-pro', name: 'Gemini Pro' },
     ],
   },
-  {
-    id: 'mcp',
-    name: 'MCP Server (Legacy)',
-    supportsMCP: false,
-    models: [
-      { id: 'mcp-tools', name: 'MCP Tools & Resources' },
-    ],
-  },
 ]
 
 const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
@@ -234,6 +226,7 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
                       onClearConnectionPrompt={mcpChat.clearConnectionPrompt}
                       onSkipConnectionCheck={mcpChat.skipConnectionCheckOnce}
                       getContinuationMessage={mcpChat.getContinuationMessage}
+                      connectionReasoning={mcpChat.connectionReasoning}
                     />
                   </div>
                 </div>

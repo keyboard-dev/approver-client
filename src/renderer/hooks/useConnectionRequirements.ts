@@ -13,6 +13,7 @@ import {
   getServiceInfo,
   ServiceInfo,
 } from '../services/connection-detection-service'
+import { getLocalProviderInfo } from '../services/local-providers-service'
 import { MissingConnection } from '../components/assistant-ui/MissingConnectionsPrompt'
 
 // =============================================================================
@@ -199,17 +200,29 @@ export function useConnectionRequirements(): UseConnectionRequirementsReturn {
         return
       }
 
-      // Check which services are missing
+      // Check which services are missing (async to fetch local provider info dynamically)
       const missing: MissingConnection[] = []
 
       for (const serviceInfo of services) {
         const { connected, source } = isServiceConnected(serviceInfo)
 
         if (!connected) {
+          // For local providers, try to get better icon from dynamic local provider lookup
+          let icon = serviceInfo.icon
+          let displayName = serviceInfo.name
+
+          if (source === 'local' && serviceInfo.localProviderId) {
+            const localProvider = await getLocalProviderInfo(serviceInfo.localProviderId)
+            if (localProvider) {
+              icon = localProvider.icon || icon
+              displayName = localProvider.name || displayName
+            }
+          }
+
           missing.push({
             id: serviceInfo.id,
-            name: serviceInfo.name,
-            icon: serviceInfo.icon,
+            name: displayName,
+            icon,
             source,
             isConnecting: connectingServiceId === serviceInfo.id,
           })
@@ -341,10 +354,22 @@ export function useConnectionRequirements(): UseConnectionRequirementsReturn {
         const { connected, source } = isServiceConnected(serviceInfo)
 
         if (!connected) {
+          // For local providers, try to get better icon from dynamic local provider lookup
+          let icon = serviceInfo.icon
+          let displayName = serviceInfo.name
+
+          if (source === 'local' && serviceInfo.localProviderId) {
+            const localProvider = await getLocalProviderInfo(serviceInfo.localProviderId)
+            if (localProvider) {
+              icon = localProvider.icon || icon
+              displayName = localProvider.name || displayName
+            }
+          }
+
           missing.push({
             id: serviceInfo.id,
-            name: serviceInfo.name,
-            icon: serviceInfo.icon,
+            name: displayName,
+            icon,
             source,
             isConnecting: connectingServiceId === serviceInfo.id,
           })

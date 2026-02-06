@@ -45,6 +45,7 @@ import {
 } from './attachment'
 import { ConnectionRequirementsMessage } from './ConnectionRequirementsMessage'
 import { MarkdownText } from './markdown-text'
+import { Reasoning, ReasoningGroup } from './reasoning'
 import { SettingsTabType, ThreadLeftSidebar } from './thread-left-sidebar'
 import { ThreadSidebar } from './thread-sidebar'
 import { ToolFallback } from './tool-fallback'
@@ -97,6 +98,8 @@ interface ThreadCustomProps {
   onClearConnectionPrompt?: () => void
   onSkipConnectionCheck?: () => void
   getContinuationMessage?: () => Promise<string | null>
+  /** AI reasoning explaining why connections are needed */
+  connectionReasoning?: string
 }
 
 export const Thread: FC<ThreadCustomProps> = ({
@@ -122,6 +125,7 @@ export const Thread: FC<ThreadCustomProps> = ({
   onClearConnectionPrompt,
   onSkipConnectionCheck,
   getContinuationMessage,
+  connectionReasoning,
 }) => {
   const navigate = useNavigate()
   const [selectedScripts, setSelectedScripts] = useState<Script[]>([])
@@ -361,7 +365,6 @@ export const Thread: FC<ThreadCustomProps> = ({
                 {/* Connection Requirements Prompt - shown when connections are missing */}
                 {showConnectionPrompt && missingConnections.length > 0 && (
                   <ConnectionRequirementsMessage
-                    thinkingTime={12}
                     explanation="I don't have access to the required tools - I'm currently missing some app connections."
                     missingConnections={missingConnections.map(c => ({
                       ...c,
@@ -372,6 +375,7 @@ export const Thread: FC<ThreadCustomProps> = ({
                     isExpanded={thinkingExpanded}
                     onToggleExpanded={() => setThinkingExpanded(!thinkingExpanded)}
                     onSearchConnectors={() => setConnectAppsModalOpen(true)}
+                    reasoningContent={connectionReasoning}
                   />
                 )}
 
@@ -433,38 +437,38 @@ const ThreadScrollToBottom: FC = () => {
   )
 }
 
-// Floral background image from design
-const floralBackgroundUrl = 'https://www.figma.com/api/mcp/asset/9bad4c51-8496-484a-b2f4-c2ec2d303fe0'
+// Hero background image from design (keyboard with dotted pattern)
+const heroBackgroundUrl = 'https://www.figma.com/api/mcp/asset/9221d5d0-b8f5-4ab0-838d-9b6ddcc17b97'
 
 const ThreadWelcome: FC = () => {
   return (
     <div className="aui-thread-welcome-root flex w-full flex-grow flex-col relative">
-      {/* Background image with gradient overlay */}
-      <div className="absolute inset-0 overflow-hidden rounded-[20px]">
+      {/* Background image with gradient overlay - keyboard design */}
+      <div className="absolute inset-0 overflow-hidden">
         <img
-          src={floralBackgroundUrl}
+          src={heroBackgroundUrl}
           alt=""
-          className="absolute inset-0 w-full h-full object-cover opacity-50"
+          className="absolute w-full h-[156.89%] left-0 top-[-22.95%] object-cover"
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#f5f5f5]" style={{ backgroundImage: 'linear-gradient(to bottom, rgba(245,245,245,0) 0%, #f5f5f5 85%)' }} />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#f5f5f5]" style={{ backgroundImage: 'linear-gradient(to bottom, rgba(245,245,245,0) 0%, #f5f5f5 85.2%)' }} />
       </div>
 
-      {/* Centered headline */}
-      <div className="flex w-full flex-grow flex-col items-center justify-center relative z-10 py-16">
+      {/* Centered headline - positioned like Figma design */}
+      <div className="absolute left-1/2 -translate-x-1/2 top-[13rem] z-10 w-[90%] max-w-[800px]">
         <m.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 20 }}
-          className="bg-white/10 backdrop-blur-sm px-5 py-2.5 rounded-full"
+          className="bg-white/10 backdrop-blur-lg px-5 py-2.5 rounded-full"
         >
           <span
-            className="text-center"
+            className="text-center block"
             style={{
               color: '#171717',
               fontFamily: '"Doto", sans-serif',
-              fontSize: '3.25rem',
+              fontSize: '2rem',
               fontStyle: 'normal',
-              fontWeight: 200,
+              fontWeight: 700,
               lineHeight: 'normal',
             }}
           >
@@ -693,6 +697,8 @@ const AssistantMessage: FC = () => {
             <MessagePrimitive.Parts
               components={{
                 Text: MarkdownText,
+                Reasoning,
+                ReasoningGroup,
                 tools: { Fallback: ToolFallback },
               }}
             />

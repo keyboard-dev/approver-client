@@ -7,6 +7,7 @@
  */
 
 import { CombinedApp, searchCombinedApps } from './combined-apps-service'
+import { getLocalProviderId } from './local-providers-service'
 
 // =============================================================================
 // Types
@@ -37,22 +38,8 @@ export interface ConnectionDetectionResult {
 export interface CredentialAnalysisResult {
   likelyHasCredentials: boolean
   searchTermsIfNoCredentials: string[]
-}
-
-// Local providers that have special OAuth handling
-const LOCAL_PROVIDER_IDS: Record<string, string> = {
-  google: 'google',
-  gmail: 'google',
-  googlecalendar: 'google',
-  googlesheets: 'google',
-  googledrive: 'google',
-  googledocs: 'google',
-  googleslides: 'google',
-  github: 'github',
-  slack: 'slack',
-  microsoft: 'microsoft',
-  outlook: 'microsoft',
-  microsoftteams: 'microsoft',
+  /** AI reasoning explaining why connections are needed */
+  reasoning?: string
 }
 
 // Cache for app lookups to avoid repeated API calls
@@ -142,16 +129,26 @@ async function lookupApp(nameOrSlug: string): Promise<CombinedApp | undefined> {
 
 /**
  * Convert a CombinedApp to ServiceInfo format
+ * Now async to dynamically fetch local provider ID
  */
-function combinedAppToServiceInfo(app: CombinedApp): ServiceInfo {
+async function combinedAppToServiceInfo(app: CombinedApp): Promise<ServiceInfo> {
   const normalizedId = normalizeAppName(app.name)
+
+  const localProviderId = await getLocalProviderId(app.name)
+    || await getLocalProviderId(app.pipedreamSlug || '')
+    || await getLocalProviderId(app.composioSlug || '')
+
+  if (localProviderId) {
+  }
+  else {
+  }
 
   return {
     id: normalizedId,
     name: app.name,
     pipedreamSlug: app.pipedreamSlug,
     composioSlug: app.composioSlug,
-    localProviderId: LOCAL_PROVIDER_IDS[normalizedId],
+    localProviderId: localProviderId || undefined,
     icon: app.logo || '',
   }
 }
@@ -163,23 +160,35 @@ function combinedAppToServiceInfo(app: CombinedApp): ServiceInfo {
 /**
  * AI-powered analysis of whether user likely has required credentials
  * based on their connected accounts and the task they want to perform
+ *
+ * @param conversationHistory - Full conversation history to understand context
+ * @param connectedAccounts - User's currently connected accounts
  */
 export async function analyzeCredentialRequirements(
-  userMessage: string,
+  conversationHistory: Array<{ role: 'user' | 'assistant' | 'system', content: string }>,
   connectedAccounts: Array<{ id: string, app: string, name?: string }>,
 ): Promise<CredentialAnalysisResult> {
   try {
     const accountsJson = JSON.stringify(connectedAccounts, null, 2)
+
+    // Format the conversation history for context
+    const conversationContext = conversationHistory
+      .filter(m => m.role === 'user' || m.role === 'assistant')
+      .map(m => `${m.role.toUpperCase()}: ${m.content}`)
+      .join('\n\n')
 
     const analysisPrompt = `You are analyzing whether a user has the required app connections to complete their task.
 
 CONNECTED ACCOUNTS (what the user already has):
 ${accountsJson}
 
-USER'S REQUEST:
-"${userMessage}"
+CONVERSATION HISTORY (read the FULL context to understand what the user wants):
+${conversationContext}
 
-Analyze whether the connected accounts likely provide the credentials needed for this task.
+Analyze the FULL conversation to understand what task the user wants to accomplish.
+The user's most recent message may be brief (like "yes", "do it", "please do") but refers to something discussed earlier.
+Look at the entire conversation to determine what services/apps are needed.
+
 Consider:
 - "gcal" or "google_calendar" or "google_sheets" all indicate Google OAuth access
 - Similar apps from the same provider often share OAuth (e.g., any Google app = Google access)
@@ -188,16 +197,17 @@ Consider:
 Respond with ONLY valid JSON (no markdown, no explanation):
 {
   "likelyHasCredentials": true/false,
-  "searchTermsIfNoCredentials": ["term1", "term2"]
+  "searchTermsIfNoCredentials": ["term1", "term2"],
+  "reasoning": "Brief explanation of your analysis based on the full conversation context"
 }
 
-If likelyHasCredentials is true, searchTermsIfNoCredentials should be an empty array.
-If likelyHasCredentials is false, provide search terms the user could use to find the right connector.`
+If likelyHasCredentials is true, searchTermsIfNoCredentials should be an empty array and reasoning should explain which accounts match.
+If likelyHasCredentials is false, reasoning should briefly explain what services are needed and why the current accounts don't cover the request.`
 
     const response = await window.electronAPI.sendAIMessage(
       'keyboard',
       [
-        { role: 'system', content: 'You analyze app connections. Respond only with valid JSON.' },
+        { role: 'system', content: 'You analyze app connections based on full conversation context. Respond only with valid JSON.' },
         { role: 'user', content: analysisPrompt },
       ],
       { model: 'claude-haiku-4-5-20251001' },
@@ -212,6 +222,7 @@ If likelyHasCredentials is false, provide search terms the user could use to fin
         searchTermsIfNoCredentials: Array.isArray(result.searchTermsIfNoCredentials)
           ? result.searchTermsIfNoCredentials
           : [],
+        reasoning: typeof result.reasoning === 'string' ? result.reasoning : undefined,
       }
     }
 
@@ -298,7 +309,7 @@ export async function detectRequiredServices(
       for (const appName of aiResults) {
         const app = await lookupApp(appName)
         if (app) {
-          const serviceInfo = combinedAppToServiceInfo(app)
+          const serviceInfo = await combinedAppToServiceInfo(app)
           // Avoid duplicates
           if (!detectedServices.find(s => s.id === serviceInfo.id)) {
             detectedServices.push(serviceInfo)
@@ -321,7 +332,7 @@ export async function detectRequiredServices(
 export async function getServiceInfo(nameOrSlug: string): Promise<ServiceInfo | undefined> {
   const app = await lookupApp(nameOrSlug)
   if (app) {
-    return combinedAppToServiceInfo(app)
+    return await combinedAppToServiceInfo(app)
   }
   return undefined
 }
@@ -331,7 +342,7 @@ export async function getServiceInfo(nameOrSlug: string): Promise<ServiceInfo | 
  */
 export async function getAllServices(): Promise<ServiceInfo[]> {
   const apps = await getAllApps()
-  return apps.map(combinedAppToServiceInfo)
+  return await Promise.all(apps.map(combinedAppToServiceInfo))
 }
 
 /**

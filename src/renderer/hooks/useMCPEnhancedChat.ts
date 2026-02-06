@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Script } from '../../types'
 import { AIChatAdapter, ConnectionCheckResult, MissingConnectionInfo } from '../services/ai-chat-adapter'
 import { useMCPIntegration } from '../services/mcp-tool-integration'
+import { runCodeResultContext } from '../services/run-code-result-context'
 import { currentThreadRef } from '../components/screens/ChatPage'
 
 // =============================================================================
@@ -136,6 +137,8 @@ export interface MCPEnhancedChatState {
   // Connection requirements state
   missingConnections: MissingConnectionInfo[]
   showConnectionPrompt: boolean
+  /** AI reasoning explaining why connections are needed */
+  connectionReasoning?: string
 
   // Control functions
   setMCPEnabled: (enabled: boolean) => void
@@ -176,6 +179,7 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
   // Connection requirements state (thread-scoped)
   const [missingConnections, setMissingConnections] = useState<MissingConnectionInfo[]>([])
   const [showConnectionPrompt, setShowConnectionPrompt] = useState(false)
+  const [connectionReasoning, setConnectionReasoning] = useState<string | undefined>()
   const lastThreadIdRef = useRef<string | null>(null)
 
   // Ability messages state
@@ -195,6 +199,10 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
         if (previousThreadId && missingConnections.length > 0) {
           setThreadConnectionRequirements(previousThreadId, missingConnections)
         }
+
+        // Clear run-code result context when switching threads
+        // This ensures results from one conversation don't pollute another
+        runCodeResultContext.clearResults()
 
         // Check if new thread has saved requirements
         const savedRequirements = getThreadConnectionRequirements(currentThreadId)
@@ -342,6 +350,7 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
   const handleMissingConnections = useCallback((result: ConnectionCheckResult) => {
     setMissingConnections(result.missingConnections)
     setShowConnectionPrompt(result.missingConnections.length > 0)
+    setConnectionReasoning(result.reasoning)
 
     // Save to localStorage for the current thread
     const currentThreadId = currentThreadRef.threadId
@@ -467,6 +476,7 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
     // Connection requirements state
     missingConnections,
     showConnectionPrompt,
+    connectionReasoning,
     // Control functions
     setMCPEnabled,
     refreshMCPConnection,

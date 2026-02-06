@@ -2,6 +2,7 @@ import { CodespaceInfo, Script } from '../../types'
 import { generatePlanningToken, toolsToAbilities } from './ability-tools'
 import type { MCPAbilityFunction } from './mcp-tool-integration'
 import type { PipedreamAccount } from './pipedream-service'
+import { runCodeResultContext } from './run-code-result-context'
 
 export interface UserTokensResponse {
   tokensAvailable?: string[]
@@ -38,12 +39,9 @@ export interface EnhancedContext {
   selectedScripts: Script[]
   pipedreamAccounts: PipedreamAccount[]
   composioAccounts: ComposioAccountContext[]
-  timestamp: number
 }
 
 export class ContextService {
-  private cachedContext: EnhancedContext | null = null
-  private contextExpiry: number = 5 * 60 * 1000 // 5 minutes
   private mcpFunctions: MCPAbilityFunction[] = []
   private selectedScripts: Script[] = []
 
@@ -59,8 +57,6 @@ export class ContextService {
    */
   setSelectedScripts(scripts: Script[]): void {
     this.selectedScripts = scripts
-    // Clear cached context when scripts change
-    this.cachedContext = null
   }
 
   /**
@@ -84,13 +80,9 @@ export class ContextService {
 
   /**
    * Get comprehensive context for AI system prompt
+   * Always fetches fresh data to ensure up-to-date connected accounts
    */
   async getEnhancedContext(): Promise<EnhancedContext> {
-    // Check if we have valid cached context
-    if (this.cachedContext && (Date.now() - this.cachedContext.timestamp) < this.contextExpiry) {
-      return this.cachedContext
-    }
-
     // Generate new planning token
     const planningToken = generatePlanningToken()
 
@@ -103,7 +95,7 @@ export class ContextService {
       this.fetchComposioAccounts(),
     ])
 
-    const context: EnhancedContext = {
+    return {
       planningToken,
       userTokens: userTokens.status === 'fulfilled' ? userTokens.value : [],
       codespaceInfo: codespaceInfo.status === 'fulfilled' ? codespaceInfo.value : null,
@@ -111,13 +103,7 @@ export class ContextService {
       selectedScripts: this.selectedScripts,
       pipedreamAccounts: pipedreamAccounts.status === 'fulfilled' ? pipedreamAccounts.value : [],
       composioAccounts: composioAccounts.status === 'fulfilled' ? composioAccounts.value : [],
-      timestamp: Date.now(),
     }
-
-    // Cache the context
-    this.cachedContext = context
-
-    return context
   }
 
   /**
@@ -244,6 +230,17 @@ ${JSON.stringify(composioAccountsList, null, 2)}
 Note: These are Composio-managed OAuth connections. The appName (toolkit slug) identifies the service (e.g., "slack", "github", "googlecalendar"). Use the accountId when deploying Composio triggers or making authenticated API calls through Composio.`
       : ''
 
+    // Get previous run-code execution results for context
+    const previousResultsContext = runCodeResultContext.getExtractedDataSummary()
+    const previousResultsSection = previousResultsContext
+      ? `
+
+PREVIOUS EXECUTION CONTEXT:
+${previousResultsContext}
+
+Note: These IDs, URLs, and data values are from previous tool executions in this session. Use them when making follow-up API calls or referencing created resources.`
+      : ''
+
     return `You are a helpful AI assistant with access to a secure code execution environment.  Any code you will try to execute will also be reviewed by a human before execution so you can execute and write code with confidence.
 
 This is a real planning token to pass the run-code ability.  Make sure to use it when calling the run-code ability.
@@ -273,7 +270,7 @@ API RESEARCH GUIDANCE:
 - Only after you tried to use the web-search ability, and it didn't work, then you can use the run-code ability to execute code but the idea is to use the web-search ability first.
 
 Full abilities description and schema:
-${abilitiesList}${additionalToolsSection}${pipedreamAccountsSection}${composioAccountsSection}
+${abilitiesList}${additionalToolsSection}${pipedreamAccountsSection}${composioAccountsSection}${previousResultsSection}
 
 INSTRUCTIONS:
 - You can execute abilities directly using JSON format: {"ability": "ability-name", "parameters": {...}}
@@ -381,20 +378,6 @@ USER REQUEST: ${userMessage}`
     catch {
       return []
     }
-  }
-
-  /**
-   * Clear cached context (useful for forcing refresh)
-   */
-  clearCache(): void {
-    this.cachedContext = null
-  }
-
-  /**
-   * Check if context is stale and needs refresh
-   */
-  isContextStale(): boolean {
-    return !this.cachedContext || (Date.now() - this.cachedContext.timestamp) >= this.contextExpiry
   }
 }
 
