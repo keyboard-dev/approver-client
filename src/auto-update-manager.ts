@@ -133,12 +133,20 @@ export class AutoUpdateManager {
       this.log('  Release date:', info.releaseDate)
       this.log('  Release notes:', info.releaseNotes)
 
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/49b7cfe0-65b7-41f8-b323-46008774d481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auto-update-manager.ts:121',message:'Update available - sending to renderer',data:{version:info.version,releaseDate:info.releaseDate,hasReleaseNotes:!!info.releaseNotes},timestamp:Date.now(),hypothesisId:'F'})}).catch(()=>{});
+      // #endregion
+
       // Send to renderer
       this.options.sendToRenderer('update-available', {
         version: info.version,
         releaseDate: info.releaseDate,
         releaseNotes: info.releaseNotes,
       })
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/49b7cfe0-65b7-41f8-b323-46008774d481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auto-update-manager.ts:122',message:'Sent to renderer',data:{channel:'update-available'},timestamp:Date.now(),hypothesisId:'F'})}).catch(()=>{});
+      // #endregion
 
       // Show notification
       const notification = new Notification({
