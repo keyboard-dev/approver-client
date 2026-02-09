@@ -57,6 +57,7 @@ export interface AutoUpdateManagerOptions {
 export class AutoUpdateManager {
   private options: AutoUpdateManagerOptions
   private isSupported: boolean
+  private pendingUpdateInfo: UpdateInfo | null = null
 
   constructor(options: AutoUpdateManagerOptions) {
     this.options = options
@@ -134,19 +135,12 @@ export class AutoUpdateManager {
       this.log('  Release notes:', info.releaseNotes)
 
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/49b7cfe0-65b7-41f8-b323-46008774d481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auto-update-manager.ts:121',message:'Update available - sending to renderer',data:{version:info.version,releaseDate:info.releaseDate,hasReleaseNotes:!!info.releaseNotes},timestamp:Date.now(),hypothesisId:'F'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7242/ingest/49b7cfe0-65b7-41f8-b323-46008774d481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auto-update-manager.ts:121',message:'Update available - storing for pending send',data:{version:info.version,releaseDate:info.releaseDate,hasReleaseNotes:!!info.releaseNotes},timestamp:Date.now(),hypothesisId:'G'})}).catch(()=>{});
       // #endregion
 
-      // Send to renderer
-      this.options.sendToRenderer('update-available', {
-        version: info.version,
-        releaseDate: info.releaseDate,
-        releaseNotes: info.releaseNotes,
-      })
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/49b7cfe0-65b7-41f8-b323-46008774d481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auto-update-manager.ts:122',message:'Sent to renderer',data:{channel:'update-available'},timestamp:Date.now(),hypothesisId:'F'})}).catch(()=>{});
-      // #endregion
+      // Store the update info - will be sent when renderer signals it's ready
+      this.pendingUpdateInfo = info
+      this.log('Update info stored - will be sent when renderer is ready')
 
       // Show notification
       const notification = new Notification({
@@ -276,6 +270,26 @@ export class AutoUpdateManager {
 
     this.log('Quitting and installing update...')
     autoUpdater.quitAndInstall()
+  }
+
+  /**
+   * Send any pending update notifications to the renderer.
+   * Should be called when the renderer window is ready to receive messages.
+   */
+  public sendPendingUpdates(): void {
+    if (this.pendingUpdateInfo) {
+      this.log('Sending pending update info to renderer')
+      this.log('  Version:', this.pendingUpdateInfo.version)
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/49b7cfe0-65b7-41f8-b323-46008774d481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auto-update-manager.ts:280',message:'Sending pending update',data:{version:this.pendingUpdateInfo.version},timestamp:Date.now(),hypothesisId:'G'})}).catch(()=>{});
+      // #endregion
+      this.options.sendToRenderer('update-available', {
+        version: this.pendingUpdateInfo.version,
+        releaseDate: this.pendingUpdateInfo.releaseDate,
+        releaseNotes: this.pendingUpdateInfo.releaseNotes,
+      })
+      // Don't clear pending info in case we need to resend
+    }
   }
 
   /**

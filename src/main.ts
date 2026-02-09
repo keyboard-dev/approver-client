@@ -1857,6 +1857,15 @@ class MenuBarNotificationApp {
       this.windowManager.showWindow()
     })
 
+    // Handle renderer ready event
+    ipcMain.on('renderer-ready', (): void => {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/49b7cfe0-65b7-41f8-b323-46008774d481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'main.ts:1860',message:'Renderer ready - sending pending updates',data:{},timestamp:Date.now(),hypothesisId:'G'})}).catch(()=>{});
+      // #endregion
+      // Send any pending update notifications to the renderer
+      this.autoUpdateManager.sendPendingUpdates()
+    })
+
     // WebSocket key management
     ipcMain.handle('get-ws-connection-key', (): string | null => {
       return this.wsConnectionKey

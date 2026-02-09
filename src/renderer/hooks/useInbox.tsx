@@ -265,6 +265,13 @@ export function InboxProvider({ children }: { children: React.ReactNode }) {
     window.electronAPI.onUpdateAvailable(handleUpdateAvailable)
     window.electronAPI.onDownloadProgress(handleDownloadProgress)
     window.electronAPI.onUpdateDownloaded(handleUpdateDownloaded)
+    
+    // Notify main process that renderer is ready to receive update notifications
+    // #region agent log
+    console.log('[useInbox] Notifying main process that renderer is ready')
+    fetch('http://127.0.0.1:7242/ingest/49b7cfe0-65b7-41f8-b323-46008774d481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useInbox.tsx:270',message:'Sending renderer-ready signal',data:{},timestamp:Date.now(),hypothesisId:'H'})}).catch(()=>{});
+    // #endregion
+    window.electronAPI.notifyRendererReady()
 
     // Cleanup
     return () => {
