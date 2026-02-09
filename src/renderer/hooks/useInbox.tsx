@@ -58,12 +58,12 @@ export interface GenericNotification {
   read: boolean
 }
 
-export type InboxNotification =
-  | UpdateAvailableNotification
-  | UpdateDownloadingNotification
-  | UpdateDownloadedNotification
-  | ExpiredProviderNotification
-  | GenericNotification
+export type InboxNotification
+  = | UpdateAvailableNotification
+    | UpdateDownloadingNotification
+    | UpdateDownloadedNotification
+    | ExpiredProviderNotification
+    | GenericNotification
 
 // =============================================================================
 // Context
@@ -110,7 +110,7 @@ export function InboxProvider({ children }: { children: React.ReactNode }) {
       read: false,
     } as InboxNotification
 
-    setNotifications(prev => {
+    setNotifications((prev) => {
       // For update notifications, replace existing ones of the same type
       if (notification.type === 'update-available' || notification.type === 'update-downloading' || notification.type === 'update-downloaded') {
         // Remove any existing update notifications when a new update state arrives
@@ -176,7 +176,6 @@ export function InboxProvider({ children }: { children: React.ReactNode }) {
       await window.electronAPI.downloadUpdate()
     }
     catch (error) {
-      console.error('Failed to download update:', error)
     }
   }, [])
 
@@ -186,7 +185,6 @@ export function InboxProvider({ children }: { children: React.ReactNode }) {
       await window.electronAPI.quitAndInstall()
     }
     catch (error) {
-      console.error('Failed to install update:', error)
     }
   }, [])
 

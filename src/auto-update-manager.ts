@@ -79,6 +79,9 @@ export class AutoUpdateManager {
    * Sets up the feed URL, registers event handlers, and checks for updates.
    */
   public async initialize(): Promise<void> {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/49b7cfe0-65b7-41f8-b323-46008774d481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auto-update-manager.ts:81',message:'initialize() called',data:{isSupported:this.isSupported,platform:process.platform},timestamp:Date.now(),hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     if (!this.isSupported) {
       this.log('Auto-updater not initialized - unsupported platform')
       this.log('  Platform:', process.platform)
@@ -89,8 +92,14 @@ export class AutoUpdateManager {
     // Initialize autoUpdater with proper version handling (dynamic import)
     autoUpdater = await initAutoUpdater()
 
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/49b7cfe0-65b7-41f8-b323-46008774d481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auto-update-manager.ts:92',message:'Reading OAUTH_SERVER_URL from process.env',data:{OAUTH_SERVER_URL:process.env.OAUTH_SERVER_URL,allEnvKeys:Object.keys(process.env).filter(k=>k.includes('OAUTH')||k.includes('SERVER'))},timestamp:Date.now(),hypothesisId:'A,B,E'})}).catch(()=>{});
+    // #endregion
     const baseURL = process.env.OAUTH_SERVER_URL || 'https://api.keyboard.dev'
     const feedURL = `${baseURL}/update`
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/49b7cfe0-65b7-41f8-b323-46008774d481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auto-update-manager.ts:94',message:'Computed feedURL',data:{baseURL:baseURL,feedURL:feedURL,envVarValue:process.env.OAUTH_SERVER_URL},timestamp:Date.now(),hypothesisId:'A,C'})}).catch(()=>{});
+    // #endregion
 
     this.log('Initializing auto-updater')
     this.log('  Platform:', process.platform)

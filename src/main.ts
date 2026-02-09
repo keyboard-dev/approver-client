@@ -111,6 +111,9 @@ log.info('[Main] App name:', app.getName())
 log.info('[Main] App version:', app.getVersion())
 log.info('[Main] Platform:', process.platform)
 log.info('[Main] Log file path:', log.transports.file.getFile().path)
+// #region agent log
+fetch('http://127.0.0.1:7242/ingest/49b7cfe0-65b7-41f8-b323-46008774d481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'main.ts:109',message:'App startup - env vars',data:{OAUTH_SERVER_URL:process.env.OAUTH_SERVER_URL,allOAuthKeys:Object.keys(process.env).filter(k=>k.includes('OAUTH')||k.includes('SERVER')||k.includes('URL')),envKeysCount:Object.keys(process.env).length},timestamp:Date.now(),hypothesisId:'A,E'})}).catch(()=>{});
+// #endregion
 import { setEncryptionKeyProvider } from './encryption'
 import { ExecutionPreference, ExecutionPreferenceManager } from './execution-preference'
 import { GithubService } from './Github'
@@ -281,6 +284,9 @@ class MenuBarNotificationApp {
       getPendingCount: () => this.pendingCount,
     })
 
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/49b7cfe0-65b7-41f8-b323-46008774d481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'main.ts:287',message:'Before AutoUpdateManager creation',data:{OAUTH_SERVER_URL:process.env.OAUTH_SERVER_URL,allOAuthKeys:Object.keys(process.env).filter(k=>k.includes('OAUTH')||k.includes('SERVER')||k.includes('URL'))},timestamp:Date.now(),hypothesisId:'A,B,E'})}).catch(()=>{});
+    // #endregion
     this.autoUpdateManager = new AutoUpdateManager({
       sendToRenderer: (channel, data) => this.windowManager.sendMessage(channel, data),
     })
@@ -390,6 +396,9 @@ class MenuBarNotificationApp {
       await this.connectToExecutorWithToken()
 
       // Initialize auto-updater
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/49b7cfe0-65b7-41f8-b323-46008774d481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'main.ts:399',message:'Before autoUpdateManager.initialize()',data:{OAUTH_SERVER_URL:process.env.OAUTH_SERVER_URL,allOAuthKeys:Object.keys(process.env).filter(k=>k.includes('OAUTH')||k.includes('SERVER')||k.includes('URL'))},timestamp:Date.now(),hypothesisId:'A,B,E'})}).catch(()=>{});
+      // #endregion
       await this.autoUpdateManager.initialize()
 
       this.trayManager.createTray()
