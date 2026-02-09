@@ -1,13 +1,7 @@
 import { app, ipcMain, Notification } from 'electron'
-import log from 'electron-log/main'
 import type { AppUpdater, ProgressInfo, UpdateInfo } from 'electron-updater'
 import { readFileSync } from 'fs'
 import { join } from 'path'
-
-// Configure electron-log
-log.transports.file.level = 'info'
-log.transports.console.level = 'info'
-log.transports.file.fileName = 'main.log'
 
 /**
  * Get the actual app version from package.json.
@@ -67,47 +61,19 @@ export class AutoUpdateManager {
   }
 
   /**
-   * Helper method to log with consistent prefix.
-   * Uses electron-log which writes to both console and persistent log files.
-   * On Windows: %USERPROFILE%\AppData\Roaming\KeyboardAI\logs\main.log
-   * On macOS: ~/Library/Logs/KeyboardAI/main.log
-   */
-  private log(...args: unknown[]): void {
-    log.info('[AutoUpdater]', ...args)
-  }
-
-  /**
    * Initialize the auto-updater. Should be called during app initialization.
    * Sets up the feed URL, registers event handlers, and checks for updates.
    */
   public async initialize(): Promise<void> {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/49b7cfe0-65b7-41f8-b323-46008774d481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auto-update-manager.ts:81',message:'initialize() called',data:{isSupported:this.isSupported,platform:process.platform},timestamp:Date.now(),hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
     if (!this.isSupported) {
-      this.log('Auto-updater not initialized - unsupported platform')
-      this.log('  Platform:', process.platform)
-      this.log('  isSupported:', this.isSupported)
       return
     }
 
     // Initialize autoUpdater with proper version handling (dynamic import)
     autoUpdater = await initAutoUpdater()
 
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/49b7cfe0-65b7-41f8-b323-46008774d481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auto-update-manager.ts:92',message:'Reading OAUTH_SERVER_URL from process.env',data:{OAUTH_SERVER_URL:process.env.OAUTH_SERVER_URL,allEnvKeys:Object.keys(process.env).filter(k=>k.includes('OAUTH')||k.includes('SERVER'))},timestamp:Date.now(),hypothesisId:'A,B,E'})}).catch(()=>{});
-    // #endregion
     const baseURL = process.env.OAUTH_SERVER_URL || 'https://api.keyboard.dev'
     const feedURL = `${baseURL}/update`
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/49b7cfe0-65b7-41f8-b323-46008774d481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auto-update-manager.ts:94',message:'Computed feedURL',data:{baseURL:baseURL,feedURL:feedURL,envVarValue:process.env.OAUTH_SERVER_URL},timestamp:Date.now(),hypothesisId:'A,C'})}).catch(()=>{});
-    // #endregion
-
-    this.log('Initializing auto-updater')
-    this.log('  Platform:', process.platform)
-    this.log('  Current version:', getAppVersion())
-    this.log('  Feed URL:', feedURL)
-    this.log('  isPackaged:', app.isPackaged)
 
     // Configure electron-updater to use custom server
     autoUpdater.setFeedURL({
@@ -125,20 +91,10 @@ export class AutoUpdateManager {
 
     // Auto-updater event handlers
     autoUpdater.on('checking-for-update', () => {
-      this.log('Checking for update...')
-      this.log('  Fetching from:', feedURL)
+      // Checking for update
     })
 
     autoUpdater.on('update-available', (info: UpdateInfo) => {
-      this.log('Update available!')
-      this.log('  Version:', info.version)
-      this.log('  Release date:', info.releaseDate)
-      this.log('  Release notes:', info.releaseNotes)
-
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/49b7cfe0-65b7-41f8-b323-46008774d481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auto-update-manager.ts:121',message:'Update available',data:{version:info.version,releaseDate:info.releaseDate,hasReleaseNotes:!!info.releaseNotes,rendererReady:this.rendererReady},timestamp:Date.now(),hypothesisId:'G,I'})}).catch(()=>{});
-      // #endregion
-
       // Store the update info in case we need to resend
       this.pendingUpdateInfo = info
 
@@ -150,18 +106,10 @@ export class AutoUpdateManager {
 
       if (this.rendererReady) {
         // Renderer is already ready, send immediately
-        this.log('Renderer is ready - sending update immediately')
         this.options.sendToRenderer('update-available', updateData)
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/49b7cfe0-65b7-41f8-b323-46008774d481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auto-update-manager.ts:139',message:'Sent update immediately (renderer ready)',data:{version:info.version},timestamp:Date.now(),hypothesisId:'I'})}).catch(()=>{});
-        // #endregion
       }
       else {
         // Renderer not ready yet, will be sent when renderer signals ready
-        this.log('Renderer not ready yet - update will be sent when renderer signals ready')
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/49b7cfe0-65b7-41f8-b323-46008774d481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auto-update-manager.ts:146',message:'Stored update for later (renderer not ready)',data:{version:info.version},timestamp:Date.now(),hypothesisId:'G'})}).catch(()=>{});
-        // #endregion
       }
 
       // Show notification
@@ -171,16 +119,11 @@ export class AutoUpdateManager {
       })
       notification.show()
       notification.on('click', () => {
-        this.log('User clicked notification - downloading update')
         autoUpdater.downloadUpdate()
       })
     })
 
     autoUpdater.on('update-not-available', (info: UpdateInfo) => {
-      this.log('No update available - current version is the latest')
-      this.log('  Current version:', getAppVersion())
-      this.log('  Latest version:', info.version)
-
       // Send to renderer
       this.options.sendToRenderer('update-not-available', {
         version: info.version,
@@ -188,8 +131,6 @@ export class AutoUpdateManager {
     })
 
     autoUpdater.on('download-progress', (progress: ProgressInfo) => {
-      this.log('Download progress:', `${progress.percent.toFixed(2)}%`)
-
       // Send to renderer
       this.options.sendToRenderer('download-progress', {
         percent: progress.percent,
@@ -200,10 +141,6 @@ export class AutoUpdateManager {
     })
 
     autoUpdater.on('update-downloaded', (info: UpdateInfo) => {
-      this.log('Update downloaded!')
-      this.log('  Version:', info.version)
-      this.log('  Release date:', info.releaseDate)
-
       // Send to renderer
       this.options.sendToRenderer('update-downloaded', {
         version: info.version,
@@ -218,16 +155,11 @@ export class AutoUpdateManager {
       })
       notification.show()
       notification.on('click', () => {
-        this.log('User clicked notification - installing update')
         autoUpdater.quitAndInstall()
       })
     })
 
     autoUpdater.on('error', (error) => {
-      this.log('ERROR:', error.message)
-      this.log('  Error details:', error)
-      this.log('  Stack:', error.stack)
-
       // Send to renderer
       this.options.sendToRenderer('update-error', {
         message: error.message,
@@ -235,14 +167,13 @@ export class AutoUpdateManager {
     })
 
     // Check for updates on startup
-    this.log('Checking for updates on startup...')
     // Delay update check to give renderer time to set up listeners
     setTimeout(async () => {
       try {
         await autoUpdater.checkForUpdates()
       }
       catch (error) {
-        this.log('ERROR during startup update check:', error)
+        // Error during startup update check
       }
     }, 3000) // Wait 3 seconds for renderer to initialize
   }
@@ -252,13 +183,7 @@ export class AutoUpdateManager {
    * Called from menu items and other manual triggers.
    */
   public checkForUpdates(): void {
-    this.log('='.repeat(50))
-    this.log('Manual update check triggered')
-    this.log('  Current version:', getAppVersion())
-    this.log('  Platform:', process.platform)
-
     if (!this.isSupported) {
-      this.log('Updates not supported on this platform')
       const notification = new Notification({
         title: 'Updates Not Supported',
         body: 'Automatic updates are only available on macOS and Windows.',
@@ -267,9 +192,8 @@ export class AutoUpdateManager {
       return
     }
 
-    this.log('Triggering update check...')
     autoUpdater.checkForUpdates().catch((error) => {
-      this.log('ERROR during manual update check:', error)
+      // Error during manual update check
     })
 
     // Show a notification that we're checking
@@ -286,11 +210,9 @@ export class AutoUpdateManager {
    */
   public quitAndInstall(): void {
     if (!this.isSupported) {
-      this.log('quitAndInstall called but platform not supported')
       return
     }
 
-    this.log('Quitting and installing update...')
     autoUpdater.quitAndInstall()
   }
 
@@ -301,29 +223,14 @@ export class AutoUpdateManager {
   public sendPendingUpdates(): void {
     // Mark renderer as ready
     this.rendererReady = true
-    this.log('Renderer is now ready to receive updates')
-    
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/49b7cfe0-65b7-41f8-b323-46008774d481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auto-update-manager.ts:284',message:'Renderer ready signal received',data:{hasPendingUpdate:!!this.pendingUpdateInfo,version:this.pendingUpdateInfo?.version},timestamp:Date.now(),hypothesisId:'G,I'})}).catch(()=>{});
-    // #endregion
     
     if (this.pendingUpdateInfo) {
-      this.log('Sending pending update info to renderer')
-      this.log('  Version:', this.pendingUpdateInfo.version)
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/49b7cfe0-65b7-41f8-b323-46008774d481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auto-update-manager.ts:293',message:'Sending pending update',data:{version:this.pendingUpdateInfo.version},timestamp:Date.now(),hypothesisId:'G'})}).catch(()=>{});
-      // #endregion
       this.options.sendToRenderer('update-available', {
         version: this.pendingUpdateInfo.version,
         releaseDate: this.pendingUpdateInfo.releaseDate,
         releaseNotes: this.pendingUpdateInfo.releaseNotes,
       })
       // Don't clear pending info in case we need to resend
-    }
-    else {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/49b7cfe0-65b7-41f8-b323-46008774d481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auto-update-manager.ts:304',message:'No pending updates to send',data:{},timestamp:Date.now(),hypothesisId:'I'})}).catch(()=>{});
-      // #endregion
     }
   }
 
@@ -332,16 +239,12 @@ export class AutoUpdateManager {
    * Should be called during IPC setup in the main process.
    */
   public setupIPCHandlers(): void {
-    this.log('Setting up IPC handlers')
-
     // Auto-updater IPC handlers (only available on macOS and Windows)
     ipcMain.handle('check-for-updates', async (): Promise<void> => {
-      this.log('IPC: check-for-updates called')
       if (this.isSupported) {
         autoUpdater.checkForUpdates()
       }
       else {
-        this.log('IPC: check-for-updates failed - platform not supported')
         throw new Error('Auto-updater not supported on this platform')
       }
     })

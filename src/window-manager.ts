@@ -150,19 +150,11 @@ export class WindowManager {
   }
 
   public sendMessage(channel: string, ...args: unknown[]): void {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/49b7cfe0-65b7-41f8-b323-46008774d481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'window-manager.ts:152',message:'sendMessage called',data:{channel:channel,hasMainWindow:!!this.mainWindow,argsCount:args.length},timestamp:Date.now(),hypothesisId:'F,G'})}).catch(()=>{});
-    // #endregion
     if (this.mainWindow) {
       this.mainWindow.webContents.send(channel, ...args)
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/49b7cfe0-65b7-41f8-b323-46008774d481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'window-manager.ts:154',message:'Message sent to renderer',data:{channel:channel},timestamp:Date.now(),hypothesisId:'F'})}).catch(()=>{});
-      // #endregion
     }
     else {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/49b7cfe0-65b7-41f8-b323-46008774d481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'window-manager.ts:157',message:'Message NOT sent - no mainWindow',data:{channel:channel},timestamp:Date.now(),hypothesisId:'G'})}).catch(()=>{});
-      // #endregion
+      // Window not created yet, message will be dropped
     }
   }
 

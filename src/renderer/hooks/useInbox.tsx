@@ -195,10 +195,6 @@ export function InboxProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Listen for update available
     const handleUpdateAvailable = (_event: unknown, info: { version: string, releaseDate?: string, releaseNotes?: string }) => {
-      // #region agent log
-      console.log('[useInbox] Renderer received update-available event', info)
-      fetch('http://127.0.0.1:7242/ingest/49b7cfe0-65b7-41f8-b323-46008774d481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useInbox.tsx:197',message:'Renderer received update-available',data:{version:info.version,releaseDate:info.releaseDate,hasReleaseNotes:!!info.releaseNotes},timestamp:Date.now(),hypothesisId:'F,H'})}).catch(()=>{});
-      // #endregion
       addNotification({
         type: 'update-available',
         version: info.version,
@@ -258,19 +254,11 @@ export function InboxProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Subscribe to events
-    // #region agent log
-    console.log('[useInbox] Registering update listeners')
-    fetch('http://127.0.0.1:7242/ingest/49b7cfe0-65b7-41f8-b323-46008774d481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useInbox.tsx:261',message:'Registering update listeners',data:{},timestamp:Date.now(),hypothesisId:'H'})}).catch(()=>{});
-    // #endregion
     window.electronAPI.onUpdateAvailable(handleUpdateAvailable)
     window.electronAPI.onDownloadProgress(handleDownloadProgress)
     window.electronAPI.onUpdateDownloaded(handleUpdateDownloaded)
     
     // Notify main process that renderer is ready to receive update notifications
-    // #region agent log
-    console.log('[useInbox] Notifying main process that renderer is ready')
-    fetch('http://127.0.0.1:7242/ingest/49b7cfe0-65b7-41f8-b323-46008774d481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useInbox.tsx:270',message:'Sending renderer-ready signal',data:{},timestamp:Date.now(),hypothesisId:'H'})}).catch(()=>{});
-    // #endregion
     window.electronAPI.notifyRendererReady()
 
     // Cleanup
