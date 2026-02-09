@@ -6,6 +6,11 @@ module.exports = {
   packagerConfig: {
     asar: true,
     name: process.env.APP_NAME || 'KeyboardAI',
+    // Include app-update.yml in production builds
+    extraResource: [
+      'app-update.yml',
+      '.env.local.example',
+    ],
     // Use platform-specific icons
     ...(process.platform === 'darwin' && { icon: 'assets/keyboard-dock.icns' }),
     ...(process.platform === 'win32' && { icon: 'assets/keyboard-dock.ico' }),

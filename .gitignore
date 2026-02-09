@@ -2,6 +2,7 @@ node_modules
 dist
 dist-build
 dist-react
+dist-universal
 .env
 .env.local
 .env.development.local
@@ -10,6 +11,8 @@ dist-react
 .DS_Store
 .env.keys
 .env*
+# Allow .env example files to be committed
+!.env*.example
 out
 out/
 .log*
