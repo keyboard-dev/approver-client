@@ -1,6 +1,6 @@
 import { app, ipcMain, Notification } from 'electron'
-import type { AppUpdater, ProgressInfo, UpdateInfo } from 'electron-updater'
 import log from 'electron-log/main'
+import type { AppUpdater, ProgressInfo, UpdateInfo } from 'electron-updater'
 import { readFileSync } from 'fs'
 import { join } from 'path'
 
