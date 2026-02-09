@@ -11,6 +11,8 @@ dist-universal
 .DS_Store
 .env.keys
 .env*
+# Allow .env example files to be committed
+!.env*.example
 out
 out/
 .log*

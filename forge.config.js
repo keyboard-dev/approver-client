@@ -9,6 +9,7 @@ module.exports = {
     // Include app-update.yml in production builds
     extraResource: [
       'app-update.yml',
+      '.env.local.example',
     ],
     // Use platform-specific icons
     ...(process.platform === 'darwin' && { icon: 'assets/keyboard-dock.icns' }),

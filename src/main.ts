@@ -91,6 +91,10 @@ else {
   }
 }
 
+// Load environment variables from .env files BEFORE other imports
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+require('@dotenvx/dotenvx').config()
+
 import * as crypto from 'crypto'
 import { app, BrowserWindow, ipcMain, Menu, Notification, shell } from 'electron'
 import log from 'electron-log/main'
@@ -98,6 +102,37 @@ import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
 import * as WebSocket from 'ws'
+
+// Try to load .env.local from multiple locations (for built apps with local config)
+try {
+  const possiblePaths = [
+    // Next to the executable
+    path.join(path.dirname(process.execPath), '.env.local'),
+    // In the app resources directory
+    path.join(process.resourcesPath || '', '.env.local'),
+    // In user data directory (writable location)
+    path.join(app.getPath('userData'), '.env.local'),
+  ]
+  
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/49b7cfe0-65b7-41f8-b323-46008774d481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'main.ts:105',message:'Searching for .env.local',data:{possiblePaths,execPath:process.execPath,resourcesPath:process.resourcesPath,userDataPath:app.getPath('userData')},timestamp:Date.now(),hypothesisId:'D'})}).catch(()=>{});
+  // #endregion
+  
+  for (const localEnvPath of possiblePaths) {
+    if (fs.existsSync(localEnvPath)) {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      require('@dotenvx/dotenvx').config({ path: localEnvPath, override: true })
+      console.log('[Main] Loaded .env.local from:', localEnvPath)
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/49b7cfe0-65b7-41f8-b323-46008774d481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'main.ts:106',message:'Loaded .env.local',data:{path:localEnvPath,OAUTH_SERVER_URL:process.env.OAUTH_SERVER_URL},timestamp:Date.now(),hypothesisId:'D'})}).catch(()=>{});
+      // #endregion
+      break
+    }
+  }
+}
+catch (err) {
+  console.error('[Main] Error loading .env.local:', err)
+}
 import { aiRuntime, initializeAIProviders } from './ai-provider/setup'
 import { webSearch } from './ai-provider/utils/dedicated-web'
 import { getQueuedProtocolUrls, initializeApp as initializeElectronApp, type AppInitializerResult } from './app-initializer'
