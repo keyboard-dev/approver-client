@@ -58,6 +58,7 @@ export class AutoUpdateManager {
   private options: AutoUpdateManagerOptions
   private isSupported: boolean
   private pendingUpdateInfo: UpdateInfo | null = null
+  private rendererReady: boolean = false
 
   constructor(options: AutoUpdateManagerOptions) {
     this.options = options
@@ -135,12 +136,33 @@ export class AutoUpdateManager {
       this.log('  Release notes:', info.releaseNotes)
 
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/49b7cfe0-65b7-41f8-b323-46008774d481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auto-update-manager.ts:121',message:'Update available - storing for pending send',data:{version:info.version,releaseDate:info.releaseDate,hasReleaseNotes:!!info.releaseNotes},timestamp:Date.now(),hypothesisId:'G'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7242/ingest/49b7cfe0-65b7-41f8-b323-46008774d481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auto-update-manager.ts:121',message:'Update available',data:{version:info.version,releaseDate:info.releaseDate,hasReleaseNotes:!!info.releaseNotes,rendererReady:this.rendererReady},timestamp:Date.now(),hypothesisId:'G,I'})}).catch(()=>{});
       // #endregion
 
-      // Store the update info - will be sent when renderer signals it's ready
+      // Store the update info in case we need to resend
       this.pendingUpdateInfo = info
-      this.log('Update info stored - will be sent when renderer is ready')
+
+      const updateData = {
+        version: info.version,
+        releaseDate: info.releaseDate,
+        releaseNotes: info.releaseNotes,
+      }
+
+      if (this.rendererReady) {
+        // Renderer is already ready, send immediately
+        this.log('Renderer is ready - sending update immediately')
+        this.options.sendToRenderer('update-available', updateData)
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/49b7cfe0-65b7-41f8-b323-46008774d481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auto-update-manager.ts:139',message:'Sent update immediately (renderer ready)',data:{version:info.version},timestamp:Date.now(),hypothesisId:'I'})}).catch(()=>{});
+        // #endregion
+      }
+      else {
+        // Renderer not ready yet, will be sent when renderer signals ready
+        this.log('Renderer not ready yet - update will be sent when renderer signals ready')
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/49b7cfe0-65b7-41f8-b323-46008774d481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auto-update-manager.ts:146',message:'Stored update for later (renderer not ready)',data:{version:info.version},timestamp:Date.now(),hypothesisId:'G'})}).catch(()=>{});
+        // #endregion
+      }
 
       // Show notification
       const notification = new Notification({
@@ -277,11 +299,19 @@ export class AutoUpdateManager {
    * Should be called when the renderer window is ready to receive messages.
    */
   public sendPendingUpdates(): void {
+    // Mark renderer as ready
+    this.rendererReady = true
+    this.log('Renderer is now ready to receive updates')
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/49b7cfe0-65b7-41f8-b323-46008774d481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auto-update-manager.ts:284',message:'Renderer ready signal received',data:{hasPendingUpdate:!!this.pendingUpdateInfo,version:this.pendingUpdateInfo?.version},timestamp:Date.now(),hypothesisId:'G,I'})}).catch(()=>{});
+    // #endregion
+    
     if (this.pendingUpdateInfo) {
       this.log('Sending pending update info to renderer')
       this.log('  Version:', this.pendingUpdateInfo.version)
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/49b7cfe0-65b7-41f8-b323-46008774d481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auto-update-manager.ts:280',message:'Sending pending update',data:{version:this.pendingUpdateInfo.version},timestamp:Date.now(),hypothesisId:'G'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7242/ingest/49b7cfe0-65b7-41f8-b323-46008774d481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auto-update-manager.ts:293',message:'Sending pending update',data:{version:this.pendingUpdateInfo.version},timestamp:Date.now(),hypothesisId:'G'})}).catch(()=>{});
       // #endregion
       this.options.sendToRenderer('update-available', {
         version: this.pendingUpdateInfo.version,
@@ -289,6 +319,11 @@ export class AutoUpdateManager {
         releaseNotes: this.pendingUpdateInfo.releaseNotes,
       })
       // Don't clear pending info in case we need to resend
+    }
+    else {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/49b7cfe0-65b7-41f8-b323-46008774d481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auto-update-manager.ts:304',message:'No pending updates to send',data:{},timestamp:Date.now(),hypothesisId:'I'})}).catch(()=>{});
+      // #endregion
     }
   }
 
