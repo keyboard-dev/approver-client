@@ -1,11 +1,11 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type {
-  CallToolResult,
-  GetPromptResult,
-  ReadResourceResult,
-  Resource,
-  Tool,
+    CallToolResult,
+    GetPromptResult,
+    ReadResourceResult,
+    Resource,
+    Tool,
 } from '@modelcontextprotocol/sdk/types.js'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -33,7 +33,7 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
   const [state, setState] = useState<UseMcpClientResult['state']>('discovering')
   const [tools, setTools] = useState<Tool[]>([])
   const [resources, setResources] = useState<Resource[]>([])
-  const [prompts, setPrompts] = useState<Array<{ name: string, description?: string }>>([])
+  const [prompts] = useState<Array<{ name: string, description?: string }>>([])
   const [error, setError] = useState<string | undefined>()
   const [accessToken, setAccessToken] = useState<string | null>(null)
 
@@ -291,7 +291,7 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
       setError(undefined)
       hasConnectedRef.current = false // Reset connection tracking for retry
 
-      connect(accessToken, options.serverUrl).catch((err) => {
+      connect(accessToken, options.serverUrl).catch(() => {
         hasConnectedRef.current = false
       })
     }

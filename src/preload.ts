@@ -301,6 +301,7 @@ export interface ElectronAPI {
   onUpdateAvailable: (callback: (event: IpcRendererEvent, updateInfo: UpdateInfo) => void) => void
   onDownloadProgress: (callback: (event: IpcRendererEvent, progressInfo: ProgressInfo) => void) => void
   onUpdateDownloaded: (callback: (event: IpcRendererEvent, updateInfo: UpdateInfo) => void) => void
+  notifyRendererReady: () => void
   checkForUpdates: () => Promise<void>
   downloadUpdate: () => Promise<void>
   quitAndInstall: () => Promise<void>
@@ -699,6 +700,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   onDownloadProgress: (callback: (event: IpcRendererEvent, progressInfo: ProgressInfo) => void): void => {
     ipcRenderer.on('download-progress', callback)
+  },
+  notifyRendererReady: (): void => {
+    ipcRenderer.send('renderer-ready')
   },
   onUpdateDownloaded: (callback: (event: IpcRendererEvent, updateInfo: UpdateInfo) => void): void => {
     ipcRenderer.on('update-downloaded', callback)

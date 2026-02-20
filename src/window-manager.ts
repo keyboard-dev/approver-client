@@ -154,6 +154,7 @@ export class WindowManager {
       this.mainWindow.webContents.send(channel, ...args)
     }
     else {
+      // Window not created yet, message will be dropped
     }
   }
 

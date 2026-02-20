@@ -1,4 +1,4 @@
-name: Build macOS Universal App
+name: Build Windows App
 
 on:
   workflow_dispatch:
@@ -20,7 +20,7 @@ on:
 
 env:
   NODE_ENV: development
-  TEST_BRANCHES:  # Comma-separated list of test branches
+  TEST_BRANCHES: # Comma-separated list of test branches
 
 jobs:
   cleanup-old-runs:
@@ -72,9 +72,9 @@ jobs:
 
             console.log(`Successfully deleted ${deleted} old workflow runs`);
 
-  build-macos:
+  build-windows:
     needs: cleanup-old-runs
-    runs-on: macos-latest
+    runs-on: windows-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
       artifact_name: ${{ steps.version.outputs.artifact_name }}
@@ -98,137 +98,108 @@ jobs:
 
       - name: Extract version and set app name
         id: version
+        shell: powershell
         run: |
-          if [[ "${{ github.ref_type }}" == "tag" ]]; then
-            VERSION="${{ github.ref_name }}"
-            VERSION="${VERSION#v}"
-          else
-            VERSION=$(node -p "require('./package.json').version")
-          fi
+          if ("${{ github.ref_type }}" -eq "tag") {
+            $VERSION = "${{ github.ref_name }}" -replace "^v", ""
+          } else {
+            $VERSION = node -p "require('./package.json').version"
+          }
 
           # Always use KeyboardAI as base name (Forge doesn't respect branch-specific names)
-          APP_NAME="KeyboardAI"
+          $APP_NAME = "KeyboardAI"
 
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "app_name=$APP_NAME" >> $GITHUB_OUTPUT
-          echo "forge_artifact_name=${APP_NAME}-darwin-universal-${VERSION}.zip" >> $GITHUB_OUTPUT
-          echo "artifact_name=keyboard-approver.App-darwin-universal-latest.zip" >> $GITHUB_OUTPUT
-          echo "APP_NAME=$APP_NAME" >> $GITHUB_ENV
+          echo "version=$VERSION" >> $env:GITHUB_OUTPUT
+          echo "app_name=$APP_NAME" >> $env:GITHUB_OUTPUT
+          echo "forge_artifact_name=Keyboard.Approver-Setup-Win-latest.exe" >> $env:GITHUB_OUTPUT
+          echo "artifact_name=Keyboard.Approver-Setup-Win-latest.exe" >> $env:GITHUB_OUTPUT
+          echo "APP_NAME=$APP_NAME" >> $env:GITHUB_ENV
           echo "Building version: $VERSION with app name: $APP_NAME"
 
           # Check if current branch is a test branch
-          CURRENT_BRANCH="${{ github.ref_name }}"
-          if [[ ",$TEST_BRANCHES," == *",$CURRENT_BRANCH,"* ]]; then
-            echo "IS_TEST_BUILD=true" >> $GITHUB_ENV
-            echo "OAUTH_SERVER_URL=http://localhost:4000" >> $GITHUB_ENV
-            echo "VITE_API_URL=http://localhost:4000" >> $GITHUB_ENV
+          $CURRENT_BRANCH = "${{ github.ref_name }}"
+          $TEST_BRANCHES_LIST = "$env:TEST_BRANCHES"
+          if ($TEST_BRANCHES_LIST -split "," -contains $CURRENT_BRANCH) {
+            echo "IS_TEST_BUILD=true" >> $env:GITHUB_ENV
+            echo "OAUTH_SERVER_URL=http://localhost:4000" >> $env:GITHUB_ENV
+            echo "VITE_API_URL=http://localhost:4000" >> $env:GITHUB_ENV
             echo "Test build detected - using localhost:4000 for API URLs"
-          fi
+          }
 
       - name: Create encrypted .env file
         run: echo "${{ secrets.DOTENV_FILE }}" > .env
 
-      - name: Import code signing certificate
+      - name: Import Windows code signing certificate (optional)
+        if: false  # Disabled for now - enable when Windows signing certificate is available
         env:
           DOTENV_PRIVATE_KEY: ${{ secrets.DOTENV_PRIVATE_KEY }}
+        shell: powershell
         run: |
-          # Create a temporary keychain
-          KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
-          KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
-
-          # CRITICAL: Mask the password immediately
-          echo "::add-mask::$KEYCHAIN_PASSWORD"
-
-          # Create keychain
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-
-          # Extract certificate from encrypted env and import
-          CERTIFICATE=$(dotenvx get MACOS_CERTIFICATE)
+          # This step is optional and only runs if Windows signing secrets are configured
+          # Extract certificate from encrypted env and import to Windows certificate store
+          $CERTIFICATE = dotenvx get WINDOWS_CERTIFICATE
           echo "::add-mask::$CERTIFICATE"
 
-          CERTIFICATE_PASSWORD=$(dotenvx get MACOS_CERTIFICATE_PWD)
+          $CERTIFICATE_PASSWORD = dotenvx get WINDOWS_CERTIFICATE_PWD
           echo "::add-mask::$CERTIFICATE_PASSWORD"
 
           # Decode and import certificate
-          echo "$CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
-          security import "$RUNNER_TEMP/certificate.p12" \
-            -P "$CERTIFICATE_PASSWORD" \
-            -A \
-            -t cert \
-            -f pkcs12 \
-            -k "$KEYCHAIN_PATH"
+          $certBytes = [Convert]::FromBase64String($CERTIFICATE)
+          $certPath = "$env:RUNNER_TEMP\certificate.pfx"
+          [IO.File]::WriteAllBytes($certPath, $certBytes)
 
-          # Set key partition list for codesign access
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-
-          # Add keychain to search list
-          security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | tr -d '"')
-
-          # Set as default keychain
-          security default-keychain -s "$KEYCHAIN_PATH"
-
-          # Store keychain path for cleanup (password is already masked)
-          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> $GITHUB_ENV
-          echo "KEYCHAIN_PASSWORD=$KEYCHAIN_PASSWORD" >> $GITHUB_ENV
+          # Import to certificate store
+          $securePassword = ConvertTo-SecureString -String $CERTIFICATE_PASSWORD -AsPlainText -Force
+          Import-PfxCertificate -FilePath $certPath -CertStoreLocation Cert:\CurrentUser\My -Password $securePassword
 
           # Clean up temp certificate file
-          rm -f "$RUNNER_TEMP/certificate.p12"
+          Remove-Item $certPath -Force
 
-      - name: Create Apple API key file for notarization
-        env:
-          DOTENV_PRIVATE_KEY: ${{ secrets.DOTENV_PRIVATE_KEY }}
-        run: |
-          # Extract the base64-encoded .p8 key content and write to file
-          APPLE_API_KEY_CONTENT=$(dotenvx get APPLE_API_KEY_CONTENT)
-          echo "::add-mask::$APPLE_API_KEY_CONTENT"
-
-          echo "$APPLE_API_KEY_CONTENT" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
-          echo "APPLE_API_KEY=$RUNNER_TEMP/AuthKey.p8" >> $GITHUB_ENV
-          echo "Apple API key file created at $RUNNER_TEMP/AuthKey.p8"
-
-      - name: Build macOS universal binary
+      - name: Build Windows binaries
         env:
           DOTENV_PRIVATE_KEY: ${{ secrets.DOTENV_PRIVATE_KEY }}
           NODE_ENV: production
-        run: dotenvx run -- npm run build-mac-universal
+        run: dotenvx run -- npm run build-win-universal
 
       - name: Verify and rename build output
+        shell: powershell
         run: |
-          FORGE_ARTIFACT="out/make/zip/darwin/universal/${{ steps.version.outputs.forge_artifact_name }}"
-          FINAL_ARTIFACT="out/make/zip/darwin/universal/${{ steps.version.outputs.artifact_name }}"
+          $FORGE_ARTIFACT = "dist-universal/${{ steps.version.outputs.forge_artifact_name }}"
+          $FINAL_ARTIFACT = "dist-universal/${{ steps.version.outputs.artifact_name }}"
 
-          if [ ! -f "$FORGE_ARTIFACT" ]; then
+          if (-not (Test-Path $FORGE_ARTIFACT)) {
             echo "Error: Expected artifact not found at $FORGE_ARTIFACT"
-            echo "Contents of out/make/zip/darwin/universal/:"
-            ls -la out/make/zip/darwin/universal/ || echo "Directory does not exist"
+            echo "Contents of dist-universal/:"
+            if (Test-Path "dist-universal/") {
+              Get-ChildItem "dist-universal/" | Format-Table -AutoSize
+            } else {
+              echo "Directory does not exist"
+            }
             exit 1
-          fi
+          }
 
           # Rename to desired artifact name
-          mv "$FORGE_ARTIFACT" "$FINAL_ARTIFACT"
+          Move-Item -Path $FORGE_ARTIFACT -Destination $FINAL_ARTIFACT -Force
           echo "Build artifact renamed to: $FINAL_ARTIFACT"
-          ls -lh "$FINAL_ARTIFACT"
+          Get-Item $FINAL_ARTIFACT | Format-List Length, LastWriteTime, FullName
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: macos-universal-build
-          path: out/make/zip/darwin/universal/${{ steps.version.outputs.artifact_name }}
+          name: windows-x64-build
+          path: dist-universal/${{ steps.version.outputs.artifact_name }}
           retention-days: 30
 
-      - name: Cleanup keychain and secrets
+      - name: Cleanup secrets
         if: always()
+        shell: powershell
         run: |
-          if [ -n "$KEYCHAIN_PATH" ] && [ -f "$KEYCHAIN_PATH" ]; then
-            security delete-keychain "$KEYCHAIN_PATH" || true
-          fi
-          rm -f .env
-          rm -f "$RUNNER_TEMP/AuthKey.p8"
+          if (Test-Path .env) {
+            Remove-Item .env -Force
+          }
 
   create-release:
-    needs: build-macos
+    needs: build-windows
     runs-on: ubuntu-latest
     if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.create_release)
     permissions:
@@ -237,7 +208,7 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: macos-universal-build
+          name: windows-x64-build
           path: ./artifacts
 
       - name: List downloaded artifacts
@@ -270,21 +241,25 @@ jobs:
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}{1}', needs.build-macos.outputs.version, steps.release_type.outputs.tag_suffix) }}
-          name: ${{ needs.build-macos.outputs.app_name }} v${{ needs.build-macos.outputs.version }}${{ steps.release_type.outputs.prerelease == 'true' && ' (Pre-release)' || '' }}
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}{1}', needs.build-windows.outputs.version, steps.release_type.outputs.tag_suffix) }}
+          name: ${{ needs.build-windows.outputs.app_name }} v${{ needs.build-windows.outputs.version }}${{ steps.release_type.outputs.prerelease == 'true' && ' (Pre-release)' || '' }}
           body: |
-            ## ${{ needs.build-macos.outputs.app_name }} v${{ needs.build-macos.outputs.version }}
+            ## ${{ needs.build-windows.outputs.app_name }} v${{ needs.build-windows.outputs.version }}
 
             ### Downloads
-            - **macOS (Universal)**: `${{ needs.build-macos.outputs.artifact_name }}`
+            - **Windows (x64)**: `${{ needs.build-windows.outputs.artifact_name }}`
 
             ### Installation
-            1. Download the `.zip` file for your platform
-            2. Extract and move `${{ needs.build-macos.outputs.app_name }}.app` to your Applications folder
-            3. On first launch, right-click and select "Open" to bypass Gatekeeper
+            1. Download the `.exe` installer for Windows
+            2. Run the installer - it will install the application and create a desktop shortcut
+            3. The app will launch automatically after installation
+
+            ### Notes
+            - Windows may show a SmartScreen warning for unsigned applications - click "More info" then "Run anyway"
+            - The installer will automatically handle updates in the future
 
             ---
             ${{ steps.release_type.outputs.prerelease == 'true' && '*This is a pre-release build. Please report any issues.*' || '*This is a stable release.*' }}
-          files: ./artifacts/${{ needs.build-macos.outputs.artifact_name }}
+          files: ./artifacts/${{ needs.build-windows.outputs.artifact_name }}
           prerelease: ${{ steps.release_type.outputs.prerelease == 'true' }}
           generate_release_notes: true
