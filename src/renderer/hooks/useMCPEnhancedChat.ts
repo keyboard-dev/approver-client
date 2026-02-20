@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Script } from '../../types'
+import { currentThreadRef } from '../components/screens/ChatPage'
 import { AIChatAdapter, ConnectionCheckResult, MissingConnectionInfo } from '../services/ai-chat-adapter'
 import { useMCPIntegration } from '../services/mcp-tool-integration'
 import { runCodeResultContext } from '../services/run-code-result-context'
-import { currentThreadRef } from '../components/screens/ChatPage'
 
 // =============================================================================
 // Thread-scoped Connection Requirements Storage

@@ -2,7 +2,7 @@ import _ from 'lodash'
 import { Message, ShareMessage } from '../../types'
 
 const DB_NAME = 'keyboard-approver-db'
-const DB_VERSION = 2
+const DB_VERSION = 3
 const MESSAGES_STORE = 'messages'
 const SHARE_MESSAGES_STORE = 'shareMessages'
 

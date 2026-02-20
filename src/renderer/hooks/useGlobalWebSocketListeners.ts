@@ -137,7 +137,6 @@ export const useGlobalWebSocketListeners = () => {
     window.electronAPI.onCollectionShareRequest(handleCollectionShareRequest)
 
     window.electronAPI.onShowShareMessage(handleShowShareMessage)
-
     return () => {
       window.electronAPI.removeAllListeners('websocket-message')
       window.electronAPI.removeAllListeners('collection-share-request')

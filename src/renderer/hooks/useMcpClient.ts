@@ -55,7 +55,6 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
     const getToken = async () => {
       try {
         const token = await window.electronAPI?.getAccessToken?.()
-
         setAccessToken(token || null)
       }
       catch (err) {
@@ -210,8 +209,7 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
     }
 
     hasConnectedRef.current = true
-
-    connect(accessToken, options.serverUrl).catch(() => {
+    connect(accessToken, options.serverUrl).catch((err) => {
       hasConnectedRef.current = false // Reset on failure so retry can work
     })
   }, [accessToken, options.serverUrl, connect])

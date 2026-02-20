@@ -9,7 +9,6 @@ import { AgenticStatusIndicator } from './AgenticStatusIndicator'
 import { Thread } from './assistant-ui/thread'
 import { MCPChatComponent } from './MCPChatComponent'
 import { Badge } from './ui/badge'
-import { Button } from './ui/button'
 import { TooltipProvider } from './ui/tooltip'
 
 export interface AssistantUIChatContentProps {
