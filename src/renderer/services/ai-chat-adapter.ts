@@ -1,7 +1,10 @@
 import type { ChatModelAdapter } from '@assistant-ui/react'
 import { Script } from '../../types'
+import { searchCombinedApps } from './combined-apps-service'
+import { analyzeCredentialRequirements } from './connection-detection-service'
 import { contextService } from './context-service'
 import { useMCPIntegration } from './mcp-tool-integration'
+import { runCodeResultContext } from './run-code-result-context'
 
 interface AIMessage {
   role: 'user' | 'assistant' | 'system'
@@ -14,6 +17,22 @@ interface AIProviderSelection {
   mcpEnabled?: boolean
 }
 
+export interface MissingConnectionInfo {
+  id: string
+  name: string
+  icon: string
+  source: 'pipedream' | 'composio' | 'local'
+  searchTerms?: string[] // Search terms for app connector search
+}
+
+export interface ConnectionCheckResult {
+  hasAllConnections: boolean
+  missingConnections: MissingConnectionInfo[]
+  detectedServices: string[]
+  /** AI reasoning explaining why connections are needed */
+  reasoning?: string
+}
+
 export class AIChatAdapter implements ChatModelAdapter {
   private currentProvider: AIProviderSelection = { provider: 'openai', model: 'gpt-3.5-turbo', mcpEnabled: false }
   private mcpIntegration: ReturnType<typeof useMCPIntegration> | null = null
@@ -22,9 +41,50 @@ export class AIChatAdapter implements ChatModelAdapter {
   private onTaskProgress?: (progress: { step: number, totalSteps: number, currentAction: string, isComplete: boolean }) => void
   private pingInterval: NodeJS.Timeout | null = null
   private isToolsExecuting = false
+  private onThreadTitleGenerated?: (title: string) => void
+  private titleGeneratedForThread = false
+  private onMissingConnectionsDetected?: (result: ConnectionCheckResult) => void
+  private skipConnectionCheck = false
+  private lastUserMessageForConnectionCheck: string | null = null
 
   constructor(provider: string = 'openai', model?: string, mcpEnabled: boolean = false) {
     this.currentProvider = { provider, model, mcpEnabled }
+  }
+
+  /**
+   * Set callback for when missing connections are detected
+   */
+  setMissingConnectionsCallback(callback: (result: ConnectionCheckResult) => void) {
+    this.onMissingConnectionsDetected = callback
+  }
+
+  /**
+   * Skip the next connection check (used when user dismisses the prompt)
+   */
+  setSkipConnectionCheck(skip: boolean) {
+    this.skipConnectionCheck = skip
+  }
+
+  /**
+   * Get the last user message that triggered a connection check
+   */
+  getLastConnectionCheckMessage(): string | null {
+    return this.lastUserMessageForConnectionCheck
+  }
+
+  /**
+   * Clear the stored connection check message
+   */
+  clearLastConnectionCheckMessage() {
+    this.lastUserMessageForConnectionCheck = null
+  }
+
+  setThreadTitleCallback(callback: (title: string) => void) {
+    this.onThreadTitleGenerated = callback
+  }
+
+  resetTitleGeneration() {
+    this.titleGeneratedForThread = false
   }
 
   setProvider(provider: string, model?: string, mcpEnabled?: boolean) {
@@ -54,6 +114,148 @@ export class AIChatAdapter implements ChatModelAdapter {
 
   setSelectedScripts(scripts: Script[]) {
     contextService.setSelectedScripts(scripts)
+  }
+
+  /**
+   * Check if user message requires connections and if they are available
+   * Uses AI-powered analysis to determine if existing credentials likely work
+   *
+   * @param conversationHistory - Full conversation history for context
+   */
+  async checkConnectionRequirements(conversationHistory: Array<{ role: 'user' | 'assistant' | 'system', content: string }>): Promise<ConnectionCheckResult> {
+    try {
+      // Get all connected accounts from context service (cached)
+      const connectedAccounts = await contextService.getConnectedAccounts()
+      const localStatus = await window.electronAPI?.getProviderAuthStatus?.().catch(() => ({}))
+      const providerStatus = (localStatus || {}) as Record<string, { authenticated?: boolean }>
+
+      // Build simplified accounts array for AI analysis
+      const accountsForAnalysis = [
+        ...connectedAccounts.pipedream.map(a => ({
+          id: a.id,
+          app: a.app?.nameSlug || a.app?.name || 'unknown',
+          name: a.name,
+        })),
+        ...connectedAccounts.composio
+          .filter(a => a.status === 'ACTIVE')
+          .map(a => ({
+            id: a.id,
+            app: a.toolkit?.slug || 'unknown',
+          })),
+        ...Object.entries(providerStatus)
+          .filter(([_, status]) => status?.authenticated)
+          .map(([provider]) => ({
+            id: `local_${provider}`,
+            app: provider,
+          })),
+      ]
+
+      // Pass full conversation history for proper context
+      const analysis = await analyzeCredentialRequirements(conversationHistory, accountsForAnalysis)
+
+      if (analysis.likelyHasCredentials) {
+        return {
+          hasAllConnections: true,
+          missingConnections: [],
+          detectedServices: [],
+        }
+      }
+
+      // User doesn't have credentials - search combined apps + check local providers
+      if (analysis.searchTermsIfNoCredentials.length > 0) {
+        const searchTerms = analysis.searchTermsIfNoCredentials
+        const missingConnections: MissingConnectionInfo[] = []
+
+        // Helper to check if a name matches any search term
+        const matchesSearchTerms = (name: string, id: string): boolean => {
+          const nameLower = name.toLowerCase()
+          const idLower = id.toLowerCase()
+          return searchTerms.some((term) => {
+            const termLower = term.toLowerCase()
+            return nameLower.includes(termLower)
+              || idLower.includes(termLower)
+              || termLower.includes(nameLower)
+          })
+        }
+
+        // Check local providers first - these get priority
+        const localProviders = await import('./local-providers-service').then(m => m.getLocalProviders())
+
+        for (const provider of localProviders) {
+          if (matchesSearchTerms(provider.name, provider.id)) {
+            missingConnections.push({
+              id: provider.id,
+              name: provider.name,
+              icon: provider.icon,
+              source: 'local',
+            })
+          }
+        }
+
+        // Get combined apps from pipedream/composio
+        // If an app exists in both, add both as separate entries
+        const searchPromises = searchTerms.map(term => searchCombinedApps(term, false))
+        const results = await Promise.all(searchPromises)
+        const seenPipedream = new Set<string>()
+        const seenComposio = new Set<string>()
+
+        for (const result of results) {
+          if (result.success && result.apps) {
+            for (const app of result.apps) {
+              // Add pipedream entry if available
+              if (app.platforms.includes('pipedream') && app.pipedreamSlug && !seenPipedream.has(app.pipedreamSlug)) {
+                seenPipedream.add(app.pipedreamSlug)
+                const icon = app.pipedreamData?.logoUrl || app.logo || ''
+                missingConnections.push({
+                  id: app.pipedreamSlug,
+                  name: app.name,
+                  icon,
+                  source: 'pipedream',
+                })
+              }
+
+              // Add composio entry if available
+              if (app.platforms.includes('composio') && app.composioSlug && !seenComposio.has(app.composioSlug)) {
+                seenComposio.add(app.composioSlug)
+                const icon = app.composioData?.meta?.logo || app.logo || ''
+                missingConnections.push({
+                  id: app.composioSlug,
+                  name: app.name,
+                  icon,
+                  source: 'composio',
+                })
+              }
+            }
+          }
+        }
+
+        if (missingConnections.length > 0) {
+          return {
+            hasAllConnections: false,
+            missingConnections: missingConnections.slice(0, 6),
+            detectedServices: searchTerms,
+            reasoning: analysis.reasoning,
+          }
+        }
+      }
+
+      // Fallback: return generic connection requirement with search terms
+      return {
+        hasAllConnections: false,
+        missingConnections: [{
+          id: 'required_connection',
+          name: 'Required Connection',
+          icon: '',
+          source: 'pipedream',
+          searchTerms: analysis.searchTermsIfNoCredentials,
+        }],
+        detectedServices: analysis.searchTermsIfNoCredentials,
+        reasoning: analysis.reasoning,
+      }
+    }
+    catch (error) {
+      return { hasAllConnections: true, missingConnections: [], detectedServices: [] }
+    }
   }
 
   private startPeriodicPing() {
@@ -99,6 +301,39 @@ export class AIChatAdapter implements ChatModelAdapter {
 
   private cleanup() {
     this.stopPeriodicPing()
+  }
+
+  /**
+   * Generate a thread title using AI based on the user's first message
+   */
+  private async generateThreadTitle(userMessage: string): Promise<void> {
+    if (this.titleGeneratedForThread || !this.onThreadTitleGenerated) {
+      return
+    }
+
+    this.titleGeneratedForThread = true
+
+    try {
+      const response = await window.electronAPI.sendAIMessage(
+        'keyboard',
+        [
+          {
+            role: 'system',
+            content: 'Generate a brief 3-6 word title for this chat based on the user message. Return ONLY the title, no quotes or punctuation.',
+          },
+          { role: 'user', content: userMessage },
+        ],
+        { model: 'claude-haiku-4-5-20251001' },
+      )
+
+      const title = response?.trim()
+      if (title && title.length > 0) {
+        this.onThreadTitleGenerated(title)
+      }
+    }
+    catch (error) {
+      // Silently fail - keep default "New Chat" title
+    }
   }
 
   private extractKeywords(text: string): string[] {
@@ -157,6 +392,8 @@ export class AIChatAdapter implements ChatModelAdapter {
 
 Use the conversation history for context, but base your classification decision on the LAST user message only.
 
+IMPORTANT: If the conversation history shows the assistant was about to use tools/abilities or the user is confirming a previous tool-use suggestion, classify as "agentic" even if the last message is short (e.g., "yes", "please do", "go ahead", "do it").
+
 WEB SEARCH ONLY (respond "web-search"):
 - Questions about current events, recent news, or what's happening now
 - Questions needing up-to-date information (latest prices, current weather, recent announcements)
@@ -196,16 +433,11 @@ Respond with only one word: "simple", "web-search", or "agentic"`
       )
 
       const classification = response.toLowerCase().trim()
-      console.log('[classifyQueryComplexity] Haiku raw response:', response)
-      console.log('[classifyQueryComplexity] Parsed classification:', classification)
-
       if (classification === 'simple') return 'simple'
       if (classification === 'web-search') return 'web-search'
       return 'agentic'
     }
     catch (error) {
-      console.error('[classifyQueryComplexity] Error:', error)
-      // On error, default to agentic (safer to have tools available)
       return 'agentic'
     }
   }
@@ -236,12 +468,7 @@ Respond with only one word: "simple", "web-search", or "agentic"`
         throw new Error('Request was aborted')
       }
 
-      console.log('[handleWebSearch] Calling web-search-general with query:', userQuery)
-
-      // Call the new general web search endpoint
       const searchResult = await window.electronAPI.webSearchGeneral(userQuery)
-
-      console.log('[handleWebSearch] Search result:', searchResult)
 
       accumulatedResponse += '\n\n✅ **Search complete!**'
       yield {
@@ -355,7 +582,7 @@ Respond with only one word: "simple", "web-search", or "agentic"`
     // CRITICAL: Remove any existing listeners from previous stream iterations
     // This prevents event listener collision in the agentic loop
     window.electronAPI.removeAIStreamListeners()
-    
+
     let fullResponse = ''
     let streamComplete = false
     let streamError: Error | null = null
@@ -384,7 +611,7 @@ Respond with only one word: "simple", "web-search", or "agentic"`
         text: `${currentAccumulated}\n\n${progressPrefix} ⏳`,
         isComplete: false,
       }
-      
+
       // Start the stream
       await window.electronAPI.sendAIMessageStream(
         this.currentProvider.provider,
@@ -392,10 +619,10 @@ Respond with only one word: "simple", "web-search", or "agentic"`
         { model: this.currentProvider.model },
       )
 
-      let lastYieldedLength = 0  // How much we've actually shown to UI
-      const CHARS_PER_YIELD = 15  // Release ~15 chars at a time for smooth typing effect
-      const YIELD_INTERVAL = 20  // ms between yields when smoothing
-      
+      let lastYieldedLength = 0 // How much we've actually shown to UI
+      const CHARS_PER_YIELD = 15 // Release ~15 chars at a time for smooth typing effect
+      const YIELD_INTERVAL = 20 // ms between yields when smoothing
+
       // Process stream and yield updates with token smoothing
       while (!streamComplete || lastYieldedLength < fullResponse.length) {
         if (abortSignal?.aborted) {
@@ -412,7 +639,7 @@ Respond with only one word: "simple", "web-search", or "agentic"`
           const availableNewContent = fullResponse.length - lastYieldedLength
           const charsToYield = Math.min(CHARS_PER_YIELD, availableNewContent)
           const newYieldLength = lastYieldedLength + charsToYield
-          
+
           const displayContent = fullResponse.substring(0, newYieldLength)
           const charCount = newYieldLength > 100
             ? ` (${newYieldLength} chars)`
@@ -425,10 +652,11 @@ Respond with only one word: "simple", "web-search", or "agentic"`
           const updatedText = `${currentAccumulated}\n\n${prefixWithCount}\n${displayText}`
           yield { text: updatedText, isComplete: false }
           lastYieldedLength = newYieldLength
-          
+
           // Short delay for smooth typing effect
           await new Promise(resolve => setTimeout(resolve, YIELD_INTERVAL))
-        } else {
+        }
+        else {
           // No new content yet, poll at normal rate
           await new Promise(resolve => setTimeout(resolve, 50))
         }
@@ -439,7 +667,7 @@ Respond with only one word: "simple", "web-search", or "agentic"`
         const availableNewContent = fullResponse.length - lastYieldedLength
         const charsToYield = Math.min(CHARS_PER_YIELD, availableNewContent)
         const newYieldLength = lastYieldedLength + charsToYield
-        
+
         const displayContent = fullResponse.substring(0, newYieldLength)
         const charCount = newYieldLength > 100 ? ` (${newYieldLength} chars)` : ''
         const displayText = newYieldLength > 300
@@ -452,10 +680,10 @@ Respond with only one word: "simple", "web-search", or "agentic"`
           isComplete: false,
         }
         lastYieldedLength = newYieldLength
-        
+
         await new Promise(resolve => setTimeout(resolve, YIELD_INTERVAL))
       }
-      
+
       // Final yield with complete response
       yield {
         text: `${currentAccumulated}\n\n${progressPrefix}\n${fullResponse}`,
@@ -534,7 +762,8 @@ Respond with only one word: "simple", "web-search", or "agentic"`
       if (firstResponseAbilityCalls.length > 0) {
         // First response already has ability calls - use it directly, skip second AI call
         response = toolChoiceResponse
-      } else {
+      }
+      else {
         // No abilities in first response - make second call to plan tool execution
         const selectedTools = this.preContextPrompt([{ role: 'user', content: toolChoiceResponse }])
 
@@ -548,7 +777,7 @@ Respond with only one word: "simple", "web-search", or "agentic"`
         for await (const update of this.streamAIResponseWithProgress(
           selectedTools,
           '🎯 **Planning tool execution...**',
-          accumulatedResponse.replace('\n\n⏳ _Preparing next step..._', ''),  // Remove transition indicator
+          accumulatedResponse.replace('\n\n⏳ _Preparing next step..._', ''), // Remove transition indicator
           abortSignal,
         )) {
           yield {
@@ -629,43 +858,43 @@ Respond with only one word: "simple", "web-search", or "agentic"`
 
             // Execute the ability with periodic UI updates
             const executionPromise = this.mcpIntegration.executeAbilityCall(abilityName, parameters)
-            
+
             // Yield periodic progress updates while waiting for execution
             let executionComplete = false
             let executionResult: any = null
             let executionError: Error | null = null
-            
+
             executionPromise
-              .then(result => {
+              .then((result) => {
                 executionResult = result
                 executionComplete = true
               })
-              .catch(err => {
+              .catch((err) => {
                 executionError = err
                 executionComplete = true
               })
-            
+
             // Show animated progress while waiting - include elapsed time for visibility
             let loopCount = 0
             const startTime = Date.now()
             while (!executionComplete) {
               loopCount++
-              
+
               const elapsedSec = Math.floor((Date.now() - startTime) / 1000)
               const spinner = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'][loopCount % 10]
-              
+
               // Update the last line with visible progress (elapsed time + spinner)
               const lines = accumulatedResponse.split('\n')
               lines[lines.length - 1] = `- **${abilityName}**: ${spinner} Running... (${elapsedSec}s)`
               const animatedResponse = lines.join('\n')
-              
+
               yield {
                 content: [{ type: 'text' as const, text: animatedResponse }],
               }
-              
-              await new Promise(resolve => setTimeout(resolve, 300))  // Faster updates for smoother animation
+
+              await new Promise(resolve => setTimeout(resolve, 300)) // Faster updates for smoother animation
             }
-            
+
             if (executionError) {
               throw executionError
             }
@@ -684,7 +913,22 @@ Respond with only one word: "simple", "web-search", or "agentic"`
             const resultString = typeof executionResult === 'object'
               ? JSON.stringify(executionResult, null, 2)
               : String(executionResult)
-            abilitiesRan += `\n**Result:** ${resultString}`
+
+            // Store result in context service for intelligent summarization
+            // This keeps full results if under 25k tokens, otherwise summarizes
+            const storedResult = runCodeResultContext.storeResult(abilityName, resultString)
+
+            // Use the context-appropriate content (full or summarized)
+            const contextContent = storedResult.wasSummarized
+              ? storedResult.summary
+              : resultString
+
+            abilitiesRan += `\n**Result:** ${contextContent}`
+
+            // If result was summarized, mention it so AI knows full data was captured
+            if (storedResult.wasSummarized) {
+              abilitiesRan += `\n_[Result was large (${storedResult.tokenCount} tokens) - summarized with key data preserved. IDs, URLs, and important values extracted for future use.]_`
+            }
 
             if (abortSignal?.aborted) {
               throw new Error('Request was aborted')
@@ -825,6 +1069,42 @@ ${analysisResponse}`
         }
       })
 
+      // Check if this is the first user message and generate thread title
+      const userMessages = aiMessages.filter(m => m.role === 'user')
+      if (userMessages.length === 1 && userMessages[0]?.content) {
+        // Generate title asynchronously (non-blocking)
+        this.generateThreadTitle(userMessages[0].content)
+      }
+
+      // Check for missing connections before proceeding (only for keyboard provider with MCP)
+      if (this.currentProvider.provider === 'keyboard' && this.currentProvider.mcpEnabled && !this.skipConnectionCheck) {
+        const lastUserMessage = aiMessages.filter(m => m.role === 'user').pop()
+        if (lastUserMessage?.content) {
+          // Pass full conversation history for proper context understanding
+          const connectionResult = await this.checkConnectionRequirements(aiMessages)
+
+          if (!connectionResult.hasAllConnections && connectionResult.missingConnections.length > 0) {
+            // Store the user message for potential "continue anyway" flow
+            this.lastUserMessageForConnectionCheck = lastUserMessage.content
+
+            // Notify callback about missing connections
+            if (this.onMissingConnectionsDetected) {
+              this.onMissingConnectionsDetected(connectionResult)
+            }
+
+            // Yield a response indicating missing connections
+            const serviceNames = connectionResult.missingConnections.map(c => c.name).join(', ')
+            yield {
+              content: [{
+                type: 'text' as const,
+                text: `I don't have access to ${serviceNames} tools - I'm currently missing some app connections.\n\nTo complete your request, I would need access to the following services. Please connect them using the prompts above, then try again.`,
+              }],
+            }
+            return
+          }
+        }
+      }
+
       // Inject enhanced context into system prompt for keyboard provider
       if (this.currentProvider.provider === 'keyboard' && this.currentProvider.mcpEnabled && aiMessages.length > 0) {
         try {
@@ -833,7 +1113,6 @@ ${analysisResponse}`
           if (lastUserMessage?.role === 'user') {
             // Get enhanced context with planning token, user tokens, and codespace info
             const enhancedSystemPrompt = await contextService.buildEnhancedSystemPrompt(lastUserMessage.content)
-            console.log('enhancedSystemPrompt', enhancedSystemPrompt)
             const existingSystemIndex = aiMessages.findIndex(m => m.role === 'system')
             if (existingSystemIndex >= 0) {
               // Replace existing system message with enhanced one
@@ -883,12 +1162,14 @@ ${analysisResponse}`
 
       // Handle keyboard.dev ability calling if enabled
       const abilitiesAvailable = this.mcpIntegration?.functions || []
-      console.log('[run] mcpEnabled:', this.currentProvider.mcpEnabled, 'abilitiesAvailable:', abilitiesAvailable.length)
-
       if (this.currentProvider.mcpEnabled && abilitiesAvailable.length > 0) {
         // Classify query complexity first to route to appropriate handler
-        const queryType = await this.classifyQueryComplexity(aiMessages)
-        console.log('[run] Query type classification result:', queryType)
+        let queryType = await this.classifyQueryComplexity(aiMessages)
+        if (queryType === 'simple' && this.skipConnectionCheck) {
+          queryType = 'agentic'
+        }
+        // Reset skip flag after use
+        this.skipConnectionCheck = false
 
         if (queryType === 'web-search') {
           // Web search query - use streamlined web search workflow with current date context
@@ -944,9 +1225,9 @@ ${analysisResponse}`
         )
 
         let lastYieldedLength = 0
-        const CHARS_PER_YIELD = 15  // Smooth typing effect
-        const YIELD_INTERVAL = 20  // ms between yields
-        
+        const CHARS_PER_YIELD = 15 // Smooth typing effect
+        const YIELD_INTERVAL = 20 // ms between yields
+
         while (!streamComplete || lastYieldedLength < accumulatedText.length) {
           if (abortSignal?.aborted) {
             throw new Error('Request was aborted')
@@ -961,18 +1242,31 @@ ${analysisResponse}`
             const availableNew = accumulatedText.length - lastYieldedLength
             const charsToYield = Math.min(CHARS_PER_YIELD, availableNew)
             const newYieldLength = lastYieldedLength + charsToYield
-            
+
             yield {
               content: [{ type: 'text' as const, text: accumulatedText.substring(0, newYieldLength) }],
             }
             lastYieldedLength = newYieldLength
-            
+
             // Short delay for smooth typing effect
             await new Promise(resolve => setTimeout(resolve, YIELD_INTERVAL))
-          } else {
+          }
+          else {
             // No new content yet, poll at normal rate
             await new Promise(resolve => setTimeout(resolve, 50))
           }
+        }
+
+        // Safety net: if the AI produced ability-call JSON in a "simple" response,
+        // it means the classifier was wrong. Parse and execute the abilities.
+        if (this.mcpIntegration && this.foundAbilityCallsInResponse(accumulatedText).length > 0) {
+          // Clean up stream listeners before re-routing
+          window.electronAPI.removeAIStreamListeners()
+          // Re-run through the agentic handler with the accumulated context
+          for await (const result of this.handleWithAbilityCalling(aiMessages, abortSignal)) {
+            yield result
+          }
+          return
         }
       }
       finally {

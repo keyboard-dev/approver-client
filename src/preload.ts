@@ -301,6 +301,7 @@ export interface ElectronAPI {
   onUpdateAvailable: (callback: (event: IpcRendererEvent, updateInfo: UpdateInfo) => void) => void
   onDownloadProgress: (callback: (event: IpcRendererEvent, progressInfo: ProgressInfo) => void) => void
   onUpdateDownloaded: (callback: (event: IpcRendererEvent, updateInfo: UpdateInfo) => void) => void
+  notifyRendererReady: () => void
   checkForUpdates: () => Promise<void>
   downloadUpdate: () => Promise<void>
   quitAndInstall: () => Promise<void>
@@ -387,6 +388,7 @@ export interface ElectronAPI {
       keyboard_shortcut_ids?: string[]
       cloud_credentials?: string[]
       pipedream_proxy_apps?: string[]
+      composio_proxy_apps?: string[]
       ask?: string | null
     }>
   }) => Promise<{ success: boolean, data?: unknown, error?: string }>
@@ -404,6 +406,7 @@ export interface ElectronAPI {
       keyboard_shortcut_ids?: string[]
       cloud_credentials?: string[]
       pipedream_proxy_apps?: string[]
+      composio_proxy_apps?: string[]
       ask?: string | null
     }>
   }) => Promise<{ success: boolean, data?: unknown, error?: string }>
@@ -412,12 +415,14 @@ export interface ElectronAPI {
     keyboard_shortcut_ids?: string[]
     cloud_credentials?: string[]
     pipedream_proxy_apps?: string[]
+    composio_proxy_apps?: string[]
     ask?: string | null
   }) => Promise<{ success: boolean, data?: unknown, error?: string }>
   updateTriggerTask: (taskId: string, config: {
     keyboard_shortcut_ids?: string[]
     cloud_credentials?: string[]
     pipedream_proxy_apps?: string[]
+    composio_proxy_apps?: string[]
     ask?: string | null
   }) => Promise<{ success: boolean, data?: unknown, error?: string }>
   getTriggerTasks: (deployedTriggerId: string, limit?: number) => Promise<{ success: boolean, data?: unknown, error?: string }>
@@ -540,7 +545,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('show-message', callback)
   },
   onWebSocketMessage: (callback: (event: IpcRendererEvent, message: Message) => void): void => {
-    ipcRenderer.on('websocket-message', callback)
+    ipcRenderer.on('websocket-message', (event, message) => {
+      callback(event, message)
+    })
   },
   onCollectionShareRequest: (callback: (event: IpcRendererEvent, shareMessage: ShareMessage) => void): void => {
     ipcRenderer.on('collection-share-request', callback)
@@ -694,6 +701,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onDownloadProgress: (callback: (event: IpcRendererEvent, progressInfo: ProgressInfo) => void): void => {
     ipcRenderer.on('download-progress', callback)
   },
+  notifyRendererReady: (): void => {
+    ipcRenderer.send('renderer-ready')
+  },
   onUpdateDownloaded: (callback: (event: IpcRendererEvent, updateInfo: UpdateInfo) => void): void => {
     ipcRenderer.on('update-downloaded', callback)
   },
@@ -784,6 +794,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       keyboard_shortcut_ids?: string[]
       cloud_credentials?: string[]
       pipedream_proxy_apps?: string[]
+      composio_proxy_apps?: string[]
       ask?: string | null
     }>
   }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('deploy-pipedream-trigger', config),
@@ -801,6 +812,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       keyboard_shortcut_ids?: string[]
       cloud_credentials?: string[]
       pipedream_proxy_apps?: string[]
+      composio_proxy_apps?: string[]
       ask?: string | null
     }>
   }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('deploy-pipedream-schedule-trigger', config),
@@ -809,12 +821,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     keyboard_shortcut_ids?: string[]
     cloud_credentials?: string[]
     pipedream_proxy_apps?: string[]
+    composio_proxy_apps?: string[]
     ask?: string | null
   }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('create-trigger-task', config),
   updateTriggerTask: (taskId: string, config: {
     keyboard_shortcut_ids?: string[]
     cloud_credentials?: string[]
     pipedream_proxy_apps?: string[]
+    composio_proxy_apps?: string[]
     ask?: string | null
   }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('update-trigger-task', taskId, config),
   getTriggerTasks: (deployedTriggerId: string, limit = 10): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('get-trigger-tasks', deployedTriggerId, limit),

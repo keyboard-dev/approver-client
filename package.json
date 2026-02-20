@@ -1,6 +1,6 @@
 {
   "name": "keyboard-ai",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Desktop notification app for MCP approval workflow",
   "main": "dist/main.js",
   "author": "keyboard.dev team",
@@ -11,12 +11,13 @@
     "dev:renderer": "vite --host",
     "start": "electron-forge start",
     "dev": "npm run build && npm run copy-assets && electron dist/main.js --dev",
-    "copy-assets": "cpy \"assets/**\" dist/assets",
+    "copy-assets": "cpy \"assets/**\" dist/assets && cpy dev-app-update.yml dist",
     "create-windows-icon": "node scripts/create-windows-icon.js",
     "build-mac-universal": "npm run build && electron-forge make --platform=darwin --arch=universal",
     "build-mac-dev": "SKIP_SIGNING=true npm run build-mac-universal",
     "check-build": "tail -f build.log",
-    "build-win-universal": "npm run build && electron-forge make --platform=win32 --arch=x64,ia32,arm64",
+    "build-win": "npm run build && electron-forge make --platform=win32 --arch=x64,ia32,arm64",
+    "build-win-universal": "npm run build && node scripts/build-win-universal.js",
     "check-certificates": "node scripts/check-certificates.js",
     "test-client": "node test-client.js",
     "test-approval": "node test-approval-client.js",
@@ -50,7 +51,9 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cors": "^2.8.5",
+    "electron-log": "^5.4.3",
     "electron-squirrel-startup": "^1.0.1",
+    "electron-updater": "^6.3.9",
     "express": "^4.21.2",
     "jose": "^6.1.0",
     "lodash": "^4.17.21",
@@ -150,6 +153,12 @@
     },
     "linux": {
       "icon": "assets/keyboard-dock.png"
-    }
+    },
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "https://api.keyboard.dev/update"
+      }
+    ]
   }
 }

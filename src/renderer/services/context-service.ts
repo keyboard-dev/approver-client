@@ -2,24 +2,46 @@ import { CodespaceInfo, Script } from '../../types'
 import { generatePlanningToken, toolsToAbilities } from './ability-tools'
 import type { MCPAbilityFunction } from './mcp-tool-integration'
 import type { PipedreamAccount } from './pipedream-service'
+import { runCodeResultContext } from './run-code-result-context'
 
 export interface UserTokensResponse {
   tokensAvailable?: string[]
   error?: string
 }
 
+// Composio connected account from /api/composio/accounts
+export interface ComposioAccountContext {
+  id: string
+  status: string
+  toolkit: {
+    slug: string
+  }
+  isDisabled: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ExecutorConnectionInfo {
+  connected: boolean
+  target?: {
+    type: 'localhost' | 'codespace'
+    url: string
+    name?: string
+    codespaceName?: string
+  }
+}
+
 export interface EnhancedContext {
   planningToken: string
   userTokens: string[]
   codespaceInfo: CodespaceInfo | null
+  executorConnection: ExecutorConnectionInfo | null
   selectedScripts: Script[]
   pipedreamAccounts: PipedreamAccount[]
-  timestamp: number
+  composioAccounts: ComposioAccountContext[]
 }
 
 export class ContextService {
-  private cachedContext: EnhancedContext | null = null
-  private contextExpiry: number = 5 * 60 * 1000 // 5 minutes
   private mcpFunctions: MCPAbilityFunction[] = []
   private selectedScripts: Script[] = []
 
@@ -35,8 +57,6 @@ export class ContextService {
    */
   setSelectedScripts(scripts: Script[]): void {
     this.selectedScripts = scripts
-    // Clear cached context when scripts change
-    this.cachedContext = null
   }
 
   /**
@@ -60,36 +80,45 @@ export class ContextService {
 
   /**
    * Get comprehensive context for AI system prompt
+   * Always fetches fresh data to ensure up-to-date connected accounts
    */
   async getEnhancedContext(): Promise<EnhancedContext> {
-    // Check if we have valid cached context
-    if (this.cachedContext && (Date.now() - this.cachedContext.timestamp) < this.contextExpiry) {
-      return this.cachedContext
-    }
-
     // Generate new planning token
     const planningToken = generatePlanningToken()
 
-    // Fetch user tokens, codespace info, and pipedream accounts in parallel
-    const [userTokens, codespaceInfo, pipedreamAccounts] = await Promise.allSettled([
+    // Fetch user tokens, codespace info, executor connection, pipedream accounts, and composio accounts in parallel
+    const [userTokens, codespaceInfo, executorConnection, pipedreamAccounts, composioAccounts] = await Promise.allSettled([
       this.fetchUserTokens(),
       this.fetchCodespaceInfo(),
+      this.fetchExecutorConnection(),
       this.fetchPipedreamAccounts(),
+      this.fetchComposioAccounts(),
     ])
 
-    const context: EnhancedContext = {
+    return {
       planningToken,
       userTokens: userTokens.status === 'fulfilled' ? userTokens.value : [],
       codespaceInfo: codespaceInfo.status === 'fulfilled' ? codespaceInfo.value : null,
+      executorConnection: executorConnection.status === 'fulfilled' ? executorConnection.value : null,
       selectedScripts: this.selectedScripts,
       pipedreamAccounts: pipedreamAccounts.status === 'fulfilled' ? pipedreamAccounts.value : [],
-      timestamp: Date.now(),
+      composioAccounts: composioAccounts.status === 'fulfilled' ? composioAccounts.value : [],
     }
+  }
 
-    // Cache the context
-    this.cachedContext = context
-
-    return context
+  /**
+   * Get connected accounts for connection requirement checks
+   * Lightweight method that uses cached context without building full system prompt
+   */
+  async getConnectedAccounts(): Promise<{
+    pipedream: PipedreamAccount[]
+    composio: ComposioAccountContext[]
+  }> {
+    const context = await this.getEnhancedContext()
+    return {
+      pipedream: context.pipedreamAccounts,
+      composio: context.composioAccounts,
+    }
   }
 
   /**
@@ -108,6 +137,15 @@ export class ContextService {
           docResources: context.codespaceInfo.docResources,
         }, null, 2)
       : 'No codespace information available'
+
+    // Build service URL section
+    const serviceUrlSection = context.executorConnection?.target?.url
+      ? `
+SERVICE EXECUTION URL:
+${context.executorConnection.target.url}
+
+Note: This is the actual URL of the code execution service. The service type is "${context.executorConnection.target.type}"${context.executorConnection.target.codespaceName ? ` (codespace: ${context.executorConnection.target.codespaceName})` : ''}.`
+      : ''
 
     const abilitiesList = JSON.stringify(toolsToAbilities, null, 2)
 
@@ -172,6 +210,37 @@ ${JSON.stringify(pipedreamAccountsList, null, 2)}
 Note: Use the accountId when making API calls that require a connected account reference (e.g., for Pipedream triggers or actions that need account authentication).`
       : ''
 
+    // Build Composio connected accounts section
+    const composioAccountsList = context.composioAccounts.length > 0
+      ? context.composioAccounts
+          .filter(account => account.status === 'ACTIVE' && !account.isDisabled)
+          .map(account => ({
+            accountId: account.id,
+            appName: account.toolkit.slug,
+            status: account.status,
+          }))
+      : []
+
+    const composioAccountsSection = composioAccountsList.length > 0
+      ? `
+
+COMPOSIO CONNECTED ACCOUNTS:
+${JSON.stringify(composioAccountsList, null, 2)}
+
+Note: These are Composio-managed OAuth connections. The appName (toolkit slug) identifies the service (e.g., "slack", "github", "googlecalendar"). Use the accountId when deploying Composio triggers or making authenticated API calls through Composio.`
+      : ''
+
+    // Get previous run-code execution results for context
+    const previousResultsContext = runCodeResultContext.getExtractedDataSummary()
+    const previousResultsSection = previousResultsContext
+      ? `
+
+PREVIOUS EXECUTION CONTEXT:
+${previousResultsContext}
+
+Note: These IDs, URLs, and data values are from previous tool executions in this session. Use them when making follow-up API calls or referencing created resources.`
+      : ''
+
     return `You are a helpful AI assistant with access to a secure code execution environment.  Any code you will try to execute will also be reviewed by a human before execution so you can execute and write code with confidence.
 
 This is a real planning token to pass the run-code ability.  Make sure to use it when calling the run-code ability.
@@ -190,7 +259,7 @@ ${userTokensList}
 Here is information about the actual code execution environment.  This is where you will execute your code.  Additionally there will be a list of other environment variables that you can leverage in your code.
 
 CODESPACE INFORMATION:
-${codespaceDetails}${selectedScriptsSection}
+${codespaceDetails}${serviceUrlSection}${selectedScriptsSection}
 
 API RESEARCH GUIDANCE:
 - Use the web-search ability to find official documentation and examples
@@ -201,7 +270,7 @@ API RESEARCH GUIDANCE:
 - Only after you tried to use the web-search ability, and it didn't work, then you can use the run-code ability to execute code but the idea is to use the web-search ability first.
 
 Full abilities description and schema:
-${abilitiesList}${additionalToolsSection}${pipedreamAccountsSection}
+${abilitiesList}${additionalToolsSection}${pipedreamAccountsSection}${composioAccountsSection}${previousResultsSection}
 
 INSTRUCTIONS:
 - You can execute abilities directly using JSON format: {"ability": "ability-name", "parameters": {...}}
@@ -258,6 +327,22 @@ USER REQUEST: ${userMessage}`
   }
 
   /**
+   * Fetch executor connection status (includes service URL)
+   */
+  private async fetchExecutorConnection(): Promise<ExecutorConnectionInfo | null> {
+    try {
+      const status = await window.electronAPI?.getExecutorConnectionStatus?.()
+      if (status) {
+        return status
+      }
+      return null
+    }
+    catch {
+      return null
+    }
+  }
+
+  /**
    * Fetch Pipedream connected accounts
    */
   private async fetchPipedreamAccounts(): Promise<PipedreamAccount[]> {
@@ -277,17 +362,22 @@ USER REQUEST: ${userMessage}`
   }
 
   /**
-   * Clear cached context (useful for forcing refresh)
+   * Fetch Composio connected accounts
    */
-  clearCache(): void {
-    this.cachedContext = null
-  }
-
-  /**
-   * Check if context is stale and needs refresh
-   */
-  isContextStale(): boolean {
-    return !this.cachedContext || (Date.now() - this.cachedContext.timestamp) >= this.contextExpiry
+  private async fetchComposioAccounts(): Promise<ComposioAccountContext[]> {
+    try {
+      const response = await window.electronAPI?.listComposioConnectedAccounts?.()
+      if (response?.success && response?.data) {
+        const data = response.data as { items?: ComposioAccountContext[] }
+        if (data.items) {
+          return data.items
+        }
+      }
+      return []
+    }
+    catch {
+      return []
+    }
   }
 }
 

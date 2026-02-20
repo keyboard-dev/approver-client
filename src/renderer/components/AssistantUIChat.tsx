@@ -4,23 +4,13 @@ import { Message } from '../../types'
 import { useAuth } from '../hooks/useAuth'
 import { useMCPEnhancedChat } from '../hooks/useMCPEnhancedChat'
 import { useWebSocketConnection } from '../hooks/useWebSocketConnection'
-import { AbilityExecutionPanel } from './AbilityExecutionPanel'
 import { AgenticStatusIndicator } from './AgenticStatusIndicator'
 import { Thread } from './assistant-ui/thread'
+import { ThreadTracker } from './assistant-ui/ThreadTracker'
 import { MCPChatComponent } from './MCPChatComponent'
-import { Badge } from './ui/badge'
-import { Button } from './ui/button'
-import { Card, CardContent, CardHeader } from './ui/card'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from './ui/dropdown-menu'
 import { TooltipProvider } from './ui/tooltip'
 
 interface AssistantUIChatProps {
-  onBack: () => void
   currentApprovalMessage?: Message
   onApproveMessage?: (message: Message) => void
   onRejectMessage?: (message: Message) => void
@@ -72,18 +62,9 @@ const PROVIDERS: ProviderConfig[] = [
       { id: 'gemini-pro', name: 'Gemini Pro' },
     ],
   },
-  {
-    id: 'mcp',
-    name: 'MCP Server (Legacy)',
-    supportsMCP: false,
-    models: [
-      { id: 'mcp-tools', name: 'MCP Tools & Resources' },
-    ],
-  },
 ]
 
 const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
-  onBack,
   currentApprovalMessage,
   onApproveMessage,
   onRejectMessage,
@@ -93,7 +74,6 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
   const [selectedModel, setSelectedModel] = useState('claude-sonnet-4-5-20250929')
   const mcpEnabled = true // Always enabled
   const [availableProviders, setAvailableProviders] = useState<string[]>([])
-  const [showExecutionPanel, setShowExecutionPanel] = useState(false)
 
   // Auth and WebSocket connection management
   const { authStatus, isSkippingAuth } = useAuth()
@@ -138,9 +118,6 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
     }
     loadProviders()
   }, [selectedProvider])
-
-  // Get current provider config
-  const currentProvider = PROVIDERS.find(p => p.id === selectedProvider)
 
   // Set MCP to always enabled and auto-connect to codespace
   useEffect(() => {
@@ -190,178 +167,72 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
 
   const runtime = useLocalRuntime(mcpChat.adapter)
 
+  // Handler for provider change
+  const handleProviderChange = (providerId: string, defaultModelId?: string) => {
+    setSelectedProvider(providerId)
+    if (defaultModelId) {
+      setSelectedModel(defaultModelId)
+    }
+  }
+
   return (
     <TooltipProvider>
       <AssistantRuntimeProvider runtime={runtime}>
-        <Card className="w-full h-full flex flex-col overflow-hidden">
-          <CardHeader className="pb-3">
-            {/* Compact single-row header */}
-            <div className="flex items-center justify-between gap-3">
-              <Button variant="outline" size="sm" onClick={onBack}>
-                ← Back
-              </Button>
-
-              <div className="flex items-center gap-3 flex-1">
-                {/* Provider Dropdown */}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" disabled={availableProviders.length === 0}>
-                      <span className="text-xs font-medium">
-                        {currentProvider?.name || 'Provider'}
-                      </span>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent>
-                    {PROVIDERS
-                      .filter(p => availableProviders.includes(p.id))
-                      .map(provider => (
-                        <DropdownMenuItem
-                          key={provider.id}
-                          onClick={() => {
-                            setSelectedProvider(provider.id)
-                            if (provider.models[0]) {
-                              setSelectedModel(provider.models[0].id)
-                            }
-                          }}
-                        >
-                          {provider.name}
-                        </DropdownMenuItem>
-                      ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
-                {/* Model Dropdown */}
-                {currentProvider && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="sm" className="max-w-[200px]">
-                        <span className="text-xs font-medium truncate">
-                          {currentProvider.models.find(m => m.id === selectedModel)?.name || 'Model'}
-                        </span>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent>
-                      {currentProvider.models.map(model => (
-                        <DropdownMenuItem
-                          key={model.id}
-                          onClick={() => setSelectedModel(model.id)}
-                        >
-                          {model.name}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
-
-                {selectedProvider === 'mcp' && (
-                  <Badge variant="outline" className="text-xs">
-                    🔌 MCP Legacy Mode
-                  </Badge>
-                )}
-
-                {availableProviders.length === 0 && (
-                  <Badge variant="destructive" className="text-xs">
-                    No providers configured
-                  </Badge>
-                )}
-              </div>
-
-              {/* MCP Status & Controls */}
-              {currentProvider?.supportsMCP && selectedProvider !== 'mcp' && (
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-2 bg-background border rounded-lg px-3 py-1.5">
-                    <span className="text-xs font-medium">🚀</span>
-                    {mcpChat.mcpConnected && (
-                      <Badge variant="secondary" className="text-xs h-5">
-                        {mcpChat.mcpAbilities}
-                      </Badge>
-                    )}
-                    {mcpChat.mcpConnected
-                      ? (
-                          <Badge variant="default" className="text-xs h-5 bg-green-100 text-green-800 border-0">
-                            Connected
-                          </Badge>
-                        )
-                      : mcpChat.mcpError
-                        ? (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={mcpChat.refreshMCPConnection}
-                              className="text-xs h-5 px-2"
-                            >
-                              Retry
-                            </Button>
-                          )
-                        : (
-                            <Badge variant="secondary" className="text-xs h-5">
-                              Connecting...
-                            </Badge>
-                          )}
-                  </div>
-
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowExecutionPanel(!showExecutionPanel)}
-                    className="text-xs"
-                  >
-                    🔍
-                    {' '}
-                    {mcpChat.executions.length}
-                  </Button>
-                </div>
-              )}
-            </div>
-          </CardHeader>
-
-          <CardContent className="flex-1 flex flex-col p-6 min-h-0">
-            <div className="flex-1 min-h-0 h-full">
-              {selectedProvider === 'mcp'
-                ? (
-                    <MCPChatComponent
-                      serverUrl="https://mcp.keyboard.dev"
-                      clientName="keyboard-approver-mcp"
-                    />
-                  )
-                : (
-                    <div className="flex flex-col h-full">
-                      {/* Agentic Status Indicator - only shown when actively working */}
-                      {mcpEnabled && (mcpChat.isExecutingAbility || mcpChat.agenticProgress) && (
-                        <div className="mb-2">
-                          <AgenticStatusIndicator
-                            isAgenticMode={mcpChat.isAgenticMode}
-                            agenticProgress={mcpChat.agenticProgress}
-                            isExecutingAbility={mcpChat.isExecutingAbility}
-                            currentAbility={mcpChat.currentAbility}
-                          />
-                        </div>
-                      )}
-
-                      <div className="flex-1 flex flex-col gap-3 min-h-0">
-                        <Thread
-                          currentApprovalMessage={currentApprovalMessage}
-                          onApproveMessage={onApproveMessage}
-                          onRejectMessage={onRejectMessage}
-                          onClearMessage={onClearApprovalMessage}
-                        />
-                      </div>
+        {/* Track current thread for approval message association and title generation */}
+        <ThreadTracker onTitleCallbackReady={mcpChat.setThreadTitleCallback} />
+        <div className="w-full h-full flex flex-col overflow-hidden">
+          {selectedProvider === 'mcp'
+            ? (
+                <MCPChatComponent
+                  serverUrl="https://mcp.keyboard.dev"
+                  clientName="keyboard-approver-mcp"
+                />
+              )
+            : (
+                <div className="flex flex-col h-full">
+                  {/* Agentic Status Indicator - only shown when actively working */}
+                  {mcpEnabled && (mcpChat.isExecutingAbility || mcpChat.agenticProgress) && (
+                    <div className="mb-2 px-4">
+                      <AgenticStatusIndicator
+                        isAgenticMode={mcpChat.isAgenticMode}
+                        agenticProgress={mcpChat.agenticProgress}
+                        isExecutingAbility={mcpChat.isExecutingAbility}
+                        currentAbility={mcpChat.currentAbility}
+                      />
                     </div>
                   )}
-            </div>
-          </CardContent>
-        </Card>
-      </AssistantRuntimeProvider>
 
-      {/* Ability Execution Panel - Fixed overlay */}
-      <AbilityExecutionPanel
-        executions={mcpChat.executions}
-        isVisible={showExecutionPanel}
-        onClose={() => setShowExecutionPanel(false)}
-        currentStep={mcpChat.agenticProgress?.step}
-        totalSteps={mcpChat.agenticProgress?.totalSteps}
-        currentAction={mcpChat.agenticProgress?.currentAction}
-      />
+                  <div className="flex-1 flex flex-col min-h-0">
+                    <Thread
+                      currentApprovalMessage={currentApprovalMessage}
+                      onApproveMessage={onApproveMessage}
+                      onRejectMessage={onRejectMessage}
+                      onClearMessage={onClearApprovalMessage}
+                      // Provider/Model props
+                      providers={PROVIDERS}
+                      availableProviders={availableProviders}
+                      selectedProvider={selectedProvider}
+                      selectedModel={selectedModel}
+                      onProviderChange={handleProviderChange}
+                      onModelChange={setSelectedModel}
+                      // MCP props
+                      mcpConnected={mcpChat.mcpConnected}
+                      mcpAbilities={mcpChat.mcpAbilities}
+                      mcpError={mcpChat.mcpError}
+                      onRetryMCP={mcpChat.refreshMCPConnection}
+                      // Connection requirements props
+                      missingConnections={mcpChat.missingConnections}
+                      showConnectionPrompt={mcpChat.showConnectionPrompt}
+                      onClearConnectionPrompt={mcpChat.clearConnectionPrompt}
+                      onSkipConnectionCheck={mcpChat.skipConnectionCheckOnce}
+                      getContinuationMessage={mcpChat.getContinuationMessage}
+                      connectionReasoning={mcpChat.connectionReasoning}
+                    />
+                  </div>
+                </div>
+              )}
+        </div>
+      </AssistantRuntimeProvider>
     </TooltipProvider>
   )
 }

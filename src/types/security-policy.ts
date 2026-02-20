@@ -11,27 +11,27 @@
 /**
  * HTTP methods for API path rules
  */
-export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS' | '*';
+export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS' | '*'
 
 /**
  * API path rule for Layer 3: API Path Control
  */
 export interface ApiPathRule {
   /** HTTP method (e.g., 'GET', 'POST', or '*' for all) */
-  method: HttpMethod;
+  method: HttpMethod
   /** API path pattern (supports wildcards with *) */
-  path: string;
+  path: string
   /** Whether this path is allowed or blocked */
-  allow: boolean;
+  allow: boolean
   /** Optional description of what this rule does */
-  description?: string;
+  description?: string
 }
 
 /**
  * API path rules organized by domain
  */
 export interface ApiPathRules {
-  [domain: string]: ApiPathRule[];
+  [domain: string]: ApiPathRule[]
 }
 
 /**
@@ -39,53 +39,53 @@ export interface ApiPathRules {
  */
 export interface SecurityPolicy {
   /** Unique identifier for this policy */
-  id?: string;
+  id?: string
   /** Human-readable name for this policy */
-  name?: string;
+  name?: string
   /** Policy tier (e.g., 'free', 'pro', 'enterprise', 'custom') */
-  tier?: string;
+  tier?: string
 
   /** Layer 1: Domain Control - Allowed domains for HTTP requests */
-  allowedDomains: string[];
+  allowedDomains: string[]
 
   /** Layer 3: API Path Control - Path-level filtering per domain */
-  apiPathRules: ApiPathRules;
+  apiPathRules: ApiPathRules
 
   /** Layer 4: Package Control - Allowed npm packages */
-  allowedPackages: string[];
+  allowedPackages: string[]
 
   /** Layer 4: Package Control - Allowed system binaries */
-  allowedBinaries: string[];
+  allowedBinaries: string[]
 
   /** User who created this policy */
-  created_by?: string;
+  created_by?: string
   /** User ID this policy belongs to */
-  user_id?: string;
+  user_id?: string
   /** Whether this is an organization-level policy */
-  org_policy?: boolean;
+  org_policy?: boolean
   /** Organization ID if applicable */
-  org?: string | null;
+  org?: string | null
   /** Team ID if applicable */
-  team?: string | null;
+  team?: string | null
 
   /** Metadata */
-  createdAt?: number;
-  updatedAt?: number;
+  createdAt?: number
+  updatedAt?: number
 }
 
 /**
  * Input type for creating/updating security policies via API
  */
 export interface SecurityPolicyInput {
-  name?: string;
-  tier?: string;
-  allowedDomains?: string[];
-  apiPathRules?: ApiPathRules;
-  allowedPackages?: string[];
-  allowedBinaries?: string[];
-  org_policy?: boolean;
-  org?: string | null;
-  team?: string | null;
+  name?: string
+  tier?: string
+  allowedDomains?: string[]
+  apiPathRules?: ApiPathRules
+  allowedPackages?: string[]
+  allowedBinaries?: string[]
+  org_policy?: boolean
+  org?: string | null
+  team?: string | null
 }
 
 /**
@@ -98,7 +98,7 @@ export const DEFAULT_SECURITY_POLICY: SecurityPolicy = {
   apiPathRules: {},
   allowedPackages: [],
   allowedBinaries: [],
-};
+}
 
 /**
  * Example: Free tier policy
@@ -115,7 +115,7 @@ export const FREE_TIER_POLICY: SecurityPolicy = {
   },
   allowedPackages: ['axios', 'lodash'],
   allowedBinaries: [],
-};
+}
 
 /**
  * Example: Pro tier policy
@@ -135,7 +135,7 @@ export const PRO_TIER_POLICY: SecurityPolicy = {
   },
   allowedPackages: ['stripe', 'axios', 'lodash'],
   allowedBinaries: [],
-};
+}
 
 /**
  * Example: Enterprise tier policy
@@ -163,4 +163,4 @@ export const ENTERPRISE_TIER_POLICY: SecurityPolicy = {
   },
   allowedPackages: ['stripe', 'axios', 'openai', 'aws-sdk'],
   allowedBinaries: ['ffmpeg', 'ffprobe', 'convert'],
-};
+}

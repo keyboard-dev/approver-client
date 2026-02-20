@@ -20,9 +20,60 @@ on:
 
 env:
   NODE_ENV: development
+  TEST_BRANCHES:  # Comma-separated list of test branches
 
 jobs:
+  cleanup-old-runs:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Delete old workflow runs
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const current_run_id = context.runId;
+
+            // Get all workflow runs for this repository
+            const runs = await github.rest.actions.listWorkflowRunsForRepo({
+              owner,
+              repo,
+              per_page: 100
+            });
+
+            console.log(`Found ${runs.data.workflow_runs.length} total workflow runs`);
+
+            // Filter to only this workflow's runs (by workflow name)
+            const thisWorkflowRuns = runs.data.workflow_runs.filter(
+              run => run.name === context.workflow
+            );
+
+            console.log(`Found ${thisWorkflowRuns.length} runs for workflow: ${context.workflow}`);
+
+            // Delete all runs except the current one
+            let deleted = 0;
+            for (const run of thisWorkflowRuns) {
+              if (run.id !== current_run_id) {
+                try {
+                  await github.rest.actions.deleteWorkflowRun({
+                    owner,
+                    repo,
+                    run_id: run.id
+                  });
+                  console.log(`Deleted run ${run.id} (${run.display_title})`);
+                  deleted++;
+                } catch (error) {
+                  console.log(`Failed to delete run ${run.id}: ${error.message}`);
+                }
+              }
+            }
+
+            console.log(`Successfully deleted ${deleted} old workflow runs`);
+
   build-macos:
+    needs: cleanup-old-runs
     runs-on: macos-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -36,7 +87,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dotenvx globally
@@ -55,12 +106,8 @@ jobs:
             VERSION=$(node -p "require('./package.json').version")
           fi
 
-          # Set app name based on branch
-          if [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
-            APP_NAME="KeyboardAI-develop"
-          else
-            APP_NAME="KeyboardAI"
-          fi
+          # Always use KeyboardAI as base name (Forge doesn't respect branch-specific names)
+          APP_NAME="KeyboardAI"
 
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "app_name=$APP_NAME" >> $GITHUB_OUTPUT
@@ -68,6 +115,15 @@ jobs:
           echo "artifact_name=keyboard-approver.App-darwin-universal-latest.zip" >> $GITHUB_OUTPUT
           echo "APP_NAME=$APP_NAME" >> $GITHUB_ENV
           echo "Building version: $VERSION with app name: $APP_NAME"
+
+          # Check if current branch is a test branch
+          CURRENT_BRANCH="${{ github.ref_name }}"
+          if [[ ",$TEST_BRANCHES," == *",$CURRENT_BRANCH,"* ]]; then
+            echo "IS_TEST_BUILD=true" >> $GITHUB_ENV
+            echo "OAUTH_SERVER_URL=http://localhost:4000" >> $GITHUB_ENV
+            echo "VITE_API_URL=http://localhost:4000" >> $GITHUB_ENV
+            echo "Test build detected - using localhost:4000 for API URLs"
+          fi
 
       - name: Create encrypted .env file
         run: echo "${{ secrets.DOTENV_FILE }}" > .env
@@ -80,6 +136,9 @@ jobs:
           KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
           KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
 
+          # CRITICAL: Mask the password immediately
+          echo "::add-mask::$KEYCHAIN_PASSWORD"
+
           # Create keychain
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
@@ -87,7 +146,10 @@ jobs:
 
           # Extract certificate from encrypted env and import
           CERTIFICATE=$(dotenvx get MACOS_CERTIFICATE)
+          echo "::add-mask::$CERTIFICATE"
+
           CERTIFICATE_PASSWORD=$(dotenvx get MACOS_CERTIFICATE_PWD)
+          echo "::add-mask::$CERTIFICATE_PASSWORD"
 
           # Decode and import certificate
           echo "$CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
@@ -107,7 +169,7 @@ jobs:
           # Set as default keychain
           security default-keychain -s "$KEYCHAIN_PATH"
 
-          # Store keychain path for cleanup
+          # Store keychain path for cleanup (password is already masked)
           echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> $GITHUB_ENV
           echo "KEYCHAIN_PASSWORD=$KEYCHAIN_PASSWORD" >> $GITHUB_ENV
 
@@ -120,6 +182,8 @@ jobs:
         run: |
           # Extract the base64-encoded .p8 key content and write to file
           APPLE_API_KEY_CONTENT=$(dotenvx get APPLE_API_KEY_CONTENT)
+          echo "::add-mask::$APPLE_API_KEY_CONTENT"
+
           echo "$APPLE_API_KEY_CONTENT" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
           echo "APPLE_API_KEY=$RUNNER_TEMP/AuthKey.p8" >> $GITHUB_ENV
           echo "Apple API key file created at $RUNNER_TEMP/AuthKey.p8"
@@ -127,6 +191,7 @@ jobs:
       - name: Build macOS universal binary
         env:
           DOTENV_PRIVATE_KEY: ${{ secrets.DOTENV_PRIVATE_KEY }}
+          NODE_ENV: production
         run: dotenvx run -- npm run build-mac-universal
 
       - name: Verify and rename build output
@@ -181,14 +246,19 @@ jobs:
       - name: Determine release type
         id: release_type
         run: |
-          # Prerelease if: develop branch, or workflow_dispatch with prerelease=true
+          # Prerelease if: develop branch, test branches, or workflow_dispatch with prerelease=true
           # Full release if: main branch, or workflow_dispatch with prerelease=false
+          CURRENT_BRANCH="${{ github.ref_name }}"
+
           if [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
             echo "prerelease=true" >> $GITHUB_OUTPUT
             echo "tag_suffix=-beta" >> $GITHUB_OUTPUT
           elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
             echo "prerelease=false" >> $GITHUB_OUTPUT
             echo "tag_suffix=" >> $GITHUB_OUTPUT
+          elif [[ ",$TEST_BRANCHES," == *",$CURRENT_BRANCH,"* ]]; then
+            echo "prerelease=true" >> $GITHUB_OUTPUT
+            echo "tag_suffix=-test" >> $GITHUB_OUTPUT
           elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             echo "prerelease=${{ inputs.prerelease }}" >> $GITHUB_OUTPUT
             echo "tag_suffix=${{ inputs.prerelease == true && '-beta' || '' }}" >> $GITHUB_OUTPUT

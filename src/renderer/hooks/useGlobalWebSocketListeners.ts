@@ -1,7 +1,9 @@
 import { useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Message, ShareMessage } from '../../types'
+import { currentThreadRef } from '../components/screens/ChatPage'
 import { useDatabase } from '../providers/DatabaseProvider'
+import { isFromOurApp } from '../services/pending-tool-calls'
 import { useAuth } from './useAuth'
 
 /**
@@ -23,36 +25,69 @@ export const useGlobalWebSocketListeners = () => {
   const navigate = useNavigate()
   const location = useLocation()
   const { authStatus } = useAuth()
-  const { addMessage, addShareMessage } = useDatabase()
+  const { addMessage, addShareMessage, isInitialized } = useDatabase()
 
   // Define message types that should trigger automatic navigation to detail view
   const MESSAGE_TYPES_WITH_NAVIGATION = ['Security Evaluation Request', 'code response approval']
 
   useEffect(() => {
+    if (!isInitialized) {
+      return
+    }
+
     // Listen for websocket messages
     const handleWebSocketMessage = async (_event: unknown, message: Message) => {
-      // Only handle messages if authenticated
       if (!authStatus.authenticated) {
         return
       }
 
       try {
-        // Save to database first (critical for persistence)
-        await addMessage(message)
+        // Check if we're on a chat route and have thread context
+        const isChatRoute = location.pathname === '/' || location.pathname.startsWith('/chat')
+        const isSecurityEvaluation = message.title === 'Security Evaluation Request'
 
-        // For Security Evaluation Request and code response approval, navigate to detail view
-        // BUT only if we're not on the home route (/) where chat mode might be active
+        if (isSecurityEvaluation) {
+        }
+
+        const messageIsFromOurApp = isSecurityEvaluation
+          && !!message.explanation
+          && isFromOurApp(message.explanation)
+
+        const messageWithThread: Message = {
+          ...message,
+          isFromOurApp: messageIsFromOurApp,
+          ...(isChatRoute && currentThreadRef.threadId
+            ? {
+                threadId: currentThreadRef.threadId,
+                threadTitle: currentThreadRef.threadTitle,
+              }
+            : {}),
+        }
+
+        await addMessage(messageWithThread)
         if (MESSAGE_TYPES_WITH_NAVIGATION.includes(message.title)) {
-          // If we're on the home route, emit a custom event for AppContent to potentially handle
-          // If we're on other routes, auto-navigate to dedicated approval page
-          if (location.pathname !== '/chat') {
-            navigate(`/messages/${message.id}`)
+          // For Security Evaluation Request: use fingerprint to decide inline vs full view
+          // For code response approval: always inline if on chat route (no fingerprint to check)
+          if (isSecurityEvaluation) {
+            // Security Evaluation Request - use fingerprint matching
+            if (!isChatRoute || !messageIsFromOurApp) {
+              navigate(`/messages/${message.id}`)
+            }
+            else {
+              window.dispatchEvent(new CustomEvent('chat-approval-message', { detail: messageWithThread }))
+            }
           }
           else {
-            // On home route - emit custom event that App.tsx can listen for
-
-            window.dispatchEvent(new CustomEvent('chat-approval-message', { detail: message }))
+            // code response approval - no fingerprint, use original behavior
+            if (!isChatRoute) {
+              navigate(`/messages/${message.id}`)
+            }
+            else {
+              window.dispatchEvent(new CustomEvent('chat-approval-message', { detail: messageWithThread }))
+            }
           }
+        }
+        else {
         }
         // For other message types, don't navigate - let the current route handle the message
         // The message is already saved to DB, and route-specific components can query it
@@ -100,15 +135,12 @@ export const useGlobalWebSocketListeners = () => {
     // Register event listeners
     window.electronAPI.onWebSocketMessage(handleWebSocketMessage)
     window.electronAPI.onCollectionShareRequest(handleCollectionShareRequest)
-    window.electronAPI.onShowShareMessage(handleShowShareMessage)
 
-    // Cleanup: Remove only these specific listeners
-    // NOTE: We use removeAllListeners here because the current preload API doesn't
-    // return cleanup functions. This is safe because Layout unmounts only when the app closes.
+    window.electronAPI.onShowShareMessage(handleShowShareMessage)
     return () => {
       window.electronAPI.removeAllListeners('websocket-message')
       window.electronAPI.removeAllListeners('collection-share-request')
       window.electronAPI.removeAllListeners('show-share-message')
     }
-  }, [authStatus.authenticated, navigate, location.pathname, addMessage, addShareMessage])
+  }, [authStatus.authenticated, navigate, location.pathname, addMessage, addShareMessage, isInitialized])
 }

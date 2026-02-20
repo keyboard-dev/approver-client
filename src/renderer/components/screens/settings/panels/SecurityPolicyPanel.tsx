@@ -75,8 +75,6 @@ export const SecurityPolicyPanel: React.FC = () => {
       }
     }
     catch (error) {
-      console.error('Failed to load security policy:', error)
-      // Start in create mode on error
       setEditingPolicy({
         name: 'My Security Policy',
         tier: 'custom',
@@ -106,8 +104,6 @@ export const SecurityPolicyPanel: React.FC = () => {
     setSaving(true)
     try {
       // Console.log the finished policy as requested
-      console.log('Saving Security Policy:', JSON.stringify(editingPolicy, null, 2))
-
       let savedPolicy: SecurityPolicy | null
       if (isNew) {
         // Create new policy
@@ -119,12 +115,10 @@ export const SecurityPolicyPanel: React.FC = () => {
           allowedPackages: editingPolicy.allowedPackages || [],
           allowedBinaries: editingPolicy.allowedBinaries || [],
         })
-        console.log('Created Security Policy:', savedPolicy)
       }
       else {
         // Update existing policy
         savedPolicy = await window.electronAPI.updateSecurityPolicy(editingPolicy)
-        console.log('Updated Security Policy:', savedPolicy)
       }
 
       if (savedPolicy) {
@@ -134,7 +128,6 @@ export const SecurityPolicyPanel: React.FC = () => {
       }
     }
     catch (error) {
-      console.error('Failed to save policy:', error)
       alert(`Failed to save policy: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
     finally {
@@ -161,7 +154,6 @@ export const SecurityPolicyPanel: React.FC = () => {
       setDeleteConfirmOpen(false)
     }
     catch (error) {
-      console.error('Failed to delete policy:', error)
       alert('Failed to delete policy. Please try again.')
     }
   }
@@ -375,12 +367,12 @@ export const SecurityPolicyPanel: React.FC = () => {
                 type="text"
                 placeholder="Policy Name"
                 value={editingPolicy.name || ''}
-                onChange={(e) => updatePolicyField('name', e.target.value)}
+                onChange={e => updatePolicyField('name', e.target.value)}
                 className="flex-1"
               />
               <select
                 value={editingPolicy.tier || 'custom'}
-                onChange={(e) => updatePolicyField('tier', e.target.value)}
+                onChange={e => updatePolicyField('tier', e.target.value)}
                 className="px-[0.5rem] py-[0.38rem] border border-input rounded-md bg-background text-sm"
               >
                 <option value="free">Free Tier</option>
@@ -541,7 +533,7 @@ export const SecurityPolicyPanel: React.FC = () => {
       )}
 
       {/* Add Item Dialog (Domain, Package, Binary) */}
-      <Dialog open={addItemDialog.open} onOpenChange={(open) => setAddItemDialog({ ...addItemDialog, open })}>
+      <Dialog open={addItemDialog.open} onOpenChange={open => setAddItemDialog({ ...addItemDialog, open })}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{getDialogTitle()}</DialogTitle>
@@ -551,7 +543,7 @@ export const SecurityPolicyPanel: React.FC = () => {
             <Input
               placeholder={getDialogPlaceholder()}
               value={addItemDialog.value}
-              onChange={(e) => setAddItemDialog({ ...addItemDialog, value: e.target.value })}
+              onChange={e => setAddItemDialog({ ...addItemDialog, value: e.target.value })}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   handleAddItemSubmit()
@@ -572,7 +564,7 @@ export const SecurityPolicyPanel: React.FC = () => {
       </Dialog>
 
       {/* Add API Path Rule Dialog */}
-      <Dialog open={addApiPathDialog.open} onOpenChange={(open) => setAddApiPathDialog({ ...addApiPathDialog, open })}>
+      <Dialog open={addApiPathDialog.open} onOpenChange={open => setAddApiPathDialog({ ...addApiPathDialog, open })}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add API Path Rule</DialogTitle>
@@ -586,7 +578,7 @@ export const SecurityPolicyPanel: React.FC = () => {
               <Input
                 placeholder="api.example.com"
                 value={addApiPathDialog.domain}
-                onChange={(e) => setAddApiPathDialog({ ...addApiPathDialog, domain: e.target.value })}
+                onChange={e => setAddApiPathDialog({ ...addApiPathDialog, domain: e.target.value })}
                 autoFocus
               />
             </div>
@@ -595,14 +587,14 @@ export const SecurityPolicyPanel: React.FC = () => {
               <Input
                 placeholder="/v1/products/*"
                 value={addApiPathDialog.path}
-                onChange={(e) => setAddApiPathDialog({ ...addApiPathDialog, path: e.target.value })}
+                onChange={e => setAddApiPathDialog({ ...addApiPathDialog, path: e.target.value })}
               />
             </div>
             <div className="flex flex-col gap-2">
               <label className="text-sm font-medium">HTTP Method</label>
               <select
                 value={addApiPathDialog.method}
-                onChange={(e) => setAddApiPathDialog({ ...addApiPathDialog, method: e.target.value as HttpMethod })}
+                onChange={e => setAddApiPathDialog({ ...addApiPathDialog, method: e.target.value as HttpMethod })}
                 className="px-[0.5rem] py-[0.5rem] border border-input rounded-md bg-background text-sm"
               >
                 <option value="GET">GET</option>
@@ -619,7 +611,7 @@ export const SecurityPolicyPanel: React.FC = () => {
               <label className="text-sm font-medium">Action</label>
               <select
                 value={addApiPathDialog.allow ? 'allow' : 'block'}
-                onChange={(e) => setAddApiPathDialog({ ...addApiPathDialog, allow: e.target.value === 'allow' })}
+                onChange={e => setAddApiPathDialog({ ...addApiPathDialog, allow: e.target.value === 'allow' })}
                 className="px-[0.5rem] py-[0.5rem] border border-input rounded-md bg-background text-sm"
               >
                 <option value="allow">Allow</option>
