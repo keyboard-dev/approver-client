@@ -9,7 +9,7 @@ interface MCPChatComponentProps {
 }
 
 export const MCPChatComponent: React.FC<MCPChatComponentProps> = ({
-  serverUrl = 'https://mcp.keyboard.dev',
+  serverUrl = 'http://localhost:3000',
   clientName = 'keyboard-approver-mcp',
 }) => {
   const [messages, setMessages] = useState<Array<{ id: string, content: string, sender: 'user' | 'mcp' }>>([])

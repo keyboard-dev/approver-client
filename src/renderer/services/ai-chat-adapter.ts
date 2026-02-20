@@ -392,6 +392,8 @@ export class AIChatAdapter implements ChatModelAdapter {
 
 Use the conversation history for context, but base your classification decision on the LAST user message only.
 
+IMPORTANT: If the conversation history shows the assistant was about to use tools/abilities or the user is confirming a previous tool-use suggestion, classify as "agentic" even if the last message is short (e.g., "yes", "please do", "go ahead", "do it").
+
 WEB SEARCH ONLY (respond "web-search"):
 - Questions about current events, recent news, or what's happening now
 - Questions needing up-to-date information (latest prices, current weather, recent announcements)
@@ -1102,8 +1104,6 @@ ${analysisResponse}`
           }
         }
       }
-      // Reset skip flag after use
-      this.skipConnectionCheck = false
 
       // Inject enhanced context into system prompt for keyboard provider
       if (this.currentProvider.provider === 'keyboard' && this.currentProvider.mcpEnabled && aiMessages.length > 0) {
@@ -1164,7 +1164,16 @@ ${analysisResponse}`
       const abilitiesAvailable = this.mcpIntegration?.functions || []
       if (this.currentProvider.mcpEnabled && abilitiesAvailable.length > 0) {
         // Classify query complexity first to route to appropriate handler
-        const queryType = await this.classifyQueryComplexity(aiMessages)
+        let queryType = await this.classifyQueryComplexity(aiMessages)
+
+        // If the user explicitly chose "continue anyway" from connection check,
+        // this is always an agentic request - override simple classification
+        if (queryType === 'simple' && this.skipConnectionCheck) {
+          queryType = 'agentic'
+        }
+        // Reset skip flag after use
+        this.skipConnectionCheck = false
+
         if (queryType === 'web-search') {
           // Web search query - use streamlined web search workflow with current date context
           for await (const result of this.handleWebSearch(aiMessages, abortSignal)) {
@@ -1249,6 +1258,18 @@ ${analysisResponse}`
             // No new content yet, poll at normal rate
             await new Promise(resolve => setTimeout(resolve, 50))
           }
+        }
+
+        // Safety net: if the AI produced ability-call JSON in a "simple" response,
+        // it means the classifier was wrong. Parse and execute the abilities.
+        if (this.mcpIntegration && this.foundAbilityCallsInResponse(accumulatedText).length > 0) {
+          // Clean up stream listeners before re-routing
+          window.electronAPI.removeAIStreamListeners()
+          // Re-run through the agentic handler with the accumulated context
+          for await (const result of this.handleWithAbilityCalling(aiMessages, abortSignal)) {
+            yield result
+          }
+          return
         }
       }
       finally {

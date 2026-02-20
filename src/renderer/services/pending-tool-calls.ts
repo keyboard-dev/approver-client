@@ -36,8 +36,10 @@ const fingerprintIndex = new Map<string, string>() // fingerprint -> pendingCall
  */
 export function generateFingerprint(text: string): string {
   const normalized = text.toLowerCase().trim()
-  // Use btoa for base64 encoding (works in browser/electron renderer)
-  const fingerprint = btoa(normalized)
+  // Use TextEncoder + btoa for Unicode-safe base64 encoding
+  const bytes = new TextEncoder().encode(normalized)
+  const binary = Array.from(bytes, byte => String.fromCharCode(byte)).join('')
+  const fingerprint = btoa(binary)
   return fingerprint
 }
 

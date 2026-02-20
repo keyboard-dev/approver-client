@@ -70,7 +70,7 @@ export class AuthService {
     }
 
     const sseBackgroundService = new SSEBackgroundService({
-      serverUrl: 'https://mcp.keyboard.dev',
+      serverUrl: 'http://localhost:3000',
     })
     sseBackgroundService.setAuthToken(this.authTokens.access_token)
     sseBackgroundService.connect()

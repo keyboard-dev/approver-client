@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Script } from '../../types'
+import { currentThreadRef } from '../components/screens/ChatPage'
 import { AIChatAdapter, ConnectionCheckResult, MissingConnectionInfo } from '../services/ai-chat-adapter'
 import { useMCPIntegration } from '../services/mcp-tool-integration'
 import { runCodeResultContext } from '../services/run-code-result-context'
-import { currentThreadRef } from '../components/screens/ChatPage'
 
 // =============================================================================
 // Thread-scoped Connection Requirements Storage
@@ -296,7 +296,7 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
 
   // Initialize MCP integration when enabled
   const mcpIntegration = useMCPIntegration(
-    config.serverUrl || 'https://mcp.keyboard.dev',
+    config.serverUrl || 'http://localhost:3000',
     config.clientName || 'keyboard-approver-mcp',
     { addExecution, updateExecution },
   )

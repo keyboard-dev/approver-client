@@ -96,7 +96,7 @@ export function formatAbilityResult(abilityName: string, result: CallToolResult)
  * React hook for managing MCP ability integration state
  */
 export function useMCPIntegration(
-  serverUrl: string = 'https://mcp.keyboard.dev',
+  serverUrl: string = 'http://localhost:3000',
   clientName: string = 'keyboard-approver-mcp',
   executionTracker?: {
     addExecution: (abilityName: string, parameters: Record<string, unknown>, provider?: string) => string

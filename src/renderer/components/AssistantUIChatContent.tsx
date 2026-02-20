@@ -9,7 +9,6 @@ import { AgenticStatusIndicator } from './AgenticStatusIndicator'
 import { Thread } from './assistant-ui/thread'
 import { MCPChatComponent } from './MCPChatComponent'
 import { Badge } from './ui/badge'
-import { Button } from './ui/button'
 import { TooltipProvider } from './ui/tooltip'
 
 export interface AssistantUIChatContentProps {
@@ -215,7 +214,7 @@ export const AssistantUIChatContent: React.FC<AssistantUIChatContentProps> = ({
             {selectedProvider === 'mcp'
               ? (
                   <MCPChatComponent
-                    serverUrl="https://mcp.keyboard.dev"
+                    serverUrl="http://localhost:3000"
                     clientName="keyboard-approver-mcp"
                   />
                 )

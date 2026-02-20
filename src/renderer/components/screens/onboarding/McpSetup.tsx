@@ -10,7 +10,7 @@ interface McpSetupProps {
 }
 
 export const McpSetup: React.FC<McpSetupProps> = ({ onNext }) => {
-  const [remoteUrl, setRemoteUrl] = useState('https://mcp.keyboard.dev')
+  const [remoteUrl, setRemoteUrl] = useState('http://localhost:3000')
   const [copySuccess, setCopySuccess] = useState(false)
 
   const advancedSettingsImg = 'https://res.cloudinary.com/dt29hglkk/image/upload/v1757699431/advanced-settings_prlpa6.png'

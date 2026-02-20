@@ -438,7 +438,7 @@ const ThreadScrollToBottom: FC = () => {
 }
 
 // Hero background image from design (keyboard with dotted pattern)
-const heroBackgroundUrl = 'https://www.figma.com/api/mcp/asset/9221d5d0-b8f5-4ab0-838d-9b6ddcc17b97'
+import heroBackgroundUrl from '../../../../assets/hero-background.png'
 
 const ThreadWelcome: FC = () => {
   return (
