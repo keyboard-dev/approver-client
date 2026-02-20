@@ -296,7 +296,7 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
 
   // Initialize MCP integration when enabled
   const mcpIntegration = useMCPIntegration(
-    config.serverUrl || 'http://localhost:3000',
+    config.serverUrl || 'https://mcp.keyboard.dev',
     config.clientName || 'keyboard-approver-mcp',
     { addExecution, updateExecution },
   )

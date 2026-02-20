@@ -1165,9 +1165,6 @@ ${analysisResponse}`
       if (this.currentProvider.mcpEnabled && abilitiesAvailable.length > 0) {
         // Classify query complexity first to route to appropriate handler
         let queryType = await this.classifyQueryComplexity(aiMessages)
-
-        // If the user explicitly chose "continue anyway" from connection check,
-        // this is always an agentic request - override simple classification
         if (queryType === 'simple' && this.skipConnectionCheck) {
           queryType = 'agentic'
         }
