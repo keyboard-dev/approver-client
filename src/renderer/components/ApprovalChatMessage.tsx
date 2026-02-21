@@ -3,7 +3,7 @@ import blueCheckIconUrl from '../../../assets/icon-check-blue.svg'
 import checkIconUrl from '../../../assets/icon-check.svg'
 import clockIconUrl from '../../../assets/icon-clock.svg'
 import codeIconUrl from '../../../assets/icon-code.svg'
-import squaresIconUrl from '../../../assets/icon-squares.svg'
+import { Maximize2 } from 'lucide-react'
 import thinkingIconUrl from '../../../assets/icon-thinking.svg'
 import greyXIconUrl from '../../../assets/icon-x-grey.svg'
 import xIconUrl from '../../../assets/icon-x.svg'
@@ -119,7 +119,7 @@ export const ApprovalChatMessage: React.FC<ApprovalChatMessageProps> = ({
   }
 
   // Render content component (used in both compact and full-screen views)
-  const renderContent = () => (
+  const renderContent = (expanded = false) => (
     <>
       {/* Info Bar */}
       <div className="rounded-[0.38rem] border border-[#E5E5E5] w-full px-[0.63rem] py-[0.44rem] flex justify-between text-[0.75rem]">
@@ -184,13 +184,13 @@ export const ApprovalChatMessage: React.FC<ApprovalChatMessageProps> = ({
 
       {/* Content */}
       {activeTab === 'explanation' && !isCodeResponseApproval && explanation && (
-        <div className="p-[0.75rem] border border-[#E5E5E5] rounded-[0.38rem] w-full text-[0.88rem] max-h-[400px] overflow-auto">
+        <div className={`p-[0.75rem] border border-[#E5E5E5] rounded-[0.38rem] w-full text-[0.88rem] overflow-auto ${expanded ? '' : 'max-h-[400px]'}`}>
           {explanation}
         </div>
       )}
 
       {activeTab === 'explanation' && isCodeResponseApproval && codespaceResponse?.data && (
-        <div className="border border-[#E5E5E5] rounded-[0.38rem] w-full max-h-[400px] overflow-auto">
+        <div className={`border border-[#E5E5E5] rounded-[0.38rem] w-full overflow-auto ${expanded ? '' : 'max-h-[400px]'}`}>
           <div className="p-[0.75rem]">
             {codespaceResponse.data.stdout && (
               <div className="mb-3">
@@ -218,7 +218,7 @@ export const ApprovalChatMessage: React.FC<ApprovalChatMessageProps> = ({
       )}
 
       {activeTab === 'code' && code && (
-        <div className="border border-[#E5E5E5] rounded-[0.38rem] w-full max-h-[400px] overflow-auto">
+        <div className={`border border-[#E5E5E5] rounded-[0.38rem] w-full overflow-auto ${expanded ? '' : 'max-h-[400px]'}`}>
           <pre className="text-[0.75rem] p-[0.75rem] overflow-x-auto bg-[#282c34] text-[#abb2bf] font-mono">
             <code>{code}</code>
           </pre>
@@ -287,15 +287,17 @@ export const ApprovalChatMessage: React.FC<ApprovalChatMessageProps> = ({
             <div className="font-bold text-[1rem]">
               {isCodeResponseApproval ? 'Code execution approval' : 'Security evaluation request'}
             </div>
-            <TooltipDesigned tooltipText="Expand to full screen">
-              <button
-                onClick={() => setIsFullScreen(true)}
-                className="p-[0.31rem] rounded hover:bg-[#F3F3F3] transition-colors"
-                type="button"
-              >
-                <img src={squaresIconUrl} alt="Expand" className="w-[0.75rem] h-[0.75rem]" />
-              </button>
-            </TooltipDesigned>
+            <div className="pr-[2.5em] pb-[2.5em]">
+              <TooltipDesigned tooltipText="Expand to full screen">
+                <button
+                  onClick={() => setIsFullScreen(true)}
+                  className="p-[0.38rem] border border-[#E5E5E5] rounded-[0.25rem] hover:bg-[#F3F3F3] transition-colors shrink-0"
+                  type="button"
+                >
+                  <Maximize2 size={14} strokeWidth={2} className="text-[#737373]" />
+                </button>
+              </TooltipDesigned>
+            </div>
           </div>
 
           {/* Compact content with limited height */}
@@ -312,7 +314,7 @@ export const ApprovalChatMessage: React.FC<ApprovalChatMessageProps> = ({
             </DialogTitle>
           </DialogHeader>
           <div className="flex flex-col gap-[0.5rem] mt-4">
-            {renderContent()}
+            {renderContent(true)}
           </div>
         </DialogContent>
       </Dialog>
