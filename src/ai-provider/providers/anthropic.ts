@@ -18,7 +18,7 @@ export class AnthropicProvider implements AIProvider {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: config.model || 'claude-sonnet-4-5',
+        model: config.model || 'claude-sonnet-4-6',
         max_tokens: 4096,
         system: systemMessage?.content,
         messages: conversationMessages.map(msg => ({
@@ -50,7 +50,7 @@ export class AnthropicProvider implements AIProvider {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: config.model || 'claude-sonnet-4-5',
+        model: config.model || 'claude-sonnet-4-6',
         max_tokens: 4096,
         system: systemMessage?.content,
         messages: conversationMessages.map(msg => ({

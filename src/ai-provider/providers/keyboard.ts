@@ -17,7 +17,7 @@ export class KeyboardProvider implements AIProvider {
 
     const url = `${KEYBOARD_API_URL}/api/ai/inference`
     const requestBody = {
-      model: config.model || 'claude-sonnet-4-5-20250929',
+      model: config.model || 'claude-sonnet-4-6',
       system: systemMessage?.content,
       messages: messagesWithoutSystem.map(msg => ({
         role: msg.role,
@@ -106,7 +106,7 @@ export class KeyboardProvider implements AIProvider {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: config.model || 'claude-sonnet-4-5-20250929',
+        model: config.model || 'claude-sonnet-4-6',
         system: systemMessage?.content,
         messages: messagesWithoutSystem.map(msg => ({
           role: msg.role,

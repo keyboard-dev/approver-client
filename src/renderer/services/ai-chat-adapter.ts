@@ -1301,7 +1301,7 @@ ${analysisResponse}`
 export const createOpenAIAdapter = (model: string = 'gpt-3.5-turbo', mcpEnabled: boolean = false) =>
   new AIChatAdapter('openai', model, mcpEnabled)
 
-export const createAnthropicAdapter = (model: string = 'claude-sonnet-4-5', mcpEnabled: boolean = false) =>
+export const createAnthropicAdapter = (model: string = 'claude-sonnet-4-6', mcpEnabled: boolean = false) =>
   new AIChatAdapter('anthropic', model, mcpEnabled)
 
 export const createGeminiAdapter = (model: string = 'gemini-2.5-flash', mcpEnabled: boolean = false) =>
