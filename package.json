@@ -128,7 +128,9 @@
     "prismjs": "^1.30.0",
     "diff": "^8.0.3",
     "tar": "^7.5.3",
-    "tmp": "^0.2.4"
+    "tmp": "^0.2.4",
+    "@electron/asar": "^4.0.1",
+    "minimatch": "^10.0.1"
   },
   "build": {
     "appId": "dev.keyboard.desktop",
