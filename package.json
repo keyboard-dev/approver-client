@@ -129,7 +129,7 @@
     "diff": "^8.0.3",
     "tar": "^7.5.3",
     "tmp": "^0.2.4",
-    "minimatch": "^10.2.1"
+    "minimatch": "^9.0.5"
   },
   "build": {
     "appId": "dev.keyboard.desktop",
