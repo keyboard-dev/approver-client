@@ -387,11 +387,11 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
             </ButtonDesigned>
 
             <ButtonDesigned
-              variant="primary"
+              variant="primary-black"
               onClick={onApprove}
               className="grow shrink basis-0 min-w-0 flex gap-[0.31rem] items-center justify-center"
             >
-              <img src={blueCheckIconUrl} alt="check" className="w-[0.75rem] h-[0.75rem]" />
+              <img src={blueCheckIconUrl} alt="check" className="w-[0.75rem] h-[0.75rem] brightness-0 invert" />
               Approve script execution
             </ButtonDesigned>
           </div>
