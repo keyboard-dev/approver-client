@@ -5,9 +5,12 @@ import * as monaco from 'monaco-editor'
 import lazyTheme from 'monaco-themes/themes/Lazy.json'
 import React, { useCallback, useEffect, useState } from 'react'
 
+import blueCheckIconUrl from '../../../../assets/icon-check-blue.svg'
+import greyXIconUrl from '../../../../assets/icon-x-grey.svg'
 import { Message } from '../../../types'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
+import { ButtonDesigned } from '../ui/ButtonDesigned'
 import { Card, CardHeader, CardTitle } from '../ui/card'
 import { Textarea } from '../ui/textarea'
 
@@ -287,21 +290,23 @@ export const CodeResponseApprovalPanel: React.FC<CodeResponseApprovalPanelProps>
                 )}
 
                 {/* Action Buttons */}
-                <div className="flex space-x-4">
-                  <Button
-                    onClick={handleApprove}
-                    className="bg-green-600 hover:bg-green-700 text-white"
-                  >
-                    <CheckCircle className="mr-2 h-4 w-4" />
-                    Approve
-                  </Button>
-                  <Button
+                <div className="w-full flex gap-[0.31rem]">
+                  <ButtonDesigned
+                    variant="secondary"
                     onClick={handleReject}
-                    variant="destructive"
+                    className="grow shrink basis-0 min-w-0 flex gap-[0.31rem] items-center justify-center"
                   >
-                    <XCircle className="mr-2 h-4 w-4" />
+                    <img src={greyXIconUrl} alt="x" className="w-[0.75rem] h-[0.75rem]" />
                     Reject
-                  </Button>
+                  </ButtonDesigned>
+                  <ButtonDesigned
+                    variant="primary-black"
+                    onClick={handleApprove}
+                    className="grow shrink basis-0 min-w-0 flex gap-[0.31rem] items-center justify-center"
+                  >
+                    <img src={blueCheckIconUrl} alt="check" className="w-[0.75rem] h-[0.75rem] brightness-0 invert" />
+                    Approve execution
+                  </ButtonDesigned>
                 </div>
               </div>
             )

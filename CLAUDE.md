@@ -188,6 +188,19 @@ Final AI response yielded to Thread UI
 - `AssistantUIChat.tsx` and `AssistantUIChatContent.tsx` have nearly identical logic -- merge into one
 - `MCPChatComponent.tsx` is a legacy fallback for raw MCP debug -- remove unless needed for debugging
 
+## Code Efficiency & Anti-Bloat Rules
+
+This codebase must stay lean. As sessions progress, there is a real risk of inflating the codebase with redundant code, dead abstractions, and unnecessary files. Follow these rules strictly:
+
+- **No new files unless truly necessary.** Prefer editing existing files over creating new ones. Every new file adds surface area to read, maintain, and load into context.
+- **Delete what you replace.** If you refactor or move logic, remove the old version immediately. Never leave behind dead code, commented-out blocks, or "just in case" copies.
+- **No speculative abstractions.** Do not create helpers, utilities, wrappers, or shared modules for something used in only one place. Wait until there are 3+ concrete consumers before extracting.
+- **No duplicated logic.** Before writing new code, search the codebase for existing implementations. Reuse what exists.
+- **Keep functions and components small.** If a function grows past ~50 lines, consider whether it's doing too much. But don't split just to split -- only extract when there's a clear single responsibility.
+- **Clean up the Dead Code list above.** When touching files near dead code listed in this doc, take the opportunity to delete it.
+- **Minimize dependencies.** Do not add new npm packages if the functionality can be achieved with existing deps or a few lines of code.
+- **Context window awareness.** When making changes, keep diffs minimal and focused. Avoid reformatting unchanged code, adding unnecessary comments, or touching files unrelated to the task.
+
 ## Key Architectural Concepts
 
 - **Fingerprint system**: When chat calls `run-code`, it base64-encodes the explanation text as a fingerprint. When an approval arrives via WebSocket, `isFromOurApp()` checks if the fingerprint matches a pending call. This is how the app knows whether an approval came from its own agentic flow vs an external client.
