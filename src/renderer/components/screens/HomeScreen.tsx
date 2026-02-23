@@ -9,6 +9,7 @@ import { useDatabase } from '../../providers/DatabaseProvider'
 import { databaseService } from '../../services/database-service'
 import { resolvePendingCall } from '../../services/pending-tool-calls'
 import { AssistantUIChatContent } from '../AssistantUIChatContent'
+import AuthComponent from '../AuthComponent'
 import { AdvancedPanel } from './settings/panels/AdvancedPanel'
 import { AICreditsPanel } from './settings/panels/AICreditsPanel'
 import { AIProvidersPanel } from './settings/panels/AIProvidersPanel'
@@ -269,6 +270,15 @@ export const HomeScreen: React.FC = () => {
       default:
         return <div>Not implemented</div>
     }
+  }
+
+  // Gate on authentication - show login screen if not authenticated
+  if (!authStatus.authenticated && !isSkippingAuth) {
+    return (
+      <div className="w-full h-full flex items-center justify-center p-4">
+        <AuthComponent />
+      </div>
+    )
   }
 
   return (
