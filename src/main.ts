@@ -472,6 +472,14 @@ class MenuBarNotificationApp {
         this.CUSTOM_PROTOCOL,
         this.KEYBOARD_AUTH_TOKENS,
         this.SKIP_AUTH,
+        async () => {
+          await this.connectToExecutorWithToken()
+          if (this.executionPreferenceManager) {
+            const preference = await this.executionPreferenceManager.getPreference()
+            this.executorWSClient?.setExecutionPreference(preference)
+          }
+          await this.executorWSClient?.autoConnect()
+        },
       )
 
       // Load persisted auth tokens BEFORE initializing OAuth provider system
@@ -2052,6 +2060,7 @@ class MenuBarNotificationApp {
       if (!this.executorWSClient || !this.executionPreferenceManager) {
         return false
       }
+      await this.connectToExecutorWithToken()
       const preference = await this.executionPreferenceManager.getPreference()
       this.executorWSClient?.setExecutionPreference(preference)
       return await this.executorWSClient.autoConnect()

@@ -30,6 +30,7 @@ export class AuthService {
     private readonly CUSTOM_PROTOCOL: string,
     private readonly KEYBOARD_AUTH_TOKENS: string,
     private readonly SKIP_AUTH: boolean,
+    private onAuthSuccess?: () => Promise<void>,
   ) {}
 
   /**
@@ -219,6 +220,11 @@ export class AuthService {
 
       // Initialize SSE for real-time notifications
       this.initializeSSEService()
+
+      // Re-initialize executor connection with fresh tokens
+      if (this.onAuthSuccess) {
+        this.onAuthSuccess().catch(() => {})
+      }
     }
     catch (error) {
       this.notifyAuthError(`Token exchange failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
