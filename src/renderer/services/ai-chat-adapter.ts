@@ -531,13 +531,48 @@ Respond with only one word: "simple", "web-search", or "agentic"`
     }
   }
 
-  private hasMoreAbilityCallsInResponse(response: string): boolean {
-    const jsonPattern = /```json\s*(.*?)\s*```/gs
-    const jsonMatches = Array.from(response.matchAll(jsonPattern))
+  /**
+   * Extract all JSON strings from a response that might contain ability calls.
+   * Matches both fenced (```json ... ```) and raw JSON objects with "ability" key.
+   */
+  private extractAbilityJsonCandidates(response: string): string[] {
+    const candidates: string[] = []
 
-    for (const match of jsonMatches) {
+    // 1. Fenced JSON blocks
+    const fencedPattern = /```json\s*(.*?)\s*```/gs
+    for (const match of response.matchAll(fencedPattern)) {
+      candidates.push(match[1])
+    }
+
+    // 2. Raw JSON objects containing "ability" (unfenced)
+    const rawPattern = /\{[^{}]*"ability"\s*:\s*"[^"]+?"[^{}]*"parameters"\s*:\s*\{/g
+    for (const match of response.matchAll(rawPattern)) {
+      // Find the full balanced JSON object starting at this position
+      const startIdx = match.index!
+      let depth = 0
+      let endIdx = startIdx
+      for (let i = startIdx; i < response.length; i++) {
+        if (response[i] === '{') depth++
+        else if (response[i] === '}') {
+          depth--
+          if (depth === 0) {
+            endIdx = i + 1
+            break
+          }
+        }
+      }
+      if (depth === 0 && endIdx > startIdx) {
+        candidates.push(response.substring(startIdx, endIdx))
+      }
+    }
+
+    return candidates
+  }
+
+  private hasMoreAbilityCallsInResponse(response: string): boolean {
+    for (const candidate of this.extractAbilityJsonCandidates(response)) {
       try {
-        const parsed = JSON.parse(match[1])
+        const parsed = JSON.parse(candidate)
         if (parsed.ability && typeof parsed.ability === 'string') {
           return true
         }
@@ -550,23 +585,25 @@ Respond with only one word: "simple", "web-search", or "agentic"`
   }
 
   private foundAbilityCallsInResponse(response: string) {
-    const jsonPattern = /```json\s*(.*?)\s*```/gs
-    const jsonMatches = Array.from(response.matchAll(jsonPattern))
     const abilityCalls: Array<{ ability: string, parameters: Record<string, unknown> }> = []
+    const seenAbilities = new Set<string>()
 
-    for (const match of jsonMatches) {
+    for (const candidate of this.extractAbilityJsonCandidates(response)) {
       try {
-        const jsonContent = match[1]
-        const parsed = JSON.parse(jsonContent)
-
+        const parsed = JSON.parse(candidate)
         if (parsed.ability && typeof parsed.ability === 'string') {
-          abilityCalls.push({
-            ability: parsed.ability,
-            parameters: parsed.parameters || {},
-          })
+          // Deduplicate in case fenced and raw match the same JSON
+          const key = `${parsed.ability}:${JSON.stringify(parsed.parameters || {})}`
+          if (!seenAbilities.has(key)) {
+            seenAbilities.add(key)
+            abilityCalls.push({
+              ability: parsed.ability,
+              parameters: parsed.parameters || {},
+            })
+          }
         }
       }
-      catch (error) {
+      catch {
         // Skip invalid JSON
       }
     }
