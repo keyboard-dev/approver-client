@@ -9,6 +9,7 @@ import { useDatabase } from '../../providers/DatabaseProvider'
 import { databaseService } from '../../services/database-service'
 import { resolvePendingCall } from '../../services/pending-tool-calls'
 import { AssistantUIChat } from '../AssistantUIChat'
+import AuthComponent from '../AuthComponent'
 import { Card, CardContent } from '../ui/card'
 
 /**
@@ -220,6 +221,15 @@ export const ChatPage: React.FC = () => {
             </button>
           </CardContent>
         </Card>
+      </div>
+    )
+  }
+
+  // Gate on authentication - show login screen if not authenticated
+  if (!authStatus.authenticated && !isSkippingAuth) {
+    return (
+      <div className="w-full h-full flex items-center justify-center p-4">
+        <AuthComponent />
       </div>
     )
   }
