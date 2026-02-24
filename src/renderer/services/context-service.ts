@@ -230,6 +230,24 @@ ${JSON.stringify(composioAccountsList, null, 2)}
 Note: These are Composio-managed OAuth connections. The appName (toolkit slug) identifies the service (e.g., "slack", "github", "googlecalendar"). Use the accountId when deploying Composio triggers or making authenticated API calls through Composio.`
       : ''
 
+    // Build Local provider connected accounts section
+    const localProviderStatus = await window.electronAPI?.getProviderAuthStatus?.().catch(() => ({})) as Record<string, { authenticated?: boolean }> || {}
+    const localAccountsList = Object.entries(localProviderStatus)
+      .filter(([_, status]) => status?.authenticated)
+      .map(([provider]) => ({
+        provider,
+        source: 'local',
+      }))
+
+    const localAccountsSection = localAccountsList.length > 0
+      ? `
+
+LOCAL CONNECTED ACCOUNTS (OAuth provider tokens managed by Keyboard):
+${JSON.stringify(localAccountsList, null, 2)}
+
+Note: These are locally authenticated OAuth providers. The user has granted access through Keyboard's OAuth flow. Use the corresponding KEYBOARD_PROVIDER_USER_TOKEN_FOR_<PROVIDER> environment variable when making API calls.`
+      : ''
+
     // Get previous run-code execution results for context
     const previousResultsContext = runCodeResultContext.getExtractedDataSummary()
     const previousResultsSection = previousResultsContext
@@ -270,7 +288,7 @@ API RESEARCH GUIDANCE:
 - Only after you tried to use the web-search ability, and it didn't work, then you can use the run-code ability to execute code but the idea is to use the web-search ability first.
 
 Full abilities description and schema:
-${abilitiesList}${additionalToolsSection}${pipedreamAccountsSection}${composioAccountsSection}${previousResultsSection}
+${abilitiesList}${additionalToolsSection}${pipedreamAccountsSection}${composioAccountsSection}${localAccountsSection}${previousResultsSection}
 
 INSTRUCTIONS:
 - You can execute abilities directly using JSON format: {"ability": "ability-name", "parameters": {...}}
