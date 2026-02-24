@@ -193,6 +193,8 @@ Consider:
 - "gcal" or "google_calendar" or "google_sheets" all indicate Google OAuth access
 - Similar apps from the same provider often share OAuth (e.g., any Google app = Google access)
 - Exact matches are best, but related services often work
+- If the task is purely about writing, running, or debugging code (without calling an external service API), no credentials are needed - the user has a built-in "run-code" ability for code execution
+- Do NOT require connections for code sandboxes, code runners, or code execution environments - these are already available
 
 Respond with ONLY valid JSON (no markdown, no explanation):
 {
@@ -252,11 +254,13 @@ ${appNames}
 User message: "${message}"
 
 Instructions:
-1. Identify ALL services mentioned or implied in the message
+1. Identify ALL external services mentioned or implied in the message that require OAuth/API credentials
 2. Consider the full context - if they mention "meeting notes" they might need a calendar or notes app
 3. Only include services that would require API/OAuth access to complete the task
-4. Return the EXACT app names as they appear in the list above when possible
-5. Return ONLY a JSON array of app names, nothing else
+4. Do NOT include code execution environments, sandboxes, or code runners - the user already has a built-in "run-code" ability for executing code (Node.js, Python, shell scripts, etc.)
+5. If the task is purely about writing, running, or debugging code without calling an external service API, return an empty array []
+6. Return the EXACT app names as they appear in the list above when possible
+7. Return ONLY a JSON array of app names, nothing else
 
 Example responses:
 - For "Review today's meeting notes on Notion and sync tasks to Linear": ["Notion", "Linear"]
