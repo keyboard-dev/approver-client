@@ -4,11 +4,11 @@ import type { InboxNotification } from '../hooks/useInbox'
 import { useInbox } from '../hooks/useInbox'
 import { GroupedProviderStatus, useOAuthProviders } from '../hooks/useOAuthProviders'
 import {
-    ExpiredProviderItem,
-    GenericNotificationItem,
-    UpdateAvailableItem,
-    UpdateDownloadedItem,
-    UpdateDownloadingItem,
+  ExpiredProviderItem,
+  GenericNotificationItem,
+  UpdateAvailableItem,
+  UpdateDownloadedItem,
+  UpdateDownloadingItem,
 } from './inbox'
 import { ButtonDesigned } from './ui/ButtonDesigned'
 import { DropdownMenuDesigned } from './ui/DropdownMenuDesigned'

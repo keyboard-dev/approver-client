@@ -364,6 +364,9 @@ export class AIChatAdapter implements ChatModelAdapter {
         }
       }
       \`\`\`
+
+       IMPORTANT: You MUST use the JSON format below to call abilities. Do NOT use XML, <function_calls>, <invoke>, or any other format. Only the JSON format
+ will be recognized by the system:
       `
 
     return aiMessages
@@ -536,7 +539,6 @@ Respond with only one word: "simple", "web-search", or "agentic"`
    * Matches both fenced (```json ... ```) and raw JSON objects with "ability" key.
    */
   private stripAbilityJsonForDisplay(text: string): string {
-    // Remove fenced JSON blocks containing ability calls
     let cleaned = text.replace(/```json\s*\{[^`]*?"ability"\s*:.*?\}\s*```/gs, '')
 
     // Remove raw (unfenced) ability JSON objects
@@ -561,13 +563,13 @@ Respond with only one word: "simple", "web-search", or "agentic"`
     }
 
     // Clean up extra whitespace left behind
-    return cleaned.replace(/\n{3,}/g, '\n\n').trim()
+    cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim()
+    return cleaned
   }
 
   private extractAbilityJsonCandidates(response: string): string[] {
     const candidates: string[] = []
 
-    // 1. Fenced JSON blocks
     const fencedPattern = /```json\s*(.*?)\s*```/gs
     for (const match of response.matchAll(fencedPattern)) {
       candidates.push(match[1])
@@ -591,7 +593,8 @@ Respond with only one word: "simple", "web-search", or "agentic"`
         }
       }
       if (depth === 0 && endIdx > startIdx) {
-        candidates.push(response.substring(startIdx, endIdx))
+        const rawCandidate = response.substring(startIdx, endIdx)
+        candidates.push(rawCandidate)
       }
     }
 
@@ -1183,6 +1186,7 @@ ${analysisResponse}`
           if (lastUserMessage?.role === 'user') {
             // Get enhanced context with planning token, user tokens, and codespace info
             const enhancedSystemPrompt = await contextService.buildEnhancedSystemPrompt(lastUserMessage.content)
+            console.log('[SystemPrompt] Enhanced system prompt:', enhancedSystemPrompt)
             const existingSystemIndex = aiMessages.findIndex(m => m.role === 'system')
             if (existingSystemIndex >= 0) {
               // Replace existing system message with enhanced one
