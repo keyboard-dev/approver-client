@@ -310,8 +310,9 @@ export class OAuthService {
       const providerStatus = await this.perProviderTokenStorage.getProviderStatus()
 
       // Get local provider tokens (direct OAuth and server providers)
+      // Filter out 'onboarding' - it's an internal provider, not for API calls
       const localTokens = Object.entries(providerStatus)
-        .filter(([, status]) => status?.authenticated)
+        .filter(([providerId, status]) => status?.authenticated && providerId !== 'onboarding')
         .map(([providerId]) => `KEYBOARD_PROVIDER_USER_TOKEN_FOR_${providerId.toUpperCase()}`)
 
       // Get external source tokens (connected accounts, AWS Secrets, WorkOS, etc.)
@@ -883,8 +884,9 @@ export class OAuthService {
       const providerStatus = await this.perProviderTokenStorage.getProviderStatus()
 
       // Get local provider tokens (direct OAuth and server providers)
+      // Filter out 'onboarding' - it's an internal provider, not for API calls
       const localTokens = Object.entries(providerStatus)
-        .filter(([, status]) => status?.authenticated)
+        .filter(([providerId, status]) => status?.authenticated && providerId !== 'onboarding')
         .map(([providerId]) => `KEYBOARD_PROVIDER_USER_TOKEN_FOR_${providerId.toUpperCase()}`)
 
       // Get external source tokens (connected accounts, AWS Secrets, WorkOS, etc.)

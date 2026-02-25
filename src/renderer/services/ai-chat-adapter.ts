@@ -535,6 +535,35 @@ Respond with only one word: "simple", "web-search", or "agentic"`
    * Extract all JSON strings from a response that might contain ability calls.
    * Matches both fenced (```json ... ```) and raw JSON objects with "ability" key.
    */
+  private stripAbilityJsonForDisplay(text: string): string {
+    // Remove fenced JSON blocks containing ability calls
+    let cleaned = text.replace(/```json\s*\{[^`]*?"ability"\s*:.*?\}\s*```/gs, '')
+
+    // Remove raw (unfenced) ability JSON objects
+    const rawPattern = /\{[^{}]*"ability"\s*:\s*"[^"]+?"[^{}]*"parameters"\s*:\s*\{/g
+    for (const match of text.matchAll(rawPattern)) {
+      const startIdx = match.index!
+      let depth = 0
+      let endIdx = startIdx
+      for (let i = startIdx; i < text.length; i++) {
+        if (text[i] === '{') depth++
+        else if (text[i] === '}') {
+          depth--
+          if (depth === 0) {
+            endIdx = i + 1
+            break
+          }
+        }
+      }
+      if (depth === 0 && endIdx > startIdx) {
+        cleaned = cleaned.replace(text.substring(startIdx, endIdx), '')
+      }
+    }
+
+    // Clean up extra whitespace left behind
+    return cleaned.replace(/\n{3,}/g, '\n\n').trim()
+  }
+
   private extractAbilityJsonCandidates(response: string): string[] {
     const candidates: string[] = []
 
@@ -781,12 +810,13 @@ Respond with only one word: "simple", "web-search", or "agentic"`
         accumulatedResponse,
         abortSignal,
       )) {
+        // Strip ability JSON from display but keep raw text for parsing
         yield {
-          content: [{ type: 'text' as const, text: update.text }],
+          content: [{ type: 'text' as const, text: this.stripAbilityJsonForDisplay(update.text) }],
         }
         if (update.isComplete) {
           toolChoiceResponse = update.text.split('🧠 **Analyzing which tools to use...**\n')[1] || ''
-          accumulatedResponse = update.text
+          accumulatedResponse = this.stripAbilityJsonForDisplay(update.text)
         }
       }
 
@@ -817,12 +847,13 @@ Respond with only one word: "simple", "web-search", or "agentic"`
           accumulatedResponse.replace('\n\n⏳ _Preparing next step..._', ''), // Remove transition indicator
           abortSignal,
         )) {
+          // Strip ability JSON from display but keep raw text for parsing
           yield {
-            content: [{ type: 'text' as const, text: update.text }],
+            content: [{ type: 'text' as const, text: this.stripAbilityJsonForDisplay(update.text) }],
           }
           if (update.isComplete) {
             response = update.text.split('🎯 **Planning tool execution...**\n')[1] || ''
-            accumulatedResponse = update.text
+            accumulatedResponse = this.stripAbilityJsonForDisplay(update.text)
           }
         }
       }
@@ -960,7 +991,7 @@ Respond with only one word: "simple", "web-search", or "agentic"`
               ? storedResult.summary
               : resultString
 
-            abilitiesRan += `\n**Result:** ${contextContent}`
+            abilitiesRan += `\n**Result:**\n\`\`\`json\n${contextContent}\n\`\`\``
 
             // If result was summarized, mention it so AI knows full data was captured
             if (storedResult.wasSummarized) {
@@ -1006,7 +1037,9 @@ Respond with only one word: "simple", "web-search", or "agentic"`
       }
 
       // Update accumulated response with tool results summary
-      accumulatedResponse += `\n\n📊 **Tool Results:**\n${abilitiesRan.substring(0, 200)}${abilitiesRan.length > 200 ? '...' : ''}`
+      // Show a brief summary of abilities that ran (avoid truncating mid-code-fence)
+      const abilitySummaryLines = abilitiesRan.split('\n').filter(l => l.includes('**') && l.includes('executed'))
+      accumulatedResponse += `\n\n📊 **Tool Results:**\n${abilitySummaryLines.join('\n') || 'Abilities executed.'}`
       yield {
         content: [{ type: 'text' as const, text: accumulatedResponse }],
       }
@@ -1020,7 +1053,7 @@ Respond with only one word: "simple", "web-search", or "agentic"`
       // Add conversation history for next iteration
       conversationHistory.push({
         role: 'assistant',
-        content: `${response} here is result of abilities I just ran ${JSON.stringify(abilitiesRan, null, 2)}`,
+        content: `${response} here is result of abilities I just ran ${abilitiesRan}`,
       })
 
       conversationHistory.push({
