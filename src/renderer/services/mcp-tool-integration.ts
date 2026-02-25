@@ -158,135 +158,148 @@ export function useMCPIntegration(
   }
 
   /**
-   * Execute an MCP ability call with efficient result processing
+   * Helper: wait for MCP client to reach 'ready' state after a reconnect attempt
+   */
+  const waitForReconnect = (timeoutMs: number = 10000): Promise<boolean> => {
+    return new Promise((resolve) => {
+      if (mcpClient.state === 'ready') return resolve(true)
+      const start = Date.now()
+      const interval = setInterval(() => {
+        if (mcpClient.state === 'ready') {
+          clearInterval(interval)
+          resolve(true)
+        }
+        else if (Date.now() - start > timeoutMs) {
+          clearInterval(interval)
+          resolve(false)
+        }
+      }, 500)
+    })
+  }
+
+  /**
+   * Core tool call logic (extracted to allow retry)
+   */
+  const attemptToolCall = async (
+    functionName: string,
+    args: Record<string, unknown>,
+    executionId?: string,
+  ): Promise<string | { summary: string, tokenCount: number, wasFiltered: boolean }> => {
+    // Check if we have any tools available before attempting execution
+    if (availableTools.length === 0) {
+      throw new Error('No tools available. Please ensure connection to mcp.keyboard.dev or wait for tools to be cached.')
+    }
+
+    // Intercept web-search calls and route to local implementation
+    if (functionName === 'web-search') {
+      if (!args.query || typeof args.query !== 'string') {
+        throw new Error('Query parameter is required for web search and must be a string')
+      }
+      if (!args.company || typeof args.company !== 'string') {
+        throw new Error('Company parameter is required for web search and must be a string')
+      }
+
+      const result = await webSearchTool.execute({
+        provider: typeof args.provider === 'string' ? args.provider : undefined,
+        query: args.query,
+        company: args.company,
+        maxResults: typeof args.maxResults === 'number' ? args.maxResults : undefined,
+        prioritizeMarkdown: typeof args.prioritizeMarkdown === 'boolean' ? args.prioritizeMarkdown : undefined,
+        prioritizeDocs: typeof args.prioritizeDocs === 'boolean' ? args.prioritizeDocs : undefined,
+        includeDomains: Array.isArray(args.includeDomains) ? args.includeDomains as string[] : undefined,
+        excludeDomains: Array.isArray(args.excludeDomains) ? args.excludeDomains as string[] : undefined,
+      })
+
+      if (executionId) {
+        executionTracker?.updateExecution(executionId, {
+          status: 'success',
+          response: result,
+          metadata: { isLocalExecution: true, intercepted: true },
+        })
+      }
+      return result
+    }
+
+    const { name, args: abilityArgs } = prepareMCPAbilityCall(functionName, args)
+    const startTime = performance.now()
+
+    const toolsRequiringApproval = ['run-code']
+    let result: CallToolResult
+    let pendingCallId: string | null = null
+
+    if (toolsRequiringApproval.includes(name)) {
+      const explanation = typeof abilityArgs.explanation_of_code === 'string'
+        ? abilityArgs.explanation_of_code
+        : undefined
+      const fingerprint = explanation ? generateFingerprint(explanation) : undefined
+      const pending = registerPendingCall(name, fingerprint)
+      pendingCallId = pending.id
+      try {
+        result = await Promise.race([
+          mcpClient.callTool(name, abilityArgs).then((mcpResult) => {
+            removePendingCall(pendingCallId!)
+            return mcpResult
+          }),
+          pending.promise.then((approvalResult) => {
+            return approvalResult
+          }),
+        ])
+      }
+      catch (raceError) {
+        if (pendingCallId) removePendingCall(pendingCallId)
+        throw raceError
+      }
+    }
+    else {
+      result = await mcpClient.callTool(name, abilityArgs)
+    }
+
+    const callTime = Math.round(performance.now() - startTime)
+    if (executionId) {
+      executionTracker?.updateExecution(executionId, {
+        status: 'success',
+        response: result,
+        metadata: { isLocalExecution: false, intercepted: false, callTime },
+      })
+    }
+    return JSON.stringify(result, null, 2)
+  }
+
+  /**
+   * Execute an MCP ability call with automatic reconnect on connection failure
    */
   const executeAbilityCall = async (
     functionName: string,
     args: Record<string, unknown>,
   ) => {
-    // Start execution tracking
     const executionId = executionTracker?.addExecution(functionName, args, typeof args.provider === 'string' ? args.provider : undefined)
 
     try {
-      // Check if we have any tools available before attempting execution
-      if (availableTools.length === 0) {
-        throw new Error('No tools available. Please ensure connection to mcp.keyboard.dev or wait for tools to be cached.')
-      }
-
-      // Intercept web-search calls and route to local implementation
-      if (functionName === 'web-search') {
-        // Validate required parameters for web search
-        if (!args.query || typeof args.query !== 'string') {
-          throw new Error('Query parameter is required for web search and must be a string')
-        }
-        if (!args.company || typeof args.company !== 'string') {
-          throw new Error('Company parameter is required for web search and must be a string')
-        }
-
-        const result = await webSearchTool.execute({
-          provider: typeof args.provider === 'string' ? args.provider : undefined,
-          query: args.query,
-          company: args.company,
-          maxResults: typeof args.maxResults === 'number' ? args.maxResults : undefined,
-          prioritizeMarkdown: typeof args.prioritizeMarkdown === 'boolean' ? args.prioritizeMarkdown : undefined,
-          prioritizeDocs: typeof args.prioritizeDocs === 'boolean' ? args.prioritizeDocs : undefined,
-          includeDomains: Array.isArray(args.includeDomains) ? args.includeDomains as string[] : undefined,
-          excludeDomains: Array.isArray(args.excludeDomains) ? args.excludeDomains as string[] : undefined,
-        })
-
-        // Update execution with success
-        if (executionId) {
-          executionTracker?.updateExecution(executionId, {
-            status: 'success',
-            response: result,
-            metadata: {
-              isLocalExecution: true,
-              intercepted: true,
-            },
-          })
-        }
-
-        return result
-      }
-
-      // Note: Removed blocking "client not ready" check for resilient execution
-      // The underlying StreamableHTTPClientTransport will handle HTTP calls directly
-
-      const { name, args: abilityArgs } = prepareMCPAbilityCall(functionName, args)
-
-      const startTime = performance.now()
-
-      // For tools that require approval (run-code), use a race mechanism
-      // This allows approvals to resolve the call even if MCP server is slow/stuck
-      const toolsRequiringApproval = ['run-code']
-      let result: CallToolResult
-      let pendingCallId: string | null = null
-
-      if (toolsRequiringApproval.includes(name)) {
-        // Generate fingerprint from explanation_of_code for run-code requests
-        // This lets us identify approval messages that came from our app
-        const explanation = typeof abilityArgs.explanation_of_code === 'string'
-          ? abilityArgs.explanation_of_code
-          : undefined
-
-        const fingerprint = explanation ? generateFingerprint(explanation) : undefined
-
-        // Register a pending call that can be resolved by approval
-        const pending = registerPendingCall(name, fingerprint)
-        pendingCallId = pending.id
-        try {
-          result = await Promise.race([
-            mcpClient.callTool(name, abilityArgs).then((mcpResult) => {
-              removePendingCall(pendingCallId!)
-              return mcpResult
-            }),
-            pending.promise.then((approvalResult) => {
-              return approvalResult
-            }),
-          ])
-        }
-        catch (raceError) {
-          // Clean up pending call on error
-          if (pendingCallId) {
-            removePendingCall(pendingCallId)
-          }
-          throw raceError
-        }
-      }
-      else {
-        // Normal tool call without race mechanism
-        result = await mcpClient.callTool(name, abilityArgs)
-      }
-
-      const callTime = Math.round(performance.now() - startTime)
-
-      // Update execution with success
-      if (executionId) {
-        executionTracker?.updateExecution(executionId, {
-          status: 'success',
-          response: result,
-          metadata: {
-            isLocalExecution: false,
-            intercepted: false,
-            callTime,
-          },
-        })
-      }
-
-      return JSON.stringify(result, null, 2)
+      return await attemptToolCall(functionName, args, executionId)
     }
     catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
-
-      // Distinguish between connection and execution errors
       const isConnectionError = errorMessage.includes('fetch')
         || errorMessage.includes('network')
         || errorMessage.includes('timeout')
         || errorMessage.includes('connection')
         || errorMessage.includes('not available')
+        || errorMessage.includes('MCP client is not available')
+
+      // On connection error, attempt reconnect + single retry
+      if (isConnectionError) {
+        try {
+          mcpClient.retry()
+          const reconnected = await waitForReconnect(10000)
+          if (reconnected) {
+            return await attemptToolCall(functionName, args, executionId)
+          }
+        }
+        catch (retryError) {
+        }
+      }
 
       const errorType = isConnectionError ? 'Connection Error' : 'Execution Error'
-
       if (executionId) {
         executionTracker?.updateExecution(executionId, {
           status: 'error',
@@ -299,10 +312,9 @@ export function useMCPIntegration(
         })
       }
 
-      // Provide more helpful error messages
       let userFriendlyMessage = errorMessage
       if (isConnectionError) {
-        userFriendlyMessage = `Connection issue with ${functionName}. The tool will retry automatically when connection is restored.`
+        userFriendlyMessage = `Connection issue with ${functionName}. Reconnect attempted but failed — please check your connection.`
       }
 
       return {
