@@ -43,7 +43,6 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
   const reconnectAttemptsRef = useRef(0)
   const isConnectingRef = useRef(false)
   const stateRef = useRef(state) // Add state ref to track current state
-  const maxReconnectAttempts = 3
 
   // Update state ref when state changes
   useEffect(() => {
@@ -279,10 +278,9 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
   const retry = useCallback(() => {
     if (isConnectingRef.current) return
 
-    if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
-      setError(`Max reconnection attempts (${maxReconnectAttempts}) reached`)
-      return
-    }
+    // Reset attempt counter on explicit retry (e.g., triggered by failed tool call)
+    // This ensures mid-chat reconnects aren't blocked by prior auto-reconnect exhaustion
+    reconnectAttemptsRef.current = 0
 
     if (accessToken && options.serverUrl) {
       reconnectAttemptsRef.current++
