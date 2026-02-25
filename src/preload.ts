@@ -428,6 +428,10 @@ export interface ElectronAPI {
   getTriggerTasks: (deployedTriggerId: string, limit?: number) => Promise<{ success: boolean, data?: unknown, error?: string }>
   checkUserTokenStatus: () => Promise<{ success: boolean, data?: unknown, error?: string }>
   storeUserRefreshToken: () => Promise<{ success: boolean, data?: unknown, error?: string }>
+  // Connector Notes
+  getConnectorNotes: () => Promise<{ success: boolean, notes?: Array<{ id: string, source: string, appSlug: string, note: string, createdAt: string, updatedAt: string }>, error?: string }>
+  upsertConnectorNote: (source: string, appSlug: string, note: string) => Promise<{ success: boolean, error?: string }>
+  deleteConnectorNote: (source: string, appSlug: string) => Promise<{ success: boolean, error?: string }>
   // Composio Integration
   initiateComposioConnection: (request: { appName: string, redirectUrl?: string, authConfig?: Record<string, unknown> }) => Promise<{ success: boolean, data?: unknown, error?: string }>
   listComposioConnectedAccounts: (params?: { appName?: string, status?: string }) => Promise<{ success: boolean, data?: unknown, error?: string }>
@@ -834,6 +838,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getTriggerTasks: (deployedTriggerId: string, limit = 10): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('get-trigger-tasks', deployedTriggerId, limit),
   checkUserTokenStatus: (): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('check-user-token-status'),
   storeUserRefreshToken: (): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('store-user-refresh-token'),
+  // Connector Notes
+  getConnectorNotes: (): Promise<{ success: boolean, notes?: Array<{ id: string, source: string, appSlug: string, note: string, createdAt: string, updatedAt: string }>, error?: string }> => ipcRenderer.invoke('get-connector-notes'),
+  upsertConnectorNote: (source: string, appSlug: string, note: string): Promise<{ success: boolean, error?: string }> => ipcRenderer.invoke('upsert-connector-note', source, appSlug, note),
+  deleteConnectorNote: (source: string, appSlug: string): Promise<{ success: boolean, error?: string }> => ipcRenderer.invoke('delete-connector-note', source, appSlug),
   // Composio Integration
   initiateComposioConnection: (request: { appName: string, redirectUrl?: string, authConfig?: Record<string, unknown> }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('initiate-composio-connection', request),
   listComposioConnectedAccounts: (params?: { appName?: string, status?: string }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('list-composio-connected-accounts', params),
