@@ -34,10 +34,12 @@ export const ToolFallback: ToolCallMessagePartComponent = ({
               <p className="aui-tool-fallback-result-header font-semibold">
                 Result:
               </p>
-              <pre className="aui-tool-fallback-result-content whitespace-pre-wrap">
-                {typeof result === 'string'
-                  ? result
-                  : JSON.stringify(result, null, 2)}
+              <pre className="aui-tool-fallback-result-content whitespace-pre-wrap overflow-x-auto rounded-lg bg-black p-3 text-sm text-white">
+                <code>
+                  {typeof result === 'string'
+                    ? result
+                    : JSON.stringify(result, null, 2)}
+                </code>
               </pre>
             </div>
           )}

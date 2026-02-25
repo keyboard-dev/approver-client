@@ -2241,9 +2241,13 @@ class MenuBarNotificationApp {
         const providerStatus = await this.oauthService.getProviderAuthStatus()
 
         // Check ALL stored provider tokens (both direct and server provider tokens)
-        const tokensAvailable = Object.entries(providerStatus)
-          .filter(([, status]) => status?.authenticated)
+        // Filter out 'onboarding' - it's an internal provider, not for API calls
+        const localTokens = Object.entries(providerStatus)
+          .filter(([providerId, status]) => status?.authenticated && providerId !== 'onboarding')
           .map(([providerId]) => `KEYBOARD_PROVIDER_USER_TOKEN_FOR_${providerId.toUpperCase()}`)
+
+        // Always include the main keyboard token (matches MCP server behavior)
+        const tokensAvailable = [...localTokens, 'KEYBOARD_PROVIDER_USER_TOKEN_FOR_KEYBOARD']
 
         return { tokensAvailable }
       }
