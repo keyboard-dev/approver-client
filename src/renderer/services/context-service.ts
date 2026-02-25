@@ -227,7 +227,9 @@ Note: Use the accountId when making API calls that require a connected account r
 COMPOSIO CONNECTED ACCOUNTS:
 ${JSON.stringify(composioAccountsList, null, 2)}
 
-Note: These are Composio-managed OAuth connections. The appName (toolkit slug) identifies the service (e.g., "slack", "github", "googlecalendar"). Use the accountId when deploying Composio triggers or making authenticated API calls through Composio.`
+Note: These are Composio-managed OAuth connections. Use the accountId with the Composio proxy "endpoint" field.
+
+MICROSOFT ACCOUNTS (share_point, excel, onedrive, outlook, teams): Do NOT use the Microsoft Graph API (graph.microsoft.com). Use the SharePoint REST API instead — e.g., endpoint: "https://{tenant}.sharepoint.com/_api/web/lists" or "https://{tenant}.sharepoint.com/_api/web/GetFolderByServerRelativeUrl('/path')/Files/add(url='file.xlsx',overwrite=true)". Use web-search first to find the user's SharePoint tenant URL if unknown.`
       : ''
 
     // Build Local provider connected accounts section
