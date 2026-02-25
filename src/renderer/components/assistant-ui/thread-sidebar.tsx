@@ -1,4 +1,4 @@
-import { ChevronDownIcon, ExternalLink, Loader2, PlusIcon } from 'lucide-react'
+import { AlertCircleIcon, CheckCircle2Icon, ChevronDownIcon, ExternalLink, Loader2, PlusIcon, WifiOffIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { useState } from 'react'
 import squaresIconUrl from '../../../../assets/icon-squares.svg'
@@ -263,6 +263,52 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
         <p className="flex-1 font-semibold text-[14px] text-[#737373] leading-normal">
           Overview
         </p>
+      </div>
+
+      {/* MCP Connection Status */}
+      <div className="px-[15px]">
+        {mcpConnected
+          ? (
+              <div className="flex items-center gap-2 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2">
+                <CheckCircle2Icon className="size-4 shrink-0 text-emerald-600" />
+                <span className="text-[13px] font-medium text-emerald-800">
+                  Server connected
+                </span>
+                {mcpAbilities != null && mcpAbilities > 0 && (
+                  <span className="ml-auto text-[11px] font-medium text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded-full">
+                    {mcpAbilities}
+                    {' '}
+                    tools
+                  </span>
+                )}
+              </div>
+            )
+          : mcpError
+            ? (
+                <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2">
+                  <AlertCircleIcon className="size-4 shrink-0 text-red-500" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-medium text-red-800 truncate">Connection failed</p>
+                  </div>
+                  {onRetryMCP && (
+                    <button
+                      type="button"
+                      onClick={onRetryMCP}
+                      className="shrink-0 text-[11px] font-medium text-red-700 bg-red-100 hover:bg-red-200 px-2 py-0.5 rounded-full transition-colors"
+                    >
+                      Retry
+                    </button>
+                  )}
+                </div>
+              )
+            : (
+                <div className="flex items-center gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
+                  <Loader2 className="size-4 shrink-0 text-amber-600 animate-spin" />
+                  <span className="text-[13px] font-medium text-amber-800">
+                    Connecting...
+                  </span>
+                </div>
+              )}
       </div>
 
       {/* Model Preferences Section */}

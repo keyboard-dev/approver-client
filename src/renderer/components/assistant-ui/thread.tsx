@@ -1,4 +1,5 @@
 import {
+  AlertCircleIcon,
   ArrowDownIcon,
   ArrowUpIcon,
   CheckIcon,
@@ -6,6 +7,7 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   CopyIcon,
+  Loader2Icon,
   PanelLeftCloseIcon,
   PanelLeftOpenIcon,
   PanelRightCloseIcon,
@@ -13,6 +15,7 @@ import {
   PencilIcon,
   RefreshCwIcon,
   Square,
+  WifiOffIcon,
 } from 'lucide-react'
 
 import {
@@ -383,6 +386,33 @@ export const Thread: FC<ThreadCustomProps> = ({
                   <div className="aui-thread-viewport-spacer min-h-8 grow" />
                 </ThreadPrimitive.If>
               </ThreadPrimitive.Viewport>
+
+              {/* MCP Connection Status Banner */}
+              {mcpConnected === false && (
+                <div className="mx-5 mb-2 flex items-center gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm text-amber-800">
+                  {mcpError
+                    ? <AlertCircleIcon className="size-4 shrink-0 text-amber-600" />
+                    : <WifiOffIcon className="size-4 shrink-0 text-amber-600" />}
+                  <span className="flex-1">
+                    {mcpError
+                      ? `Connection error: ${mcpError}`
+                      : 'Connecting to automation server...'}
+                  </span>
+                  {mcpError && onRetryMCP
+                    ? (
+                        <button
+                          type="button"
+                          onClick={onRetryMCP}
+                          className="shrink-0 rounded-md bg-amber-200 px-2.5 py-1 text-xs font-medium text-amber-900 hover:bg-amber-300 transition-colors"
+                        >
+                          Retry
+                        </button>
+                      )
+                    : !mcpError && (
+                        <Loader2Icon className="size-4 shrink-0 animate-spin text-amber-600" />
+                      )}
+                </div>
+              )}
 
               <Composer
                 selectedScripts={selectedScripts}
