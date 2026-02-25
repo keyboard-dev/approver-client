@@ -1,7 +1,15 @@
-import { AlertCircleIcon, CheckCircle2Icon, ChevronDownIcon, ExternalLink, Loader2, PencilLineIcon, PlusIcon, WifiOffIcon } from 'lucide-react'
+import { AlertCircleIcon, CheckCircle2Icon, ChevronDownIcon, ExternalLink, Loader2, PencilLineIcon, PlusIcon, Trash2Icon, WifiOffIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { fetchConnectorNotes, getConnectorNote, setConnectorNote } from '../../services/context-service'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../ui/dialog'
 import squaresIconUrl from '../../../../assets/icon-squares.svg'
 import { useComposio } from '../../hooks/useComposio'
 import { useKeyboardApiConnectors } from '../../hooks/useKeyboardApiConnectors'
@@ -73,22 +81,29 @@ const ConnectedAppRow: FC<ConnectedAppRowProps & { notesReady: boolean }> = ({ a
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const hasNote = notesReady && getConnectorNote(app.source, app.appSlug).length > 0
 
-  // Load note when opening
-  useEffect(() => {
-    if (noteOpen) {
-      setNoteValue(getConnectorNote(app.source, app.appSlug))
-      setTimeout(() => textareaRef.current?.focus(), 0)
-    }
-  }, [noteOpen, app.source, app.appSlug])
+  const openDialog = useCallback(() => {
+    setNoteValue(getConnectorNote(app.source, app.appSlug))
+    setNoteOpen(true)
+    setTimeout(() => textareaRef.current?.focus(), 100)
+  }, [app.source, app.appSlug])
 
-  const saveNote = useCallback(async () => {
+  const handleSave = useCallback(async () => {
     setSaving(true)
     await setConnectorNote(app.source, app.appSlug, noteValue)
     setSaving(false)
+    setNoteOpen(false)
   }, [app.source, app.appSlug, noteValue])
 
+  const handleDelete = useCallback(async () => {
+    setSaving(true)
+    await setConnectorNote(app.source, app.appSlug, '')
+    setSaving(false)
+    setNoteValue('')
+    setNoteOpen(false)
+  }, [app.source, app.appSlug])
+
   return (
-    <div className="flex flex-col gap-[4px] w-full min-w-0">
+    <>
       <div className="flex items-center gap-[6px] w-full min-w-0">
         {/* Icon + Name */}
         <div className="flex-1 flex items-center gap-[6px] min-w-0">
@@ -114,18 +129,15 @@ const ConnectedAppRow: FC<ConnectedAppRowProps & { notesReady: boolean }> = ({ a
           </Tooltip>
         </div>
 
-        {/* Note toggle */}
+        {/* Note button */}
         <Tooltip>
           <TooltipTrigger asChild>
             <button
               type="button"
-              onClick={async () => {
-                if (noteOpen) await saveNote()
-                setNoteOpen(!noteOpen)
-              }}
+              onClick={openDialog}
               className={cn(
                 'p-0.5 rounded transition-colors shrink-0',
-                hasNote || noteOpen
+                hasNote
                   ? 'text-blue-600 hover:bg-blue-50'
                   : 'text-[#b0b0b0] hover:text-[#737373] hover:bg-[#f0f0f0]',
               )}
@@ -163,24 +175,72 @@ const ConnectedAppRow: FC<ConnectedAppRowProps & { notesReady: boolean }> = ({ a
               )}
       </div>
 
-      {/* Inline note editor */}
-      {noteOpen && (
-        <div className="flex flex-col gap-1 pl-[30px]">
+      {/* Note dialog */}
+      <Dialog open={noteOpen} onOpenChange={setNoteOpen}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <img
+                src={app.icon}
+                alt={app.name}
+                className="w-5 h-5 object-contain"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = squaresIconUrl
+                }}
+              />
+              Notes for {app.name}
+            </DialogTitle>
+            <DialogDescription>
+              Add instructions the AI should follow when using this service. For example: which API version to use, workspace IDs, or special considerations.
+            </DialogDescription>
+          </DialogHeader>
+
           <textarea
             ref={textareaRef}
             value={noteValue}
             onChange={e => setNoteValue(e.target.value)}
-            onBlur={saveNote}
-            placeholder="e.g. Use v2 API, workspace ID is ABC123..."
-            className="w-full text-[12px] text-[#171717] bg-white border border-[#dbdbdb] rounded-md px-2 py-1.5 resize-none outline-none focus:border-blue-400 transition-colors"
-            rows={2}
+            placeholder="e.g. Use the v2 REST API, not GraphQL. My workspace ID is ABC123. Always include the X-Custom-Header..."
+            className="w-full text-[14px] text-[#171717] bg-[#fafafa] border border-[#dbdbdb] rounded-lg px-3 py-2.5 resize-none outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-colors min-h-[120px]"
+            rows={5}
           />
-          <p className="text-[10px] text-[#a5a5a5]">
-            This note will be included as context for the AI when using this service.
-          </p>
-        </div>
-      )}
-    </div>
+
+          <DialogFooter className="flex-row justify-between sm:justify-between">
+            {hasNote
+              ? (
+                  <button
+                    type="button"
+                    onClick={handleDelete}
+                    disabled={saving}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium text-[#d23535] hover:bg-red-50 rounded-md transition-colors disabled:opacity-50"
+                  >
+                    <Trash2Icon className="w-3.5 h-3.5" />
+                    Delete note
+                  </button>
+                )
+              : <div />}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setNoteOpen(false)}
+                disabled={saving}
+                className="px-3 py-1.5 text-[13px] font-medium text-[#737373] hover:bg-[#f0f0f0] rounded-md transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving || !noteValue.trim()}
+                className="flex items-center gap-1.5 px-4 py-1.5 text-[13px] font-medium text-white bg-[#171717] hover:bg-[#333] rounded-md transition-colors disabled:opacity-50"
+              >
+                {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                Save
+              </button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
 
