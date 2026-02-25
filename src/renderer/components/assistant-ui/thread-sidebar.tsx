@@ -1,6 +1,7 @@
-import { AlertCircleIcon, CheckCircle2Icon, ChevronDownIcon, ExternalLink, Loader2, PlusIcon, WifiOffIcon } from 'lucide-react'
+import { AlertCircleIcon, CheckCircle2Icon, ChevronDownIcon, ExternalLink, Loader2, PencilLineIcon, PlusIcon, WifiOffIcon } from 'lucide-react'
 import type { FC } from 'react'
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { fetchConnectorNotes, getConnectorNote, setConnectorNote } from '../../services/context-service'
 import squaresIconUrl from '../../../../assets/icon-squares.svg'
 import { useComposio } from '../../hooks/useComposio'
 import { useKeyboardApiConnectors } from '../../hooks/useKeyboardApiConnectors'
@@ -32,6 +33,7 @@ interface ConnectedApp {
   name: string
   icon: string
   source: SourceType
+  appSlug: string
   isConnected: boolean
   isConnecting?: boolean
   isDisconnecting?: boolean
@@ -64,59 +66,120 @@ interface ConnectedAppRowProps {
   onDisconnect: () => void
 }
 
-const ConnectedAppRow: FC<ConnectedAppRowProps> = ({ app, onConnect, onDisconnect }) => {
+const ConnectedAppRow: FC<ConnectedAppRowProps & { notesReady: boolean }> = ({ app, onConnect, onDisconnect, notesReady }) => {
+  const [noteOpen, setNoteOpen] = useState(false)
+  const [noteValue, setNoteValue] = useState('')
+  const [saving, setSaving] = useState(false)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const hasNote = notesReady && getConnectorNote(app.source, app.appSlug).length > 0
+
+  // Load note when opening
+  useEffect(() => {
+    if (noteOpen) {
+      setNoteValue(getConnectorNote(app.source, app.appSlug))
+      setTimeout(() => textareaRef.current?.focus(), 0)
+    }
+  }, [noteOpen, app.source, app.appSlug])
+
+  const saveNote = useCallback(async () => {
+    setSaving(true)
+    await setConnectorNote(app.source, app.appSlug, noteValue)
+    setSaving(false)
+  }, [app.source, app.appSlug, noteValue])
+
   return (
-    <div className="flex items-center gap-[6px] w-full min-w-0">
-      {/* Icon + Name */}
-      <div className="flex-1 flex items-center gap-[6px] min-w-0">
-        <div className="bg-white border border-[#e5e5e5] rounded-[4px] p-[4px] flex items-center shrink-0">
-          <img
-            src={app.icon}
-            alt={app.name}
-            className="w-[18px] h-[18px] object-contain"
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = squaresIconUrl
-            }}
-          />
+    <div className="flex flex-col gap-[4px] w-full min-w-0">
+      <div className="flex items-center gap-[6px] w-full min-w-0">
+        {/* Icon + Name */}
+        <div className="flex-1 flex items-center gap-[6px] min-w-0">
+          <div className="bg-white border border-[#e5e5e5] rounded-[4px] p-[4px] flex items-center shrink-0">
+            <img
+              src={app.icon}
+              alt={app.name}
+              className="w-[18px] h-[18px] object-contain"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = squaresIconUrl
+              }}
+            />
+          </div>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="font-medium text-[13px] text-[#171717] truncate min-w-0 cursor-default">
+                {app.name}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="bg-[#171717] text-white border-none">
+              <p>{app.name}</p>
+            </TooltipContent>
+          </Tooltip>
         </div>
+
+        {/* Note toggle */}
         <Tooltip>
           <TooltipTrigger asChild>
-            <span className="font-medium text-[13px] text-[#171717] truncate min-w-0 cursor-default">
-              {app.name}
-            </span>
+            <button
+              type="button"
+              onClick={async () => {
+                if (noteOpen) await saveNote()
+                setNoteOpen(!noteOpen)
+              }}
+              className={cn(
+                'p-0.5 rounded transition-colors shrink-0',
+                hasNote || noteOpen
+                  ? 'text-blue-600 hover:bg-blue-50'
+                  : 'text-[#b0b0b0] hover:text-[#737373] hover:bg-[#f0f0f0]',
+              )}
+            >
+              <PencilLineIcon className="w-3.5 h-3.5" />
+            </button>
           </TooltipTrigger>
           <TooltipContent side="top" className="bg-[#171717] text-white border-none">
-            <p>{app.name}</p>
+            <p>{hasNote ? 'Edit note' : 'Add note for AI'}</p>
           </TooltipContent>
         </Tooltip>
+
+        {/* Action Button */}
+        {app.isConnecting || app.isDisconnecting
+          ? (
+              <Loader2 className="w-5 h-5 animate-spin text-[#737373] shrink-0" />
+            )
+          : app.isConnected
+            ? (
+                <button
+                  className="px-2 py-0.5 text-[12px] font-medium text-[#d23535] hover:bg-[#FEE2E2] rounded-[4px] transition-colors shrink-0"
+                  onClick={onDisconnect}
+                >
+                  Remove
+                </button>
+              )
+            : (
+                <button
+                  className="flex items-center gap-1 px-2 py-0.5 bg-white border border-[#e5e5e5] rounded-[4px] text-[12px] font-medium text-[#171717] hover:border-[#ccc] transition-colors shrink-0"
+                  onClick={onConnect}
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  Connect
+                </button>
+              )}
       </div>
 
-      {/* Source Tag */}
-      <SourceTag source={app.source} />
-
-      {/* Action Button */}
-      {app.isConnecting || app.isDisconnecting
-        ? (
-            <Loader2 className="w-5 h-5 animate-spin text-[#737373] shrink-0" />
-          )
-        : app.isConnected
-          ? (
-              <button
-                className="px-2 py-0.5 text-[12px] font-medium text-[#d23535] hover:bg-[#FEE2E2] rounded-[4px] transition-colors shrink-0"
-                onClick={onDisconnect}
-              >
-                Remove
-              </button>
-            )
-          : (
-              <button
-                className="flex items-center gap-1 px-2 py-0.5 bg-white border border-[#e5e5e5] rounded-[4px] text-[12px] font-medium text-[#171717] hover:border-[#ccc] transition-colors shrink-0"
-                onClick={onConnect}
-              >
-                <ExternalLink className="w-3 h-3" />
-                Connect
-              </button>
-            )}
+      {/* Inline note editor */}
+      {noteOpen && (
+        <div className="flex flex-col gap-1 pl-[30px]">
+          <textarea
+            ref={textareaRef}
+            value={noteValue}
+            onChange={e => setNoteValue(e.target.value)}
+            onBlur={saveNote}
+            placeholder="e.g. Use v2 API, workspace ID is ABC123..."
+            className="w-full text-[12px] text-[#171717] bg-white border border-[#dbdbdb] rounded-md px-2 py-1.5 resize-none outline-none focus:border-blue-400 transition-colors"
+            rows={2}
+          />
+          <p className="text-[10px] text-[#a5a5a5]">
+            This note will be included as context for the AI when using this service.
+          </p>
+        </div>
+      )}
     </div>
   )
 }
@@ -161,6 +224,12 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
   const [modelPreferencesOpen, setModelPreferencesOpen] = useState(true)
   const [connectorsOpen, setConnectorsOpen] = useState(true)
   const [connectAppsModalOpen, setConnectAppsModalOpen] = useState(false)
+  const [notesReady, setNotesReady] = useState(false)
+
+  // Fetch connector notes from backend on mount
+  useEffect(() => {
+    fetchConnectorNotes().then(() => setNotesReady(true)).catch(() => setNotesReady(true))
+  }, [])
 
   const { showPopup, hidePopup } = usePopup()
 
@@ -201,6 +270,7 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
         name: provider.name,
         icon: provider.icon,
         source: 'local' as SourceType,
+        appSlug: provider.id,
         isConnected: true,
         isDisconnecting: disconnectingProviderId === provider.id,
       })),
@@ -210,6 +280,7 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
       name: account.app.name,
       icon: account.app.logoUrl || squaresIconUrl,
       source: 'pipedream' as SourceType,
+      appSlug: account.app.nameSlug,
       isConnected: true,
       isDisconnecting: pipedreamDisconnectingAccountId === account.id,
     })),
@@ -225,6 +296,7 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
         name: matchingApp?.name || appIdentifier || 'Unknown App',
         icon: matchingApp?.meta?.logo || matchingApp?.logo || squaresIconUrl,
         source: 'composio' as SourceType,
+        appSlug: matchingApp?.slug || appIdentifier,
         isConnected: true,
         isDisconnecting: composioDisconnectingAccountId === account.id,
       }
@@ -438,6 +510,7 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
                         <ConnectedAppRow
                           key={app.id}
                           app={app}
+                          notesReady={notesReady}
                           onConnect={() => {}}
                           onDisconnect={() => handleDisconnect(app)}
                         />

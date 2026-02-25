@@ -3185,6 +3185,83 @@ class MenuBarNotificationApp {
       }
     })
 
+    // =========================================================================
+    // Connector Notes
+    // =========================================================================
+
+    ipcMain.handle('get-connector-notes', async () => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/connector-notes`, {
+          method: 'GET',
+          headers: { Authorization: `Bearer ${accessToken}` },
+        })
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        return await response.json()
+      }
+      catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+      }
+    })
+
+    ipcMain.handle('upsert-connector-note', async (_event, source: string, appSlug: string, note: string) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/connector-notes/${encodeURIComponent(source)}/${encodeURIComponent(appSlug)}`, {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ note }),
+        })
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        return await response.json()
+      }
+      catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+      }
+    })
+
+    ipcMain.handle('delete-connector-note', async (_event, source: string, appSlug: string) => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/connector-notes/${encodeURIComponent(source)}/${encodeURIComponent(appSlug)}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${accessToken}` },
+        })
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        return await response.json()
+      }
+      catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+      }
+    })
+
     // Check connected account status for an app (used before deploying triggers)
     ipcMain.handle('check-composio-account-status', async (_event, appName: string) => {
       try {

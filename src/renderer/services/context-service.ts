@@ -86,7 +86,7 @@ export class ContextService {
     // Generate new planning token
     const planningToken = generatePlanningToken()
 
-    // Fetch user tokens, codespace info, executor connection, pipedream accounts, and composio accounts in parallel
+    // Fetch user tokens, codespace info, executor connection, pipedream accounts, composio accounts, and connector notes in parallel
     const [userTokens, codespaceInfo, executorConnection, pipedreamAccounts, composioAccounts] = await Promise.allSettled([
       this.fetchUserTokens(),
       this.fetchCodespaceInfo(),
@@ -94,6 +94,8 @@ export class ContextService {
       this.fetchPipedreamAccounts(),
       this.fetchComposioAccounts(),
     ])
+    // Also refresh connector notes cache (fire and forget, non-critical)
+    await fetchConnectorNotes().catch(() => {})
 
     return {
       planningToken,
@@ -192,13 +194,17 @@ Note: These are additional MCP tools beyond the core keyboard abilities. You can
 
     // Build Pipedream connected accounts section
     const pipedreamAccountsList = context.pipedreamAccounts.length > 0
-      ? context.pipedreamAccounts.map(account => ({
-          accountId: account.id,
-          accountName: account.name,
-          appName: account.app.name,
-          appSlug: account.app.nameSlug,
-          healthy: account.healthy,
-        }))
+      ? context.pipedreamAccounts.map((account) => {
+          const note = getConnectorNote('pipedream', account.app.nameSlug)
+          return {
+            accountId: account.id,
+            accountName: account.name,
+            appName: account.app.name,
+            appSlug: account.app.nameSlug,
+            healthy: account.healthy,
+            ...(note ? { userNotes: note } : {}),
+          }
+        })
       : []
 
     const pipedreamAccountsSection = pipedreamAccountsList.length > 0
@@ -207,18 +213,22 @@ Note: These are additional MCP tools beyond the core keyboard abilities. You can
 PIPEDREAM CONNECTED ACCOUNTS:
 ${JSON.stringify(pipedreamAccountsList, null, 2)}
 
-Note: Use the accountId when making API calls that require a connected account reference (e.g., for Pipedream triggers or actions that need account authentication).`
+Note: Use the accountId when making API calls that require a connected account reference (e.g., for Pipedream triggers or actions that need account authentication). If an account has "userNotes", follow those instructions carefully when using that service.`
       : ''
 
     // Build Composio connected accounts section
     const composioAccountsList = context.composioAccounts.length > 0
       ? context.composioAccounts
           .filter(account => account.status === 'ACTIVE' && !account.isDisabled)
-          .map(account => ({
-            accountId: account.id,
-            appName: account.toolkit.slug,
-            status: account.status,
-          }))
+          .map((account) => {
+            const note = getConnectorNote('composio', account.toolkit.slug)
+            return {
+              accountId: account.id,
+              appName: account.toolkit.slug,
+              status: account.status,
+              ...(note ? { userNotes: note } : {}),
+            }
+          })
       : []
 
     const composioAccountsSection = composioAccountsList.length > 0
@@ -227,7 +237,7 @@ Note: Use the accountId when making API calls that require a connected account r
 COMPOSIO CONNECTED ACCOUNTS:
 ${JSON.stringify(composioAccountsList, null, 2)}
 
-Note: These are Composio-managed OAuth connections. Use the accountId with the Composio proxy "endpoint" field.
+Note: These are Composio-managed OAuth connections. Use the accountId with the Composio proxy "endpoint" field. If an account has "userNotes", follow those instructions carefully when using that service.
 
 MICROSOFT ACCOUNTS (share_point, excel, onedrive, outlook, teams): Do NOT use the Microsoft Graph API (graph.microsoft.com). Use the SharePoint REST API instead — e.g., endpoint: "https://{tenant}.sharepoint.com/_api/web/lists" or "https://{tenant}.sharepoint.com/_api/web/GetFolderByServerRelativeUrl('/path')/Files/add(url='file.xlsx',overwrite=true)". Use web-search first to find the user's SharePoint tenant URL if unknown.`
       : ''
@@ -235,11 +245,15 @@ MICROSOFT ACCOUNTS (share_point, excel, onedrive, outlook, teams): Do NOT use th
     // Build Local provider connected accounts section
     const localProviderStatus = await window.electronAPI?.getProviderAuthStatus?.().catch(() => ({})) as Record<string, { authenticated?: boolean }> || {}
     const localAccountsList = Object.entries(localProviderStatus)
-      .filter(([_, status]) => status?.authenticated)
-      .map(([provider]) => ({
-        provider,
-        source: 'local',
-      }))
+      .filter(([, status]) => status?.authenticated)
+      .map(([provider]) => {
+        const note = getConnectorNote('local', provider)
+        return {
+          provider,
+          source: 'local',
+          ...(note ? { userNotes: note } : {}),
+        }
+      })
 
     const localAccountsSection = localAccountsList.length > 0
       ? `
@@ -247,7 +261,7 @@ MICROSOFT ACCOUNTS (share_point, excel, onedrive, outlook, teams): Do NOT use th
 LOCAL CONNECTED ACCOUNTS (OAuth provider tokens managed by Keyboard):
 ${JSON.stringify(localAccountsList, null, 2)}
 
-Note: These are locally authenticated OAuth providers. The user has granted access through Keyboard's OAuth flow. Use the corresponding KEYBOARD_PROVIDER_USER_TOKEN_FOR_<PROVIDER> environment variable when making API calls.`
+Note: These are locally authenticated OAuth providers. The user has granted access through Keyboard's OAuth flow. Use the corresponding KEYBOARD_PROVIDER_USER_TOKEN_FOR_<PROVIDER> environment variable when making API calls. If an account has "userNotes", follow those instructions carefully when using that service.`
       : ''
 
     // Get previous run-code execution results for context
@@ -399,6 +413,54 @@ USER REQUEST: ${userMessage}`
       return []
     }
   }
+}
+
+// =============================================================================
+// Connector Notes - API-backed per-account notes for AI context
+// =============================================================================
+
+export interface ConnectorNote {
+  id: string
+  source: string
+  appSlug: string
+  note: string
+  createdAt: string
+  updatedAt: string
+}
+
+// In-memory cache of notes, refreshed on each fetch
+let cachedNotes: ConnectorNote[] = []
+
+export async function fetchConnectorNotes(): Promise<ConnectorNote[]> {
+  try {
+    const result = await window.electronAPI.getConnectorNotes()
+    if (result.success && result.notes) {
+      cachedNotes = result.notes
+      return cachedNotes
+    }
+    return cachedNotes
+  }
+  catch {
+    return cachedNotes
+  }
+}
+
+export function getConnectorNote(source: string, appSlug: string): string {
+  const match = cachedNotes.find(
+    n => n.source === source && n.appSlug === appSlug.toLowerCase(),
+  )
+  return match?.note || ''
+}
+
+export async function setConnectorNote(source: string, appSlug: string, note: string): Promise<void> {
+  if (note.trim()) {
+    await window.electronAPI.upsertConnectorNote(source, appSlug.toLowerCase(), note.trim())
+  }
+  else {
+    await window.electronAPI.deleteConnectorNote(source, appSlug.toLowerCase())
+  }
+  // Refresh cache
+  await fetchConnectorNotes()
 }
 
 // Export singleton instance
