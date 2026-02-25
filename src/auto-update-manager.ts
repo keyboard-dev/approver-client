@@ -223,7 +223,7 @@ export class AutoUpdateManager {
   public sendPendingUpdates(): void {
     // Mark renderer as ready
     this.rendererReady = true
-    
+
     if (this.pendingUpdateInfo) {
       this.options.sendToRenderer('update-available', {
         version: this.pendingUpdateInfo.version,
