@@ -64,7 +64,6 @@ export class ExecutorWebSocketClient {
     this.windowManager = windowManager
   }
 
-
   // Set the GitHub token to use for authentication
   setGitHubToken(token: string | null): void {
     this.githubToken = token

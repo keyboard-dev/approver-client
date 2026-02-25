@@ -1,11 +1,11 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type {
-    CallToolResult,
-    GetPromptResult,
-    ReadResourceResult,
-    Resource,
-    Tool,
+  CallToolResult,
+  GetPromptResult,
+  ReadResourceResult,
+  Resource,
+  Tool,
 } from '@modelcontextprotocol/sdk/types.js'
 import { useCallback, useEffect, useRef, useState } from 'react'
 

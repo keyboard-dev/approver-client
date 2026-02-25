@@ -257,7 +257,7 @@ export function InboxProvider({ children }: { children: React.ReactNode }) {
     window.electronAPI.onUpdateAvailable(handleUpdateAvailable)
     window.electronAPI.onDownloadProgress(handleDownloadProgress)
     window.electronAPI.onUpdateDownloaded(handleUpdateDownloaded)
-    
+
     // Notify main process that renderer is ready to receive update notifications
     window.electronAPI.notifyRendererReady()
 

@@ -113,18 +113,16 @@ try {
     // In user data directory (writable location)
     path.join(app.getPath('userData'), '.env.local'),
   ]
-  
+
   for (const localEnvPath of possiblePaths) {
     if (fs.existsSync(localEnvPath)) {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       require('@dotenvx/dotenvx').config({ path: localEnvPath, override: true })
-      console.log('[Main] Loaded .env.local from:', localEnvPath)
       break
     }
   }
 }
 catch (err) {
-  console.error('[Main] Error loading .env.local:', err)
 }
 import { aiRuntime, initializeAIProviders } from './ai-provider/setup'
 import { webSearch } from './ai-provider/utils/dedicated-web'
