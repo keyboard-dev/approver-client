@@ -67,7 +67,7 @@ export const AgenticStatusIndicator: React.FC<AgenticStatusIndicatorProps> = ({
     <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mx-2 mb-4 dark:bg-gray-800 dark:border-gray-700">
       <div className="flex items-center space-x-2">
         {getStatusIcon()}
-        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+        <span className="text-sm font-medium text-gray-700 dark:text-gray-300 text-ellipsis overflow-hidden whitespace-nowrap">
           {getStatusText()}
         </span>
         {agenticProgress && !agenticProgress.isComplete && (

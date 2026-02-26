@@ -449,40 +449,35 @@ Respond with only one word: "simple", "web-search", or "agentic"`
     const lastUserMessage = aiMessages[aiMessages.length - 1]
     const userQuery = lastUserMessage?.content || ''
 
-    // Get current date for context
-    const now = new Date()
-    const currentDate = now.toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    })
+    // Show empty placeholder while searching
+    yield { content: [{ type: 'text' as const, text: '' }] }
 
-    let accumulatedResponse = `🔍 **Searching the web...**\n_Current date: ${currentDate}_`
-    yield {
-      content: [{ type: 'text' as const, text: accumulatedResponse }],
-    }
+    this.onTaskProgress?.({
+      step: 1,
+      totalSteps: 1,
+      currentAction: 'Searching the web...',
+      isComplete: false,
+    })
 
     try {
       this.updateToolExecutionState(true, 'web-search')
 
-      // Check for abort before API call
       if (abortSignal?.aborted) {
         throw new Error('Request was aborted')
       }
 
       const searchResult = await window.electronAPI.webSearchGeneral(userQuery)
 
-      accumulatedResponse += '\n\n✅ **Search complete!**'
-      yield {
-        content: [{ type: 'text' as const, text: accumulatedResponse }],
-      }
+      this.onTaskProgress?.({
+        step: 1,
+        totalSteps: 1,
+        currentAction: 'Search complete',
+        isComplete: true,
+      })
 
       // Extract the text response and citations from the result
-      // The response structure is: { response: { content: [...] } }
       const contentArray = (searchResult as any).response?.content || searchResult.content || []
 
-      // Concatenate all text blocks and collect all citations
       let responseText = ''
       const allCitations: Array<{ url: string, title: string }> = []
       const seenUrls = new Set<string>()
@@ -490,10 +485,8 @@ Respond with only one word: "simple", "web-search", or "agentic"`
       for (const item of contentArray) {
         if (item.type === 'text' && item.text) {
           responseText += item.text
-          // Collect citations from each text block
           if (item.citations && Array.isArray(item.citations)) {
             for (const citation of item.citations) {
-              // Deduplicate citations by URL
               if (citation.url && !seenUrls.has(citation.url)) {
                 seenUrls.add(citation.url)
                 allCitations.push({ url: citation.url, title: citation.title || citation.url })
@@ -507,10 +500,8 @@ Respond with only one word: "simple", "web-search", or "agentic"`
         responseText = 'No results found.'
       }
 
-      // Format the response with citations
-      let formattedResponse = `${accumulatedResponse}\n\n---\n\n${responseText}`
+      let formattedResponse = `${responseText}`
 
-      // Add sources section if there are citations
       if (allCitations.length > 0) {
         formattedResponse += '\n\n---\n\n**Sources:**'
         for (const citation of allCitations) {
@@ -518,16 +509,11 @@ Respond with only one word: "simple", "web-search", or "agentic"`
         }
       }
 
-      yield {
-        content: [{ type: 'text' as const, text: formattedResponse }],
-      }
+      yield { content: [{ type: 'text' as const, text: formattedResponse }] }
     }
     catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      accumulatedResponse += `\n\n❌ **Search failed:** ${errorMessage}`
-      yield {
-        content: [{ type: 'text' as const, text: accumulatedResponse }],
-      }
+      yield { content: [{ type: 'text' as const, text: `Search failed: ${errorMessage}` }] }
     }
     finally {
       this.updateToolExecutionState(false)
@@ -538,35 +524,6 @@ Respond with only one word: "simple", "web-search", or "agentic"`
    * Extract all JSON strings from a response that might contain ability calls.
    * Matches both fenced (```json ... ```) and raw JSON objects with "ability" key.
    */
-  private stripAbilityJsonForDisplay(text: string): string {
-    let cleaned = text.replace(/```json\s*\{[^`]*?"ability"\s*:.*?\}\s*```/gs, '')
-
-    // Remove raw (unfenced) ability JSON objects
-    const rawPattern = /\{[^{}]*"ability"\s*:\s*"[^"]+?"[^{}]*"parameters"\s*:\s*\{/g
-    for (const match of text.matchAll(rawPattern)) {
-      const startIdx = match.index!
-      let depth = 0
-      let endIdx = startIdx
-      for (let i = startIdx; i < text.length; i++) {
-        if (text[i] === '{') depth++
-        else if (text[i] === '}') {
-          depth--
-          if (depth === 0) {
-            endIdx = i + 1
-            break
-          }
-        }
-      }
-      if (depth === 0 && endIdx > startIdx) {
-        cleaned = cleaned.replace(text.substring(startIdx, endIdx), '')
-      }
-    }
-
-    // Clean up extra whitespace left behind
-    cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim()
-    return cleaned
-  }
-
   private extractAbilityJsonCandidates(response: string): string[] {
     const candidates: string[] = []
 
@@ -642,10 +599,8 @@ Respond with only one word: "simple", "web-search", or "agentic"`
     return abilityCalls
   }
 
-  private async* streamAIResponseWithProgress(
+  private async* streamAIResponse(
     messages: AIMessage[],
-    progressPrefix: string,
-    currentAccumulated: string,
     abortSignal?: AbortSignal,
   ): AsyncGenerator<{ text: string, isComplete: boolean }, string, unknown> {
     // CRITICAL: Remove any existing listeners from previous stream iterations
@@ -675,12 +630,6 @@ Respond with only one word: "simple", "web-search", or "agentic"`
     window.electronAPI.onAIStreamError(handleError)
 
     try {
-      // Immediately yield progress indicator to show we're starting (before API latency)
-      yield {
-        text: `${currentAccumulated}\n\n${progressPrefix} ⏳`,
-        isComplete: false,
-      }
-
       // Start the stream
       await window.electronAPI.sendAIMessageStream(
         this.currentProvider.provider,
@@ -688,9 +637,9 @@ Respond with only one word: "simple", "web-search", or "agentic"`
         { model: this.currentProvider.model },
       )
 
-      let lastYieldedLength = 0 // How much we've actually shown to UI
-      const CHARS_PER_YIELD = 15 // Release ~15 chars at a time for smooth typing effect
-      const YIELD_INTERVAL = 20 // ms between yields when smoothing
+      let lastYieldedLength = 0
+      const CHARS_PER_YIELD = 15
+      const YIELD_INTERVAL = 20
 
       // Process stream and yield updates with token smoothing
       while (!streamComplete || lastYieldedLength < fullResponse.length) {
@@ -702,67 +651,26 @@ Respond with only one word: "simple", "web-search", or "agentic"`
           throw streamError
         }
 
-        // Smooth token release: yield content incrementally
         if (fullResponse.length > lastYieldedLength) {
-          // Calculate how much new content to yield this iteration
           const availableNewContent = fullResponse.length - lastYieldedLength
           const charsToYield = Math.min(CHARS_PER_YIELD, availableNewContent)
           const newYieldLength = lastYieldedLength + charsToYield
 
-          const displayContent = fullResponse.substring(0, newYieldLength)
-          const charCount = newYieldLength > 100
-            ? ` (${newYieldLength} chars)`
-            : ''
-          const displayText = newYieldLength > 300
-            ? `${displayContent.substring(0, 300)}...`
-            : displayContent
-
-          const prefixWithCount = `${progressPrefix}${charCount}`
-          const updatedText = `${currentAccumulated}\n\n${prefixWithCount}\n${displayText}`
-          yield { text: updatedText, isComplete: false }
+          yield { text: fullResponse.substring(0, newYieldLength), isComplete: false }
           lastYieldedLength = newYieldLength
 
-          // Short delay for smooth typing effect
           await new Promise(resolve => setTimeout(resolve, YIELD_INTERVAL))
         }
         else {
-          // No new content yet, poll at normal rate
           await new Promise(resolve => setTimeout(resolve, 50))
         }
       }
 
-      // Smooth out any remaining content that wasn't yielded during the loop
-      while (lastYieldedLength < fullResponse.length) {
-        const availableNewContent = fullResponse.length - lastYieldedLength
-        const charsToYield = Math.min(CHARS_PER_YIELD, availableNewContent)
-        const newYieldLength = lastYieldedLength + charsToYield
-
-        const displayContent = fullResponse.substring(0, newYieldLength)
-        const charCount = newYieldLength > 100 ? ` (${newYieldLength} chars)` : ''
-        const displayText = newYieldLength > 300
-          ? `${displayContent.substring(0, 300)}...`
-          : displayContent
-
-        const prefixWithCount = `${progressPrefix}${charCount}`
-        yield {
-          text: `${currentAccumulated}\n\n${prefixWithCount}\n${displayText}`,
-          isComplete: false,
-        }
-        lastYieldedLength = newYieldLength
-
-        await new Promise(resolve => setTimeout(resolve, YIELD_INTERVAL))
-      }
-
-      // Final yield with complete response
-      yield {
-        text: `${currentAccumulated}\n\n${progressPrefix}\n${fullResponse}`,
-        isComplete: true,
-      }
+      yield { text: fullResponse, isComplete: true }
 
       return fullResponse
     }
     finally {
-      // Clean up event listeners
       window.electronAPI.removeAIStreamListeners()
     }
   }
@@ -775,93 +683,58 @@ Respond with only one word: "simple", "web-search", or "agentic"`
     const conversationHistory = [...aiMessages]
     const originalUserMessage = conversationHistory[conversationHistory.length - 1]
     let currentIteration = 0
-    let finalResponse = ''
     let abilitiesRan = ''
-    let accumulatedResponse = ''
+
+    // Show empty placeholder during working phase
+    yield { content: [{ type: 'text' as const, text: '' }] }
 
     // Agentic loop - continue until task is complete or max iterations reached
     while (currentIteration < this.maxAgenticIterations) {
       currentIteration++
 
-      // Report progress and yield update
       this.onTaskProgress?.({
         step: currentIteration,
         totalSteps: this.maxAgenticIterations,
-        currentAction: `Processing step ${currentIteration}`,
+        currentAction: 'Analyzing your request...',
         isComplete: false,
       })
 
-      const progressUpdate = `🔄 **Iteration ${currentIteration}/${this.maxAgenticIterations}**: Processing step ${currentIteration} of agentic workflow...`
-      accumulatedResponse = progressUpdate
-      yield {
-        content: [{ type: 'text' as const, text: accumulatedResponse }],
-      }
-
-      // Check abort signal
       if (abortSignal?.aborted) {
         throw new Error('Request was aborted')
       }
 
-      // Send enhanced message with context
-      const enhancedMessages = conversationHistory
-
-      // Stream the AI reasoning response
+      // Stream AI reasoning (not displayed to user)
       let toolChoiceResponse = ''
-      for await (const update of this.streamAIResponseWithProgress(
-        enhancedMessages,
-        '🧠 **Analyzing which tools to use...**',
-        accumulatedResponse,
-        abortSignal,
-      )) {
-        // Strip ability JSON from display but keep raw text for parsing
-        yield {
-          content: [{ type: 'text' as const, text: this.stripAbilityJsonForDisplay(update.text) }],
-        }
+      for await (const update of this.streamAIResponse(conversationHistory, abortSignal)) {
         if (update.isComplete) {
-          toolChoiceResponse = update.text.split('🧠 **Analyzing which tools to use...**\n')[1] || ''
-          accumulatedResponse = this.stripAbilityJsonForDisplay(update.text)
+          toolChoiceResponse = update.text
         }
       }
 
       // Check if the first response already contains ability calls
-      // This fixes the regression where the AI produces ability JSON in the first response
-      // but the code previously made an unnecessary second call that could lose the abilities
       const firstResponseAbilityCalls = this.foundAbilityCallsInResponse(toolChoiceResponse)
 
       let response = ''
       if (firstResponseAbilityCalls.length > 0) {
-        // First response already has ability calls - use it directly, skip second AI call
         response = toolChoiceResponse
       }
       else {
         // No abilities in first response - make second call to plan tool execution
         const selectedTools = this.preContextPrompt([{ role: 'user', content: toolChoiceResponse }])
 
-        // Show transition indicator before next API call
-        accumulatedResponse += '\n\n⏳ _Preparing next step..._'
-        yield {
-          content: [{ type: 'text' as const, text: accumulatedResponse }],
-        }
+        this.onTaskProgress?.({
+          step: currentIteration,
+          totalSteps: this.maxAgenticIterations,
+          currentAction: 'Planning tool execution...',
+          isComplete: false,
+        })
 
-        // Stream the tool selection and planning response
-        for await (const update of this.streamAIResponseWithProgress(
-          selectedTools,
-          '🎯 **Planning tool execution...**',
-          accumulatedResponse.replace('\n\n⏳ _Preparing next step..._', ''), // Remove transition indicator
-          abortSignal,
-        )) {
-          // Strip ability JSON from display but keep raw text for parsing
-          yield {
-            content: [{ type: 'text' as const, text: this.stripAbilityJsonForDisplay(update.text) }],
-          }
+        for await (const update of this.streamAIResponse(selectedTools, abortSignal)) {
           if (update.isComplete) {
-            response = update.text.split('🎯 **Planning tool execution...**\n')[1] || ''
-            accumulatedResponse = this.stripAbilityJsonForDisplay(update.text)
+            response = update.text
           }
         }
       }
-
-      finalResponse = response
 
       const abilityCalls = this.foundAbilityCallsInResponse(response)
 
@@ -871,53 +744,29 @@ Respond with only one word: "simple", "web-search", or "agentic"`
           this.onTaskProgress?.({
             step: currentIteration,
             totalSteps: this.maxAgenticIterations,
-            currentAction: 'Task completed successfully',
+            currentAction: 'Task completed',
             isComplete: true,
           })
-          accumulatedResponse += '\n\n✅ **Task Completed Successfully!**'
-          yield {
-            content: [{ type: 'text' as const, text: accumulatedResponse }],
-          }
           break
         }
         else {
-          // AI didn't call abilities but task might not be complete
-          conversationHistory.push({
-            role: 'assistant',
-            content: response,
-          })
+          conversationHistory.push({ role: 'assistant', content: response })
           conversationHistory.push({
             role: 'user',
             content: 'Please continue working on the original request or indicate if you need more information to complete the task.',
           })
-          accumulatedResponse += '\n\n🔄 **Continuing to next iteration...**'
-          yield {
-            content: [{ type: 'text' as const, text: accumulatedResponse }],
-          }
           continue
         }
       }
 
-      // Execute abilities with streaming updates
-      accumulatedResponse += `\n\n🔧 **Executing ${abilityCalls.length} tool(s):**`
-      yield {
-        content: [{ type: 'text' as const, text: accumulatedResponse }],
-      }
-
-      // Execute each ability and yield updates in real-time
+      // Execute abilities - progress shown via onTaskProgress only
       for (const abilityCall of abilityCalls) {
         const { ability: abilityName, parameters } = abilityCall
-
-        const startMessage = `- **${abilityName}**: Starting execution...`
-        accumulatedResponse += `\n${startMessage}`
-        yield {
-          content: [{ type: 'text' as const, text: accumulatedResponse }],
-        }
 
         this.onTaskProgress?.({
           step: currentIteration,
           totalSteps: this.maxAgenticIterations,
-          currentAction: `Executing ${abilityName}`,
+          currentAction: `Running ${abilityName}...`,
           isComplete: false,
         })
 
@@ -927,78 +776,29 @@ Respond with only one word: "simple", "web-search", or "agentic"`
           try {
             this.updateToolExecutionState(true, abilityName)
 
-            // Execute the ability with periodic UI updates
-            const executionPromise = this.mcpIntegration.executeAbilityCall(abilityName, parameters)
+            const executionResult = await this.mcpIntegration.executeAbilityCall(abilityName, parameters)
 
-            // Yield periodic progress updates while waiting for execution
-            let executionComplete = false
-            let executionResult: any = null
-            let executionError: Error | null = null
+            this.onTaskProgress?.({
+              step: currentIteration,
+              totalSteps: this.maxAgenticIterations,
+              currentAction: `Completed ${abilityName}, analyzing results...`,
+              isComplete: false,
+            })
 
-            executionPromise
-              .then((result) => {
-                executionResult = result
-                executionComplete = true
-              })
-              .catch((err) => {
-                executionError = err
-                executionComplete = true
-              })
-
-            // Show animated progress while waiting - include elapsed time for visibility
-            let loopCount = 0
-            const startTime = Date.now()
-            while (!executionComplete) {
-              loopCount++
-
-              const elapsedSec = Math.floor((Date.now() - startTime) / 1000)
-              const spinner = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'][loopCount % 10]
-
-              // Update the last line with visible progress (elapsed time + spinner)
-              const lines = accumulatedResponse.split('\n')
-              lines[lines.length - 1] = `- **${abilityName}**: ${spinner} Running... (${elapsedSec}s)`
-              const animatedResponse = lines.join('\n')
-
-              yield {
-                content: [{ type: 'text' as const, text: animatedResponse }],
-              }
-
-              await new Promise(resolve => setTimeout(resolve, 300)) // Faster updates for smoother animation
-            }
-
-            if (executionError) {
-              throw executionError
-            }
-
-            const resultSummary = `✅ **${abilityName}** completed successfully`
-            // Replace the "Executing..." line with success message
-            const lines = accumulatedResponse.split('\n')
-            lines[lines.length - 1] = resultSummary
-            accumulatedResponse = lines.join('\n')
-            yield {
-              content: [{ type: 'text' as const, text: accumulatedResponse }],
-            }
-
-            abilitiesRan += `\n\n🚀 **${abilityName}** executed`
-            // Properly serialize the result - executionResult is an object
+            abilitiesRan += `\n\n**${abilityName}** executed`
             const resultString = typeof executionResult === 'object'
               ? JSON.stringify(executionResult, null, 2)
               : String(executionResult)
 
-            // Store result in context service for intelligent summarization
-            // This keeps full results if under 25k tokens, otherwise summarizes
             const storedResult = runCodeResultContext.storeResult(abilityName, resultString)
-
-            // Use the context-appropriate content (full or summarized)
             const contextContent = storedResult.wasSummarized
               ? storedResult.summary
               : resultString
 
             abilitiesRan += `\n**Result:**\n\`\`\`json\n${contextContent}\n\`\`\``
 
-            // If result was summarized, mention it so AI knows full data was captured
             if (storedResult.wasSummarized) {
-              abilitiesRan += `\n_[Result was large (${storedResult.tokenCount} tokens) - summarized with key data preserved. IDs, URLs, and important values extracted for future use.]_`
+              abilitiesRan += `\n_[Result was large (${storedResult.tokenCount} tokens) - summarized with key data preserved.]_`
             }
 
             if (abortSignal?.aborted) {
@@ -1006,12 +806,7 @@ Respond with only one word: "simple", "web-search", or "agentic"`
             }
           }
           catch (error) {
-            const errorMessage = `❌ **${abilityName}** failed: ${error instanceof Error ? error.message : 'Unknown error'}`
-            accumulatedResponse += `\n${errorMessage}`
-            yield {
-              content: [{ type: 'text' as const, text: accumulatedResponse }],
-            }
-            abilitiesRan += `\n\n❌ **Error:** Failed to execute ${abilityName} - ${error instanceof Error ? error.message : 'Unknown error'}`
+            abilitiesRan += `\n\nFailed to execute ${abilityName}: ${error instanceof Error ? error.message : 'Unknown error'}`
           }
           finally {
             this.updateToolExecutionState(false)
@@ -1021,36 +816,12 @@ Respond with only one word: "simple", "web-search", or "agentic"`
           const searchResult = this.mcpIntegration?.searchAbilities(abilityName, 3)
           if (searchResult && searchResult.matches.length > 0) {
             const suggestions = searchResult.matches.map(m => m.ability.name).join(', ')
-            const errorMessage = `⚠️ **${abilityName}** not found. Similar: ${suggestions}`
-            accumulatedResponse += `\n${errorMessage}`
-            yield {
-              content: [{ type: 'text' as const, text: accumulatedResponse }],
-            }
-            abilitiesRan += `\n\n⚠️ **Error:** Ability '${abilityName}' not found. Similar abilities: ${suggestions}`
+            abilitiesRan += `\n\nAbility '${abilityName}' not found. Similar abilities: ${suggestions}`
           }
           else {
-            const errorMessage = `⚠️ **${abilityName}** not found`
-            accumulatedResponse += `\n${errorMessage}`
-            yield {
-              content: [{ type: 'text' as const, text: accumulatedResponse }],
-            }
-            abilitiesRan += `\n\n⚠️ **Error:** Ability '${abilityName}' not found`
+            abilitiesRan += `\n\nAbility '${abilityName}' not found`
           }
         }
-      }
-
-      // Update accumulated response with tool results summary
-      // Show a brief summary of abilities that ran (avoid truncating mid-code-fence)
-      const abilitySummaryLines = abilitiesRan.split('\n').filter(l => l.includes('**') && l.includes('executed'))
-      accumulatedResponse += `\n\n📊 **Tool Results:**\n${abilitySummaryLines.join('\n') || 'Abilities executed.'}`
-      yield {
-        content: [{ type: 'text' as const, text: accumulatedResponse }],
-      }
-
-      // Show transition indicator before analyzing results (there will be API latency)
-      accumulatedResponse += '\n\n⏳ _Analyzing results..._'
-      yield {
-        content: [{ type: 'text' as const, text: accumulatedResponse }],
       }
 
       // Add conversation history for next iteration
@@ -1058,31 +829,30 @@ Respond with only one word: "simple", "web-search", or "agentic"`
         role: 'assistant',
         content: `${response} here is result of abilities I just ran ${abilitiesRan}`,
       })
-
       conversationHistory.push({
         role: 'user',
         content: `Nice, please analyze your results and either:\n1. Continue working by calling more abilities if needed, OR\n2. Provide your final response if the task is now complete.\n\nMake sure to clearly indicate when the task is complete.`,
       })
     }
 
-    // If we've reached max iterations, indicate this
+    // Handle max iterations
     if (currentIteration >= this.maxAgenticIterations) {
-      finalResponse += `\n\n⚠️ **Note:** Reached maximum number of agentic iterations (${this.maxAgenticIterations}). The task may not be fully complete.`
       this.onTaskProgress?.({
         step: currentIteration,
         totalSteps: this.maxAgenticIterations,
         currentAction: 'Maximum iterations reached',
         isComplete: false,
       })
-
-      accumulatedResponse += '\n\n⚠️ **Maximum iterations reached**'
-      yield {
-        content: [{ type: 'text' as const, text: accumulatedResponse }],
-      }
     }
-    conversationHistory.push({
-      role: 'assistant',
-      content: 'the task is complete',
+
+    conversationHistory.push({ role: 'assistant', content: 'the task is complete' })
+
+    // Final analysis - this is the ONLY content shown in the message bubble
+    this.onTaskProgress?.({
+      step: currentIteration,
+      totalSteps: this.maxAgenticIterations,
+      currentAction: 'Preparing response...',
+      isComplete: false,
     })
 
     const analysisPrompt = [...conversationHistory, {
@@ -1100,32 +870,16 @@ Provide a concise analysis covering:
 Keep it clear and actionable.`,
     }]
 
-    let analysisResponse = ''
-    for await (const update of this.streamAIResponseWithProgress(
-      analysisPrompt,
-      '🔍 **Analyzing execution results...**',
-      accumulatedResponse,
-      abortSignal,
-    )) {
-      yield {
-        content: [{ type: 'text' as const, text: update.text }],
-      }
-      if (update.isComplete) {
-        analysisResponse = update.text.split('🔍 **Analyzing execution results...**\n')[1] || ''
-        accumulatedResponse = update.text
-      }
+    for await (const update of this.streamAIResponse(analysisPrompt, abortSignal)) {
+      yield { content: [{ type: 'text' as const, text: update.text }] }
     }
 
-    // Format the complete response with collapsible JSON results
-    const formattedResponse = `
-
-## Analysis
-${analysisResponse}`
-
-    // Yield final complete response
-    yield {
-      content: [{ type: 'text' as const, text: formattedResponse }],
-    }
+    this.onTaskProgress?.({
+      step: currentIteration,
+      totalSteps: this.maxAgenticIterations,
+      currentAction: 'Task completed',
+      isComplete: true,
+    })
   }
 
   async* run({ messages, abortSignal }: { messages: readonly Array<{ role: string, content: Array<{ type: string, text?: string }> }>, abortSignal?: AbortSignal }) {
