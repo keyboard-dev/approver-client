@@ -316,6 +316,7 @@ INSTRUCTIONS:
 - Try to break down tasks into different instances of the run-code abilities to make it easier to understand and execute for example
 if you need fetch data from one service and then call another service, you can break it down into two run-code abilities.
 - If no abilities are required and it is more conversational feel free to respond conversationally without ability use
+- If you are fetching data and you are not 110% sure about the response structure and data, then either try confirm the structure and return the whole response(excluding any sensitive headers or JWT or API Keys)
 
 </required_starting_context_information>
 
