@@ -384,13 +384,25 @@ export class AIChatAdapter implements ChatModelAdapter {
     aiMessages: AIMessage[],
     tools: Array<{ name: string, description: string, input_schema: Record<string, unknown> }>,
     abortSignal?: AbortSignal,
-  ): AsyncGenerator<{ content: [{ type: 'text', text: string }] }, void, unknown> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ): AsyncGenerator<{ content: any[] }, void, unknown> {
     if (!this.mcpIntegration) {
       throw new Error('MCP integration not available')
     }
 
     const conversationHistory: AIMessage[] = [...aiMessages]
     let currentIteration = 0
+
+    // Track all completed tool calls for the UI across iterations
+    const completedToolParts: Array<{
+      type: 'tool-call'
+      toolCallId: string
+      toolName: string
+      args: Record<string, unknown>
+      argsText: string
+      result?: string
+      isError?: boolean
+    }> = []
 
     yield { content: [{ type: 'text' as const, text: '' }] }
 
@@ -422,13 +434,18 @@ export class AIChatAdapter implements ChatModelAdapter {
       // If no tool calls, this is the final response — stream it to the user
       if (result.toolCalls.length === 0 || result.stopReason !== 'tool_use') {
         console.log('[NativeToolCall][Loop] Done - no more tool calls, stop_reason:', result.stopReason)
+        // Build final content: all completed tool-call parts + final text
+        const finalContent: Array<{ type: string, [key: string]: unknown }> = [
+          ...completedToolParts,
+        ]
+
         // Stream the final text with smooth typing effect
         const CHARS_PER_YIELD = 15
         const YIELD_INTERVAL = 20
         let yielded = 0
         while (yielded < result.text.length) {
           const end = Math.min(yielded + CHARS_PER_YIELD, result.text.length)
-          yield { content: [{ type: 'text' as const, text: result.text.substring(0, end) }] }
+          yield { content: [...finalContent, { type: 'text' as const, text: result.text.substring(0, end) }] }
           yielded = end
           await new Promise(resolve => setTimeout(resolve, YIELD_INTERVAL))
         }
@@ -459,6 +476,21 @@ export class AIChatAdapter implements ChatModelAdapter {
       const toolResults: Array<{ type: 'tool_result', tool_use_id: string, content: string }> = []
 
       for (const tc of result.toolCalls) {
+        // Add in-progress tool call to UI immediately (no result yet)
+        const toolPart = {
+          type: 'tool-call' as const,
+          toolCallId: tc.id,
+          toolName: tc.name,
+          args: tc.input,
+          argsText: JSON.stringify(tc.input, null, 2),
+          result: undefined as string | undefined,
+          isError: undefined as boolean | undefined,
+        }
+        completedToolParts.push(toolPart)
+
+        // Yield current state so UI shows tool as in-progress
+        yield { content: [...completedToolParts, { type: 'text' as const, text: '' }] }
+
         this.onTaskProgress?.({
           step: currentIteration,
           totalSteps: this.maxAgenticIterations,
@@ -467,8 +499,11 @@ export class AIChatAdapter implements ChatModelAdapter {
         })
 
         try {
+          if (!this.mcpIntegration) {
+            throw new Error('MCP integration lost during agentic flow — connection may have dropped')
+          }
           this.updateToolExecutionState(true, tc.name)
-          const executionResult = await this.mcpIntegration!.executeAbilityCall(tc.name, tc.input)
+          const executionResult = await this.mcpIntegration.executeAbilityCall(tc.name, tc.input)
 
           const resultString = typeof executionResult === 'object'
             ? JSON.stringify(executionResult, null, 2)
@@ -477,8 +512,14 @@ export class AIChatAdapter implements ChatModelAdapter {
           const storedResult = runCodeResultContext.storeResult(tc.name, resultString)
           const contextContent = storedResult.wasSummarized ? storedResult.summary : resultString
 
+          // Update the tool part with result
+          toolPart.result = contextContent
+
           toolResults.push({ type: 'tool_result', tool_use_id: tc.id, content: contextContent })
           console.log(`[NativeToolCall][Loop] ${tc.name} result: ${contextContent.length} chars, summarized=${storedResult.wasSummarized}`)
+
+          // Yield updated state so UI shows tool result
+          yield { content: [...completedToolParts, { type: 'text' as const, text: '' }] }
 
           this.onTaskProgress?.({
             step: currentIteration,
@@ -489,11 +530,17 @@ export class AIChatAdapter implements ChatModelAdapter {
         }
         catch (error) {
           console.error(`[NativeToolCall][Loop] ${tc.name} error:`, error instanceof Error ? error.message : 'Unknown')
+          const errorMsg = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
+          toolPart.result = errorMsg
+          toolPart.isError = true
           toolResults.push({
             type: 'tool_result',
             tool_use_id: tc.id,
-            content: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            content: errorMsg,
           })
+
+          // Yield updated state so UI shows error
+          yield { content: [...completedToolParts, { type: 'text' as const, text: '' }] }
         }
         finally {
           this.updateToolExecutionState(false)
@@ -519,12 +566,13 @@ export class AIChatAdapter implements ChatModelAdapter {
     })
 
     const finalResult = await this.streamWithToolSupport(conversationHistory, undefined, abortSignal, () => {})
+    const finalContent: Array<{ type: string, [key: string]: unknown }> = [...completedToolParts]
     const CHARS_PER_YIELD = 15
     const YIELD_INTERVAL = 20
     let yielded = 0
     while (yielded < finalResult.text.length) {
       const end = Math.min(yielded + CHARS_PER_YIELD, finalResult.text.length)
-      yield { content: [{ type: 'text' as const, text: finalResult.text.substring(0, end) }] }
+      yield { content: [...finalContent, { type: 'text' as const, text: finalResult.text.substring(0, end) }] }
       yielded = end
       await new Promise(resolve => setTimeout(resolve, YIELD_INTERVAL))
     }
