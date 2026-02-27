@@ -128,10 +128,17 @@ export class KeyboardProvider implements AIProvider {
       return { role: msg.role, content: msg.content }
     })
 
+    // Filter out messages with empty content — these poison the conversation
+    // and cause the model to return empty responses after MCP disconnects
+    const validMessages = transformedMessages.filter(msg => {
+      if (typeof msg.content === 'string' && msg.content.trim() === '') return false
+      return true
+    })
+
     const requestBody: Record<string, unknown> = {
       model: config.model || 'claude-sonnet-4-6',
       system: systemMessage?.content,
-      messages: transformedMessages,
+      messages: validMessages,
       temperature: 0.7,
       stream: true,
     }

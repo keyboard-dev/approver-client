@@ -433,13 +433,16 @@ export class AIChatAdapter implements ChatModelAdapter {
           ...completedToolParts,
         ]
 
+        // If we got an empty response, provide feedback instead of a blank message
+        const responseText = result.text || 'I encountered an issue processing your request. This may be due to a connection interruption. Please try again.'
+
         // Stream the final text with smooth typing effect
         const CHARS_PER_YIELD = 15
         const YIELD_INTERVAL = 20
         let yielded = 0
-        while (yielded < result.text.length) {
-          const end = Math.min(yielded + CHARS_PER_YIELD, result.text.length)
-          yield { content: [...finalContent, { type: 'text' as const, text: result.text.substring(0, end) }] }
+        while (yielded < responseText.length) {
+          const end = Math.min(yielded + CHARS_PER_YIELD, responseText.length)
+          yield { content: [...finalContent, { type: 'text' as const, text: responseText.substring(0, end) }] }
           yielded = end
           await new Promise(resolve => setTimeout(resolve, YIELD_INTERVAL))
         }
@@ -543,6 +546,12 @@ export class AIChatAdapter implements ChatModelAdapter {
         if (abortSignal?.aborted) {
           throw new Error('Request was aborted')
         }
+      }
+
+      // If all tools errored and assistant had no text, add context so the model
+      // doesn't see a text-less assistant message (which can cause empty responses)
+      if (toolResults.every(tr => tr.content.startsWith('Error:')) && !result.text) {
+        assistantContent.unshift({ type: 'text', text: 'I attempted to use tools but encountered errors.' })
       }
 
       // Add tool results as a user message (Anthropic format)
