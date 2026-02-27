@@ -245,7 +245,7 @@ export function useMCPIntegration(
       // Add a timeout so the pending promise doesn't hang forever (10 min)
       const pendingTimeout = 10 * 60 * 1000
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error(`Tool call ${name} timed out waiting for approval after ${pendingTimeout / 1000}s`)), pendingTimeout)
+        setTimeout(() => reject(new Error(`Tool call ${name} timed out after ${pendingTimeout / 1000}s. If this was a background job, try using list-background-jobs or poll-background-job to check its status.`)), pendingTimeout)
       })
 
       try {
