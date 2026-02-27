@@ -270,7 +270,6 @@ export class AIChatAdapter implements ChatModelAdapter {
     messages: AIMessage[],
     tools: Array<{ name: string, description: string, input_schema: Record<string, unknown> }> | undefined,
     abortSignal: AbortSignal | undefined,
-    onTextUpdate: (text: string) => void,
   ): Promise<StreamResult> {
     window.electronAPI.removeAIStreamListeners()
 
@@ -284,14 +283,12 @@ export class AIChatAdapter implements ChatModelAdapter {
     const handleChunk = (chunk: string | Record<string, unknown>) => {
       if (typeof chunk === 'string') {
         fullText += chunk
-        onTextUpdate(fullText)
       }
       else {
         const event = chunk as unknown as StreamEvent
         switch (event.type) {
           case 'text':
             fullText += event.text
-            onTextUpdate(fullText)
             break
           case 'tool_use_start': {
             console.log('[NativeToolCall][Stream] tool_use_start:', event.name, event.id)
@@ -426,9 +423,6 @@ export class AIChatAdapter implements ChatModelAdapter {
         conversationHistory,
         tools,
         abortSignal,
-        () => {
-          // Text updates handled after stream completes
-        },
       )
 
       // If no tool calls, this is the final response — stream it to the user
@@ -565,7 +559,7 @@ export class AIChatAdapter implements ChatModelAdapter {
       isComplete: false,
     })
 
-    const finalResult = await this.streamWithToolSupport(conversationHistory, undefined, abortSignal, () => {})
+    const finalResult = await this.streamWithToolSupport(conversationHistory, undefined, abortSignal)
     const finalContent: Array<{ type: string, [key: string]: unknown }> = [...completedToolParts]
     const CHARS_PER_YIELD = 15
     const YIELD_INTERVAL = 20
@@ -644,12 +638,6 @@ export class AIChatAdapter implements ChatModelAdapter {
         }
       }
 
-      // Legacy MCP provider
-      if (this.currentProvider.provider === 'mcp') {
-        yield { content: [{ type: 'text' as const, text: 'MCP Provider: Please use the MCP chat component for full functionality.' }] }
-        return
-      }
-
       // Check provider is configured
       const providerStatus = await window.electronAPI.getAIProviderKeys()
       const currentProviderStatus = providerStatus.find(p => p.provider === this.currentProvider.provider)
@@ -679,7 +667,7 @@ export class AIChatAdapter implements ChatModelAdapter {
       }
 
       // Simple streaming (no tools) — for non-MCP providers or when no tools available
-      const streamResult = await this.streamWithToolSupport(aiMessages, undefined, abortSignal, () => {})
+      const streamResult = await this.streamWithToolSupport(aiMessages, undefined, abortSignal)
 
       const CHARS_PER_YIELD = 15
       const YIELD_INTERVAL = 20
@@ -701,28 +689,5 @@ export class AIChatAdapter implements ChatModelAdapter {
     finally {
       this.cleanup()
     }
-  }
-}
-
-// Helper to create adapters for different providers
-export const createOpenAIAdapter = (model: string = 'gpt-3.5-turbo', mcpEnabled: boolean = false) =>
-  new AIChatAdapter('openai', model, mcpEnabled)
-
-export const createAnthropicAdapter = (model: string = 'claude-sonnet-4-6', mcpEnabled: boolean = false) =>
-  new AIChatAdapter('anthropic', model, mcpEnabled)
-
-export const createGeminiAdapter = (model: string = 'gemini-2.5-flash', mcpEnabled: boolean = false) =>
-  new AIChatAdapter('gemini', model, mcpEnabled)
-
-export const createMCPAdapter = (model: string = 'mcp-server') =>
-  new AIChatAdapter('mcp', model)
-
-export async function checkProviderAvailability(): Promise<Array<{ provider: string, configured: boolean }>> {
-  try {
-    const providerStatus = await window.electronAPI.getAIProviderKeys()
-    return providerStatus || []
-  }
-  catch {
-    return []
   }
 }
