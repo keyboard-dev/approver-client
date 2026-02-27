@@ -4,7 +4,7 @@ import * as os from 'os'
 import path from 'path'
 import { decrypt } from '../encryption'
 import { encryptedAIKeyStorage } from './encrypted-storage'
-import { AIMessage, AIProvider, AIProviderConfig, AIResponse, WebSearchQuery, WebSearchResponse } from './index'
+import { AIMessage, AIProvider, AIProviderConfig, AIResponse, StreamEvent, WebSearchQuery, WebSearchResponse } from './index'
 
 export class AIRuntime {
   private providers = new Map<string, AIProvider>()
@@ -34,6 +34,7 @@ export class AIRuntime {
       apiKey: providerName === 'keyboard' ? '' : (config.apiKey || this.getStoredApiKey(providerName)),
       baseUrl: config.baseUrl,
       model: config.model,
+      tools: config.tools,
     }
 
     if (!provider.validateConfig(fullConfig)) {
@@ -57,7 +58,7 @@ export class AIRuntime {
     messages: AIMessage[],
     config: Partial<AIProviderConfig>,
     authTokens?: AuthTokens,
-  ): AsyncGenerator<string, void, unknown> {
+  ): AsyncGenerator<string | StreamEvent, void, unknown> {
     const provider = this.providers.get(providerName)
     if (!provider || !provider.streamMessage) {
       throw new Error(`Provider ${providerName} not found or does not support streaming`)
@@ -68,6 +69,7 @@ export class AIRuntime {
       apiKey: providerName === 'keyboard' ? '' : (config.apiKey || this.getStoredApiKey(providerName)),
       baseUrl: config.baseUrl,
       model: config.model,
+      tools: config.tools,
     }
 
     if (!provider.validateConfig(fullConfig)) {

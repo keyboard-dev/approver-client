@@ -1,6 +1,5 @@
 import { CodespaceInfo, Script } from '../../types'
-import { generatePlanningToken, toolsToAbilities } from './ability-tools'
-import type { MCPAbilityFunction } from './mcp-tool-integration'
+import { generatePlanningToken } from './ability-tools'
 import type { PipedreamAccount } from './pipedream-service'
 import { runCodeResultContext } from './run-code-result-context'
 
@@ -42,40 +41,13 @@ export interface EnhancedContext {
 }
 
 export class ContextService {
-  private mcpFunctions: MCPAbilityFunction[] = []
   private selectedScripts: Script[] = []
-
-  /**
-   * Set MCP functions for the context service
-   */
-  setMCPFunctions(functions: MCPAbilityFunction[]): void {
-    this.mcpFunctions = functions
-  }
 
   /**
    * Set selected scripts for the context service
    */
   setSelectedScripts(scripts: Script[]): void {
     this.selectedScripts = scripts
-  }
-
-  /**
-   * Get MCP tools filtered out from toolsToAbilities
-   */
-  private getFilteredMCPTools(): MCPAbilityFunction[] {
-    const keyboardAbilityNames = new Set<string>()
-
-    // Extract all ability names from toolsToAbilities
-    Object.values(toolsToAbilities.categories).forEach((abilities) => {
-      abilities.forEach((ability) => {
-        keyboardAbilityNames.add(ability.command)
-      })
-    })
-
-    // Filter out tools that are in toolsToAbilities
-    return this.mcpFunctions.filter(func =>
-      keyboardAbilityNames.has(func.function.name),
-    )
   }
 
   /**
@@ -149,8 +121,6 @@ ${context.executorConnection.target.url}
 Note: This is the actual URL of the code execution service. The service type is "${context.executorConnection.target.type}"${context.executorConnection.target.codespaceName ? ` (codespace: ${context.executorConnection.target.codespaceName})` : ''}.`
       : ''
 
-    const abilitiesList = JSON.stringify(toolsToAbilities, null, 2)
-
     // Get selected scripts list
     const selectedScriptsList = context.selectedScripts.length > 0
       ? context.selectedScripts.map(script => ({
@@ -171,25 +141,6 @@ SELECTED SCRIPTS CONTEXT:
 ${JSON.stringify(selectedScriptsList, null, 2)}
 
 Note: These scripts are available for reference during run-code execution. You can use their IDs, names, descriptions, metadata, and variable schemas when planning and executing code. The 'schema' field defines the input variables each script expects, and 'availableVariables' lists the variable names that can be used with run-code execution.`
-      : ''
-
-    // Get filtered MCP tools (excluding keyboard abilities)
-    const filteredMCPTools = this.getFilteredMCPTools()
-    const additionalToolsList = filteredMCPTools.length > 0
-      ? filteredMCPTools.map(func => ({
-          name: func.function.name,
-          description: func.function.description,
-          parameters: func.function.parameters,
-        }))
-      : []
-
-    const additionalToolsSection = additionalToolsList.length > 0
-      ? `
-
-ADDITIONAL MCP TOOLS AVAILABLE:
-${JSON.stringify(additionalToolsList, null, 2)}
-
-Note: These are additional MCP tools beyond the core keyboard abilities. You can call these using the same JSON format.`
       : ''
 
     // Build Pipedream connected accounts section
@@ -296,27 +247,22 @@ CODESPACE INFORMATION:
 ${codespaceDetails}${serviceUrlSection}${selectedScriptsSection}
 
 API RESEARCH GUIDANCE:
-- Use the web-search ability to find official documentation and examples
+- Use the web-search tool to find official documentation and examples
 - Always research API documentation when working with external services
-- Use web-search ability to find official documentation and examples
 - Look for code examples, best practices, and common patterns
 - Check for rate limits, authentication requirements, and error handling
-- Only after you tried to use the web-search ability, and it didn't work, then you can use the run-code ability to execute code but the idea is to use the web-search ability first.
-
-Full abilities description and schema:
-${abilitiesList}${additionalToolsSection}${pipedreamAccountsSection}${composioAccountsSection}${localAccountsSection}${previousResultsSection}
+- Research with web-search before writing code when working with unfamiliar APIs
+${pipedreamAccountsSection}${composioAccountsSection}${localAccountsSection}${previousResultsSection}
 
 INSTRUCTIONS:
-- You can execute abilities directly using JSON format: {"ability": "ability-name", "parameters": {...}}
-- Planning token is automatically provided above - DO NOT use the 'plan' ability, go directly to 'run-code'
-- Use the planning token provided above when calling run-code abilities
+- You have tools available natively. Use them as needed to accomplish the user's task.
+- Planning token is automatically provided above - use it when calling run-code
 - Research APIs and documentation before implementing solutions
-- Be proactive in suggesting relevant abilities for the user's task
+- Be proactive in suggesting relevant tools for the user's task
 - Always provide clear explanations of what you're doing and why
-- Try to break down tasks into different instances of the run-code abilities to make it easier to understand and execute for example
-if you need fetch data from one service and then call another service, you can break it down into two run-code abilities.
-- If no abilities are required and it is more conversational feel free to respond conversationally without ability use
-- If you are fetching data and you are not 110% sure about the response structure and data, then either try confirm the structure and return the whole response(excluding any sensitive headers or JWT or API Keys)
+- Break down complex tasks into multiple run-code calls when appropriate
+- If no tools are needed, respond conversationally
+- When fetching data and unsure about response structure, return the whole response (excluding sensitive headers, JWTs, or API keys)
 
 </required_starting_context_information>
 
