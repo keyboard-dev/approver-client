@@ -361,19 +361,22 @@ export class GeminiProvider implements AIProvider {
     for (const message of nonSystemMessages) {
       const geminiRole = message.role === 'assistant' ? 'model' : 'user'
 
+      // Coerce content to string (Gemini doesn't support structured content)
+      const contentStr = typeof message.content === 'string' ? message.content : JSON.stringify(message.content)
+
       // Skip empty content
-      if (!message.content || message.content.trim() === '') {
+      if (!contentStr || contentStr.trim() === '') {
         continue
       }
 
       if (currentRole === null) {
         // First message
         currentRole = geminiRole
-        currentContent = [message.content]
+        currentContent = [contentStr]
       }
       else if (currentRole === geminiRole) {
         // Same role as previous - merge content
-        currentContent.push(message.content)
+        currentContent.push(contentStr)
       }
       else {
         // Role changed - push current content and start new
@@ -383,7 +386,7 @@ export class GeminiProvider implements AIProvider {
         })
 
         currentRole = geminiRole
-        currentContent = [message.content]
+        currentContent = [contentStr]
       }
     }
 
@@ -401,13 +404,15 @@ export class GeminiProvider implements AIProvider {
       const firstUserIndex = contents.findIndex(c => c.role === 'user')
       if (firstUserIndex !== -1) {
         const originalText = contents[firstUserIndex].parts[0].text
-        contents[firstUserIndex].parts[0].text = `${systemMessage.content}\n\n${originalText}`
+        const sysContent = typeof systemMessage.content === 'string' ? systemMessage.content : JSON.stringify(systemMessage.content)
+        contents[firstUserIndex].parts[0].text = `${sysContent}\n\n${originalText}`
       }
       else {
         // No user messages, create one with system content
+        const sysContent = typeof systemMessage.content === 'string' ? systemMessage.content : JSON.stringify(systemMessage.content)
         contents.unshift({
           role: 'user',
-          parts: [{ text: systemMessage.content }],
+          parts: [{ text: sysContent }],
         })
       }
     }

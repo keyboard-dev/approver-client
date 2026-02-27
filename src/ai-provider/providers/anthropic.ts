@@ -1,4 +1,4 @@
-import { AIMessage, AIProvider, AIProviderConfig, WebSearchQuery, WebSearchResponse } from '../index'
+import { AIMessage, AIProvider, AIProviderConfig, StreamEvent, WebSearchQuery, WebSearchResponse } from '../index'
 import { contentFetcher } from '../utils/content-fetcher'
 
 export class AnthropicProvider implements AIProvider {
@@ -10,6 +10,20 @@ export class AnthropicProvider implements AIProvider {
     const systemMessage = messages.find(m => m.role === 'system')
     const conversationMessages = messages.filter(m => m.role !== 'system')
 
+    const body: Record<string, unknown> = {
+      model: config.model || 'claude-sonnet-4-6',
+      max_tokens: 4096,
+      system: systemMessage?.content,
+      messages: conversationMessages.map(msg => ({
+        role: msg.role,
+        content: msg.content,
+      })),
+    }
+
+    if (config.tools?.length) {
+      body.tools = config.tools
+    }
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -17,15 +31,7 @@ export class AnthropicProvider implements AIProvider {
         'x-api-key': config.apiKey,
         'anthropic-version': '2023-06-01',
       },
-      body: JSON.stringify({
-        model: config.model || 'claude-sonnet-4-6',
-        max_tokens: 4096,
-        system: systemMessage?.content,
-        messages: conversationMessages.map(msg => ({
-          role: msg.role,
-          content: msg.content,
-        })),
-      }),
+      body: JSON.stringify(body),
     })
 
     if (!response.ok) {
@@ -36,11 +42,26 @@ export class AnthropicProvider implements AIProvider {
     return data.content[0]?.text || ''
   }
 
-  async* streamMessage(messages: AIMessage[], config: AIProviderConfig): AsyncGenerator<string, void, unknown> {
+  async* streamMessage(messages: AIMessage[], config: AIProviderConfig): AsyncGenerator<string | StreamEvent, void, unknown> {
     const url = `${config.baseUrl || 'https://api.anthropic.com'}/v1/messages`
 
     const systemMessage = messages.find(m => m.role === 'system')
     const conversationMessages = messages.filter(m => m.role !== 'system')
+
+    const body: Record<string, unknown> = {
+      model: config.model || 'claude-sonnet-4-6',
+      max_tokens: 4096,
+      system: systemMessage?.content,
+      messages: conversationMessages.map(msg => ({
+        role: msg.role,
+        content: msg.content,
+      })),
+      stream: true,
+    }
+
+    if (config.tools?.length) {
+      body.tools = config.tools
+    }
 
     const response = await fetch(url, {
       method: 'POST',
@@ -49,16 +70,7 @@ export class AnthropicProvider implements AIProvider {
         'x-api-key': config.apiKey,
         'anthropic-version': '2023-06-01',
       },
-      body: JSON.stringify({
-        model: config.model || 'claude-sonnet-4-6',
-        max_tokens: 4096,
-        system: systemMessage?.content,
-        messages: conversationMessages.map(msg => ({
-          role: msg.role,
-          content: msg.content,
-        })),
-        stream: true,
-      }),
+      body: JSON.stringify(body),
     })
 
     if (!response.ok) {
@@ -88,8 +100,20 @@ export class AnthropicProvider implements AIProvider {
 
             try {
               const parsed = JSON.parse(data)
-              if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
+              if (parsed.type === 'content_block_start' && parsed.content_block?.type === 'tool_use') {
+                yield { type: 'tool_use_start', id: parsed.content_block.id, name: parsed.content_block.name } as StreamEvent
+              }
+              else if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'input_json_delta') {
+                yield { type: 'tool_use_delta', id: String(parsed.index), json: parsed.delta.partial_json } as StreamEvent
+              }
+              else if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
                 yield parsed.delta.text
+              }
+              else if (parsed.type === 'content_block_stop') {
+                yield { type: 'tool_use_end', id: String(parsed.index) } as StreamEvent
+              }
+              else if (parsed.type === 'message_delta' && parsed.delta?.stop_reason) {
+                yield { type: 'message_end', stop_reason: parsed.delta.stop_reason } as StreamEvent
               }
             }
             catch (e) {
