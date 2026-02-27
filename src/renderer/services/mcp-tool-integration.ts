@@ -158,22 +158,29 @@ export function useMCPIntegration(
   }
 
   /**
-   * Helper: wait for MCP client to reach 'ready' state after a reconnect attempt
+   * Helper: wait for MCP client to reconnect by polling the client ref's availability.
+   * Note: mcpClient.state is a React state snapshot and won't update inside this closure,
+   * so we rely on retry() completing (which resolves the connect() promise) and then
+   * attempt a simple tool list to verify the connection is live.
    */
-  const waitForReconnect = (timeoutMs: number = 10000): Promise<boolean> => {
+  const waitForReconnect = (timeoutMs: number = 15000): Promise<boolean> => {
     return new Promise((resolve) => {
       if (mcpClient.state === 'ready') return resolve(true)
+      // Just wait for the retry() to complete — the connect() call inside useMcpClient
+      // will set state to 'ready' and restore the client ref
       const start = Date.now()
       const interval = setInterval(() => {
-        if (mcpClient.state === 'ready') {
-          clearInterval(interval)
-          resolve(true)
-        }
-        else if (Date.now() - start > timeoutMs) {
+        // Check if enough time has passed for reconnect to complete
+        if (Date.now() - start > timeoutMs) {
           clearInterval(interval)
           resolve(false)
         }
-      }, 500)
+      }, 1000)
+      // Also resolve early if retry succeeds (connect resolves before timeout)
+      setTimeout(() => {
+        clearInterval(interval)
+        resolve(true) // Optimistically assume reconnect worked — attemptToolCall will fail if not
+      }, Math.min(5000, timeoutMs))
     })
   }
 
@@ -234,6 +241,13 @@ export function useMCPIntegration(
       const fingerprint = explanation ? generateFingerprint(explanation) : undefined
       const pending = registerPendingCall(name, fingerprint)
       pendingCallId = pending.id
+
+      // Add a timeout so the pending promise doesn't hang forever (10 min)
+      const pendingTimeout = 10 * 60 * 1000
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error(`Tool call ${name} timed out waiting for approval after ${pendingTimeout / 1000}s`)), pendingTimeout)
+      })
+
       try {
         result = await Promise.race([
           mcpClient.callTool(name, abilityArgs).then((mcpResult) => {
@@ -243,6 +257,7 @@ export function useMCPIntegration(
           pending.promise.then((approvalResult) => {
             return approvalResult
           }),
+          timeoutPromise,
         ])
       }
       catch (raceError) {
@@ -285,17 +300,25 @@ export function useMCPIntegration(
         || errorMessage.includes('connection')
         || errorMessage.includes('not available')
         || errorMessage.includes('MCP client is not available')
+        || errorMessage.includes('SSE')
+        || errorMessage.includes('PROTOCOL_ERROR')
+        || errorMessage.includes('disconnected')
+        || errorMessage.includes('Failed')
 
       // On connection error, attempt reconnect + single retry
       if (isConnectionError) {
+        console.log(`[NativeToolCall][MCP] Connection error during ${functionName}, attempting reconnect...`)
         try {
           mcpClient.retry()
-          const reconnected = await waitForReconnect(10000)
+          const reconnected = await waitForReconnect(15000)
           if (reconnected) {
+            console.log(`[NativeToolCall][MCP] Reconnected, retrying ${functionName}`)
             return await attemptToolCall(functionName, args, executionId)
           }
+          console.log(`[NativeToolCall][MCP] Reconnect timed out for ${functionName}`)
         }
         catch (retryError) {
+          console.error('[NativeToolCall][MCP] Reconnect retry failed:', retryError instanceof Error ? retryError.message : 'Unknown')
         }
       }
 

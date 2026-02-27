@@ -43,6 +43,7 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
   const reconnectAttemptsRef = useRef(0)
   const isConnectingRef = useRef(false)
   const stateRef = useRef(state) // Add state ref to track current state
+  const healthCheckRef = useRef<NodeJS.Timeout | null>(null)
 
   // Update state ref when state changes
   useEffect(() => {
@@ -66,6 +67,10 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
 
   // Cleanup function
   const cleanup = useCallback(async () => {
+    if (healthCheckRef.current) {
+      clearInterval(healthCheckRef.current)
+      healthCheckRef.current = null
+    }
     try {
       if (clientRef.current) {
         await clientRef.current.close()
@@ -144,20 +149,35 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
 
       clientRef.current = client
 
-      // Set up error handlers
+      // Set up error handlers — trigger reconnect on error
       transport.onerror = (error) => {
+        console.error('[MCP] Transport error:', error.message)
         setError(error.message)
         setState('failed')
+        if (options.autoReconnect && !isConnectingRef.current) {
+          const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 15000)
+          console.log(`[MCP] Will reconnect in ${delay}ms (attempt ${reconnectAttemptsRef.current + 1})`)
+          reconnectAttemptsRef.current++
+          setTimeout(() => {
+            if (accessToken && options.serverUrl && !isConnectingRef.current) {
+              connect(accessToken, options.serverUrl).catch(() => {})
+            }
+          }, delay)
+        }
       }
 
-      // Fix onclose handler to use current state via ref
+      // Reconnect on close if we were previously ready
       transport.onclose = () => {
-        if (stateRef.current === 'ready' && options.autoReconnect) {
+        console.log('[MCP] Transport closed, state was:', stateRef.current)
+        if (options.autoReconnect && !isConnectingRef.current) {
+          const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 15000)
+          console.log(`[MCP] Will reconnect in ${delay}ms (attempt ${reconnectAttemptsRef.current + 1})`)
+          reconnectAttemptsRef.current++
           setTimeout(() => {
-            if (accessToken && options.serverUrl) {
-              connect(accessToken, options.serverUrl).catch(console.error)
+            if (accessToken && options.serverUrl && !isConnectingRef.current) {
+              connect(accessToken, options.serverUrl).catch(() => {})
             }
-          }, 1000)
+          }, delay)
         }
       }
 
@@ -187,12 +207,38 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
       await discoverCapabilities()
 
       reconnectAttemptsRef.current = 0
+      console.log('[MCP] Connected and ready')
       setState('ready')
+
+      // Start health check — if client becomes unavailable, trigger reconnect
+      if (healthCheckRef.current) clearInterval(healthCheckRef.current)
+      healthCheckRef.current = setInterval(() => {
+        if (!clientRef.current || !transportRef.current) {
+          console.log('[MCP] Health check: client gone, reconnecting...')
+          if (healthCheckRef.current) {
+            clearInterval(healthCheckRef.current)
+            healthCheckRef.current = null
+          }
+          if (accessToken && options.serverUrl && !isConnectingRef.current) {
+            connect(accessToken, options.serverUrl).catch(() => {})
+          }
+        }
+      }, 15000)
     }
     catch (err) {
       setError(err instanceof Error ? err.message : 'Connection failed')
       setState('failed')
-      throw err
+      // Auto-retry on failed initial connection
+      if (options.autoReconnect && !isConnectingRef.current) {
+        const delay = Math.min(2000 * Math.pow(2, reconnectAttemptsRef.current), 15000)
+        console.log(`[MCP] Connection failed, retry in ${delay}ms`)
+        reconnectAttemptsRef.current++
+        setTimeout(() => {
+          if (accessToken && options.serverUrl && !isConnectingRef.current) {
+            connect(accessToken, options.serverUrl).catch(() => {})
+          }
+        }, delay)
+      }
     }
     finally {
       isConnectingRef.current = false
@@ -218,11 +264,24 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
     hasConnectedRef.current = false
   }, [accessToken, options.serverUrl])
 
-  // Tool calling function
+  // Tool calling function — auto-reconnects if client is unavailable
   const callTool = useCallback(async (name: string, args: Record<string, unknown> = {}): Promise<CallToolResult> => {
-    const client = clientRef.current
+    let client = clientRef.current
     if (!client) {
-      throw new Error('MCP client is not available')
+      // Attempt reconnect before failing
+      console.log('[MCP] Client unavailable for callTool, attempting reconnect...')
+      if (accessToken && options.serverUrl && !isConnectingRef.current) {
+        try {
+          await connect(accessToken, options.serverUrl)
+          client = clientRef.current
+        }
+        catch {
+          // connect failed
+        }
+      }
+      if (!client) {
+        throw new Error('MCP client is not available')
+      }
     }
 
     try {
@@ -234,9 +293,27 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
       }, undefined, { timeout })
     }
     catch (err) {
+      // If it's a connection error, try reconnect + retry once
+      const msg = err instanceof Error ? err.message : ''
+      if (msg.includes('fetch') || msg.includes('network') || msg.includes('Failed') || msg.includes('PROTOCOL_ERROR')) {
+        console.log('[MCP] callTool connection error, reconnecting and retrying:', msg)
+        if (accessToken && options.serverUrl && !isConnectingRef.current) {
+          try {
+            await connect(accessToken, options.serverUrl)
+            const retryClient = clientRef.current
+            if (retryClient) {
+              const timeout = options.timeout || 300000
+              return await retryClient.callTool({ name, arguments: args }, undefined, { timeout })
+            }
+          }
+          catch {
+            // retry also failed
+          }
+        }
+      }
       throw err
     }
-  }, [options.timeout])
+  }, [options.timeout, accessToken, options.serverUrl, connect])
 
   // Resource reading function
   const readResource = useCallback(async (uri: string): Promise<ReadResourceResult> => {
