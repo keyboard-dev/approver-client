@@ -266,6 +266,9 @@ interface ThreadSidebarProps {
   mcpAbilities?: number
   mcpError?: string | null
   onRetryMCP?: () => void
+  // Connector usage tracking - only show connectors that have been used in this chat
+  // Format: 'local-providerId', 'pipedream-accountId', 'composio-accountId'
+  usedConnectorIds?: string[]
 }
 
 export const ThreadSidebar: FC<ThreadSidebarProps> = ({
@@ -280,6 +283,7 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
   mcpAbilities,
   mcpError,
   onRetryMCP,
+  usedConnectorIds = [],
 }) => {
   const [modelPreferencesOpen, setModelPreferencesOpen] = useState(true)
   const [connectorsOpen, setConnectorsOpen] = useState(true)
@@ -320,8 +324,8 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
 
   if (!isOpen) return null
 
-  // Build list of connected apps
-  const connectedApps: ConnectedApp[] = [
+  // Build list of all connected apps (for reference when filtering)
+  const allConnectedApps: ConnectedApp[] = [
     // Local providers that are authenticated
     ...localProviders
       .filter(provider => providerStatus[provider.id]?.authenticated)
@@ -362,6 +366,12 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
       }
     }),
   ]
+
+  // Filter to only show connectors that have been used in this chat
+  // If usedConnectorIds is empty, no connectors are shown (correct for new chats)
+  const connectedApps = allConnectedApps.filter(app =>
+    usedConnectorIds.includes(app.id),
+  )
 
   const handleDisconnect = (app: ConnectedApp) => {
     showPopup({
