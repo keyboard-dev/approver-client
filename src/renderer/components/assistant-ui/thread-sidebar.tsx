@@ -188,7 +188,9 @@ const ConnectedAppRow: FC<ConnectedAppRowProps & { notesReady: boolean }> = ({ a
                   (e.target as HTMLImageElement).src = squaresIconUrl
                 }}
               />
-              Notes for {app.name}
+              Notes for
+              {' '}
+              {app.name}
             </DialogTitle>
             <DialogDescription>
               Add instructions the AI should follow when using this service. For example: which API version to use, workspace IDs, or special considerations.

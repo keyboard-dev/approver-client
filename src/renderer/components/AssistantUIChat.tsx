@@ -1,9 +1,10 @@
 import { AssistantRuntimeProvider, useLocalRuntime } from '@assistant-ui/react'
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Message } from '../../types'
 import { useAuth } from '../hooks/useAuth'
 import { useMCPEnhancedChat } from '../hooks/useMCPEnhancedChat'
 import { useWebSocketConnection } from '../hooks/useWebSocketConnection'
+import { McpClientProvider } from '../services/mcp-client-context'
 import { AgenticStatusIndicator } from './AgenticStatusIndicator'
 import { Thread } from './assistant-ui/thread'
 import { ThreadTracker } from './assistant-ui/ThreadTracker'
@@ -168,6 +169,13 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
 
   const runtime = useLocalRuntime(mcpChat.adapter)
 
+  // MCP Apps host context value
+  const mcpClientContextValue = useMemo(() => ({
+    callTool: mcpChat.mcpCallTool,
+    readResource: mcpChat.mcpReadResource,
+    toolResourceMap: mcpChat.toolResourceMap,
+  }), [mcpChat.mcpCallTool, mcpChat.mcpReadResource, mcpChat.toolResourceMap])
+
   // Handler for provider change
   const handleProviderChange = (providerId: string, defaultModelId?: string) => {
     setSelectedProvider(providerId)
@@ -178,6 +186,7 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
 
   return (
     <TooltipProvider>
+      <McpClientProvider value={mcpClientContextValue}>
       <AssistantRuntimeProvider runtime={runtime}>
         {/* Track current thread for approval message association and title generation */}
         <ThreadTracker onTitleCallbackReady={mcpChat.setThreadTitleCallback} />
@@ -185,7 +194,6 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
           {selectedProvider === 'mcp'
             ? (
                 <MCPChatComponent
-                  serverUrl="https://mcp.keyboard.dev"
                   clientName="keyboard-approver-mcp"
                 />
               )
@@ -221,19 +229,13 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
                       mcpAbilities={mcpChat.mcpAbilities}
                       mcpError={mcpChat.mcpError}
                       onRetryMCP={mcpChat.refreshMCPConnection}
-                      // Connection requirements props
-                      missingConnections={mcpChat.missingConnections}
-                      showConnectionPrompt={mcpChat.showConnectionPrompt}
-                      onClearConnectionPrompt={mcpChat.clearConnectionPrompt}
-                      onSkipConnectionCheck={mcpChat.skipConnectionCheckOnce}
-                      getContinuationMessage={mcpChat.getContinuationMessage}
-                      connectionReasoning={mcpChat.connectionReasoning}
                     />
                   </div>
                 </div>
               )}
         </div>
       </AssistantRuntimeProvider>
+      </McpClientProvider>
     </TooltipProvider>
   )
 }

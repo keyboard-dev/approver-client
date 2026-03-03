@@ -120,6 +120,8 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
       setState('connecting')
       setError(undefined)
 
+      console.log('[MCP] Connecting to:', serverUrl)
+
       // Clean up any existing connections
       await cleanup()
 
@@ -151,12 +153,10 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
 
       // Set up error handlers — trigger reconnect on error
       transport.onerror = (error) => {
-        console.error('[MCP] Transport error:', error.message)
         setError(error.message)
         setState('failed')
         if (options.autoReconnect && !isConnectingRef.current) {
           const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 15000)
-          console.log(`[MCP] Will reconnect in ${delay}ms (attempt ${reconnectAttemptsRef.current + 1})`)
           reconnectAttemptsRef.current++
           setTimeout(() => {
             if (accessToken && options.serverUrl && !isConnectingRef.current) {
@@ -168,10 +168,8 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
 
       // Reconnect on close if we were previously ready
       transport.onclose = () => {
-        console.log('[MCP] Transport closed, state was:', stateRef.current)
         if (options.autoReconnect && !isConnectingRef.current) {
           const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 15000)
-          console.log(`[MCP] Will reconnect in ${delay}ms (attempt ${reconnectAttemptsRef.current + 1})`)
           reconnectAttemptsRef.current++
           setTimeout(() => {
             if (accessToken && options.serverUrl && !isConnectingRef.current) {
@@ -207,14 +205,12 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
       await discoverCapabilities()
 
       reconnectAttemptsRef.current = 0
-      console.log('[MCP] Connected and ready')
       setState('ready')
 
       // Start health check — if client becomes unavailable, trigger reconnect
       if (healthCheckRef.current) clearInterval(healthCheckRef.current)
       healthCheckRef.current = setInterval(() => {
         if (!clientRef.current || !transportRef.current) {
-          console.log('[MCP] Health check: client gone, reconnecting...')
           if (healthCheckRef.current) {
             clearInterval(healthCheckRef.current)
             healthCheckRef.current = null
@@ -231,7 +227,6 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
       // Auto-retry on failed initial connection
       if (options.autoReconnect && !isConnectingRef.current) {
         const delay = Math.min(2000 * Math.pow(2, reconnectAttemptsRef.current), 15000)
-        console.log(`[MCP] Connection failed, retry in ${delay}ms`)
         reconnectAttemptsRef.current++
         setTimeout(() => {
           if (accessToken && options.serverUrl && !isConnectingRef.current) {
@@ -269,7 +264,6 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
     let client = clientRef.current
     if (!client) {
       // Attempt reconnect before failing
-      console.log('[MCP] Client unavailable for callTool, attempting reconnect...')
       if (accessToken && options.serverUrl && !isConnectingRef.current) {
         try {
           await connect(accessToken, options.serverUrl)
@@ -296,7 +290,6 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
       // If it's a connection error, try reconnect + retry once
       const msg = err instanceof Error ? err.message : ''
       if (msg.includes('fetch') || msg.includes('network') || msg.includes('Failed') || msg.includes('PROTOCOL_ERROR')) {
-        console.log('[MCP] callTool connection error, reconnecting and retrying:', msg)
         if (accessToken && options.serverUrl && !isConnectingRef.current) {
           try {
             await connect(accessToken, options.serverUrl)

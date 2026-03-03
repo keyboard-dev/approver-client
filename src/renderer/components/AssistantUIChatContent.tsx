@@ -1,9 +1,10 @@
 import { AssistantRuntimeProvider, useLocalRuntime } from '@assistant-ui/react'
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Message } from '../../types'
 import { useAuth } from '../hooks/useAuth'
 import { useMCPEnhancedChat } from '../hooks/useMCPEnhancedChat'
 import { useWebSocketConnection } from '../hooks/useWebSocketConnection'
+import { McpClientProvider } from '../services/mcp-client-context'
 import { AbilityExecutionPanel } from './AbilityExecutionPanel'
 import { AgenticStatusIndicator } from './AgenticStatusIndicator'
 import { Thread } from './assistant-ui/thread'
@@ -181,6 +182,13 @@ export const AssistantUIChatContent: React.FC<AssistantUIChatContentProps> = ({
 
   const runtime = useLocalRuntime(mcpChat.adapter)
 
+  // MCP Apps host context value
+  const mcpClientContextValue = useMemo(() => ({
+    callTool: mcpChat.mcpCallTool,
+    readResource: mcpChat.mcpReadResource,
+    toolResourceMap: mcpChat.toolResourceMap,
+  }), [mcpChat.mcpCallTool, mcpChat.mcpReadResource, mcpChat.toolResourceMap])
+
   // Handler for provider change
   const handleProviderChange = (providerId: string, defaultModelId?: string) => {
     setSelectedProvider(providerId)
@@ -191,6 +199,7 @@ export const AssistantUIChatContent: React.FC<AssistantUIChatContentProps> = ({
 
   return (
     <TooltipProvider>
+      <McpClientProvider value={mcpClientContextValue}>
       <AssistantRuntimeProvider runtime={runtime}>
         <div className="w-full h-full flex flex-col overflow-hidden">
           {/* Optional header badges */}
@@ -215,7 +224,6 @@ export const AssistantUIChatContent: React.FC<AssistantUIChatContentProps> = ({
             {selectedProvider === 'mcp'
               ? (
                   <MCPChatComponent
-                    serverUrl="https://mcp.keyboard.dev"
                     clientName="keyboard-approver-mcp"
                   />
                 )
@@ -268,6 +276,7 @@ export const AssistantUIChatContent: React.FC<AssistantUIChatContentProps> = ({
           currentAction={mcpChat.agenticProgress?.currentAction}
         />
       </AssistantRuntimeProvider>
+      </McpClientProvider>
     </TooltipProvider>
   )
 }

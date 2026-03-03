@@ -1637,6 +1637,10 @@ class MenuBarNotificationApp {
   }
 
   private setupIPC(): void {
+    ipcMain.handle('get-mcp-server-url', () => {
+      return process.env.MCP_SERVER_URL || 'https://mcp.keyboard.dev'
+    })
+
     // OAuth-related IPC handlers (Legacy) - delegate to AuthService
     ipcMain.handle('start-oauth', async (): Promise<void> => {
       await this.authService.startOAuthFlow()
@@ -2145,7 +2149,7 @@ class MenuBarNotificationApp {
       }
     })
 
-    ipcMain.handle('send-ai-message', async (_event, provider: string, messages: Array<{ role: 'user' | 'assistant' | 'system', content: string | any[] }>, config?: { model?: string; tools?: any[] }): Promise<string> => {
+    ipcMain.handle('send-ai-message', async (_event, provider: string, messages: Array<{ role: 'user' | 'assistant' | 'system', content: string | any[] }>, config?: { model?: string, tools?: any[] }): Promise<string> => {
       try {
         const authTokens = this.authService.getAuthTokens()
 
@@ -2158,28 +2162,24 @@ class MenuBarNotificationApp {
       }
     })
 
-    ipcMain.handle('send-ai-message-stream', async (event, provider: string, messages: Array<{ role: 'user' | 'assistant' | 'system', content: string | any[] }>, config?: { model?: string; tools?: any[] }): Promise<string> => {
+    ipcMain.handle('send-ai-message-stream', async (event, provider: string, messages: Array<{ role: 'user' | 'assistant' | 'system', content: string | any[] }>, config?: { model?: string, tools?: any[] }): Promise<string> => {
       try {
         const authTokens = this.authService.getAuthTokens()
 
         // Start streaming in background
         const streamProcess = async () => {
           try {
-            console.log('[NativeToolCall][IPC] Stream request:', { provider, model: config?.model, toolCount: config?.tools?.length || 0 })
             const generator = aiRuntime.streamMessage(provider, messages, config || {}, authTokens || undefined)
 
             for await (const chunk of generator) {
               if (typeof chunk !== 'string') {
-                console.log('[NativeToolCall][IPC] Forwarding event:', (chunk as any).type, (chunk as any).name || '')
               }
               event.sender.send('ai-stream-chunk', chunk)
             }
 
-            console.log('[NativeToolCall][IPC] Stream ended')
             event.sender.send('ai-stream-end')
           }
           catch (error) {
-            console.error('[NativeToolCall][IPC] Stream error:', error instanceof Error ? error.message : 'Unknown error')
             event.sender.send('ai-stream-error', error instanceof Error ? error.message : 'Unknown error')
           }
         }
@@ -3228,7 +3228,7 @@ class MenuBarNotificationApp {
         const response = await fetch(`${this.OAUTH_SERVER_URL}/api/connector-notes/${encodeURIComponent(source)}/${encodeURIComponent(appSlug)}`, {
           method: 'PUT',
           headers: {
-            Authorization: `Bearer ${accessToken}`,
+            'Authorization': `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({ note }),

@@ -1,8 +1,6 @@
 import type { ChatModelAdapter } from '@assistant-ui/react'
 import type { StreamEvent } from '../../ai-provider/index'
 import { Script } from '../../types'
-import { searchCombinedApps } from './combined-apps-service'
-import { analyzeCredentialRequirements } from './connection-detection-service'
 import { contextService } from './context-service'
 import { ProviderFormats, useMCPIntegration } from './mcp-tool-integration'
 import { runCodeResultContext } from './run-code-result-context'
@@ -16,22 +14,6 @@ interface AIProviderSelection {
   provider: string
   model?: string
   mcpEnabled?: boolean
-}
-
-export interface MissingConnectionInfo {
-  id: string
-  name: string
-  icon: string
-  source: 'pipedream' | 'composio' | 'local'
-  searchTerms?: string[] // Search terms for app connector search
-}
-
-export interface ConnectionCheckResult {
-  hasAllConnections: boolean
-  missingConnections: MissingConnectionInfo[]
-  detectedServices: string[]
-  /** AI reasoning explaining why connections are needed */
-  reasoning?: string
 }
 
 interface ToolCallAccumulator {
@@ -56,28 +38,9 @@ export class AIChatAdapter implements ChatModelAdapter {
   private isToolsExecuting = false
   private onThreadTitleGenerated?: (title: string) => void
   private titleGeneratedForThread = false
-  private onMissingConnectionsDetected?: (result: ConnectionCheckResult) => void
-  private skipConnectionCheck = false
-  private lastUserMessageForConnectionCheck: string | null = null
 
   constructor(provider: string = 'openai', model?: string, mcpEnabled: boolean = false) {
     this.currentProvider = { provider, model, mcpEnabled }
-  }
-
-  setMissingConnectionsCallback(callback: (result: ConnectionCheckResult) => void) {
-    this.onMissingConnectionsDetected = callback
-  }
-
-  setSkipConnectionCheck(skip: boolean) {
-    this.skipConnectionCheck = skip
-  }
-
-  getLastConnectionCheckMessage(): string | null {
-    return this.lastUserMessageForConnectionCheck
-  }
-
-  clearLastConnectionCheckMessage() {
-    this.lastUserMessageForConnectionCheck = null
   }
 
   setThreadTitleCallback(callback: (title: string) => void) {
@@ -110,95 +73,6 @@ export class AIChatAdapter implements ChatModelAdapter {
 
   setSelectedScripts(scripts: Script[]) {
     contextService.setSelectedScripts(scripts)
-  }
-
-  async checkConnectionRequirements(conversationHistory: Array<{ role: 'user' | 'assistant' | 'system', content: string }>): Promise<ConnectionCheckResult> {
-    try {
-      const connectedAccounts = await contextService.getConnectedAccounts()
-      const localStatus = await window.electronAPI?.getProviderAuthStatus?.().catch(() => ({}))
-      const providerStatus = (localStatus || {}) as Record<string, { authenticated?: boolean }>
-
-      const accountsForAnalysis = [
-        ...connectedAccounts.pipedream.map(a => ({
-          id: a.id,
-          app: a.app?.nameSlug || a.app?.name || 'unknown',
-          name: a.name,
-        })),
-        ...connectedAccounts.composio
-          .filter(a => a.status === 'ACTIVE')
-          .map(a => ({
-            id: a.id,
-            app: a.toolkit?.slug || 'unknown',
-          })),
-        ...Object.entries(providerStatus)
-          .filter(([, status]) => status?.authenticated)
-          .map(([provider]) => ({
-            id: `local_${provider}`,
-            app: provider,
-          })),
-      ]
-
-      const analysis = await analyzeCredentialRequirements(conversationHistory, accountsForAnalysis)
-
-      if (analysis.likelyHasCredentials) {
-        return { hasAllConnections: true, missingConnections: [], detectedServices: [] }
-      }
-
-      if (analysis.searchTermsIfNoCredentials.length > 0) {
-        const searchTerms = analysis.searchTermsIfNoCredentials
-        const missingConnections: MissingConnectionInfo[] = []
-
-        const matchesSearchTerms = (name: string, id: string): boolean => {
-          const nameLower = name.toLowerCase()
-          const idLower = id.toLowerCase()
-          return searchTerms.some((term) => {
-            const termLower = term.toLowerCase()
-            return nameLower.includes(termLower) || idLower.includes(termLower) || termLower.includes(nameLower)
-          })
-        }
-
-        const localProviders = await import('./local-providers-service').then(m => m.getLocalProviders())
-        for (const provider of localProviders) {
-          if (matchesSearchTerms(provider.name, provider.id)) {
-            missingConnections.push({ id: provider.id, name: provider.name, icon: provider.icon, source: 'local' })
-          }
-        }
-
-        const searchPromises = searchTerms.map(term => searchCombinedApps(term, false))
-        const results = await Promise.all(searchPromises)
-        const seenPipedream = new Set<string>()
-        const seenComposio = new Set<string>()
-
-        for (const result of results) {
-          if (result.success && result.apps) {
-            for (const app of result.apps) {
-              if (app.platforms.includes('pipedream') && app.pipedreamSlug && !seenPipedream.has(app.pipedreamSlug)) {
-                seenPipedream.add(app.pipedreamSlug)
-                missingConnections.push({ id: app.pipedreamSlug, name: app.name, icon: app.pipedreamData?.logoUrl || app.logo || '', source: 'pipedream' })
-              }
-              if (app.platforms.includes('composio') && app.composioSlug && !seenComposio.has(app.composioSlug)) {
-                seenComposio.add(app.composioSlug)
-                missingConnections.push({ id: app.composioSlug, name: app.name, icon: app.composioData?.meta?.logo || app.logo || '', source: 'composio' })
-              }
-            }
-          }
-        }
-
-        if (missingConnections.length > 0) {
-          return { hasAllConnections: false, missingConnections: missingConnections.slice(0, 6), detectedServices: searchTerms, reasoning: analysis.reasoning }
-        }
-      }
-
-      return {
-        hasAllConnections: false,
-        missingConnections: [{ id: 'required_connection', name: 'Required Connection', icon: '', source: 'pipedream', searchTerms: analysis.searchTermsIfNoCredentials }],
-        detectedServices: analysis.searchTermsIfNoCredentials,
-        reasoning: analysis.reasoning,
-      }
-    }
-    catch {
-      return { hasAllConnections: true, missingConnections: [], detectedServices: [] }
-    }
   }
 
   private startPeriodicPing() {
@@ -291,7 +165,6 @@ export class AIChatAdapter implements ChatModelAdapter {
             fullText += event.text
             break
           case 'tool_use_start': {
-            console.log('[NativeToolCall][Stream] tool_use_start:', event.name, event.id)
             currentToolIndex++
             toolCallMap.set(currentToolIndex, { id: event.id, name: event.name, jsonParts: [] })
             break
@@ -305,7 +178,6 @@ export class AIChatAdapter implements ChatModelAdapter {
           case 'tool_use_end': // Block complete, input already accumulated
             break
           case 'message_end':
-            console.log('[NativeToolCall][Stream] message_end, stop_reason:', event.stop_reason)
             stopReason = event.stop_reason
             break
         }
@@ -359,13 +231,6 @@ export class AIChatAdapter implements ChatModelAdapter {
         toolCalls.push({ id: acc.id, name: acc.name, input })
       }
 
-      console.log('[NativeToolCall][Stream] Complete:', {
-        textLength: fullText.length,
-        toolCallCount: toolCalls.length,
-        toolNames: toolCalls.map(tc => tc.name),
-        stopReason,
-      })
-
       return { text: fullText, toolCalls, stopReason }
     }
     finally {
@@ -405,8 +270,6 @@ export class AIChatAdapter implements ChatModelAdapter {
 
     while (currentIteration < this.maxAgenticIterations) {
       currentIteration++
-      console.log(`[NativeToolCall][Loop] Iteration ${currentIteration}/${this.maxAgenticIterations}`)
-
       this.onTaskProgress?.({
         step: currentIteration,
         totalSteps: this.maxAgenticIterations,
@@ -427,8 +290,6 @@ export class AIChatAdapter implements ChatModelAdapter {
 
       // If no tool calls, this is the final response — stream it to the user
       if (result.toolCalls.length === 0 || result.stopReason !== 'tool_use') {
-        console.log('[NativeToolCall][Loop] Done - no more tool calls, stop_reason:', result.stopReason)
-        // Build final content: all completed tool-call parts + final text
         const finalContent: Array<{ type: string, [key: string]: unknown }> = [
           ...completedToolParts,
         ]
@@ -465,11 +326,6 @@ export class AIChatAdapter implements ChatModelAdapter {
         assistantContent.push({ type: 'tool_use', id: tc.id, name: tc.name, input: tc.input })
       }
       conversationHistory.push({ role: 'assistant', content: assistantContent })
-      console.log('[NativeToolCall][Loop] Tool calls:', result.toolCalls.map(tc => ({
-        name: tc.name, inputKeys: Object.keys(tc.input),
-      })))
-
-      // Execute each tool call
       const toolResults: Array<{ type: 'tool_result', tool_use_id: string, content: string }> = []
 
       for (const tc of result.toolCalls) {
@@ -513,9 +369,6 @@ export class AIChatAdapter implements ChatModelAdapter {
           toolPart.result = contextContent
 
           toolResults.push({ type: 'tool_result', tool_use_id: tc.id, content: contextContent })
-          console.log(`[NativeToolCall][Loop] ${tc.name} result: ${contextContent.length} chars, summarized=${storedResult.wasSummarized}`)
-
-          // Yield updated state so UI shows tool result
           yield { content: [...completedToolParts, { type: 'text' as const, text: '' }] }
 
           this.onTaskProgress?.({
@@ -526,7 +379,6 @@ export class AIChatAdapter implements ChatModelAdapter {
           })
         }
         catch (error) {
-          console.error(`[NativeToolCall][Loop] ${tc.name} error:`, error instanceof Error ? error.message : 'Unknown')
           const errorMsg = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
           toolPart.result = errorMsg
           toolPart.isError = true
@@ -556,11 +408,9 @@ export class AIChatAdapter implements ChatModelAdapter {
 
       // Add tool results as a user message (Anthropic format)
       conversationHistory.push({ role: 'user', content: toolResults })
-      console.log(`[NativeToolCall][Loop] Conversation now has ${conversationHistory.length} messages`)
     }
 
     // Max iterations reached — get a final summary
-    console.log('[NativeToolCall][Loop] Max iterations reached, getting final summary')
     this.onTaskProgress?.({
       step: this.maxAgenticIterations,
       totalSteps: this.maxAgenticIterations,
@@ -605,28 +455,6 @@ export class AIChatAdapter implements ChatModelAdapter {
         this.generateThreadTitle(userMessages[0].content as string)
       }
 
-      // Check for missing connections (keyboard provider with MCP)
-      if (this.currentProvider.provider === 'keyboard' && this.currentProvider.mcpEnabled && !this.skipConnectionCheck) {
-        const lastUserMessage = aiMessages.filter(m => m.role === 'user').pop()
-        if (lastUserMessage?.content) {
-          const connectionResult = await this.checkConnectionRequirements(
-            aiMessages.map(m => ({ role: m.role, content: typeof m.content === 'string' ? m.content : '' })),
-          )
-          if (!connectionResult.hasAllConnections && connectionResult.missingConnections.length > 0) {
-            this.lastUserMessageForConnectionCheck = lastUserMessage.content as string
-            this.onMissingConnectionsDetected?.(connectionResult)
-            const serviceNames = connectionResult.missingConnections.map(c => c.name).join(', ')
-            yield {
-              content: [{
-                type: 'text' as const,
-                text: `I don't have access to ${serviceNames} tools - I'm currently missing some app connections.\n\nTo complete your request, I would need access to the following services. Please connect them using the prompts above, then try again.`,
-              }],
-            }
-            return
-          }
-        }
-      }
-
       // Inject enhanced context into system prompt
       if (this.currentProvider.provider === 'keyboard' && this.currentProvider.mcpEnabled && aiMessages.length > 0) {
         try {
@@ -662,9 +490,7 @@ export class AIChatAdapter implements ChatModelAdapter {
       // Native tool calling — no classification needed, model decides
       const abilitiesAvailable = this.mcpIntegration?.functions || []
       if (this.currentProvider.mcpEnabled && abilitiesAvailable.length > 0) {
-        this.skipConnectionCheck = false
         const nativeTools = ProviderFormats.anthropic.convertTools(abilitiesAvailable) as Array<{ name: string, description: string, input_schema: Record<string, unknown> }>
-        console.log('[NativeToolCall] Starting with', abilitiesAvailable.length, 'tools:', abilitiesAvailable.map(f => f.function.name))
         for await (const result of this.handleNativeToolCalling(aiMessages, nativeTools, abortSignal)) {
           yield result
         }

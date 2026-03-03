@@ -1,6 +1,6 @@
 export interface AIMessage {
   role: 'user' | 'assistant' | 'system'
-  content: string | Array<{ type: string; [key: string]: unknown }>
+  content: string | Array<{ type: string, [key: string]: unknown }>
   timestamp?: number
 }
 
@@ -9,15 +9,15 @@ export interface AIProviderConfig {
   apiKey: string
   baseUrl?: string
   model?: string
-  tools?: Array<{ name: string; description: string; input_schema: Record<string, unknown> }>
+  tools?: Array<{ name: string, description: string, input_schema: Record<string, unknown> }>
 }
 
-export type StreamEvent =
-  | { type: 'text'; text: string }
-  | { type: 'tool_use_start'; id: string; name: string }
-  | { type: 'tool_use_delta'; id: string; json: string }
-  | { type: 'tool_use_end'; id: string }
-  | { type: 'message_end'; stop_reason: string }
+export type StreamEvent
+  = | { type: 'text', text: string }
+    | { type: 'tool_use_start', id: string, name: string }
+    | { type: 'tool_use_delta', id: string, json: string }
+    | { type: 'tool_use_end', id: string }
+    | { type: 'message_end', stop_reason: string }
 
 export interface WebSearchQuery {
   query: string
