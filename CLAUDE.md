@@ -94,10 +94,6 @@ User types message in Thread composer
     |
 AIChatAdapter.run()                                [src/renderer/services/ai-chat-adapter.ts]
     |
-checkConnectionRequirements()                      -> connection-detection-service.ts
-    |-- MISSING CONNECTIONS -> ConnectionRequirementsMessage UI
-    |-- ALL GOOD:
-    |
 contextService.buildEnhancedSystemPrompt()         -> context-service.ts
     |
 ProviderFormats.anthropic.convertTools()           -> mcp-tool-integration.ts
@@ -204,10 +200,8 @@ All logs use `[NativeToolCall]` prefix for easy filtering in DevTools / terminal
 | `src/renderer/services/pending-tool-calls.ts` | Fingerprint + pending call race mechanism |
 | `src/renderer/services/context-service.ts` | System prompt builder, planning tokens |
 | `src/renderer/services/run-code-result-context.ts` | Result storage + smart summarization |
-| `src/renderer/services/connection-detection-service.ts` | AI-powered connection requirement analysis |
 | `src/renderer/services/tool-cache-service.ts` | Tool cache fallback when MCP disconnects |
 | `src/renderer/services/ability-discovery.ts` | Fuzzy tool search |
-| `src/renderer/components/assistant-ui/ConnectionRequirementsMessage.tsx` | Missing connections UI |
 | `src/renderer/components/assistant-ui/ApprovalMessage.tsx` | Inline approval in chat |
 | `src/renderer/components/assistant-ui/ThreadTracker.tsx` | Thread ID sync to currentThreadRef |
 | `src/renderer/components/AgenticStatusIndicator.tsx` | Progress bar during agentic loop |
@@ -235,7 +229,6 @@ All logs use `[NativeToolCall]` prefix for easy filtering in DevTools / terminal
 - `src/renderer/hooks/useAdditionalConnectedAccounts.ts`
 - `src/renderer/hooks/useCustomIntegrations.ts`
 - `src/renderer/hooks/useCurrentThread.ts` (replaced by currentThreadRef in ChatPage)
-- `src/renderer/hooks/useConnectionRequirements.ts` (logic moved into useMCPEnhancedChat)
 
 ### Unused Components (0 imports)
 
@@ -280,4 +273,4 @@ This codebase must stay lean. As sessions progress, there is a real risk of infl
 - **Promise.race pattern with timeout**: For `run-code` tool calls, the app races the MCP server response against the approval resolution and a 10-minute timeout. Whichever completes first wins. The timeout prevents infinite hangs if both paths fail.
 - **3-layer MCP reconnect**: (1) Transport error/close handlers with exponential backoff, (2) 15s health check interval verifying client refs are alive, (3) Inline reconnect in `callTool()` — reconnects and retries once before throwing.
 - **Auto-approve**: Main process can auto-approve based on risk_level (low/medium/high) for security evaluations and success-only/always/never for code responses, configured in settings.
-- **Thread-scoped state**: Connection requirements are stored per-thread in localStorage with 1-hour expiry.
+- **Connection management**: Handled by the `connect-reconnect-accounts` MCP tool at runtime, rather than a pre-flight detection workflow.

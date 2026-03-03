@@ -106,7 +106,7 @@ export class KeyboardProvider implements AIProvider {
 
     // Transform messages: flatten tool_use/tool_result blocks into text
     // The API Zod schema only accepts string or text/image content blocks
-    const transformedMessages = messagesWithoutSystem.map(msg => {
+    const transformedMessages = messagesWithoutSystem.map((msg) => {
       if (typeof msg.content === 'string') {
         return { role: msg.role, content: msg.content }
       }
@@ -130,7 +130,7 @@ export class KeyboardProvider implements AIProvider {
 
     // Filter out messages with empty content — these poison the conversation
     // and cause the model to return empty responses after MCP disconnects
-    const validMessages = transformedMessages.filter(msg => {
+    const validMessages = transformedMessages.filter((msg) => {
       if (typeof msg.content === 'string' && msg.content.trim() === '') return false
       return true
     })
@@ -152,13 +152,6 @@ export class KeyboardProvider implements AIProvider {
         return true
       })
     }
-
-    console.log('[NativeToolCall][Keyboard] Sending request:', {
-      model: requestBody.model,
-      toolCount: config.tools?.length || 0,
-      toolNames: config.tools?.map(t => t.name) || [],
-      messageCount: messagesWithoutSystem.length,
-    })
 
     const response = await fetch(url, {
       method: 'POST',
@@ -191,7 +184,6 @@ export class KeyboardProvider implements AIProvider {
         buffer += rawChunk
         // Log first 500 chars of raw chunk to see what the API is actually returning
         if (rawChunk.length > 0) {
-          console.log('[NativeToolCall][Keyboard] Raw chunk (' + rawChunk.length + ' chars):', rawChunk.substring(0, 500))
         }
         const lines = buffer.split('\n')
         buffer = lines.pop() || ''
@@ -201,20 +193,15 @@ export class KeyboardProvider implements AIProvider {
             const data = line.slice(6)
 
             if (data === '[DONE]') {
-              console.log('[NativeToolCall][Keyboard] Got [DONE] signal')
               return
             }
 
             try {
               const parsed = JSON.parse(data)
-              console.log('[NativeToolCall][Keyboard] Parsed SSE event type:', parsed.type, parsed.delta?.type || '', parsed.content_block?.type || '')
-              // Handle error responses from the API
               if (parsed.error) {
-                console.error('[NativeToolCall][Keyboard] API error:', parsed.error)
                 throw new Error(parsed.error)
               }
               if (parsed.type === 'content_block_start' && parsed.content_block?.type === 'tool_use') {
-                console.log('[NativeToolCall][Keyboard] SSE tool_use_start:', parsed.content_block.name, parsed.content_block.id)
                 yield { type: 'tool_use_start', id: parsed.content_block.id, name: parsed.content_block.name } as StreamEvent
               }
               else if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'input_json_delta') {
@@ -231,11 +218,9 @@ export class KeyboardProvider implements AIProvider {
               }
             }
             catch (e) {
-              console.log('[NativeToolCall][Keyboard] JSON parse error for data:', data.substring(0, 200))
             }
           }
           else if (line.trim().length > 0) {
-            console.log('[NativeToolCall][Keyboard] Non-data line:', line.substring(0, 200))
           }
         }
       }

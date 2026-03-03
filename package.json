@@ -33,6 +33,7 @@
     "@assistant-ui/react-markdown": "0.11.4",
     "@assistant-ui/styles": "0.2.8",
     "@dotenvx/dotenvx": "^1.45.2",
+    "@modelcontextprotocol/ext-apps": "^1.1.2",
     "@monaco-editor/react": "^4.7.0",
     "@octokit/rest": "^22.0.0",
     "@pipedream/connect-react": "^2.3.0",

@@ -9,12 +9,23 @@ interface MCPChatComponentProps {
 }
 
 export const MCPChatComponent: React.FC<MCPChatComponentProps> = ({
-  serverUrl = 'https://mcp.keyboard.dev',
+  serverUrl: serverUrlProp,
   clientName = 'keyboard-approver-mcp',
 }) => {
   const [messages, setMessages] = useState<Array<{ id: string, content: string, sender: 'user' | 'mcp' }>>([])
   const [inputValue, setInputValue] = useState('')
   const [loading, setLoading] = useState(false)
+  const [serverUrl, setServerUrl] = useState(serverUrlProp || 'https://mcp.keyboard.dev')
+
+  useEffect(() => {
+    if (!serverUrlProp) {
+      window.electronAPI.getMcpServerUrl().then((url) => {
+        setServerUrl(url)
+      }).catch(() => {
+        // Keep default if IPC fails
+      })
+    }
+  }, [serverUrlProp])
 
   // Use our custom MCP client hook (no OAuth required!)
   const {

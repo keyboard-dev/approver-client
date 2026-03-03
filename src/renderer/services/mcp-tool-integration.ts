@@ -307,18 +307,14 @@ export function useMCPIntegration(
 
       // On connection error, attempt reconnect + single retry
       if (isConnectionError) {
-        console.log(`[NativeToolCall][MCP] Connection error during ${functionName}, attempting reconnect...`)
         try {
           mcpClient.retry()
           const reconnected = await waitForReconnect(15000)
           if (reconnected) {
-            console.log(`[NativeToolCall][MCP] Reconnected, retrying ${functionName}`)
             return await attemptToolCall(functionName, args, executionId)
           }
-          console.log(`[NativeToolCall][MCP] Reconnect timed out for ${functionName}`)
         }
         catch (retryError) {
-          console.error('[NativeToolCall][MCP] Reconnect retry failed:', retryError instanceof Error ? retryError.message : 'Unknown')
         }
       }
 
@@ -355,6 +351,9 @@ export function useMCPIntegration(
     searchAbilities,
     getMinimalAbilityDefinitions,
     retry: mcpClient.retry,
+    // Expose raw MCP client functions for MCP Apps host
+    mcpCallTool: mcpClient.callTool,
+    mcpReadResource: mcpClient.readResource,
   }
 }
 

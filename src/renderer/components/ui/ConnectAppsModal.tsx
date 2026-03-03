@@ -30,6 +30,7 @@ import * as DialogPrimitive from '@radix-ui/react-dialog'
 export interface ConnectAppsModalProps {
   isOpen: boolean
   onClose: () => void
+  onDismiss?: () => void
 }
 
 type SourceType = 'local' | 'pipedream' | 'composio' | 'cloud'
@@ -137,6 +138,7 @@ const ConnectorRow: React.FC<ConnectorRowProps> = ({
 export const ConnectAppsModal: React.FC<ConnectAppsModalProps> = ({
   isOpen,
   onClose,
+  onDismiss,
 }) => {
   const { showPopup, hidePopup } = usePopup()
 
@@ -186,7 +188,7 @@ export const ConnectAppsModal: React.FC<ConnectAppsModalProps> = ({
     fetchAppsWithTriggers: fetchComposioDefaultApps,
   } = useComposio()
 
-  // Fetch default Composio apps on mount for logo lookups
+  // Fetch default Composio apps on mount
   React.useEffect(() => {
     if (isOpen) {
       fetchComposioDefaultApps()
@@ -623,6 +625,19 @@ export const ConnectAppsModal: React.FC<ConnectAppsModalProps> = ({
               </div>
             )}
           </div>
+
+          {/* Dismiss and continue anyway (when opened from chat flow) */}
+          {onDismiss && (
+            <button
+              onClick={() => {
+                onDismiss()
+                onClose()
+              }}
+              className="text-[14px] font-medium text-[#737373] hover:text-[#171717] transition-colors self-start"
+            >
+              Dismiss and continue anyway
+            </button>
+          )}
 
           {/* Docs Link */}
           <p className="text-[14px] font-medium text-[#a5a5a5] leading-normal">
