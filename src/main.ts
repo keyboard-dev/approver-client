@@ -102,6 +102,7 @@ import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
 import * as WebSocket from 'ws'
+import { OAuthHttpServer } from './oauth-http-server'
 
 // Try to load .env.local from multiple locations (for built apps with local config)
 try {
@@ -2180,6 +2181,7 @@ class MenuBarNotificationApp {
             event.sender.send('ai-stream-end')
           }
           catch (error) {
+            console.error('[IPC] Stream error for provider', provider, ':', error instanceof Error ? error.message : error)
             event.sender.send('ai-stream-error', error instanceof Error ? error.message : 'Unknown error')
           }
         }
@@ -2981,17 +2983,117 @@ class MenuBarNotificationApp {
       }
     })
 
-    // Store User Refresh Token IPC handler
-    ipcMain.handle('store-user-refresh-token', async (_event) => {
+    // Start Triggers OAuth flow — opens browser with WORKOS_CLIENT_ID, receives code via localhost callback
+    ipcMain.handle('start-triggers-oauth', async (_event) => {
       try {
         const accessToken = await this.authService.getValidAccessToken()
-        const refreshToken = await this.authService.getRefreshToken()
-        if (!refreshToken) {
-          return {
-            success: false,
-            error: 'Failed to refresh tokens',
-          }
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
         }
+
+        const state = crypto.randomBytes(16).toString('hex')
+
+        // Start localhost callback server on fixed port 8082
+        const oauthServer = new OAuthHttpServer(8082, { callbackPath: '/auth/callback', host: '127.0.0.1' })
+
+        const callbackResult = await new Promise<{ success: boolean, refresh_token?: string, error?: string }>((resolve) => {
+          const startFlow = async () => {
+            await oauthServer.startServer(async (callbackData) => {
+              try {
+                if (callbackData.error) {
+                  resolve({ success: false, error: callbackData.error_description || callbackData.error })
+                  return
+                }
+
+                if (!callbackData.code) {
+                  resolve({ success: false, error: 'No authorization code received' })
+                  return
+                }
+
+                // Exchange code for tokens via WorkOS SDK on remote-oauth-server
+                const tokenResponse = await fetch(`${this.OAUTH_SERVER_URL}/oauth/trigger/token`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    code: callbackData.code,
+                  }),
+                })
+
+                if (!tokenResponse.ok) {
+                  const errorData = await tokenResponse.json().catch(() => ({ error: 'Token exchange failed' })) as { error?: string, error_description?: string }
+                  resolve({ success: false, error: errorData.error_description || errorData.error || 'Token exchange failed' })
+                  return
+                }
+
+                const tokens = await tokenResponse.json() as { refresh_token: string }
+                resolve({ success: true, refresh_token: tokens.refresh_token })
+              }
+              catch (err) {
+                resolve({ success: false, error: err instanceof Error ? err.message : 'Token exchange failed' })
+              }
+            })
+
+            // Get authorization URL from remote-oauth-server (uses WorkOS SDK)
+            const redirectUri = oauthServer.getCallbackUrl()
+            const authorizeResponse = await fetch(
+              `${this.OAUTH_SERVER_URL}/oauth/trigger/authorize?` + new URLSearchParams({
+                redirect_uri: redirectUri,
+                state,
+              }).toString(),
+            )
+
+            if (!authorizeResponse.ok) {
+              const errBody = await authorizeResponse.text().catch(() => '')
+              console.error('[TriggersOAuth] authorize failed:', authorizeResponse.status, errBody)
+              oauthServer.stopServer()
+              resolve({ success: false, error: `Failed to get authorization URL: ${authorizeResponse.status} ${errBody}` })
+              return
+            }
+
+            const authorizeData = await authorizeResponse.json() as { authorization_url: string }
+            shell.openExternal(authorizeData.authorization_url)
+          }
+
+          startFlow().catch((err) => {
+            oauthServer.stopServer()
+            resolve({ success: false, error: err instanceof Error ? err.message : 'Failed to start OAuth flow' })
+          })
+        })
+
+        if (!callbackResult.success || !callbackResult.refresh_token) {
+          return { success: false, error: callbackResult.error || 'OAuth flow failed' }
+        }
+
+        // Store the refresh token via token vault
+        const storeResponse = await fetch(`${this.OAUTH_SERVER_URL}/api/token-vault/user-token`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ refresh_token: callbackResult.refresh_token }),
+        })
+
+        if (!storeResponse.ok) {
+          const errorData = await storeResponse.json().catch(() => ({ error: 'Unknown error' })) as { error?: string, details?: string }
+          throw new Error(errorData.error || errorData.details || `HTTP error! status: ${storeResponse.status}`)
+        }
+
+        const data = await storeResponse.json()
+        return { success: true, data }
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    // Delete User Refresh Token IPC handler
+    ipcMain.handle('delete-user-refresh-token', async () => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
         if (!accessToken) {
           return {
             success: false,
@@ -3000,14 +3102,10 @@ class MenuBarNotificationApp {
         }
 
         const response = await fetch(`${this.OAUTH_SERVER_URL}/api/token-vault/user-token`, {
-          method: 'POST',
+          method: 'DELETE',
           headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
           },
-          body: JSON.stringify({
-            refresh_token: refreshToken,
-          }),
         })
 
         if (!response.ok) {

@@ -295,6 +295,9 @@ export class AIChatAdapter implements ChatModelAdapter {
         ]
 
         // If we got an empty response, provide feedback instead of a blank message
+        if (!result.text) {
+          console.warn('[AIChatAdapter] Empty response from stream — no text, no tool calls. stopReason:', result.stopReason, 'toolCount:', result.toolCalls.length)
+        }
         const responseText = result.text || 'I encountered an issue processing your request. This may be due to a connection interruption. Please try again.'
 
         // Stream the final text with smooth typing effect

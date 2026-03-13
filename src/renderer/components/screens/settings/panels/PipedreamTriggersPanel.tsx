@@ -866,7 +866,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
     setIsStoringToken(true)
     setTokenError(null)
     try {
-      const response = await window.electronAPI.storeUserRefreshToken()
+      const response = await window.electronAPI.startTriggersOAuth()
 
       if (response.success) {
         setIsTokenStored(true)
@@ -885,6 +885,28 @@ export const PipedreamTriggersPanel: React.FC = () => {
     }
   }
 
+  const [isDeletingToken, setIsDeletingToken] = useState(false)
+
+  const deleteRefreshToken = async () => {
+    setIsDeletingToken(true)
+    setTokenError(null)
+    try {
+      const response = await window.electronAPI.deleteUserRefreshToken()
+      if (response.success) {
+        setIsTokenStored(false)
+      }
+      else {
+        throw new Error(response.error || 'Failed to disable triggers')
+      }
+    }
+    catch (err) {
+      setTokenError(err instanceof Error ? err.message : 'Failed to disable triggers')
+    }
+    finally {
+      setIsDeletingToken(false)
+    }
+  }
+
   if (isCheckingToken) {
     return (
       <div className="flex flex-col items-center justify-center w-full h-full p-6">
@@ -897,9 +919,9 @@ export const PipedreamTriggersPanel: React.FC = () => {
     return (
       <div className="flex flex-col w-full h-full overflow-hidden">
         <div className="p-6">
-          <h2 className="text-[1.25rem] font-bold mb-4">Pipedream Webhook Triggers</h2>
+          <h2 className="text-[1.25rem] font-bold mb-4">Webhook Triggers</h2>
           <p className="text-[#737373] mb-6">
-            To use Pipedream webhook triggers, you need to enable access by storing your refresh token securely on our backend.
+            To use webhook triggers, you need to enable access by storing your refresh token securely on our backend.
           </p>
 
           {tokenError && (
@@ -909,9 +931,9 @@ export const PipedreamTriggersPanel: React.FC = () => {
           )}
 
           <div className="mb-6 p-6 border border-[#E5E5E5] rounded-lg bg-[#FAFAFA]">
-            <h3 className="font-semibold text-[#171717] mb-3">Enable Pipedream Integration</h3>
+            <h3 className="font-semibold text-[#171717] mb-3">Enable Triggers</h3>
             <p className="text-sm text-[#737373] mb-4">
-              Click the button below to enable Pipedream webhook triggers. This will securely store your refresh token on the backend, allowing you to create and manage webhook triggers.
+              Click the button below to enable webhook triggers. This will securely store your refresh token on the backend, allowing you to create and manage webhook triggers.
             </p>
             <button
               onClick={async () => {
@@ -925,7 +947,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
               disabled={isStoringToken}
               className="px-6 py-3 bg-[#171717] text-white rounded-lg hover:bg-[#404040] disabled:bg-[#A3A3A3] disabled:cursor-not-allowed transition-colors font-medium"
             >
-              {isStoringToken ? 'Enabling...' : 'Enable Pipedream Triggers'}
+              {isStoringToken ? 'Enabling...' : 'Enable Triggers'}
             </button>
           </div>
 
@@ -962,6 +984,18 @@ export const PipedreamTriggersPanel: React.FC = () => {
         <p className="text-[#737373] mb-6">
           Deploy time-based schedule triggers or search for webhook triggers powered by Pipedream.
         </p>
+
+        <div className="mb-6 flex items-center justify-between p-3 border border-[#E5E5E5] rounded-lg bg-[#FAFAFA]">
+          <span className="text-sm text-[#737373]">Triggers are enabled</span>
+          <button
+            onClick={deleteRefreshToken}
+            disabled={isDeletingToken}
+            className="px-3 py-1.5 text-sm text-red-600 border border-red-200 rounded hover:bg-red-50 disabled:opacity-50 transition-colors"
+          >
+            {isDeletingToken ? 'Disabling...' : 'Disable Triggers'}
+          </button>
+        </div>
+        {tokenError && <p className="text-red-600 text-sm mb-4">{tokenError}</p>}
 
         <div className="mb-6 p-4 border border-[#E5E5E5] rounded-lg bg-[#FAFAFA]">
           <h3 className="font-semibold text-[#171717] mb-3">Schedule Triggers</h3>
