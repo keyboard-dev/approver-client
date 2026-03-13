@@ -93,9 +93,25 @@ export class AuthService {
   }
 
   /**
+   * Lookup organization for a user by email (pre-auth step)
+   */
+  async lookupOrg(email: string): Promise<string | null> {
+    try {
+      const params = new URLSearchParams({ email })
+      const response = await fetch(`${this.OAUTH_SERVER_URL}/oauth/lookup-org?${params}`)
+      if (!response.ok) return null
+      const data = await response.json() as { organization_id: string | null }
+      return data.organization_id
+    }
+    catch {
+      return null
+    }
+  }
+
+  /**
    * Start OAuth flow - generates PKCE and opens browser for authentication
    */
-  async startOAuthFlow(): Promise<void> {
+  async startOAuthFlow(organizationId?: string): Promise<void> {
     try {
       // Generate PKCE parameters
       this.currentPKCE = this.generatePKCE()
@@ -107,6 +123,9 @@ export class AuthService {
         code_challenge: this.currentPKCE.codeChallenge,
         code_challenge_method: 'S256',
       })
+      if (organizationId) {
+        params.set('organization_id', organizationId)
+      }
 
       const response = await fetch(`${this.OAUTH_SERVER_URL}/oauth/authorize?${params}`)
 

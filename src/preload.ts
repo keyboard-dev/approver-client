@@ -111,19 +111,6 @@ export interface UpdateInfo {
   releaseNotes?: string
 }
 
-export interface WebSearchGeneralCitation {
-  type: 'web_search_result'
-  url: string
-  title: string
-}
-
-export interface WebSearchGeneralResponse {
-  content: Array<{
-    type: 'text'
-    text: string
-    citations?: WebSearchGeneralCitation[]
-  }>
-}
 
 export interface CreditsBalance {
   success: true
@@ -229,7 +216,8 @@ export interface ElectronAPI {
   // Open external links
   openExternal: (url: string) => Promise<void>
   // Legacy OAuth
-  startOAuth: () => Promise<void>
+  lookupOrg: (email: string) => Promise<string | null>
+  startOAuth: (organizationId?: string) => Promise<void>
   getAuthStatus: () => Promise<AuthStatus>
   logout: () => Promise<void>
   getAccessToken: () => Promise<string | null>
@@ -351,8 +339,6 @@ export interface ElectronAPI {
   onAIStreamEnd: (callback: () => void) => void
   onAIStreamError: (callback: (error: string) => void) => void
   removeAIStreamListeners: () => void
-  webSearch: (provider: string, query: string, company: string) => Promise<unknown>
-  webSearchGeneral: (query: string) => Promise<WebSearchGeneralResponse>
   getUserTokens: () => Promise<{ tokensAvailable?: string[], error?: string }>
   getCodespaceInfo: () => Promise<CodespaceInfo>
   // Credits balance
@@ -607,7 +593,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openExternal: (url: string): Promise<void> => ipcRenderer.invoke('open-external', url),
 
   // Legacy OAuth functions
-  startOAuth: (): Promise<void> => ipcRenderer.invoke('start-oauth'),
+  lookupOrg: (email: string): Promise<string | null> => ipcRenderer.invoke('lookup-org', email),
+  startOAuth: (organizationId?: string): Promise<void> => ipcRenderer.invoke('start-oauth', organizationId),
   getAuthStatus: (): Promise<AuthStatus> => ipcRenderer.invoke('get-auth-status'),
   logout: (): Promise<void> => ipcRenderer.invoke('logout'),
   getAccessToken: (): Promise<string | null> => ipcRenderer.invoke('get-access-token'),
@@ -765,8 +752,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.removeAllListeners('ai-stream-end')
     ipcRenderer.removeAllListeners('ai-stream-error')
   },
-  webSearch: (provider: string, query: string, company: string): Promise<unknown> => ipcRenderer.invoke('web-search', provider, query, company),
-  webSearchGeneral: (query: string): Promise<WebSearchGeneralResponse> => ipcRenderer.invoke('web-search-general', query),
   getUserTokens: (): Promise<{ tokensAvailable?: string[], error?: string }> => ipcRenderer.invoke('get-user-tokens'),
   getCodespaceInfo: (): Promise<CodespaceInfo> => ipcRenderer.invoke('get-codespace-info'),
   // Credits balance

@@ -5,7 +5,6 @@ import { useAuth } from '../hooks/useAuth'
 import { useMCPEnhancedChat } from '../hooks/useMCPEnhancedChat'
 import { useWebSocketConnection } from '../hooks/useWebSocketConnection'
 import { McpClientProvider } from '../services/mcp-client-context'
-import { AgenticStatusIndicator } from './AgenticStatusIndicator'
 import { Thread } from './assistant-ui/thread'
 import { ThreadTracker } from './assistant-ui/ThreadTracker'
 import { MCPChatComponent } from './MCPChatComponent'
@@ -124,7 +123,6 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
   // Set MCP to always enabled and auto-connect to codespace
   useEffect(() => {
     mcpChat.setMCPEnabled(true)
-    mcpChat.setAgenticMode(true)
   }, [mcpChat])
 
   useEffect(() => {
@@ -199,18 +197,6 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
               )
             : (
                 <div className="flex flex-col h-full">
-                  {/* Agentic Status Indicator - only shown when actively working */}
-                  {mcpEnabled && (mcpChat.isExecutingAbility || mcpChat.agenticProgress) && (
-                    <div className="mb-2 px-4">
-                      <AgenticStatusIndicator
-                        isAgenticMode={mcpChat.isAgenticMode}
-                        agenticProgress={mcpChat.agenticProgress}
-                        isExecutingAbility={mcpChat.isExecutingAbility}
-                        currentAbility={mcpChat.currentAbility}
-                      />
-                    </div>
-                  )}
-
                   <div className="flex-1 flex flex-col min-h-0">
                     <Thread
                       currentApprovalMessage={currentApprovalMessage}

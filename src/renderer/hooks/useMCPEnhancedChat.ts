@@ -14,14 +14,6 @@ export interface MCPEnhancedChatConfig {
   clientName?: string
 }
 
-export interface AgenticProgress {
-  step: number
-  totalSteps: number
-  currentAction: string
-  isComplete: boolean
-  intermediateMessages?: AbilityMessage[]
-}
-
 export interface AbilityMessage {
   id: string
   type: 'status' | 'result' | 'error' | 'progress'
@@ -64,15 +56,10 @@ export interface MCPEnhancedChatState {
   currentAbility?: string
   executions: AbilityExecution[]
 
-  // Agentic state
-  isAgenticMode: boolean
-  agenticProgress?: AgenticProgress
-
   // Control functions
   setMCPEnabled: (enabled: boolean) => void
   refreshMCPConnection: () => void
   setAbilityExecutionState: (isExecuting: boolean, abilityName?: string) => void
-  setAgenticMode: (enabled: boolean) => void
   setSelectedScripts: (scripts: Script[]) => void
   setThreadTitleCallback: (callback: (title: string) => void) => void
 
@@ -99,8 +86,6 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
   const [mcpEnabled, setMCPEnabledState] = useState(config.mcpEnabled)
   const [isExecutingAbility, setIsExecutingAbility] = useState(false)
   const [currentAbility, setCurrentAbility] = useState<string | undefined>()
-  const [isAgenticMode, setAgenticModeState] = useState(true) // Default to agentic mode
-  const [agenticProgress, setAgenticProgress] = useState<AgenticProgress | undefined>()
   const [executions, setExecutions] = useState<AbilityExecution[]>([])
   const [scripts, setScripts] = useState<Script[]>([])
 
@@ -132,15 +117,6 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
     setCurrentAbility(abilityName)
   }, [])
 
-  // Agentic progress tracking
-  const handleTaskProgress = useCallback((progress: AgenticProgress) => {
-    setAgenticProgress(progress)
-    if (progress.isComplete) {
-      // Clear progress after a delay when complete
-      setTimeout(() => setAgenticProgress(undefined), 3000)
-    }
-  }, [])
-
   // Execution tracking functions
   const addExecution = useCallback((abilityName: string, parameters: Record<string, unknown>, provider?: string): string => {
     const id = `exec_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
@@ -151,10 +127,7 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
       startTime: Date.now(),
       parameters,
       provider,
-      metadata: {
-        isLocalExecution: abilityName === 'web-search',
-        intercepted: abilityName === 'web-search',
-      },
+      metadata: {},
     }
 
     setExecutions((prev) => {
@@ -183,14 +156,6 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
 
   const clearExecutions = useCallback(() => {
     setExecutions([])
-  }, [])
-
-  // Control agentic mode
-  const setAgenticMode = useCallback((enabled: boolean) => {
-    setAgenticModeState(enabled)
-    if (!enabled) {
-      setAgenticProgress(undefined)
-    }
   }, [])
 
   // Resolve MCP server URL from main process (supports MCP_SERVER_URL env var)
@@ -239,12 +204,11 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
     if (mcpEnabled && mcpIntegration.isConnected) {
       adapter.setMCPIntegration(mcpIntegration)
       adapter.setToolExecutionTracker(setAbilityExecutionState)
-      adapter.setTaskProgressTracker(handleTaskProgress)
     }
     else {
       adapter.setMCPIntegration(null)
     }
-  }, [adapter, mcpEnabled, mcpIntegration, setAbilityExecutionState, handleTaskProgress])
+  }, [adapter, mcpEnabled, mcpIntegration, setAbilityExecutionState])
 
   // Handle MCP enablement toggle
   const setMCPEnabled = useCallback((enabled: boolean) => {
@@ -297,13 +261,10 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
     isExecutingAbility,
     currentAbility,
     executions,
-    isAgenticMode,
-    agenticProgress,
     // Control functions
     setMCPEnabled,
     refreshMCPConnection,
     setAbilityExecutionState, // Expose for adapter to call
-    setAgenticMode,
     setSelectedScripts,
     setThreadTitleCallback,
     // Execution tracking

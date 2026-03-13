@@ -72,6 +72,11 @@ import { createRemoteJWKSet, jwtVerify } from 'jose'
 const ISSUER_URL = 'https://login.keyboard.dev'
 const JWKS = createRemoteJWKSet(new URL(`${ISSUER_URL}/oauth2/jwks`))
 
+const ALLOWED_ISSUERS = [
+  'https://auth.keyboard.dev',
+  'https://login.keyboard.dev',
+]
+
 export async function verifyBearerToken(token: string): Promise<boolean> {
   if (!token || token.trim() === '') {
     return false
@@ -79,7 +84,7 @@ export async function verifyBearerToken(token: string): Promise<boolean> {
 
   try {
     await jwtVerify(token, JWKS, {
-      issuer: ISSUER_URL,
+      issuer: ALLOWED_ISSUERS,
     })
 
     return true
@@ -106,11 +111,11 @@ export async function verifyTokensMatch(tokenOne: string, tokenTwo: string): Pro
   try {
     // Verify and decode both tokens
     const tokenOneResult = await jwtVerify(tokenOne, JWKS, {
-      issuer: ISSUER_URL,
+      issuer: ALLOWED_ISSUERS,
     })
 
     const tokenTwoResult = await jwtVerify(tokenTwo, JWKS, {
-      issuer: ISSUER_URL,
+      issuer: ALLOWED_ISSUERS,
     })
 
     // Extract the 'sub' (subject) claim from both tokens

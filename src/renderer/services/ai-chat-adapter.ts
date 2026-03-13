@@ -33,7 +33,6 @@ export class AIChatAdapter implements ChatModelAdapter {
   private mcpIntegration: ReturnType<typeof useMCPIntegration> | null = null
   private setToolExecutionState?: (isExecuting: boolean, toolName?: string) => void
   private maxAgenticIterations = 10
-  private onTaskProgress?: (progress: { step: number, totalSteps: number, currentAction: string, isComplete: boolean }) => void
   private pingInterval: NodeJS.Timeout | null = null
   private isToolsExecuting = false
   private onThreadTitleGenerated?: (title: string) => void
@@ -65,10 +64,6 @@ export class AIChatAdapter implements ChatModelAdapter {
 
   setToolExecutionTracker(tracker: (isExecuting: boolean, toolName?: string) => void) {
     this.setToolExecutionState = tracker
-  }
-
-  setTaskProgressTracker(tracker: (progress: { step: number, totalSteps: number, currentAction: string, isComplete: boolean }) => void) {
-    this.onTaskProgress = tracker
   }
 
   setSelectedScripts(scripts: Script[]) {
@@ -270,13 +265,6 @@ export class AIChatAdapter implements ChatModelAdapter {
 
     while (currentIteration < this.maxAgenticIterations) {
       currentIteration++
-      this.onTaskProgress?.({
-        step: currentIteration,
-        totalSteps: this.maxAgenticIterations,
-        currentAction: currentIteration === 1 ? 'Analyzing your request...' : 'Continuing...',
-        isComplete: false,
-      })
-
       if (abortSignal?.aborted) {
         throw new Error('Request was aborted')
       }
@@ -311,12 +299,6 @@ export class AIChatAdapter implements ChatModelAdapter {
           await new Promise(resolve => setTimeout(resolve, YIELD_INTERVAL))
         }
 
-        this.onTaskProgress?.({
-          step: currentIteration,
-          totalSteps: this.maxAgenticIterations,
-          currentAction: 'Task completed',
-          isComplete: true,
-        })
         return
       }
 
@@ -347,13 +329,6 @@ export class AIChatAdapter implements ChatModelAdapter {
         // Yield current state so UI shows tool as in-progress
         yield { content: [...completedToolParts, { type: 'text' as const, text: '' }] }
 
-        this.onTaskProgress?.({
-          step: currentIteration,
-          totalSteps: this.maxAgenticIterations,
-          currentAction: `Running ${tc.name}...`,
-          isComplete: false,
-        })
-
         try {
           if (!this.mcpIntegration) {
             throw new Error('MCP integration lost during agentic flow — connection may have dropped')
@@ -374,12 +349,6 @@ export class AIChatAdapter implements ChatModelAdapter {
           toolResults.push({ type: 'tool_result', tool_use_id: tc.id, content: contextContent })
           yield { content: [...completedToolParts, { type: 'text' as const, text: '' }] }
 
-          this.onTaskProgress?.({
-            step: currentIteration,
-            totalSteps: this.maxAgenticIterations,
-            currentAction: `Completed ${tc.name}`,
-            isComplete: false,
-          })
         }
         catch (error) {
           const errorMsg = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -414,13 +383,6 @@ export class AIChatAdapter implements ChatModelAdapter {
     }
 
     // Max iterations reached — get a final summary
-    this.onTaskProgress?.({
-      step: this.maxAgenticIterations,
-      totalSteps: this.maxAgenticIterations,
-      currentAction: 'Preparing final response...',
-      isComplete: false,
-    })
-
     const finalResult = await this.streamWithToolSupport(conversationHistory, undefined, abortSignal)
     const finalContent: Array<{ type: string, [key: string]: unknown }> = [...completedToolParts]
     const CHARS_PER_YIELD = 15
@@ -432,13 +394,6 @@ export class AIChatAdapter implements ChatModelAdapter {
       yielded = end
       await new Promise(resolve => setTimeout(resolve, YIELD_INTERVAL))
     }
-
-    this.onTaskProgress?.({
-      step: this.maxAgenticIterations,
-      totalSteps: this.maxAgenticIterations,
-      currentAction: 'Task completed',
-      isComplete: true,
-    })
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -493,7 +448,19 @@ export class AIChatAdapter implements ChatModelAdapter {
       // Native tool calling — no classification needed, model decides
       const abilitiesAvailable = this.mcpIntegration?.functions || []
       if (this.currentProvider.mcpEnabled && abilitiesAvailable.length > 0) {
-        const nativeTools = ProviderFormats.anthropic.convertTools(abilitiesAvailable) as Array<{ name: string, description: string, input_schema: Record<string, unknown> }>
+        // Filter out tools whose data is already provided in the system prompt
+        // to prevent the model from making redundant calls before getting to actual work
+        const redundantTools = new Set([
+          'required-starting-context-information',
+          'list-connected-accounts',
+          'connect-websocket',
+          'connect-reconnect-accounts',
+          'fetch-accounts-data',
+        ])
+        const filteredAbilities = abilitiesAvailable.filter(
+          a => !redundantTools.has(a.function.name),
+        )
+        const nativeTools = ProviderFormats.anthropic.convertTools(filteredAbilities) as Array<{ name: string, description: string, input_schema: Record<string, unknown> }>
         for await (const result of this.handleNativeToolCalling(aiMessages, nativeTools, abortSignal)) {
           yield result
         }

@@ -126,7 +126,7 @@ try {
 catch (err) {
 }
 import { aiRuntime, initializeAIProviders } from './ai-provider/setup'
-import { webSearch } from './ai-provider/utils/dedicated-web'
+
 import { getQueuedProtocolUrls, initializeApp as initializeElectronApp, type AppInitializerResult } from './app-initializer'
 import { AutoUpdateManager } from './auto-update-manager'
 
@@ -1643,8 +1643,12 @@ class MenuBarNotificationApp {
     })
 
     // OAuth-related IPC handlers (Legacy) - delegate to AuthService
-    ipcMain.handle('start-oauth', async (): Promise<void> => {
-      await this.authService.startOAuthFlow()
+    ipcMain.handle('start-oauth', async (_event, organizationId?: string): Promise<void> => {
+      await this.authService.startOAuthFlow(organizationId)
+    })
+
+    ipcMain.handle('lookup-org', async (_event, email: string): Promise<string | null> => {
+      return this.authService.lookupOrg(email)
     })
 
     ipcMain.handle('get-auth-status', (): { authenticated: boolean, user?: AuthUser } => {
@@ -2193,50 +2197,6 @@ class MenuBarNotificationApp {
       }
       catch (error) {
         throw new Error(`Failed to stream message to ${provider}: ${error instanceof Error ? error.message : 'Unknown error'}`)
-      }
-    })
-
-    ipcMain.handle('web-search', async (_event, provider: string, query: string, company: string) => {
-      try {
-        const authTokens = this.authService.getAuthTokens()
-        const accessToken = authTokens?.access_token || ''
-        const response = await webSearch({ accessToken, query, company })
-        return response
-      }
-      catch (error) {
-        throw new Error(`Failed to perform web search with ${provider}: ${error instanceof Error ? error.message : 'Unknown error'}`)
-      }
-    })
-
-    // General web search using the new /api/ai/inference endpoint with webSearch enabled
-    ipcMain.handle('web-search-general', async (_event, query: string) => {
-      try {
-        const authTokens = this.authService.getAuthTokens()
-        const accessToken = authTokens?.access_token || ''
-
-        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/ai/inference`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'claude-sonnet-4-6',
-            messages: [{ role: 'user', content: query }],
-            webSearch: true,
-            webSearchMaxUses: 3,
-          }),
-        })
-
-        if (!response.ok) {
-          const errorText = await response.text()
-          throw new Error(`API error: ${response.status} - ${errorText}`)
-        }
-
-        return response.json()
-      }
-      catch (error) {
-        throw new Error(`Failed to perform general web search: ${error instanceof Error ? error.message : 'Unknown error'}`)
       }
     })
 

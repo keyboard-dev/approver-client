@@ -190,7 +190,7 @@ ${JSON.stringify(composioAccountsList, null, 2)}
 
 Note: These are Composio-managed OAuth connections. Use the accountId with the Composio proxy "endpoint" field. If an account has "userNotes", follow those instructions carefully when using that service.
 
-MICROSOFT ACCOUNTS (share_point, excel, onedrive, outlook, teams): Do NOT use the Microsoft Graph API (graph.microsoft.com). Use the SharePoint REST API instead — e.g., endpoint: "https://{tenant}.sharepoint.com/_api/web/lists" or "https://{tenant}.sharepoint.com/_api/web/GetFolderByServerRelativeUrl('/path')/Files/add(url='file.xlsx',overwrite=true)". Use web-search first to find the user's SharePoint tenant URL if unknown.`
+MICROSOFT ACCOUNTS (share_point, excel, onedrive, outlook, teams): Do NOT use the Microsoft Graph API (graph.microsoft.com). Use the SharePoint REST API instead — e.g., endpoint: "https://{tenant}.sharepoint.com/_api/web/lists" or "https://{tenant}.sharepoint.com/_api/web/GetFolderByServerRelativeUrl('/path')/Files/add(url='file.xlsx',overwrite=true)".`
       : ''
 
     // Build Local provider connected accounts section
@@ -246,20 +246,11 @@ Here is information about the actual code execution environment.  This is where 
 CODESPACE INFORMATION:
 ${codespaceDetails}${serviceUrlSection}${selectedScriptsSection}
 
-API RESEARCH GUIDANCE:
-- Use the web-search tool to find official documentation and examples
-- Always research API documentation when working with external services
-- Look for code examples, best practices, and common patterns
-- Check for rate limits, authentication requirements, and error handling
-- Research with web-search before writing code when working with unfamiliar APIs
 ${pipedreamAccountsSection}${composioAccountsSection}${localAccountsSection}${previousResultsSection}
 
 INSTRUCTIONS:
-- You have tools available natively. Use them as needed to accomplish the user's task.
+- IMPORTANT: All context (connected accounts, tokens, codespace info) is already provided above. Do NOT call tools like required-starting-context-information, list-connected-accounts, connect-websocket, or fetch-accounts-data — that data is already here. Jump directly to the action tool (e.g., run-code) to accomplish the user's task.
 - Planning token is automatically provided above - use it when calling run-code
-- Research APIs and documentation before implementing solutions
-- Be proactive in suggesting relevant tools for the user's task
-- Always provide clear explanations of what you're doing and why
 - Break down complex tasks into multiple run-code calls when appropriate
 - If no tools are needed, respond conversationally
 - When fetching data and unsure about response structure, return the whole response (excluding sensitive headers, JWTs, or API keys)
@@ -283,7 +274,7 @@ USER REQUEST: ${userMessage}`
 
       return []
     }
-    catch (error) {
+    catch {
       return []
     }
   }
@@ -302,7 +293,7 @@ USER REQUEST: ${userMessage}`
 
       return null
     }
-    catch (error) {
+    catch {
       return null
     }
   }
