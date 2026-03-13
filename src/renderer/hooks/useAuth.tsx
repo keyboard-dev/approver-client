@@ -10,7 +10,7 @@ interface AuthContextType {
   isAuthenticated: boolean
   isLoading: boolean
   error: string | null
-  login: (email?: string) => Promise<void>
+  login: () => Promise<void>
   logout: () => Promise<void>
   skipAuth: () => void
 }
@@ -65,19 +65,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children, onAuthChan
     }
   }, [isSkippingAuth, handleAuthSuccess])
 
-  const login = useCallback(async (email?: string) => {
+  const login = useCallback(async () => {
     setIsLoading(true)
     setError(null)
 
     try {
-      // If email provided, look up org membership first
-      let organizationId: string | undefined
-      if (email) {
-        const orgId = await window.electronAPI.lookupOrg(email)
-        if (orgId) organizationId = orgId
-      }
-
-      await window.electronAPI.startOAuth(organizationId)
+      await window.electronAPI.startOAuth()
       // The actual authentication will be handled by the OAuth flow
       // and the auth-success event will be triggered
     }
