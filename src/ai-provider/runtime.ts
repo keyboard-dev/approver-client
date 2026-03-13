@@ -4,7 +4,7 @@ import * as os from 'os'
 import path from 'path'
 import { decrypt } from '../encryption'
 import { encryptedAIKeyStorage } from './encrypted-storage'
-import { AIMessage, AIProvider, AIProviderConfig, AIResponse, StreamEvent, WebSearchQuery, WebSearchResponse } from './index'
+import { AIMessage, AIProvider, AIProviderConfig, AIResponse, StreamEvent } from './index'
 
 export class AIRuntime {
   private providers = new Map<string, AIProvider>()
@@ -83,32 +83,6 @@ export class AIRuntime {
     else {
       yield* provider.streamMessage(messages, fullConfig)
     }
-  }
-
-  async webSearch(
-    providerName: string,
-    query: WebSearchQuery,
-    config: Partial<AIProviderConfig>,
-  ): Promise<WebSearchResponse> {
-    const provider = this.providers.get(providerName)
-    if (!provider || !provider.webSearch) {
-      throw new Error(`Provider ${providerName} not found or does not support web search`)
-    }
-
-    const fullConfig: AIProviderConfig = {
-      name: providerName,
-      apiKey: config.apiKey || this.getStoredApiKey(providerName),
-      baseUrl: config.baseUrl,
-      model: config.model,
-    }
-
-    if (!provider.validateConfig(fullConfig)) {
-      throw new Error(`Invalid configuration for provider ${providerName}`)
-    }
-
-    const response = await provider.webSearch(query, fullConfig)
-
-    return response
   }
 
   setApiKey(providerName: string, apiKey: string): void {

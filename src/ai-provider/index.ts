@@ -19,35 +19,10 @@ export type StreamEvent
     | { type: 'tool_use_end', id: string }
     | { type: 'message_end', stop_reason: string }
 
-export interface WebSearchQuery {
-  query: string
-  maxResults?: number
-  includeDomains?: string[]
-  excludeDomains?: string[]
-  prioritizeMarkdown?: boolean
-  prioritizeDocs?: boolean
-}
-
-export interface WebSearchResult {
-  title: string
-  url: string
-  snippet: string
-  relevanceScore?: number
-  isMarkdown?: boolean
-  isDocs?: boolean
-}
-
-export interface WebSearchResponse {
-  results: WebSearchResult[]
-  searchQuery: string
-  provider: string
-}
-
 export interface AIProvider {
   name: string
   sendMessage(messages: AIMessage[], config: AIProviderConfig): Promise<string>
   streamMessage?(messages: AIMessage[], config: AIProviderConfig): AsyncGenerator<string | StreamEvent, void, unknown>
-  webSearch?(query: WebSearchQuery, config: AIProviderConfig): Promise<WebSearchResponse>
   validateConfig(config: AIProviderConfig): boolean
 }
 

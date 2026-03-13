@@ -4,7 +4,7 @@ import { AbilityDiscoveryService, type AbilitySearchResult } from './ability-dis
 import { generateFingerprint, registerPendingCall, removePendingCall } from './pending-tool-calls'
 import { ResultProcessorService } from './result-processor'
 import { toolCacheService } from './tool-cache-service'
-import { webSearchTool } from './web-search-tool'
+
 
 /**
  * Universal MCP Ability Integration Service
@@ -195,36 +195,6 @@ export function useMCPIntegration(
     // Check if we have any tools available before attempting execution
     if (availableTools.length === 0) {
       throw new Error('No tools available. Please ensure connection to mcp.keyboard.dev or wait for tools to be cached.')
-    }
-
-    // Intercept web-search calls and route to local implementation
-    if (functionName === 'web-search') {
-      if (!args.query || typeof args.query !== 'string') {
-        throw new Error('Query parameter is required for web search and must be a string')
-      }
-      if (!args.company || typeof args.company !== 'string') {
-        throw new Error('Company parameter is required for web search and must be a string')
-      }
-
-      const result = await webSearchTool.execute({
-        provider: typeof args.provider === 'string' ? args.provider : undefined,
-        query: args.query,
-        company: args.company,
-        maxResults: typeof args.maxResults === 'number' ? args.maxResults : undefined,
-        prioritizeMarkdown: typeof args.prioritizeMarkdown === 'boolean' ? args.prioritizeMarkdown : undefined,
-        prioritizeDocs: typeof args.prioritizeDocs === 'boolean' ? args.prioritizeDocs : undefined,
-        includeDomains: Array.isArray(args.includeDomains) ? args.includeDomains as string[] : undefined,
-        excludeDomains: Array.isArray(args.excludeDomains) ? args.excludeDomains as string[] : undefined,
-      })
-
-      if (executionId) {
-        executionTracker?.updateExecution(executionId, {
-          status: 'success',
-          response: result,
-          metadata: { isLocalExecution: true, intercepted: true },
-        })
-      }
-      return result
     }
 
     const { name, args: abilityArgs } = prepareMCPAbilityCall(functionName, args)
