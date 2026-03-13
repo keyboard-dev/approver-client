@@ -19,7 +19,6 @@ const AuthComponent: React.FC = () => {
     logout,
   } = useAuth()
   const [showAuthDetails, setShowAuthDetails] = useState(false)
-  const [email, setEmail] = useState('')
   if (authStatus.authenticated || isSkippingAuth) {
     return (
       <Card className="w-full mb-4">
@@ -112,20 +111,9 @@ const AuthComponent: React.FC = () => {
                 </Alert>
               )}
 
-              {/* Email input */}
-              <input
-                type="email"
-                placeholder="Enter your email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && email.trim()) login(email.trim()) }}
-                disabled={isLoading}
-                className="self-stretch h-10 px-3 py-2 rounded border border-gray-300 text-gray-900 text-sm font-inter placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-200 focus:border-gray-400 disabled:opacity-50"
-              />
-
               {/* Sign in button */}
               <button
-                onClick={() => login(email.trim() || undefined)}
+                onClick={login}
                 disabled={isLoading}
                 className="self-stretch h-10 px-5 py-2 rounded border border-gray-300 hover:border-gray-400 hover:bg-gray-50 disabled:opacity-50 flex justify-center items-center gap-2.5 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-200"
               >

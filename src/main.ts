@@ -1643,12 +1643,8 @@ class MenuBarNotificationApp {
     })
 
     // OAuth-related IPC handlers (Legacy) - delegate to AuthService
-    ipcMain.handle('start-oauth', async (_event, organizationId?: string): Promise<void> => {
-      await this.authService.startOAuthFlow(organizationId)
-    })
-
-    ipcMain.handle('lookup-org', async (_event, email: string): Promise<string | null> => {
-      return this.authService.lookupOrg(email)
+    ipcMain.handle('start-oauth', async (): Promise<void> => {
+      await this.authService.startOAuthFlow()
     })
 
     ipcMain.handle('get-auth-status', (): { authenticated: boolean, user?: AuthUser } => {

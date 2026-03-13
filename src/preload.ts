@@ -216,8 +216,7 @@ export interface ElectronAPI {
   // Open external links
   openExternal: (url: string) => Promise<void>
   // Legacy OAuth
-  lookupOrg: (email: string) => Promise<string | null>
-  startOAuth: (organizationId?: string) => Promise<void>
+  startOAuth: () => Promise<void>
   getAuthStatus: () => Promise<AuthStatus>
   logout: () => Promise<void>
   getAccessToken: () => Promise<string | null>
@@ -593,8 +592,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openExternal: (url: string): Promise<void> => ipcRenderer.invoke('open-external', url),
 
   // Legacy OAuth functions
-  lookupOrg: (email: string): Promise<string | null> => ipcRenderer.invoke('lookup-org', email),
-  startOAuth: (organizationId?: string): Promise<void> => ipcRenderer.invoke('start-oauth', organizationId),
+  startOAuth: (): Promise<void> => ipcRenderer.invoke('start-oauth'),
   getAuthStatus: (): Promise<AuthStatus> => ipcRenderer.invoke('get-auth-status'),
   logout: (): Promise<void> => ipcRenderer.invoke('logout'),
   getAccessToken: (): Promise<string | null> => ipcRenderer.invoke('get-access-token'),
