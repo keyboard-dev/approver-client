@@ -1,6 +1,4 @@
 import { z } from 'zod'
-import { decrypt, encrypt } from './encryption'
-
 // Get API URL from environment or default to empty string
 const getApiUrl = () => {
   return process.env.API_URL || 'https://api.keyboard.dev'
@@ -228,9 +226,6 @@ export async function saveScriptTemplate(
   token: string,
 ): Promise<{ success: boolean, id?: string, error?: string }> {
   try {
-    // Encrypt the script before sending to external API
-    const encryptedScript = encrypt(scriptData.script)
-
     const response = await makeAuthenticatedRequest(
       '/api/scripts',
       token,
@@ -239,7 +234,7 @@ export async function saveScriptTemplate(
         name: scriptData.name,
         description: scriptData.description,
         schema: scriptData.schema,
-        script: encryptedScript, // Send encrypted script to external API
+        script: scriptData.script,
         tags: scriptData.tags,
       },
     ) as ScriptApiResponse
@@ -259,15 +254,7 @@ export async function getScriptTemplate(
   try {
     const response = await makeAuthenticatedRequest(`/api/scripts/${id}`, token) as ScriptApiResponse
 
-    // Decrypt the script after receiving from external API
-    const decryptedScript = decrypt(response.script.script)
-
-    const script: ScriptTemplate = {
-      ...response.script,
-      script: decryptedScript, // Replace encrypted script with decrypted version
-    }
-
-    return { success: true, script }
+    return { success: true, script: response.script }
   }
   catch (error) {
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
@@ -287,32 +274,7 @@ export async function listScriptTemplates(
 
     const response = await makeAuthenticatedRequest(endpoint, token) as ScriptsListApiResponse
 
-    // Decrypt all script contents
-    const decryptedScripts = response.scripts.map((script: ScriptsListApiResponse['scripts'][0]) => {
-      try {
-        return {
-          ...script,
-          script: decrypt(script.script), // Decrypt each script
-        }
-      }
-      catch (decryptError) {
-      }
-
-      const justScriptInfo: Partial<ScriptsListApiResponse['scripts'][0]> = { ...script }
-      delete justScriptInfo.script
-      try {
-        return {
-          ...justScriptInfo,
-        }
-      }
-      catch (decryptError) {
-        return {
-          ...justScriptInfo,
-        }
-      }
-    })
-
-    return { success: true, scripts: decryptedScripts as ScriptTemplate[] }
+    return { success: true, scripts: response.scripts }
   }
   catch (error) {
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
@@ -326,13 +288,7 @@ export async function updateScriptTemplate(
   updates: Partial<Omit<ScriptTemplate, 'id' | 'userId' | 'createdAt' | 'updatedAt'>>,
 ): Promise<{ success: boolean, error?: string }> {
   try {
-    // Encrypt script if it's being updated
-    const encryptedUpdates = { ...updates }
-    if (updates.script !== undefined) {
-      encryptedUpdates.script = encrypt(updates.script)
-    }
-
-    await makeAuthenticatedRequest(`/api/scripts/${id}`, token, 'PUT', encryptedUpdates)
+    await makeAuthenticatedRequest(`/api/scripts/${id}`, token, 'PUT', updates as Record<string, unknown>)
 
     return { success: true }
   }
@@ -367,23 +323,7 @@ export async function searchScriptTemplates(
       token,
     ) as SearchScriptsApiResponse
 
-    // Decrypt all script contents
-    const decryptedScripts = response.scripts.map((script: SearchScriptsApiResponse['scripts'][0]) => {
-      try {
-        return {
-          ...script,
-          script: decrypt(script.script), // Decrypt each script
-        }
-      }
-      catch (decryptError) {
-      }
-
-      const justScriptInfo: Partial<SearchScriptsApiResponse['scripts'][0]> = { ...script }
-      delete justScriptInfo.script
-      return justScriptInfo
-    })
-
-    return { success: true, scripts: decryptedScripts as ScriptTemplate[] }
+    return { success: true, scripts: response.scripts }
   }
   catch (error) {
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }

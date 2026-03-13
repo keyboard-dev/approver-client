@@ -427,7 +427,8 @@ export interface ElectronAPI {
   }) => Promise<{ success: boolean, data?: unknown, error?: string }>
   getTriggerTasks: (deployedTriggerId: string, limit?: number) => Promise<{ success: boolean, data?: unknown, error?: string }>
   checkUserTokenStatus: () => Promise<{ success: boolean, data?: unknown, error?: string }>
-  storeUserRefreshToken: () => Promise<{ success: boolean, data?: unknown, error?: string }>
+  startTriggersOAuth: () => Promise<{ success: boolean, data?: unknown, error?: string }>
+  deleteUserRefreshToken: () => Promise<{ success: boolean, data?: unknown, error?: string }>
   // Connector Notes
   getConnectorNotes: () => Promise<{ success: boolean, notes?: Array<{ id: string, source: string, appSlug: string, note: string, createdAt: string, updatedAt: string }>, error?: string }>
   upsertConnectorNote: (source: string, appSlug: string, note: string) => Promise<{ success: boolean, error?: string }>
@@ -840,7 +841,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('update-trigger-task', taskId, config),
   getTriggerTasks: (deployedTriggerId: string, limit = 10): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('get-trigger-tasks', deployedTriggerId, limit),
   checkUserTokenStatus: (): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('check-user-token-status'),
-  storeUserRefreshToken: (): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('store-user-refresh-token'),
+  startTriggersOAuth: (): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('start-triggers-oauth'),
+  deleteUserRefreshToken: (): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('delete-user-refresh-token'),
   // Connector Notes
   getConnectorNotes: (): Promise<{ success: boolean, notes?: Array<{ id: string, source: string, appSlug: string, note: string, createdAt: string, updatedAt: string }>, error?: string }> => ipcRenderer.invoke('get-connector-notes'),
   upsertConnectorNote: (source: string, appSlug: string, note: string): Promise<{ success: boolean, error?: string }> => ipcRenderer.invoke('upsert-connector-note', source, appSlug, note),

@@ -298,7 +298,7 @@ export const TriggersPanel: React.FC = () => {
     setIsStoringToken(true)
     setTokenError(null)
     try {
-      const response = await window.electronAPI.storeUserRefreshToken()
+      const response = await window.electronAPI.startTriggersOAuth()
       if (response.success) {
         setIsTokenStored(true)
         setTokenError(null)
@@ -313,6 +313,28 @@ export const TriggersPanel: React.FC = () => {
     }
     finally {
       setIsStoringToken(false)
+    }
+  }
+
+  const [isDeletingToken, setIsDeletingToken] = useState(false)
+
+  const deleteRefreshToken = async () => {
+    setIsDeletingToken(true)
+    setTokenError(null)
+    try {
+      const response = await window.electronAPI.deleteUserRefreshToken()
+      if (response.success) {
+        setIsTokenStored(false)
+      }
+      else {
+        throw new Error(response.error || 'Failed to disable triggers')
+      }
+    }
+    catch (err) {
+      setTokenError(err instanceof Error ? err.message : 'Failed to disable triggers')
+    }
+    finally {
+      setIsDeletingToken(false)
     }
   }
 
@@ -1491,9 +1513,9 @@ export const TriggersPanel: React.FC = () => {
         {/* Token setup notice if not stored */}
         {isTokenStored === false && (
           <div className="mb-6 p-4 border border-amber-200 bg-amber-50 rounded-lg">
-            <h4 className="font-semibold text-amber-900 mb-2">Enable Pipedream Integration</h4>
+            <h4 className="font-semibold text-amber-900 mb-2">Enable Triggers</h4>
             <p className="text-sm text-amber-800 mb-3">
-              To use Pipedream webhook triggers, you need to enable access by storing your refresh token securely.
+              To use webhook triggers, you need to enable access by storing your refresh token securely.
             </p>
             <button
               onClick={async () => {
@@ -1507,11 +1529,26 @@ export const TriggersPanel: React.FC = () => {
               disabled={isStoringToken}
               className="px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700 disabled:bg-amber-400 transition-colors text-sm"
             >
-              {isStoringToken ? 'Enabling...' : 'Enable Pipedream'}
+              {isStoringToken ? 'Enabling...' : 'Enable Triggers'}
             </button>
             {tokenError && <p className="text-red-600 text-sm mt-2">{tokenError}</p>}
           </div>
         )}
+
+        {/* Disable Triggers */}
+        {isTokenStored && (
+          <div className="mb-6 flex items-center justify-between p-3 border border-[#E5E5E5] rounded-lg bg-[#FAFAFA]">
+            <span className="text-sm text-[#737373]">Triggers are enabled</span>
+            <button
+              onClick={deleteRefreshToken}
+              disabled={isDeletingToken}
+              className="px-3 py-1.5 text-sm text-red-600 border border-red-200 rounded hover:bg-red-50 disabled:opacity-50 transition-colors"
+            >
+              {isDeletingToken ? 'Disabling...' : 'Disable Triggers'}
+            </button>
+          </div>
+        )}
+        {tokenError && isTokenStored && <p className="text-red-600 text-sm mb-4">{tokenError}</p>}
 
         {/* Schedule Triggers Section */}
         {isTokenStored && (
