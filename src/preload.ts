@@ -418,6 +418,8 @@ export interface ElectronAPI {
   getConnectorNotes: () => Promise<{ success: boolean, notes?: Array<{ id: string, source: string, appSlug: string, note: string, createdAt: string, updatedAt: string }>, error?: string }>
   upsertConnectorNote: (source: string, appSlug: string, note: string) => Promise<{ success: boolean, error?: string }>
   deleteConnectorNote: (source: string, appSlug: string) => Promise<{ success: boolean, error?: string }>
+  // Organization Branding
+  getOrgCoverImage: () => Promise<{ success: boolean, url?: string | null, error?: string }>
   // Composio Integration
   initiateComposioConnection: (request: { appName: string, redirectUrl?: string, authConfig?: Record<string, unknown> }) => Promise<{ success: boolean, data?: unknown, error?: string }>
   listComposioConnectedAccounts: (params?: { appName?: string, status?: string }) => Promise<{ success: boolean, data?: unknown, error?: string }>
@@ -830,6 +832,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getConnectorNotes: (): Promise<{ success: boolean, notes?: Array<{ id: string, source: string, appSlug: string, note: string, createdAt: string, updatedAt: string }>, error?: string }> => ipcRenderer.invoke('get-connector-notes'),
   upsertConnectorNote: (source: string, appSlug: string, note: string): Promise<{ success: boolean, error?: string }> => ipcRenderer.invoke('upsert-connector-note', source, appSlug, note),
   deleteConnectorNote: (source: string, appSlug: string): Promise<{ success: boolean, error?: string }> => ipcRenderer.invoke('delete-connector-note', source, appSlug),
+  // Organization Branding
+  getOrgCoverImage: (): Promise<{ success: boolean, url?: string | null, error?: string }> => ipcRenderer.invoke('get-org-cover-image'),
   // Composio Integration
   initiateComposioConnection: (request: { appName: string, redirectUrl?: string, authConfig?: Record<string, unknown> }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('initiate-composio-connection', request),
   listComposioConnectedAccounts: (params?: { appName?: string, status?: string }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('list-composio-connected-accounts', params),
