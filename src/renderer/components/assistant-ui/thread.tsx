@@ -31,6 +31,7 @@ import { LazyMotion, MotionConfig, domAnimation } from 'motion/react'
 import * as m from 'motion/react-m'
 import type { FC } from 'react'
 import { useState } from 'react'
+import { useOrgCoverImage } from '../../hooks/useOrgCoverImage'
 import { useNavigate } from 'react-router-dom'
 
 import { Message, Script } from '../../../types'
@@ -358,12 +359,15 @@ const ThreadScrollToBottom: FC = () => {
 import heroBackgroundUrl from '../../../../assets/hero-background.png'
 
 const ThreadWelcome: FC = () => {
+  const { url: orgCoverUrl } = useOrgCoverImage()
+  const backgroundSrc = orgCoverUrl || heroBackgroundUrl
+
   return (
     <div className="aui-thread-welcome-root flex w-full flex-grow flex-col relative">
-      {/* Background image with gradient overlay - keyboard design */}
+      {/* Background image with gradient overlay */}
       <div className="absolute inset-0 overflow-hidden">
         <img
-          src={heroBackgroundUrl}
+          src={backgroundSrc}
           alt=""
           className="absolute w-full h-[156.89%] left-0 top-[-22.95%] object-cover"
         />

@@ -3322,6 +3322,68 @@ class MenuBarNotificationApp {
       }
     })
 
+    // =========================================================================
+    // Organization Cover Image
+    // =========================================================================
+
+    ipcMain.handle('get-org-cover-image', async () => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        // Try to extract org_id from JWT payload first
+        let orgId: string | null = null
+        try {
+          const payloadB64 = accessToken.split('.')[1]
+          if (payloadB64) {
+            const payload = JSON.parse(Buffer.from(payloadB64, 'base64').toString()) as { org_id?: string }
+            orgId = payload.org_id || null
+          }
+        }
+        catch {
+          // JWT decode failed, fall through to API lookup
+        }
+
+        // Fall back to my-organization endpoint if no org_id in JWT
+        if (!orgId) {
+          const orgResponse = await fetch(`${this.OAUTH_SERVER_URL}/api/organizations/my-organization`, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          })
+
+          if (!orgResponse.ok) {
+            return { success: false, error: 'No organization found' }
+          }
+
+          const orgData = await orgResponse.json() as { organization?: { id?: string }, id?: string }
+          orgId = orgData.organization?.id || orgData.id || null
+        }
+
+        if (!orgId) {
+          return { success: false, error: 'No organization found' }
+        }
+
+        // Fetch cover image
+        const coverResponse = await fetch(`${this.OAUTH_SERVER_URL}/api/organizations/${orgId}/cover-image`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        })
+
+        if (!coverResponse.ok) {
+          if (coverResponse.status === 404) {
+            return { success: true, url: null }
+          }
+          return { success: false, error: 'Failed to fetch cover image' }
+        }
+
+        const coverData = await coverResponse.json() as { url?: string }
+        return { success: true, url: coverData.url || null }
+      }
+      catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+      }
+    })
+
     // Check connected account status for an app (used before deploying triggers)
     ipcMain.handle('check-composio-account-status', async (_event, appName: string) => {
       try {

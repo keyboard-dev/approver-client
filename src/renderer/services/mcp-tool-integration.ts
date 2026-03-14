@@ -127,6 +127,17 @@ export function useMCPIntegration(
   // Use cached tools as fallback when MCP client isn't ready
   const availableTools = mcpClient.tools.length > 0 ? mcpClient.tools : toolCacheService.getAllTools()
 
+  // Filter out app-only tools (visibility: ['app']) — these are widget-internal helpers
+  // that should not be callable by the AI model (e.g. search-apps, fetch-accounts-data).
+  // The AI should use the parent tool (e.g. connect-reconnect-accounts) which blocks properly.
+  const modelVisibleTools = availableTools.filter((tool) => {
+    const visibility = (tool as any)?._meta?.ui?.visibility
+    if (Array.isArray(visibility) && visibility.includes('app') && !visibility.includes('model')) {
+      return false
+    }
+    return true
+  })
+
   // Log status for debugging
   if (availableTools.length === 0) {
   }
@@ -136,8 +147,8 @@ export function useMCPIntegration(
   const integrationState: MCPIntegrationState = {
     isEnabled: true, // Always enabled when using this hook
     isConnected: mcpClient.state === 'ready',
-    abilities: availableTools,
-    functions: convertMCPAbilitiesToFunctions(availableTools),
+    abilities: modelVisibleTools,
+    functions: convertMCPAbilitiesToFunctions(modelVisibleTools),
     error: mcpClient.error,
     abilityDiscovery,
     resultProcessor,
