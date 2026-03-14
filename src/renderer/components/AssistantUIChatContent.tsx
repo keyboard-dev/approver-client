@@ -25,6 +25,14 @@ interface ProviderConfig {
   supportsMCP?: boolean
 }
 
+interface OrgProviderData {
+  configured: boolean
+  provider_type?: string
+  display_name?: string
+  is_active?: boolean
+  allowed_models?: string[] | null
+}
+
 export const PROVIDERS: ProviderConfig[] = [
   {
     id: 'keyboard',
@@ -83,6 +91,8 @@ export const AssistantUIChatContent: React.FC<AssistantUIChatContentProps> = ({
   const mcpEnabled = true // Always enabled
   const [availableProviders, setAvailableProviders] = useState<string[]>([])
   const [showExecutionPanel, setShowExecutionPanel] = useState(false)
+  const [orgProvider, setOrgProvider] = useState<OrgProviderData | null>(null)
+  const [dynamicProviders, setDynamicProviders] = useState<ProviderConfig[]>(PROVIDERS)
 
   // Auth and WebSocket connection management
   const { authStatus, isSkippingAuth } = useAuth()
@@ -101,21 +111,43 @@ export const AssistantUIChatContent: React.FC<AssistantUIChatContentProps> = ({
   useEffect(() => {
     const loadProviders = async () => {
       try {
-        const providerStatus = await window.electronAPI.getAIProviderKeys()
-        const configured = providerStatus
-          .filter(p => p.configured)
-          .map(p => p.provider)
+        // Fetch org provider and personal API keys in parallel
+        const [orgResult, providerStatus] = await Promise.all([
+          window.electronAPI.getOrgAIProvider().catch(() => ({ success: false, data: null })),
+          window.electronAPI.getAIProviderKeys(),
+        ])
 
-        // Always include Keyboard and MCP as they don't require traditional API keys
-        const allAvailable = ['keyboard', ...configured, 'mcp']
-        setAvailableProviders(allAvailable)
+        const orgData = orgResult.success && orgResult.data ? orgResult.data : null
+        setOrgProvider(orgData)
 
-        // Set default to first available provider
-        if (allAvailable.length > 0 && !allAvailable.includes(selectedProvider)) {
-          setSelectedProvider(allAvailable[0])
-          const provider = PROVIDERS.find(p => p.id === allAvailable[0])
-          if (provider?.models[0]) {
-            setSelectedModel(provider.models[0].id)
+        if (orgData?.configured && orgData.allowed_models?.length) {
+          // Org provider is configured with allowed models — use those
+          const orgKeyboardProvider: ProviderConfig = {
+            id: 'keyboard',
+            name: orgData.display_name || 'Organization Provider',
+            supportsMCP: true,
+            models: orgData.allowed_models.map(modelId => ({ id: modelId, name: modelId })),
+          }
+          setDynamicProviders([orgKeyboardProvider])
+          setAvailableProviders(['keyboard'])
+          setSelectedProvider('keyboard')
+          setSelectedModel(orgData.allowed_models[0])
+        } else {
+          // No org provider — use personal API keys as before
+          const configured = providerStatus
+            .filter(p => p.configured)
+            .map(p => p.provider)
+
+          const allAvailable = ['keyboard', ...configured, 'mcp']
+          setDynamicProviders(PROVIDERS)
+          setAvailableProviders(allAvailable)
+
+          if (allAvailable.length > 0 && !allAvailable.includes(selectedProvider)) {
+            setSelectedProvider(allAvailable[0])
+            const provider = PROVIDERS.find(p => p.id === allAvailable[0])
+            if (provider?.models[0]) {
+              setSelectedModel(provider.models[0].id)
+            }
           }
         }
       }
@@ -126,7 +158,7 @@ export const AssistantUIChatContent: React.FC<AssistantUIChatContentProps> = ({
       }
     }
     loadProviders()
-  }, [selectedProvider])
+  }, [])
 
   // Get current provider config
   const currentProvider = PROVIDERS.find(p => p.id === selectedProvider)
@@ -234,12 +266,14 @@ export const AssistantUIChatContent: React.FC<AssistantUIChatContentProps> = ({
                         onRejectMessage={onRejectMessage}
                         onClearMessage={onClearApprovalMessage}
                         // Provider/Model props
-                        providers={PROVIDERS}
+                        providers={dynamicProviders}
                         availableProviders={availableProviders}
                         selectedProvider={selectedProvider}
                         selectedModel={selectedModel}
                         onProviderChange={handleProviderChange}
                         onModelChange={setSelectedModel}
+                        // Org provider
+                        orgProvider={orgProvider}
                         // MCP props
                         mcpConnected={mcpChat.mcpConnected}
                         mcpAbilities={mcpChat.mcpAbilities}
