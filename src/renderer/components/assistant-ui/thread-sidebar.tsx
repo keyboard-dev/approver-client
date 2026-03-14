@@ -253,6 +253,21 @@ interface ProviderConfig {
   supportsMCP?: boolean
 }
 
+interface OrgProviderData {
+  configured: boolean
+  provider_type?: string
+  display_name?: string
+  is_active?: boolean
+  allowed_models?: string[] | null
+}
+
+const PROVIDER_TYPE_LABELS: Record<string, string> = {
+  'anthropic': 'Anthropic (Direct API)',
+  'aws-bedrock': 'AWS Bedrock',
+  'gcp-vertex': 'GCP Vertex AI',
+  'digitalocean': 'DigitalOcean',
+}
+
 interface ThreadSidebarProps {
   isOpen: boolean
   onClose?: () => void
@@ -263,6 +278,8 @@ interface ThreadSidebarProps {
   selectedModel?: string
   onProviderChange?: (providerId: string, defaultModelId?: string) => void
   onModelChange?: (modelId: string) => void
+  // Org provider (passed from parent to avoid duplicate fetch)
+  orgProvider?: OrgProviderData | null
   // MCP status
   mcpConnected?: boolean
   mcpAbilities?: number
@@ -278,6 +295,7 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
   selectedModel,
   onProviderChange,
   onModelChange,
+  orgProvider,
   mcpConnected,
   mcpAbilities,
   mcpError,
@@ -288,7 +306,7 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
   const [connectAppsModalOpen, setConnectAppsModalOpen] = useState(false)
   const [notesReady, setNotesReady] = useState(false)
 
-  // Fetch connector notes from backend on mount
+  // Fetch connector notes on mount
   useEffect(() => {
     fetchConnectorNotes().then(() => setNotesReady(true)).catch(() => setNotesReady(true))
   }, [])
@@ -465,72 +483,127 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
 
         {modelPreferencesOpen && (
           <div className="flex flex-col gap-[10px]">
-            {/* Provider Dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  type="button"
-                  className="bg-[#fafafa] border border-[#dbdbdb] flex h-[44px] items-center justify-between p-[10px] rounded-[12px] w-full hover:bg-[#f5f5f5] transition-colors"
-                >
-                  <p className="font-medium text-[14px] text-[#737373] leading-normal">
-                    {currentProvider?.name || 'Select provider'}
-                  </p>
-                  <ChevronDownIcon className="size-[24px] text-[#737373]" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-[270px]">
-                {providers
-                  .filter(p => availableProviders.includes(p.id))
-                  .map(provider => (
-                    <DropdownMenuItem
-                      key={provider.id}
-                      onClick={() => onProviderChange?.(provider.id, provider.models[0]?.id)}
-                      className="cursor-pointer"
-                    >
-                      <span className={cn(
-                        'font-medium text-[14px]',
-                        provider.id === selectedProvider ? 'text-[#171717]' : 'text-[#737373]',
-                      )}
-                      >
-                        {provider.name}
-                      </span>
-                    </DropdownMenuItem>
-                  ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            {/* Model Dropdown */}
-            {currentProvider && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    type="button"
-                    className="bg-[#fafafa] border border-[#dbdbdb] flex h-[44px] items-center justify-between p-[10px] rounded-[12px] w-full hover:bg-[#f5f5f5] transition-colors"
-                  >
-                    <p className="font-medium text-[14px] text-[#737373] leading-normal">
-                      {currentModelName}
+            {orgProvider?.configured ? (
+              <>
+                {/* Org Provider Card */}
+                <div className="bg-[#fafafa] border border-[#dbdbdb] flex flex-col gap-[6px] p-[10px] rounded-[12px] w-full">
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium text-[14px] text-[#171717] leading-normal">
+                      {orgProvider.display_name || 'Organization AI Provider'}
                     </p>
-                    <ChevronDownIcon className="size-[24px] text-[#737373]" />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-[270px]">
-                  {currentProvider.models.map(model => (
-                    <DropdownMenuItem
-                      key={model.id}
-                      onClick={() => onModelChange?.(model.id)}
-                      className="cursor-pointer"
-                    >
-                      <span className={cn(
-                        'font-medium text-[14px]',
-                        model.id === selectedModel ? 'text-[#171717]' : 'text-[#737373]',
-                      )}
+                    <span className="text-[11px] font-medium text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded-full">
+                      Org
+                    </span>
+                  </div>
+                  <p className="text-[12px] text-[#737373] leading-normal">
+                    {PROVIDER_TYPE_LABELS[orgProvider.provider_type || ''] || orgProvider.provider_type || 'Custom Provider'}
+                  </p>
+                </div>
+
+                {/* Org Model Dropdown */}
+                {orgProvider.allowed_models && orgProvider.allowed_models.length > 0 && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        className="bg-[#fafafa] border border-[#dbdbdb] flex h-[44px] items-center justify-between p-[10px] rounded-[12px] w-full hover:bg-[#f5f5f5] transition-colors"
                       >
-                        {model.name}
-                      </span>
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
+                        <p className="font-medium text-[14px] text-[#737373] leading-normal">
+                          {selectedModel || 'Select model'}
+                        </p>
+                        <ChevronDownIcon className="size-[24px] text-[#737373]" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="w-[270px]">
+                      {orgProvider.allowed_models.map(modelId => (
+                        <DropdownMenuItem
+                          key={modelId}
+                          onClick={() => onModelChange?.(modelId)}
+                          className="cursor-pointer"
+                        >
+                          <span className={cn(
+                            'font-medium text-[14px]',
+                            modelId === selectedModel ? 'text-[#171717]' : 'text-[#737373]',
+                          )}
+                          >
+                            {modelId}
+                          </span>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+              </>
+            ) : (
+              <>
+                {/* Provider Dropdown */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      className="bg-[#fafafa] border border-[#dbdbdb] flex h-[44px] items-center justify-between p-[10px] rounded-[12px] w-full hover:bg-[#f5f5f5] transition-colors"
+                    >
+                      <p className="font-medium text-[14px] text-[#737373] leading-normal">
+                        {currentProvider?.name || 'Select provider'}
+                      </p>
+                      <ChevronDownIcon className="size-[24px] text-[#737373]" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-[270px]">
+                    {providers
+                      .filter(p => availableProviders.includes(p.id))
+                      .map(provider => (
+                        <DropdownMenuItem
+                          key={provider.id}
+                          onClick={() => onProviderChange?.(provider.id, provider.models[0]?.id)}
+                          className="cursor-pointer"
+                        >
+                          <span className={cn(
+                            'font-medium text-[14px]',
+                            provider.id === selectedProvider ? 'text-[#171717]' : 'text-[#737373]',
+                          )}
+                          >
+                            {provider.name}
+                          </span>
+                        </DropdownMenuItem>
+                      ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                {/* Model Dropdown */}
+                {currentProvider && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        className="bg-[#fafafa] border border-[#dbdbdb] flex h-[44px] items-center justify-between p-[10px] rounded-[12px] w-full hover:bg-[#f5f5f5] transition-colors"
+                      >
+                        <p className="font-medium text-[14px] text-[#737373] leading-normal">
+                          {currentModelName}
+                        </p>
+                        <ChevronDownIcon className="size-[24px] text-[#737373]" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="w-[270px]">
+                      {currentProvider.models.map(model => (
+                        <DropdownMenuItem
+                          key={model.id}
+                          onClick={() => onModelChange?.(model.id)}
+                          className="cursor-pointer"
+                        >
+                          <span className={cn(
+                            'font-medium text-[14px]',
+                            model.id === selectedModel ? 'text-[#171717]' : 'text-[#737373]',
+                          )}
+                          >
+                            {model.name}
+                          </span>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+              </>
             )}
           </div>
         )}

@@ -3384,6 +3384,58 @@ class MenuBarNotificationApp {
       }
     })
 
+    ipcMain.handle('get-org-ai-provider', async () => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: true, data: { configured: false } }
+        }
+
+        let orgId: string | null = null
+        try {
+          const payloadB64 = accessToken.split('.')[1]
+          if (payloadB64) {
+            const payload = JSON.parse(Buffer.from(payloadB64, 'base64').toString()) as { org_id?: string }
+            orgId = payload.org_id || null
+          }
+        }
+        catch {
+          // JWT decode failed, fall through to API lookup
+        }
+
+        if (!orgId) {
+          const orgResponse = await fetch(`${this.OAUTH_SERVER_URL}/api/organizations/my-organization`, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          })
+
+          if (!orgResponse.ok) {
+            return { success: true, data: { configured: false } }
+          }
+
+          const orgData = await orgResponse.json() as { organization?: { id?: string }, id?: string }
+          orgId = orgData.organization?.id || orgData.id || null
+        }
+
+        if (!orgId) {
+          return { success: true, data: { configured: false } }
+        }
+
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/organizations/${orgId}/ai-provider`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        })
+
+        if (!response.ok) {
+          return { success: true, data: { configured: false } }
+        }
+
+        const data = await response.json()
+        return { success: true, data }
+      }
+      catch (error) {
+        return { success: true, data: { configured: false } }
+      }
+    })
+
     // Check connected account status for an app (used before deploying triggers)
     ipcMain.handle('check-composio-account-status', async (_event, appName: string) => {
       try {

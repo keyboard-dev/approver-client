@@ -68,6 +68,14 @@ interface ProviderConfig {
   supportsMCP?: boolean
 }
 
+interface OrgProviderData {
+  configured: boolean
+  provider_type?: string
+  display_name?: string
+  is_active?: boolean
+  allowed_models?: string[] | null
+}
+
 interface ThreadCustomProps {
   currentApprovalMessage?: Message
   onApproveMessage?: (message: Message) => void
@@ -80,6 +88,8 @@ interface ThreadCustomProps {
   selectedModel?: string
   onProviderChange?: (providerId: string, defaultModelId?: string) => void
   onModelChange?: (modelId: string) => void
+  // Org provider
+  orgProvider?: OrgProviderData | null
   // MCP status
   mcpConnected?: boolean
   mcpAbilities?: number
@@ -99,6 +109,8 @@ export const Thread: FC<ThreadCustomProps> = ({
   selectedModel,
   onProviderChange,
   onModelChange,
+  // Org provider
+  orgProvider,
   // MCP props
   mcpConnected,
   mcpAbilities,
@@ -327,6 +339,7 @@ export const Thread: FC<ThreadCustomProps> = ({
                 selectedModel={selectedModel}
                 onProviderChange={onProviderChange}
                 onModelChange={onModelChange}
+                orgProvider={orgProvider}
                 mcpConnected={mcpConnected}
                 mcpAbilities={mcpAbilities}
                 mcpError={mcpError}
