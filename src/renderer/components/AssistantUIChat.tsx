@@ -124,7 +124,8 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
           setAvailableProviders(['keyboard'])
           setSelectedProvider('keyboard')
           setSelectedModel(orgData.allowed_models[0])
-        } else {
+        }
+        else {
           // No org provider — use personal API keys as before
           const configured = providerStatus
             .filter(p => p.configured)
@@ -217,44 +218,44 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
   return (
     <TooltipProvider>
       <McpClientProvider value={mcpClientContextValue}>
-      <AssistantRuntimeProvider runtime={runtime}>
-        {/* Track current thread for approval message association and title generation */}
-        <ThreadTracker onTitleCallbackReady={mcpChat.setThreadTitleCallback} />
-        <div className="w-full h-full flex flex-col overflow-hidden">
-          {selectedProvider === 'mcp'
-            ? (
-                <MCPChatComponent
-                  clientName="keyboard-approver-mcp"
-                />
-              )
-            : (
-                <div className="flex flex-col h-full">
-                  <div className="flex-1 flex flex-col min-h-0">
-                    <Thread
-                      currentApprovalMessage={currentApprovalMessage}
-                      onApproveMessage={onApproveMessage}
-                      onRejectMessage={onRejectMessage}
-                      onClearMessage={onClearApprovalMessage}
-                      // Provider/Model props
-                      providers={dynamicProviders}
-                      availableProviders={availableProviders}
-                      selectedProvider={selectedProvider}
-                      selectedModel={selectedModel}
-                      onProviderChange={handleProviderChange}
-                      onModelChange={setSelectedModel}
-                      // Org provider
-                      orgProvider={orgProvider}
-                      // MCP props
-                      mcpConnected={mcpChat.mcpConnected}
-                      mcpAbilities={mcpChat.mcpAbilities}
-                      mcpError={mcpChat.mcpError}
-                      onRetryMCP={mcpChat.refreshMCPConnection}
-                    />
+        <AssistantRuntimeProvider runtime={runtime}>
+          {/* Track current thread for approval message association and title generation */}
+          <ThreadTracker onTitleCallbackReady={mcpChat.setThreadTitleCallback} />
+          <div className="w-full h-full flex flex-col overflow-hidden">
+            {selectedProvider === 'mcp'
+              ? (
+                  <MCPChatComponent
+                    clientName="keyboard-approver-mcp"
+                  />
+                )
+              : (
+                  <div className="flex flex-col h-full">
+                    <div className="flex-1 flex flex-col min-h-0">
+                      <Thread
+                        currentApprovalMessage={currentApprovalMessage}
+                        onApproveMessage={onApproveMessage}
+                        onRejectMessage={onRejectMessage}
+                        onClearMessage={onClearApprovalMessage}
+                        // Provider/Model props
+                        providers={dynamicProviders}
+                        availableProviders={availableProviders}
+                        selectedProvider={selectedProvider}
+                        selectedModel={selectedModel}
+                        onProviderChange={handleProviderChange}
+                        onModelChange={setSelectedModel}
+                        // Org provider
+                        orgProvider={orgProvider}
+                        // MCP props
+                        mcpConnected={mcpChat.mcpConnected}
+                        mcpAbilities={mcpChat.mcpAbilities}
+                        mcpError={mcpChat.mcpError}
+                        onRetryMCP={mcpChat.refreshMCPConnection}
+                      />
+                    </div>
                   </div>
-                </div>
-              )}
-        </div>
-      </AssistantRuntimeProvider>
+                )}
+          </div>
+        </AssistantRuntimeProvider>
       </McpClientProvider>
     </TooltipProvider>
   )

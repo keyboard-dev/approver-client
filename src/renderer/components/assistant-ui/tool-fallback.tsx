@@ -19,7 +19,8 @@ export const ToolFallback: ToolCallMessagePartComponent = ({
   try {
     const ctx = useMcpClientContext()
     resourceUri = ctx.toolResourceMap.get(toolName)
-  } catch {
+  }
+  catch {
     // Context not available — no widget rendering
   }
 

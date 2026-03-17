@@ -164,10 +164,8 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
   useEffect(() => {
     if (!config.serverUrl) {
       window.electronAPI.getMcpServerUrl().then((url) => {
-        console.log('[MCP] Resolved server URL from IPC:', url)
         setResolvedServerUrl(url)
       }).catch(() => {
-        console.log('[MCP] IPC getMcpServerUrl failed, falling back to mcp.keyboard.dev')
         setResolvedServerUrl('https://mcp.keyboard.dev')
       })
     }

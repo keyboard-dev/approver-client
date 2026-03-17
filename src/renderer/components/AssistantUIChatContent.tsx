@@ -132,7 +132,8 @@ export const AssistantUIChatContent: React.FC<AssistantUIChatContentProps> = ({
           setAvailableProviders(['keyboard'])
           setSelectedProvider('keyboard')
           setSelectedModel(orgData.allowed_models[0])
-        } else {
+        }
+        else {
           // No org provider — use personal API keys as before
           const configured = providerStatus
             .filter(p => p.configured)
@@ -230,72 +231,72 @@ export const AssistantUIChatContent: React.FC<AssistantUIChatContentProps> = ({
   return (
     <TooltipProvider>
       <McpClientProvider value={mcpClientContextValue}>
-      <AssistantRuntimeProvider runtime={runtime}>
-        <div className="w-full h-full flex flex-col overflow-hidden">
-          {/* Optional header badges */}
-          {(selectedProvider === 'mcp' || availableProviders.length === 0) && (
-            <div className="flex items-center gap-2 p-2">
-              {selectedProvider === 'mcp' && (
-                <Badge variant="outline" className="text-xs">
-                  🔌 MCP Legacy Mode
-                </Badge>
-              )}
-
-              {availableProviders.length === 0 && (
-                <Badge variant="destructive" className="text-xs">
-                  No providers configured
-                </Badge>
-              )}
-            </div>
-          )}
-
-          {/* Main content */}
-          <div className="flex-1 min-h-0 h-full">
-            {selectedProvider === 'mcp'
-              ? (
-                  <MCPChatComponent
-                    clientName="keyboard-approver-mcp"
-                  />
-                )
-              : (
-                  <div className="flex flex-col h-full">
-                    <div className="flex-1 flex flex-col min-h-0">
-                      <Thread
-                        currentApprovalMessage={currentApprovalMessage}
-                        onApproveMessage={onApproveMessage}
-                        onRejectMessage={onRejectMessage}
-                        onClearMessage={onClearApprovalMessage}
-                        // Provider/Model props
-                        providers={dynamicProviders}
-                        availableProviders={availableProviders}
-                        selectedProvider={selectedProvider}
-                        selectedModel={selectedModel}
-                        onProviderChange={handleProviderChange}
-                        onModelChange={setSelectedModel}
-                        // Org provider
-                        orgProvider={orgProvider}
-                        // MCP props
-                        mcpConnected={mcpChat.mcpConnected}
-                        mcpAbilities={mcpChat.mcpAbilities}
-                        mcpError={mcpChat.mcpError}
-                        onRetryMCP={mcpChat.refreshMCPConnection}
-                      />
-                    </div>
-                  </div>
+        <AssistantRuntimeProvider runtime={runtime}>
+          <div className="w-full h-full flex flex-col overflow-hidden">
+            {/* Optional header badges */}
+            {(selectedProvider === 'mcp' || availableProviders.length === 0) && (
+              <div className="flex items-center gap-2 p-2">
+                {selectedProvider === 'mcp' && (
+                  <Badge variant="outline" className="text-xs">
+                    🔌 MCP Legacy Mode
+                  </Badge>
                 )}
-          </div>
-        </div>
 
-        {/* Ability Execution Panel - Fixed overlay */}
-        <AbilityExecutionPanel
-          executions={mcpChat.executions}
-          isVisible={showExecutionPanel}
-          onClose={() => setShowExecutionPanel(false)}
-          currentStep={undefined}
-          totalSteps={undefined}
-          currentAction={undefined}
-        />
-      </AssistantRuntimeProvider>
+                {availableProviders.length === 0 && (
+                  <Badge variant="destructive" className="text-xs">
+                    No providers configured
+                  </Badge>
+                )}
+              </div>
+            )}
+
+            {/* Main content */}
+            <div className="flex-1 min-h-0 h-full">
+              {selectedProvider === 'mcp'
+                ? (
+                    <MCPChatComponent
+                      clientName="keyboard-approver-mcp"
+                    />
+                  )
+                : (
+                    <div className="flex flex-col h-full">
+                      <div className="flex-1 flex flex-col min-h-0">
+                        <Thread
+                          currentApprovalMessage={currentApprovalMessage}
+                          onApproveMessage={onApproveMessage}
+                          onRejectMessage={onRejectMessage}
+                          onClearMessage={onClearApprovalMessage}
+                          // Provider/Model props
+                          providers={dynamicProviders}
+                          availableProviders={availableProviders}
+                          selectedProvider={selectedProvider}
+                          selectedModel={selectedModel}
+                          onProviderChange={handleProviderChange}
+                          onModelChange={setSelectedModel}
+                          // Org provider
+                          orgProvider={orgProvider}
+                          // MCP props
+                          mcpConnected={mcpChat.mcpConnected}
+                          mcpAbilities={mcpChat.mcpAbilities}
+                          mcpError={mcpChat.mcpError}
+                          onRetryMCP={mcpChat.refreshMCPConnection}
+                        />
+                      </div>
+                    </div>
+                  )}
+            </div>
+          </div>
+
+          {/* Ability Execution Panel - Fixed overlay */}
+          <AbilityExecutionPanel
+            executions={mcpChat.executions}
+            isVisible={showExecutionPanel}
+            onClose={() => setShowExecutionPanel(false)}
+            currentStep={undefined}
+            totalSteps={undefined}
+            currentAction={undefined}
+          />
+        </AssistantRuntimeProvider>
       </McpClientProvider>
     </TooltipProvider>
   )

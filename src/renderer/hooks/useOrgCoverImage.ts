@@ -14,16 +14,26 @@ export function useOrgCoverImage(): OrgCoverImageState {
 
   useEffect(() => {
     let cancelled = false
+    let retryCount = 0
+    const maxRetries = 3
 
     async function fetchCoverImage() {
       try {
         const result = await window.electronAPI?.getOrgCoverImage?.()
-        if (!cancelled && result?.success) {
-          setState({ url: result.url ?? null, loading: false })
-        } else if (!cancelled) {
+        if (cancelled) return
+        if (result?.success && result.url) {
+          setState({ url: result.url, loading: false })
+        }
+        else if (retryCount < maxRetries) {
+          // Auth may not be ready yet — retry after a short delay
+          retryCount++
+          setTimeout(fetchCoverImage, 2000)
+        }
+        else {
           setState({ url: null, loading: false })
         }
-      } catch {
+      }
+      catch {
         if (!cancelled) {
           setState({ url: null, loading: false })
         }

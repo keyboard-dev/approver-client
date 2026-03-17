@@ -151,7 +151,6 @@ export class KeyboardProvider implements AIProvider {
         seen.add(t.name)
         return true
       })
-      console.log('[Keyboard] Sending request with', (requestBody.tools as any[]).length, 'tools (deduplicated from', config.tools.length, ')')
     }
 
     const response = await fetch(url, {
@@ -165,7 +164,6 @@ export class KeyboardProvider implements AIProvider {
 
     if (!response.ok) {
       const errorText = await response.text()
-      console.error('[Keyboard] API error:', response.status, response.statusText, errorText.substring(0, 500))
       throw new Error(`Keyboard AI API error: ${response.status} ${response.statusText} - ${errorText}`)
     }
 
@@ -202,7 +200,10 @@ export class KeyboardProvider implements AIProvider {
               const parsed = JSON.parse(data)
               if (parsed.error) {
                 // Re-throw API errors — these must not be silently swallowed
-                throw new Error(parsed.error)
+                const errMsg = typeof parsed.error === 'string'
+                  ? parsed.error
+                  : parsed.error?.message || JSON.stringify(parsed.error)
+                throw new Error(errMsg)
               }
               if (parsed.type === 'content_block_start' && parsed.content_block?.type === 'tool_use') {
                 yield { type: 'tool_use_start', id: parsed.content_block.id, name: parsed.content_block.name } as StreamEvent
@@ -225,11 +226,9 @@ export class KeyboardProvider implements AIProvider {
               if (e instanceof Error && !e.message.includes('JSON')) {
                 throw e
               }
-              console.error('[Keyboard] SSE parse error:', (e as Error).message, 'data:', data.substring(0, 300))
             }
           }
           else if (line.trim().length > 0) {
-            console.warn('[Keyboard] Non-data SSE line:', line.substring(0, 200))
           }
         }
       }

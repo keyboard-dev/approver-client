@@ -120,9 +120,6 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
       setState('connecting')
       setError(undefined)
 
-      console.log('[MCP] Connecting to:', serverUrl)
-
-      // Clean up any existing connections
       await cleanup()
 
       // Create the transport with proper authentication headers

@@ -2181,7 +2181,6 @@ class MenuBarNotificationApp {
             event.sender.send('ai-stream-end')
           }
           catch (error) {
-            console.error('[IPC] Stream error for provider', provider, ':', error instanceof Error ? error.message : error)
             event.sender.send('ai-stream-error', error instanceof Error ? error.message : 'Unknown error')
           }
         }
@@ -3000,7 +2999,6 @@ class MenuBarNotificationApp {
 
             if (!authorizeResponse.ok) {
               const errBody = await authorizeResponse.text().catch(() => '')
-              console.error('[TriggersOAuth] authorize failed:', authorizeResponse.status, errBody)
               oauthServer.stopServer()
               resolve({ success: false, error: `Failed to get authorization URL: ${authorizeResponse.status} ${errBody}` })
               return
