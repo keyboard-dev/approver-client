@@ -163,129 +163,131 @@ export const AIProvidersPanel: React.FC = () => {
       </div>
 
       <div className="flex flex-col gap-[1rem]">
-        {orgProvider?.configured ? (
-          <div className="p-[0.94rem] flex flex-col gap-[1rem] rounded-[0.38rem] bg-[rgba(80,147,183,0.15)]">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="font-semibold flex items-center gap-2">
-                  {orgProvider.display_name || 'Organization AI Provider'}
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium">
-                    Org Override
-                  </span>
-                </div>
-                <div className="text-[#737373] text-sm">
-                  {PROVIDER_TYPE_LABELS[orgProvider.provider_type || ''] || orgProvider.provider_type || 'Custom Provider'}
-                </div>
-              </div>
-              <span className="text-green-600 text-sm">
-                {orgProvider.is_active !== false ? '✓ Active' : 'Inactive'}
-              </span>
-            </div>
-            {orgProvider.allowed_models && orgProvider.allowed_models.length > 0 && (
-              <div className="text-sm">
-                <span className="text-[#737373]">Allowed models: </span>
-                {orgProvider.allowed_models.join(', ')}
-              </div>
-            )}
-          </div>
-        ) : (
-          AI_PROVIDERS.map((provider) => {
-            const config = getProviderConfig(provider.id)
-            const isConfigured = config?.configured || false
-            const hasError = !!errors[provider.id]
-
-            return (
-              <div
-                key={provider.id}
-                className="p-[0.94rem] flex flex-col gap-[1rem] rounded-[0.38rem] bg-[rgba(80,147,183,0.15)]"
-              >
+        {orgProvider?.configured
+          ? (
+              <div className="p-[0.94rem] flex flex-col gap-[1rem] rounded-[0.38rem] bg-[rgba(80,147,183,0.15)]">
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="font-semibold flex items-center gap-2">
-                      {provider.name}
-                      {(isConfigured || provider.isBuiltIn) && (
-                        <span className="text-green-600 text-sm">
-                          ✓
-                          {provider.isBuiltIn ? 'Built-in' : 'Configured'}
-                        </span>
-                      )}
+                      {orgProvider.display_name || 'Organization AI Provider'}
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium">
+                        Org Override
+                      </span>
                     </div>
-                    <div className="text-[#737373] text-sm">{provider.description}</div>
+                    <div className="text-[#737373] text-sm">
+                      {PROVIDER_TYPE_LABELS[orgProvider.provider_type || ''] || orgProvider.provider_type || 'Custom Provider'}
+                    </div>
                   </div>
-                  {!provider.isBuiltIn && provider.helpUrl && (
-                    <a
-                      href={provider.helpUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:text-blue-800 text-sm"
-                    >
-                      Get API Key →
-                    </a>
-                  )}
+                  <span className="text-green-600 text-sm">
+                    {orgProvider.is_active !== false ? '✓ Active' : 'Inactive'}
+                  </span>
                 </div>
-
-                {!isConfigured && !provider.isBuiltIn
-                  ? (
-                      <div className="flex flex-col gap-3">
-                        <div className="flex gap-2">
-                          <input
-                            type="password"
-                            placeholder={provider.placeholder}
-                            value={apiKeys[provider.id] || ''}
-                            onChange={e => handleKeyChange(provider.id, e.target.value)}
-                            className="flex-1 px-3 py-2 border border-[#CCC] rounded bg-white text-sm"
-                            disabled={saving === provider.id}
-                          />
-                          <ButtonDesigned
-                            onClick={() => handleSaveKey(provider.id)}
-                            disabled={saving === provider.id || !apiKeys[provider.id]?.trim()}
-                            className="px-4 py-2"
-                            variant="primary"
-                          >
-                            {saving === provider.id ? 'Saving...' : 'Save'}
-                          </ButtonDesigned>
-                        </div>
-                        {hasError && (
-                          <div className="text-red-600 text-sm">
-                            {errors[provider.id]}
-                          </div>
-                        )}
-                      </div>
-                    )
-                  : (
-                      <div className="flex gap-2">
-                        <ButtonDesigned
-                          onClick={() => handleTestConnection(provider.id)}
-                          disabled={testing === provider.id}
-                          className="px-4 py-2"
-                          variant="secondary"
-                          hasBorder
-                        >
-                          {testing === provider.id ? 'Testing...' : 'Test Connection'}
-                        </ButtonDesigned>
-
-                        {!provider.isBuiltIn && (
-                          <ButtonDesigned
-                            onClick={() => setDeleteConfirmation(provider.id)}
-                            className="px-4 py-2"
-                            variant="destructive"
-                            hasBorder
-                          >
-                            Remove Key
-                          </ButtonDesigned>
-                        )}
-                      </div>
-                    )}
-
-                {hasError && isConfigured && (
-                  <div className="text-red-600 text-sm">
-                    {errors[provider.id]}
+                {orgProvider.allowed_models && orgProvider.allowed_models.length > 0 && (
+                  <div className="text-sm">
+                    <span className="text-[#737373]">Allowed models: </span>
+                    {orgProvider.allowed_models.join(', ')}
                   </div>
                 )}
               </div>
             )
-          })
-        )}
+          : (
+              AI_PROVIDERS.map((provider) => {
+                const config = getProviderConfig(provider.id)
+                const isConfigured = config?.configured || false
+                const hasError = !!errors[provider.id]
+
+                return (
+                  <div
+                    key={provider.id}
+                    className="p-[0.94rem] flex flex-col gap-[1rem] rounded-[0.38rem] bg-[rgba(80,147,183,0.15)]"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-semibold flex items-center gap-2">
+                          {provider.name}
+                          {(isConfigured || provider.isBuiltIn) && (
+                            <span className="text-green-600 text-sm">
+                              ✓
+                              {provider.isBuiltIn ? 'Built-in' : 'Configured'}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[#737373] text-sm">{provider.description}</div>
+                      </div>
+                      {!provider.isBuiltIn && provider.helpUrl && (
+                        <a
+                          href={provider.helpUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:text-blue-800 text-sm"
+                        >
+                          Get API Key →
+                        </a>
+                      )}
+                    </div>
+
+                    {!isConfigured && !provider.isBuiltIn
+                      ? (
+                          <div className="flex flex-col gap-3">
+                            <div className="flex gap-2">
+                              <input
+                                type="password"
+                                placeholder={provider.placeholder}
+                                value={apiKeys[provider.id] || ''}
+                                onChange={e => handleKeyChange(provider.id, e.target.value)}
+                                className="flex-1 px-3 py-2 border border-[#CCC] rounded bg-white text-sm"
+                                disabled={saving === provider.id}
+                              />
+                              <ButtonDesigned
+                                onClick={() => handleSaveKey(provider.id)}
+                                disabled={saving === provider.id || !apiKeys[provider.id]?.trim()}
+                                className="px-4 py-2"
+                                variant="primary"
+                              >
+                                {saving === provider.id ? 'Saving...' : 'Save'}
+                              </ButtonDesigned>
+                            </div>
+                            {hasError && (
+                              <div className="text-red-600 text-sm">
+                                {errors[provider.id]}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      : (
+                          <div className="flex gap-2">
+                            <ButtonDesigned
+                              onClick={() => handleTestConnection(provider.id)}
+                              disabled={testing === provider.id}
+                              className="px-4 py-2"
+                              variant="secondary"
+                              hasBorder
+                            >
+                              {testing === provider.id ? 'Testing...' : 'Test Connection'}
+                            </ButtonDesigned>
+
+                            {!provider.isBuiltIn && (
+                              <ButtonDesigned
+                                onClick={() => setDeleteConfirmation(provider.id)}
+                                className="px-4 py-2"
+                                variant="destructive"
+                                hasBorder
+                              >
+                                Remove Key
+                              </ButtonDesigned>
+                            )}
+                          </div>
+                        )}
+
+                    {hasError && isConfigured && (
+                      <div className="text-red-600 text-sm">
+                        {errors[provider.id]}
+                      </div>
+                    )}
+                  </div>
+                )
+              })
+            )}
       </div>
 
       {deleteConfirmation && (

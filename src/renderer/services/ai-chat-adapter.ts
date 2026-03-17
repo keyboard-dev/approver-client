@@ -284,7 +284,6 @@ export class AIChatAdapter implements ChatModelAdapter {
 
         // If we got an empty response, provide feedback instead of a blank message
         if (!result.text) {
-          console.warn('[AIChatAdapter] Empty response from stream — no text, no tool calls. stopReason:', result.stopReason, 'toolCount:', result.toolCalls.length)
         }
         const responseText = result.text || 'I encountered an issue processing your request. This may be due to a connection interruption. Please try again.'
 
@@ -348,7 +347,6 @@ export class AIChatAdapter implements ChatModelAdapter {
 
           toolResults.push({ type: 'tool_result', tool_use_id: tc.id, content: contextContent })
           yield { content: [...completedToolParts, { type: 'text' as const, text: '' }] }
-
         }
         catch (error) {
           const errorMsg = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`

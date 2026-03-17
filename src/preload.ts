@@ -111,7 +111,6 @@ export interface UpdateInfo {
   releaseNotes?: string
 }
 
-
 export interface CreditsBalance {
   success: true
   balance_cents: number

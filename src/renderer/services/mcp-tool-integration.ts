@@ -5,7 +5,6 @@ import { generateFingerprint, registerPendingCall, removePendingCall } from './p
 import { ResultProcessorService } from './result-processor'
 import { toolCacheService } from './tool-cache-service'
 
-
 /**
  * Universal MCP Ability Integration Service
  * Converts MCP abilities to function calling schemas compatible with all AI providers
