@@ -6,6 +6,10 @@ module.exports = {
   packagerConfig: {
     asar: true,
     name: process.env.APP_NAME || 'KeyboardAI',
+    // Exclude rollup's platform-specific native binaries (dev-only deps) from the packaged app.
+    // Without this, auto-unpack-natives includes them in both x64 and arm64 builds causing
+    // the universal stitcher to fail with "same in both builds" error.
+    ignore: [/\/node_modules\/@rollup\/rollup-darwin/],
     // Include app-update.yml in production builds
     extraResource: [
       'app-update.yml',
