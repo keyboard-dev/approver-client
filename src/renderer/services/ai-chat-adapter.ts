@@ -3,6 +3,7 @@ import type { StreamEvent } from '../../ai-provider/index'
 import { Script } from '../../types'
 import { contextService } from './context-service'
 import { ProviderFormats, useMCPIntegration } from './mcp-tool-integration'
+import { buildTaskCompletionPrompt } from './prompt-builders'
 import { runCodeResultContext } from './run-code-result-context'
 
 interface AIMessage {
@@ -139,6 +140,7 @@ export class AIChatAdapter implements ChatModelAdapter {
     messages: AIMessage[],
     tools: Array<{ name: string, description: string, input_schema: Record<string, unknown> }> | undefined,
     abortSignal: AbortSignal | undefined,
+    modelOverride?: string,
   ): Promise<StreamResult> {
     window.electronAPI.removeAIStreamListeners()
 
@@ -195,7 +197,7 @@ export class AIChatAdapter implements ChatModelAdapter {
       await window.electronAPI.sendAIMessageStream(
         this.currentProvider.provider,
         messages,
-        { model: this.currentProvider.model, tools },
+        { model: modelOverride || this.currentProvider.model, tools },
       )
 
       while (!streamComplete) {
@@ -250,6 +252,14 @@ export class AIChatAdapter implements ChatModelAdapter {
     const conversationHistory: AIMessage[] = [...aiMessages]
     let currentIteration = 0
 
+    // Extract the user's original goal for evaluation context
+    const lastUserMsg = aiMessages.findLast(m => m.role === 'user')
+    const userGoal = typeof lastUserMsg?.content === 'string'
+      ? lastUserMsg.content
+      : Array.isArray(lastUserMsg?.content)
+        ? lastUserMsg.content.filter((p: { type: string }) => p.type === 'text').map((p: { text?: string }) => p.text || '').join(' ')
+        : ''
+
     // Track all completed tool calls for the UI across iterations
     const completedToolParts: Array<{
       type: 'tool-call'
@@ -296,6 +306,56 @@ export class AIChatAdapter implements ChatModelAdapter {
           yield { content: [...finalContent, { type: 'text' as const, text: responseText.substring(0, end) }] }
           yielded = end
           await new Promise(resolve => setTimeout(resolve, YIELD_INTERVAL))
+        }
+
+        // Post-loop evaluation: assess task completion with Haiku (only if tools were used)
+        if (completedToolParts.length > 0 && userGoal) {
+          try {
+            const evalSystemPrompt = buildTaskCompletionPrompt(responseText, userGoal)
+
+            // Yield "evaluating" state so UI shows spinner
+            const evaluatingData = { evalType: 'task-completion', phase: 'evaluating', reasoning: '', result: {} }
+            const evalMarkerEvaluating = `\n\n<!--EVAL_PHASE_JSON\n${JSON.stringify(evaluatingData)}\nEVAL_PHASE_JSON_END-->`
+            yield { content: [...finalContent, { type: 'text' as const, text: responseText + evalMarkerEvaluating }] }
+
+            // Call Haiku for evaluation (no tools, just text inference)
+            const evalResult = await this.streamWithToolSupport(
+              [
+                { role: 'system', content: evalSystemPrompt },
+                { role: 'user', content: 'Evaluate whether the task is complete.' },
+              ],
+              undefined,
+              abortSignal,
+              'claude-haiku-4-5-20251001',
+            )
+
+            // Parse the JSON response from Haiku
+            let parsed: Record<string, unknown> = {}
+            try {
+              let jsonStr = evalResult.text.trim()
+              const fenceMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/)
+              if (fenceMatch) jsonStr = fenceMatch[1].trim()
+              parsed = JSON.parse(jsonStr)
+            } catch {
+              console.warn('[NativeToolCall][eval:parse-failure]', evalResult.text.slice(0, 300))
+            }
+            if (parsed.isComplete === undefined) {
+              parsed.isComplete = false
+              parsed.reasoning = parsed.reasoning ?? 'Evaluation parse failed — defaulting to not complete'
+            }
+
+            const reasoning = (parsed.reasoning as string) ?? evalResult.text.slice(0, 500)
+
+            // Yield "complete" state so UI shows result
+            const completedData = { evalType: 'task-completion', phase: 'complete', reasoning, result: parsed }
+            const evalMarkerComplete = `\n\n<!--EVAL_PHASE_JSON\n${JSON.stringify(completedData)}\nEVAL_PHASE_JSON_END-->`
+            yield { content: [...finalContent, { type: 'text' as const, text: responseText + evalMarkerComplete }] }
+
+            console.log('[NativeToolCall][eval]', { isComplete: parsed.isComplete, reasoning: reasoning.slice(0, 200) })
+          } catch (evalError) {
+            // Evaluation is non-critical — if it fails, just skip it
+            console.warn('[NativeToolCall][eval:error]', evalError instanceof Error ? evalError.message : evalError)
+          }
         }
 
         return

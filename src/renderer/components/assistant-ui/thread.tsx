@@ -46,6 +46,7 @@ import {
   UserMessageAttachments,
 } from './attachment'
 import { MarkdownText } from './markdown-text'
+import { SmartText } from './smart-text'
 import { Reasoning, ReasoningGroup } from './reasoning'
 import { SettingsTabType, ThreadLeftSidebar } from './thread-left-sidebar'
 import { ThreadSidebar } from './thread-sidebar'
@@ -630,7 +631,7 @@ const AssistantMessage: FC = () => {
           <div className="aui-assistant-message-content w-full text-[#171717] text-[14px] font-medium leading-normal break-words [&>:not(.aui-tool-fallback-root)]:max-w-[720px]">
             <MessagePrimitive.Parts
               components={{
-                Text: MarkdownText,
+                Text: SmartText,
                 Reasoning,
                 ReasoningGroup,
                 tools: { Fallback: ToolFallback },
