@@ -81,7 +81,11 @@ Back to External Client
 
 ---
 
-## Flow 2: Chat App Agentic Flow (User -> AI -> MCP Tools -> Approve -> Continue)
+## Flow 2: Chat App Agentic Flow (User -> AI -> Native Tool Calling -> Approve -> Continue)
+
+Uses **native Anthropic tool calling** — the model decides when and which tools to invoke via structured `tool_use` blocks in the SSE stream. No query classification, no JSON parsing from text, no completion heuristics.
+
+### Architecture
 
 ```
 User types message in Thread composer
@@ -90,55 +94,114 @@ User types message in Thread composer
     |
 AIChatAdapter.run()                                [src/renderer/services/ai-chat-adapter.ts]
     |
-checkConnectionRequirements()                      -> connection-detection-service.ts
-    |-- MISSING CONNECTIONS -> ConnectionRequirementsMessage UI
-    |-- ALL GOOD:
-classifyQueryComplexity()
-    |-- 'simple' -> streaming response (done)
-    |-- 'web-search' -> handleWebSearch() -> Electron API
-    |-- 'agentic':
-handleWithAbilityCalling()                         [ai-chat-adapter.ts]
+contextService.buildEnhancedSystemPrompt()         -> context-service.ts
+    |
+ProviderFormats.anthropic.convertTools()           -> mcp-tool-integration.ts
+    | Converts MCP abilities -> Anthropic tool schema (name, description, input_schema)
+    | Tools deduplicated by name in keyboard.ts before sending to API
+    |
+handleNativeToolCalling(messages, tools)           [ai-chat-adapter.ts]
     | LOOP (max 10 iterations)
-    |-- Stream AI response -> extract {"ability", "parameters"} JSON
-    |-- For each ability:
+    |
+    |-- streamWithToolSupport()
+    |     | IPC -> main.ts 'send-ai-message-stream'
+    |     | main.ts -> KeyboardProvider.streamMessage()  [keyboard.ts]
+    |     |   | Transforms tool_use/tool_result content blocks to text
+    |     |   |   (API Zod schema only accepts string/text/image content)
+    |     |   | Deduplicates tools by name
+    |     |   | POST to keyboard.dev/api/ai/inference (SSE stream)
+    |     |   | Parses SSE events:
+    |     |   |   content_block_start (tool_use) -> StreamEvent tool_use_start
+    |     |   |   content_block_delta (input_json_delta) -> StreamEvent tool_use_delta
+    |     |   |   content_block_delta (text) -> yield text string
+    |     |   |   content_block_stop -> StreamEvent tool_use_end
+    |     |   |   message_delta (stop_reason) -> StreamEvent message_end
+    |     |   |   error -> throw Error (surfaces to user)
+    |     |
+    |     | Renderer accumulates tool calls from stream events
+    |     | Returns: { text, toolCalls: [{id, name, input}], stopReason }
+    |
+    |-- If stopReason != 'tool_use' -> stream final text to UI, DONE
+    |
+    |-- For each tool call:
+    |     | Yield tool-call part to UI (in-progress, spinner shown)
+    |     |
     |     useMCPIntegration.executeAbilityCall()   [mcp-tool-integration.ts]
-    |         useMcpClient.callTool()              [useMcpClient.ts]
-    |         MCP Server executes tool
+    |         |
+    |         |-- web-search: routed locally via webSearchTool
+    |         |-- run-code: Promise.race with approval system
+    |         |     generateFingerprint(explanation)        [pending-tool-calls.ts]
+    |         |     registerPendingCall('run-code', fingerprint)
+    |         |     Promise.race([
+    |         |       mcpClient.callTool(),    -- MCP server path
+    |         |       pending.promise,          -- approval resolution path
+    |         |       timeoutPromise (10 min),  -- prevents infinite hang
+    |         |     ])
+    |         |-- all other tools: mcpClient.callTool() directly
+    |         |
+    |         |-- On connection error:
+    |         |     Auto-reconnect via mcpClient.retry()
+    |         |     Wait up to 15s, then retry tool call once
+    |         |
+    |     | Yield tool-call part to UI (completed, with result)
+    |     |
+    |     Store results in runCodeResultContext       [run-code-result-context.ts]
+    |     Summarize if > 25k tokens
     |
-    |   FOR run-code SPECIFICALLY:
-    |       generateFingerprint(explanation)        [pending-tool-calls.ts]
-    |       registerPendingCall('run-code', fingerprint)
-    |       Promise.race([mcpClient.callTool(), pending.promise])
-    |           -> approval arrives via Flow 1 mechanism
-    |           -> resolvePendingCall() resolves the race
+    |-- Build conversation history:
+    |     assistant message: [{type:'text', text}, {type:'tool_use', id, name, input}]
+    |     user message: [{type:'tool_result', tool_use_id, content}]
+    |     (Flattened to text strings in keyboard.ts for API compatibility)
     |
-    |-- Store results in runCodeResultContext       [run-code-result-context.ts]
-    |-- Summarize if > 25k tokens
-    |-- Feed results back to AI
-    |-- Check isTaskComplete() -> break or continue
+    |-- Continue loop (model decides if more tools needed)
     |
-Final AI response yielded to Thread UI
+Final response yielded to Thread UI with all tool-call parts visible
 ```
+
+### Chain of Thought UI
+
+Tool calls are rendered in the assistant message via `MessagePrimitive.Parts`:
+- `ToolFallback` component shows each tool call as a collapsible card
+- **In-progress**: blue border, spinning LoaderCircle icon, "Running: toolName"
+- **Completed**: green CheckIcon, "Used tool: toolName", expandable args + result
+- **Error**: red styling with error message
+- Tool parts accumulate across loop iterations — all visible in the final message
+
+### MCP Connection Resilience
+
+The MCP client (`useMcpClient.ts`) has 3 layers of auto-reconnect:
+1. **Transport error/close handlers**: Exponential backoff reconnect (1s -> 2s -> 4s -> ... -> 15s max)
+2. **Health check interval (15s)**: Background check that client/transport refs are alive
+3. **Inline reconnect in callTool()**: If client is null or call fails with connection error, reconnect + retry once before throwing
+
+### Debug Logging
+
+All logs use `[NativeToolCall]` prefix for easy filtering in DevTools / terminal:
+- `[NativeToolCall][IPC]` — main process IPC handler (stream start/end/error)
+- `[NativeToolCall][Keyboard]` — keyboard provider (request details, SSE events, raw chunks)
+- `[NativeToolCall][Stream]` — renderer stream handling (tool_use_start, message_end, completion summary)
+- `[NativeToolCall][Loop]` — agentic loop (iteration, tool calls, results, conversation size)
+- `[NativeToolCall][MCP]` — MCP reconnection attempts
+- `[MCP]` — low-level MCP client connection state
 
 ### Files required for Flow 2
 
 | File | Role |
 |------|------|
 | `src/renderer/components/assistant-ui/thread.tsx` | Main chat UI (Thread primitives, sidebar, composer) |
+| `src/renderer/components/assistant-ui/tool-fallback.tsx` | Tool call UI (in-progress spinner, completed result, collapsible) |
 | `src/renderer/components/AssistantUIChat.tsx` | Chat wrapper, provider selection, runtime setup |
 | `src/renderer/components/AssistantUIChatContent.tsx` | Inner chat content (nearly identical to AssistantUIChat) |
 | `src/renderer/hooks/useMCPEnhancedChat.ts` | MCP state management (abilities, executions, agentic mode) |
-| `src/renderer/services/ai-chat-adapter.ts` | Core engine -- query classification, agentic loop, connection checks |
-| `src/renderer/services/mcp-tool-integration.ts` | Tool execution, fingerprint race, provider format conversion |
-| `src/renderer/hooks/useMcpClient.ts` | Low-level MCP connection (SSE transport, auth, reconnect) |
+| `src/renderer/services/ai-chat-adapter.ts` | Core engine -- native tool calling loop, connection checks |
+| `src/ai-provider/providers/keyboard.ts` | SSE stream parser, tool dedup, message transformation |
+| `src/renderer/services/mcp-tool-integration.ts` | Tool execution, approval race, auto-reconnect retry, provider format conversion |
+| `src/renderer/hooks/useMcpClient.ts` | Low-level MCP connection (StreamableHTTP, auth, 3-layer reconnect) |
 | `src/renderer/services/pending-tool-calls.ts` | Fingerprint + pending call race mechanism |
 | `src/renderer/services/context-service.ts` | System prompt builder, planning tokens |
 | `src/renderer/services/run-code-result-context.ts` | Result storage + smart summarization |
-| `src/renderer/services/connection-detection-service.ts` | AI-powered connection requirement analysis |
 | `src/renderer/services/tool-cache-service.ts` | Tool cache fallback when MCP disconnects |
 | `src/renderer/services/ability-discovery.ts` | Fuzzy tool search |
-| `src/renderer/services/ability-filesystem.ts` | Ability definitions storage |
-| `src/renderer/components/assistant-ui/ConnectionRequirementsMessage.tsx` | Missing connections UI |
 | `src/renderer/components/assistant-ui/ApprovalMessage.tsx` | Inline approval in chat |
 | `src/renderer/components/assistant-ui/ThreadTracker.tsx` | Thread ID sync to currentThreadRef |
 | `src/renderer/components/AgenticStatusIndicator.tsx` | Progress bar during agentic loop |
@@ -166,7 +229,6 @@ Final AI response yielded to Thread UI
 - `src/renderer/hooks/useAdditionalConnectedAccounts.ts`
 - `src/renderer/hooks/useCustomIntegrations.ts`
 - `src/renderer/hooks/useCurrentThread.ts` (replaced by currentThreadRef in ChatPage)
-- `src/renderer/hooks/useConnectionRequirements.ts` (logic moved into useMCPEnhancedChat)
 
 ### Unused Components (0 imports)
 
@@ -203,7 +265,12 @@ This codebase must stay lean. As sessions progress, there is a real risk of infl
 
 ## Key Architectural Concepts
 
+- **Native tool calling**: The AI model decides tool use via structured `tool_use` blocks in the SSE stream (Anthropic native format). No query classification or JSON extraction from text — the model natively returns tool calls when it wants to use a tool, and `stop_reason: 'tool_use'` signals the loop to execute tools and continue.
+- **Message transformation**: The Keyboard API's Zod schema only accepts string or text/image content blocks. `keyboard.ts` transforms `tool_use` and `tool_result` content blocks into text representations before sending (e.g., `[Used tool: run-code({...})]`, `[Tool result for toolu_xxx]: content`).
+- **Tool deduplication**: Tools are deduplicated by name in `keyboard.ts` before sending to the API (Anthropic requires unique tool names).
+- **Chain of thought UI**: Tool calls are yielded as `tool-call` content parts to `@assistant-ui/react`, rendered by `ToolFallback` with in-progress/completed/error states. Parts accumulate across loop iterations so all steps are visible in the final message.
 - **Fingerprint system**: When chat calls `run-code`, it base64-encodes the explanation text as a fingerprint. When an approval arrives via WebSocket, `isFromOurApp()` checks if the fingerprint matches a pending call. This is how the app knows whether an approval came from its own agentic flow vs an external client.
-- **Promise.race pattern**: For `run-code` tool calls, the app races the MCP server response against the approval resolution. Whichever completes first wins.
+- **Promise.race pattern with timeout**: For `run-code` tool calls, the app races the MCP server response against the approval resolution and a 10-minute timeout. Whichever completes first wins. The timeout prevents infinite hangs if both paths fail.
+- **3-layer MCP reconnect**: (1) Transport error/close handlers with exponential backoff, (2) 15s health check interval verifying client refs are alive, (3) Inline reconnect in `callTool()` — reconnects and retries once before throwing.
 - **Auto-approve**: Main process can auto-approve based on risk_level (low/medium/high) for security evaluations and success-only/always/never for code responses, configured in settings.
-- **Thread-scoped state**: Connection requirements are stored per-thread in localStorage with 1-hour expiry.
+- **Connection management**: Handled by the `connect-reconnect-accounts` MCP tool at runtime, rather than a pre-flight detection workflow.

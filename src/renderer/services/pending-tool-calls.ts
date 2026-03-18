@@ -154,6 +154,25 @@ export function getPendingCallCount(): number {
   return pendingCalls.size
 }
 
+// --- Interactive widget tool support (client-side blocking) ---
+
+const interactiveToolCallbacks = new Map<string, { resolve: (data: unknown) => void }>()
+
+export function registerInteractiveToolCall(toolName: string): Promise<unknown> {
+  interactiveToolCallbacks.delete(toolName)
+  return new Promise((resolve) => {
+    interactiveToolCallbacks.set(toolName, { resolve })
+  })
+}
+
+export function resolveInteractiveToolCall(toolName: string, data: unknown): boolean {
+  const cb = interactiveToolCallbacks.get(toolName)
+  if (!cb) return false
+  cb.resolve(data)
+  interactiveToolCallbacks.delete(toolName)
+  return true
+}
+
 /**
  * Clean up stale pending calls (older than specified timeout)
  * This prevents memory leaks from orphaned promises

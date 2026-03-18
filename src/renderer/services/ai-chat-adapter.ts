@@ -1,14 +1,13 @@
 import type { ChatModelAdapter } from '@assistant-ui/react'
+import type { StreamEvent } from '../../ai-provider/index'
 import { Script } from '../../types'
-import { searchCombinedApps } from './combined-apps-service'
-import { analyzeCredentialRequirements } from './connection-detection-service'
 import { contextService } from './context-service'
-import { useMCPIntegration } from './mcp-tool-integration'
+import { ProviderFormats, useMCPIntegration } from './mcp-tool-integration'
 import { runCodeResultContext } from './run-code-result-context'
 
 interface AIMessage {
   role: 'user' | 'assistant' | 'system'
-  content: string
+  content: string | Array<{ type: string, [key: string]: unknown }>
 }
 
 interface AIProviderSelection {
@@ -17,20 +16,16 @@ interface AIProviderSelection {
   mcpEnabled?: boolean
 }
 
-export interface MissingConnectionInfo {
+interface ToolCallAccumulator {
   id: string
   name: string
-  icon: string
-  source: 'pipedream' | 'composio' | 'local'
-  searchTerms?: string[] // Search terms for app connector search
+  jsonParts: string[]
 }
 
-export interface ConnectionCheckResult {
-  hasAllConnections: boolean
-  missingConnections: MissingConnectionInfo[]
-  detectedServices: string[]
-  /** AI reasoning explaining why connections are needed */
-  reasoning?: string
+interface StreamResult {
+  text: string
+  toolCalls: Array<{ id: string, name: string, input: Record<string, unknown> }>
+  stopReason: string
 }
 
 export class AIChatAdapter implements ChatModelAdapter {
@@ -38,45 +33,13 @@ export class AIChatAdapter implements ChatModelAdapter {
   private mcpIntegration: ReturnType<typeof useMCPIntegration> | null = null
   private setToolExecutionState?: (isExecuting: boolean, toolName?: string) => void
   private maxAgenticIterations = 10
-  private onTaskProgress?: (progress: { step: number, totalSteps: number, currentAction: string, isComplete: boolean }) => void
   private pingInterval: NodeJS.Timeout | null = null
   private isToolsExecuting = false
   private onThreadTitleGenerated?: (title: string) => void
   private titleGeneratedForThread = false
-  private onMissingConnectionsDetected?: (result: ConnectionCheckResult) => void
-  private skipConnectionCheck = false
-  private lastUserMessageForConnectionCheck: string | null = null
 
   constructor(provider: string = 'openai', model?: string, mcpEnabled: boolean = false) {
     this.currentProvider = { provider, model, mcpEnabled }
-  }
-
-  /**
-   * Set callback for when missing connections are detected
-   */
-  setMissingConnectionsCallback(callback: (result: ConnectionCheckResult) => void) {
-    this.onMissingConnectionsDetected = callback
-  }
-
-  /**
-   * Skip the next connection check (used when user dismisses the prompt)
-   */
-  setSkipConnectionCheck(skip: boolean) {
-    this.skipConnectionCheck = skip
-  }
-
-  /**
-   * Get the last user message that triggered a connection check
-   */
-  getLastConnectionCheckMessage(): string | null {
-    return this.lastUserMessageForConnectionCheck
-  }
-
-  /**
-   * Clear the stored connection check message
-   */
-  clearLastConnectionCheckMessage() {
-    this.lastUserMessageForConnectionCheck = null
   }
 
   setThreadTitleCallback(callback: (title: string) => void) {
@@ -97,183 +60,28 @@ export class AIChatAdapter implements ChatModelAdapter {
 
   setMCPIntegration(mcpIntegration: ReturnType<typeof useMCPIntegration> | null) {
     this.mcpIntegration = mcpIntegration
-
-    // Update context service with MCP functions for enhanced system prompt
-    if (mcpIntegration?.functions) {
-      contextService.setMCPFunctions(mcpIntegration.functions)
-    }
   }
 
   setToolExecutionTracker(tracker: (isExecuting: boolean, toolName?: string) => void) {
     this.setToolExecutionState = tracker
   }
 
-  setTaskProgressTracker(tracker: (progress: { step: number, totalSteps: number, currentAction: string, isComplete: boolean }) => void) {
-    this.onTaskProgress = tracker
-  }
-
   setSelectedScripts(scripts: Script[]) {
     contextService.setSelectedScripts(scripts)
   }
 
-  /**
-   * Check if user message requires connections and if they are available
-   * Uses AI-powered analysis to determine if existing credentials likely work
-   *
-   * @param conversationHistory - Full conversation history for context
-   */
-  async checkConnectionRequirements(conversationHistory: Array<{ role: 'user' | 'assistant' | 'system', content: string }>): Promise<ConnectionCheckResult> {
-    try {
-      // Get all connected accounts from context service (cached)
-      const connectedAccounts = await contextService.getConnectedAccounts()
-      const localStatus = await window.electronAPI?.getProviderAuthStatus?.().catch(() => ({}))
-      const providerStatus = (localStatus || {}) as Record<string, { authenticated?: boolean }>
-
-      // Build simplified accounts array for AI analysis
-      const accountsForAnalysis = [
-        ...connectedAccounts.pipedream.map(a => ({
-          id: a.id,
-          app: a.app?.nameSlug || a.app?.name || 'unknown',
-          name: a.name,
-        })),
-        ...connectedAccounts.composio
-          .filter(a => a.status === 'ACTIVE')
-          .map(a => ({
-            id: a.id,
-            app: a.toolkit?.slug || 'unknown',
-          })),
-        ...Object.entries(providerStatus)
-          .filter(([_, status]) => status?.authenticated)
-          .map(([provider]) => ({
-            id: `local_${provider}`,
-            app: provider,
-          })),
-      ]
-
-      // Pass full conversation history for proper context
-      const analysis = await analyzeCredentialRequirements(conversationHistory, accountsForAnalysis)
-
-      if (analysis.likelyHasCredentials) {
-        return {
-          hasAllConnections: true,
-          missingConnections: [],
-          detectedServices: [],
-        }
-      }
-
-      // User doesn't have credentials - search combined apps + check local providers
-      if (analysis.searchTermsIfNoCredentials.length > 0) {
-        const searchTerms = analysis.searchTermsIfNoCredentials
-        const missingConnections: MissingConnectionInfo[] = []
-
-        // Helper to check if a name matches any search term
-        const matchesSearchTerms = (name: string, id: string): boolean => {
-          const nameLower = name.toLowerCase()
-          const idLower = id.toLowerCase()
-          return searchTerms.some((term) => {
-            const termLower = term.toLowerCase()
-            return nameLower.includes(termLower)
-              || idLower.includes(termLower)
-              || termLower.includes(nameLower)
-          })
-        }
-
-        // Check local providers first - these get priority
-        const localProviders = await import('./local-providers-service').then(m => m.getLocalProviders())
-
-        for (const provider of localProviders) {
-          if (matchesSearchTerms(provider.name, provider.id)) {
-            missingConnections.push({
-              id: provider.id,
-              name: provider.name,
-              icon: provider.icon,
-              source: 'local',
-            })
-          }
-        }
-
-        // Get combined apps from pipedream/composio
-        // If an app exists in both, add both as separate entries
-        const searchPromises = searchTerms.map(term => searchCombinedApps(term, false))
-        const results = await Promise.all(searchPromises)
-        const seenPipedream = new Set<string>()
-        const seenComposio = new Set<string>()
-
-        for (const result of results) {
-          if (result.success && result.apps) {
-            for (const app of result.apps) {
-              // Add pipedream entry if available
-              if (app.platforms.includes('pipedream') && app.pipedreamSlug && !seenPipedream.has(app.pipedreamSlug)) {
-                seenPipedream.add(app.pipedreamSlug)
-                const icon = app.pipedreamData?.logoUrl || app.logo || ''
-                missingConnections.push({
-                  id: app.pipedreamSlug,
-                  name: app.name,
-                  icon,
-                  source: 'pipedream',
-                })
-              }
-
-              // Add composio entry if available
-              if (app.platforms.includes('composio') && app.composioSlug && !seenComposio.has(app.composioSlug)) {
-                seenComposio.add(app.composioSlug)
-                const icon = app.composioData?.meta?.logo || app.logo || ''
-                missingConnections.push({
-                  id: app.composioSlug,
-                  name: app.name,
-                  icon,
-                  source: 'composio',
-                })
-              }
-            }
-          }
-        }
-
-        if (missingConnections.length > 0) {
-          return {
-            hasAllConnections: false,
-            missingConnections: missingConnections.slice(0, 6),
-            detectedServices: searchTerms,
-            reasoning: analysis.reasoning,
-          }
-        }
-      }
-
-      // Fallback: return generic connection requirement with search terms
-      return {
-        hasAllConnections: false,
-        missingConnections: [{
-          id: 'required_connection',
-          name: 'Required Connection',
-          icon: '',
-          source: 'pipedream',
-          searchTerms: analysis.searchTermsIfNoCredentials,
-        }],
-        detectedServices: analysis.searchTermsIfNoCredentials,
-        reasoning: analysis.reasoning,
-      }
-    }
-    catch (error) {
-      return { hasAllConnections: true, missingConnections: [], detectedServices: [] }
-    }
-  }
-
   private startPeriodicPing() {
     if (this.pingInterval) {
-      return // Already running
+      return
     }
-
     this.pingInterval = setInterval(async () => {
       try {
-        const result = await window.electronAPI.sendManualPing()
-        if (!result.success) {
-          // Silent fail
-        }
+        await window.electronAPI.sendManualPing()
       }
-      catch (error) {
+      catch {
         // Silent fail
       }
-    }, 10000) // 10 seconds
+    }, 10000)
   }
 
   private stopPeriodicPing() {
@@ -286,11 +94,7 @@ export class AIChatAdapter implements ChatModelAdapter {
   private updateToolExecutionState(isExecuting: boolean, toolName?: string) {
     const wasExecuting = this.isToolsExecuting
     this.isToolsExecuting = isExecuting
-
-    // Call the original tracker if set
     this.setToolExecutionState?.(isExecuting, toolName)
-
-    // Start/stop periodic pinging based on execution state
     if (isExecuting && !wasExecuting) {
       this.startPeriodicPing()
     }
@@ -303,1093 +107,460 @@ export class AIChatAdapter implements ChatModelAdapter {
     this.stopPeriodicPing()
   }
 
-  /**
-   * Generate a thread title using AI based on the user's first message
-   */
   private async generateThreadTitle(userMessage: string): Promise<void> {
     if (this.titleGeneratedForThread || !this.onThreadTitleGenerated) {
       return
     }
-
     this.titleGeneratedForThread = true
-
     try {
       const response = await window.electronAPI.sendAIMessage(
         'keyboard',
         [
-          {
-            role: 'system',
-            content: 'Generate a brief 3-6 word title for this chat based on the user message. Return ONLY the title, no quotes or punctuation.',
-          },
+          { role: 'system', content: 'Generate a brief 3-6 word title for this chat based on the user message. Return ONLY the title, no quotes or punctuation.' },
           { role: 'user', content: userMessage },
         ],
         { model: 'claude-haiku-4-5-20251001' },
       )
-
       const title = response?.trim()
       if (title && title.length > 0) {
         this.onThreadTitleGenerated(title)
       }
     }
-    catch (error) {
-      // Silently fail - keep default "New Chat" title
-    }
-  }
-
-  private extractKeywords(text: string): string[] {
-    return text
-      .toLowerCase()
-      .replace(/[^a-z0-9\s]/g, ' ')
-      .split(/\s+/)
-      .filter(word => word.length > 2)
-      .slice(0, 10) // Limit to most relevant keywords
-  }
-
-  private preContextPrompt(aiMessages: AIMessage[]) {
-    aiMessages[aiMessages.length - 1].content += `
-
-      When you are ready to call an ability, please use the following JSON format:
-      \`\`\`json
-      {
-        "ability": "ability-name",
-        "parameters": {
-          "param1": "value1",
-          "param2": "value2",
-          "param3": true,
-          "param4": ["value4", "value5"],
-          "param5": {
-            "nested1": "value6",
-            "nested2": "value7"
-          }
-        }
-      }
-      \`\`\`
-
-       IMPORTANT: You MUST use the JSON format below to call abilities. Do NOT use XML, <function_calls>, <invoke>, or any other format. Only the JSON format
- will be recognized by the system:
-      `
-
-    return aiMessages
-  }
-
-  private isTaskComplete(response: string): boolean {
-    const completionIndicators = [
-      'task completed',
-      'task complete',
-      'finished',
-      'done',
-      'completed successfully',
-      'all set',
-      'no further action needed',
-      'task accomplished',
-    ]
-
-    const lowerResponse = response.toLowerCase()
-    return completionIndicators.some(indicator => lowerResponse.includes(indicator))
-      || !this.hasMoreAbilityCallsInResponse(response)
-  }
-
-  async classifyQueryComplexity(aiMessages: AIMessage[]): Promise<'simple' | 'web-search' | 'agentic'> {
-    try {
-      const classificationSystemPrompt = `You are a query classifier. Your task is to classify whether the LAST user message in the conversation requires external tools/actions or is a simple conversational question.
-
-Use the conversation history for context, but base your classification decision on the LAST user message only.
-
-IMPORTANT: If the conversation history shows the assistant was about to use tools/abilities or the user is confirming a previous tool-use suggestion, classify as "agentic" even if the last message is short (e.g., "yes", "please do", "go ahead", "do it").
-
-WEB SEARCH ONLY (respond "web-search"):
-- Questions about current events, recent news, or what's happening now
-- Questions needing up-to-date information (latest prices, current weather, recent announcements)
-- Questions about recent developments, updates, or changes
-- "What's new in...", "Latest...", "Current...", "Recent..." type questions
-- Any question where the answer likely changed recently or needs fresh data
-
-REQUIRES OTHER TOOLS (respond "agentic"):
-- Running code or scripts
-- API calls to specific services (not general web search)
-- File operations or system tasks
-- Complex multi-step tasks
-- Creating, modifying, or managing resources
-
-SIMPLE CONVERSATION (respond "simple"):
-- General knowledge questions (facts that don't change frequently)
-- Explanations or definitions
-- Opinions or advice
-- Math that can be done mentally
-- Questions about the AI itself
-- Historical facts or established concepts
-
-Respond with only one word: "simple", "web-search", or "agentic"`
-
-      // Filter to only user and assistant messages, preserving the conversation flow
-      const conversationMessages = aiMessages
-        .filter(m => m.role === 'user' || m.role === 'assistant')
-        .map(m => ({ role: m.role, content: m.content }))
-
-      const response = await window.electronAPI.sendAIMessage(
-        'keyboard',
-        [
-          { role: 'system', content: classificationSystemPrompt },
-          ...conversationMessages,
-        ],
-        { model: 'claude-haiku-4-5-20251001' },
-      )
-
-      const classification = response.toLowerCase().trim()
-      if (classification === 'simple') return 'simple'
-      if (classification === 'web-search') return 'web-search'
-      return 'agentic'
-    }
-    catch (error) {
-      return 'agentic'
-    }
-  }
-
-  private async* handleWebSearch(aiMessages: AIMessage[], abortSignal?: AbortSignal): AsyncGenerator<{ content: [{ type: 'text', text: string }] }, void, unknown> {
-    const lastUserMessage = aiMessages[aiMessages.length - 1]
-    const userQuery = lastUserMessage?.content || ''
-
-    // Get current date for context
-    const now = new Date()
-    const currentDate = now.toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    })
-
-    let accumulatedResponse = `🔍 **Searching the web...**\n_Current date: ${currentDate}_`
-    yield {
-      content: [{ type: 'text' as const, text: accumulatedResponse }],
-    }
-
-    try {
-      this.updateToolExecutionState(true, 'web-search')
-
-      // Check for abort before API call
-      if (abortSignal?.aborted) {
-        throw new Error('Request was aborted')
-      }
-
-      const searchResult = await window.electronAPI.webSearchGeneral(userQuery)
-
-      accumulatedResponse += '\n\n✅ **Search complete!**'
-      yield {
-        content: [{ type: 'text' as const, text: accumulatedResponse }],
-      }
-
-      // Extract the text response and citations from the result
-      // The response structure is: { response: { content: [...] } }
-      const contentArray = (searchResult as any).response?.content || searchResult.content || []
-
-      // Concatenate all text blocks and collect all citations
-      let responseText = ''
-      const allCitations: Array<{ url: string, title: string }> = []
-      const seenUrls = new Set<string>()
-
-      for (const item of contentArray) {
-        if (item.type === 'text' && item.text) {
-          responseText += item.text
-          // Collect citations from each text block
-          if (item.citations && Array.isArray(item.citations)) {
-            for (const citation of item.citations) {
-              // Deduplicate citations by URL
-              if (citation.url && !seenUrls.has(citation.url)) {
-                seenUrls.add(citation.url)
-                allCitations.push({ url: citation.url, title: citation.title || citation.url })
-              }
-            }
-          }
-        }
-      }
-
-      if (!responseText) {
-        responseText = 'No results found.'
-      }
-
-      // Format the response with citations
-      let formattedResponse = `${accumulatedResponse}\n\n---\n\n${responseText}`
-
-      // Add sources section if there are citations
-      if (allCitations.length > 0) {
-        formattedResponse += '\n\n---\n\n**Sources:**'
-        for (const citation of allCitations) {
-          formattedResponse += `\n- [${citation.title}](${citation.url})`
-        }
-      }
-
-      yield {
-        content: [{ type: 'text' as const, text: formattedResponse }],
-      }
-    }
-    catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      accumulatedResponse += `\n\n❌ **Search failed:** ${errorMessage}`
-      yield {
-        content: [{ type: 'text' as const, text: accumulatedResponse }],
-      }
-    }
-    finally {
-      this.updateToolExecutionState(false)
+    catch {
+      // Silently fail
     }
   }
 
   /**
-   * Extract all JSON strings from a response that might contain ability calls.
-   * Matches both fenced (```json ... ```) and raw JSON objects with "ability" key.
+   * Stream an AI response, handling both text and tool_use events.
+   * Yields text updates for smooth streaming. Returns the complete result.
    */
-  private stripAbilityJsonForDisplay(text: string): string {
-    let cleaned = text.replace(/```json\s*\{[^`]*?"ability"\s*:.*?\}\s*```/gs, '')
-
-    // Remove raw (unfenced) ability JSON objects
-    const rawPattern = /\{[^{}]*"ability"\s*:\s*"[^"]+?"[^{}]*"parameters"\s*:\s*\{/g
-    for (const match of text.matchAll(rawPattern)) {
-      const startIdx = match.index!
-      let depth = 0
-      let endIdx = startIdx
-      for (let i = startIdx; i < text.length; i++) {
-        if (text[i] === '{') depth++
-        else if (text[i] === '}') {
-          depth--
-          if (depth === 0) {
-            endIdx = i + 1
-            break
-          }
-        }
-      }
-      if (depth === 0 && endIdx > startIdx) {
-        cleaned = cleaned.replace(text.substring(startIdx, endIdx), '')
-      }
-    }
-
-    // Clean up extra whitespace left behind
-    cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim()
-    return cleaned
-  }
-
-  private extractAbilityJsonCandidates(response: string): string[] {
-    const candidates: string[] = []
-
-    const fencedPattern = /```json\s*(.*?)\s*```/gs
-    for (const match of response.matchAll(fencedPattern)) {
-      candidates.push(match[1])
-    }
-
-    // 2. Raw JSON objects containing "ability" (unfenced)
-    const rawPattern = /\{[^{}]*"ability"\s*:\s*"[^"]+?"[^{}]*"parameters"\s*:\s*\{/g
-    for (const match of response.matchAll(rawPattern)) {
-      // Find the full balanced JSON object starting at this position
-      const startIdx = match.index!
-      let depth = 0
-      let endIdx = startIdx
-      for (let i = startIdx; i < response.length; i++) {
-        if (response[i] === '{') depth++
-        else if (response[i] === '}') {
-          depth--
-          if (depth === 0) {
-            endIdx = i + 1
-            break
-          }
-        }
-      }
-      if (depth === 0 && endIdx > startIdx) {
-        const rawCandidate = response.substring(startIdx, endIdx)
-        candidates.push(rawCandidate)
-      }
-    }
-
-    return candidates
-  }
-
-  private hasMoreAbilityCallsInResponse(response: string): boolean {
-    for (const candidate of this.extractAbilityJsonCandidates(response)) {
-      try {
-        const parsed = JSON.parse(candidate)
-        if (parsed.ability && typeof parsed.ability === 'string') {
-          return true
-        }
-      }
-      catch {
-        continue
-      }
-    }
-    return false
-  }
-
-  private foundAbilityCallsInResponse(response: string) {
-    const abilityCalls: Array<{ ability: string, parameters: Record<string, unknown> }> = []
-    const seenAbilities = new Set<string>()
-
-    for (const candidate of this.extractAbilityJsonCandidates(response)) {
-      try {
-        const parsed = JSON.parse(candidate)
-        if (parsed.ability && typeof parsed.ability === 'string') {
-          // Deduplicate in case fenced and raw match the same JSON
-          const key = `${parsed.ability}:${JSON.stringify(parsed.parameters || {})}`
-          if (!seenAbilities.has(key)) {
-            seenAbilities.add(key)
-            abilityCalls.push({
-              ability: parsed.ability,
-              parameters: parsed.parameters || {},
-            })
-          }
-        }
-      }
-      catch {
-        // Skip invalid JSON
-      }
-    }
-    return abilityCalls
-  }
-
-  private async* streamAIResponseWithProgress(
+  private async streamWithToolSupport(
     messages: AIMessage[],
-    progressPrefix: string,
-    currentAccumulated: string,
-    abortSignal?: AbortSignal,
-  ): AsyncGenerator<{ text: string, isComplete: boolean }, string, unknown> {
-    // CRITICAL: Remove any existing listeners from previous stream iterations
-    // This prevents event listener collision in the agentic loop
+    tools: Array<{ name: string, description: string, input_schema: Record<string, unknown> }> | undefined,
+    abortSignal: AbortSignal | undefined,
+  ): Promise<StreamResult> {
     window.electronAPI.removeAIStreamListeners()
 
-    let fullResponse = ''
+    let fullText = ''
     let streamComplete = false
     let streamError: Error | null = null
+    let stopReason = 'end_turn'
+    const toolCallMap = new Map<number, ToolCallAccumulator>()
+    let currentToolIndex = -1
 
-    const handleChunk = (chunk: string) => {
-      fullResponse += chunk
+    const handleChunk = (chunk: string | Record<string, unknown>) => {
+      if (typeof chunk === 'string') {
+        fullText += chunk
+      }
+      else {
+        const event = chunk as unknown as StreamEvent
+        switch (event.type) {
+          case 'text':
+            fullText += event.text
+            break
+          case 'tool_use_start': {
+            currentToolIndex++
+            toolCallMap.set(currentToolIndex, { id: event.id, name: event.name, jsonParts: [] })
+            break
+          }
+          case 'tool_use_delta': {
+            const idx = parseInt(event.id, 10)
+            const acc = toolCallMap.get(idx) || toolCallMap.get(currentToolIndex)
+            if (acc) acc.jsonParts.push(event.json)
+            break
+          }
+          case 'tool_use_end': // Block complete, input already accumulated
+            break
+          case 'message_end':
+            stopReason = event.stop_reason
+            break
+        }
+      }
     }
 
     const handleEnd = () => {
       streamComplete = true
     }
-
-    const handleError = (error: string) => {
-      streamError = new Error(error)
+    const handleError = (err: string) => {
+      streamError = new Error(err)
       streamComplete = true
     }
 
-    // Set up event listeners
     window.electronAPI.onAIStreamChunk(handleChunk)
     window.electronAPI.onAIStreamEnd(handleEnd)
     window.electronAPI.onAIStreamError(handleError)
 
     try {
-      // Immediately yield progress indicator to show we're starting (before API latency)
-      yield {
-        text: `${currentAccumulated}\n\n${progressPrefix} ⏳`,
-        isComplete: false,
-      }
-
-      // Start the stream
       await window.electronAPI.sendAIMessageStream(
         this.currentProvider.provider,
         messages,
-        { model: this.currentProvider.model },
+        { model: this.currentProvider.model, tools },
       )
 
-      let lastYieldedLength = 0 // How much we've actually shown to UI
-      const CHARS_PER_YIELD = 15 // Release ~15 chars at a time for smooth typing effect
-      const YIELD_INTERVAL = 20 // ms between yields when smoothing
-
-      // Process stream and yield updates with token smoothing
-      while (!streamComplete || lastYieldedLength < fullResponse.length) {
+      while (!streamComplete) {
         if (abortSignal?.aborted) {
           throw new Error('Request was aborted')
         }
-
         if (streamError) {
           throw streamError
         }
-
-        // Smooth token release: yield content incrementally
-        if (fullResponse.length > lastYieldedLength) {
-          // Calculate how much new content to yield this iteration
-          const availableNewContent = fullResponse.length - lastYieldedLength
-          const charsToYield = Math.min(CHARS_PER_YIELD, availableNewContent)
-          const newYieldLength = lastYieldedLength + charsToYield
-
-          const displayContent = fullResponse.substring(0, newYieldLength)
-          const charCount = newYieldLength > 100
-            ? ` (${newYieldLength} chars)`
-            : ''
-          const displayText = newYieldLength > 300
-            ? `${displayContent.substring(0, 300)}...`
-            : displayContent
-
-          const prefixWithCount = `${progressPrefix}${charCount}`
-          const updatedText = `${currentAccumulated}\n\n${prefixWithCount}\n${displayText}`
-          yield { text: updatedText, isComplete: false }
-          lastYieldedLength = newYieldLength
-
-          // Short delay for smooth typing effect
-          await new Promise(resolve => setTimeout(resolve, YIELD_INTERVAL))
-        }
-        else {
-          // No new content yet, poll at normal rate
-          await new Promise(resolve => setTimeout(resolve, 50))
-        }
+        await new Promise(resolve => setTimeout(resolve, 30))
       }
 
-      // Smooth out any remaining content that wasn't yielded during the loop
-      while (lastYieldedLength < fullResponse.length) {
-        const availableNewContent = fullResponse.length - lastYieldedLength
-        const charsToYield = Math.min(CHARS_PER_YIELD, availableNewContent)
-        const newYieldLength = lastYieldedLength + charsToYield
+      if (streamError) throw streamError
 
-        const displayContent = fullResponse.substring(0, newYieldLength)
-        const charCount = newYieldLength > 100 ? ` (${newYieldLength} chars)` : ''
-        const displayText = newYieldLength > 300
-          ? `${displayContent.substring(0, 300)}...`
-          : displayContent
-
-        const prefixWithCount = `${progressPrefix}${charCount}`
-        yield {
-          text: `${currentAccumulated}\n\n${prefixWithCount}\n${displayText}`,
-          isComplete: false,
+      // Parse accumulated tool calls
+      const toolCalls: StreamResult['toolCalls'] = []
+      for (const acc of toolCallMap.values()) {
+        let input: Record<string, unknown> = {}
+        const jsonStr = acc.jsonParts.join('')
+        if (jsonStr) {
+          try {
+            input = JSON.parse(jsonStr)
+          }
+          catch {
+            // Invalid JSON accumulated
+          }
         }
-        lastYieldedLength = newYieldLength
-
-        await new Promise(resolve => setTimeout(resolve, YIELD_INTERVAL))
+        toolCalls.push({ id: acc.id, name: acc.name, input })
       }
 
-      // Final yield with complete response
-      yield {
-        text: `${currentAccumulated}\n\n${progressPrefix}\n${fullResponse}`,
-        isComplete: true,
-      }
-
-      return fullResponse
+      return { text: fullText, toolCalls, stopReason }
     }
     finally {
-      // Clean up event listeners
       window.electronAPI.removeAIStreamListeners()
     }
   }
 
-  private async* handleWithAbilityCalling(aiMessages: AIMessage[], abortSignal?: AbortSignal): AsyncGenerator<{ content: [{ type: 'text', text: string }] }, void, unknown> {
+  /**
+   * Native tool calling loop. The model decides when to use tools via structured tool_use blocks.
+   * No classification, no JSON parsing from text, no completion heuristics needed.
+   */
+  private async* handleNativeToolCalling(
+    aiMessages: AIMessage[],
+    tools: Array<{ name: string, description: string, input_schema: Record<string, unknown> }>,
+    abortSignal?: AbortSignal,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ): AsyncGenerator<{ content: any[] }, void, unknown> {
     if (!this.mcpIntegration) {
       throw new Error('MCP integration not available')
     }
 
-    const conversationHistory = [...aiMessages]
-    const originalUserMessage = conversationHistory[conversationHistory.length - 1]
+    const conversationHistory: AIMessage[] = [...aiMessages]
     let currentIteration = 0
-    let finalResponse = ''
-    let abilitiesRan = ''
-    let accumulatedResponse = ''
 
-    // Agentic loop - continue until task is complete or max iterations reached
+    // Track all completed tool calls for the UI across iterations
+    const completedToolParts: Array<{
+      type: 'tool-call'
+      toolCallId: string
+      toolName: string
+      args: Record<string, unknown>
+      argsText: string
+      result?: string
+      isError?: boolean
+    }> = []
+
+    yield { content: [{ type: 'text' as const, text: '' }] }
+
     while (currentIteration < this.maxAgenticIterations) {
       currentIteration++
-
-      // Report progress and yield update
-      this.onTaskProgress?.({
-        step: currentIteration,
-        totalSteps: this.maxAgenticIterations,
-        currentAction: `Processing step ${currentIteration}`,
-        isComplete: false,
-      })
-
-      const progressUpdate = `🔄 **Iteration ${currentIteration}/${this.maxAgenticIterations}**: Processing step ${currentIteration} of agentic workflow...`
-      accumulatedResponse = progressUpdate
-      yield {
-        content: [{ type: 'text' as const, text: accumulatedResponse }],
-      }
-
-      // Check abort signal
       if (abortSignal?.aborted) {
         throw new Error('Request was aborted')
       }
 
-      // Send enhanced message with context
-      const enhancedMessages = conversationHistory
-
-      // Stream the AI reasoning response
-      let toolChoiceResponse = ''
-      for await (const update of this.streamAIResponseWithProgress(
-        enhancedMessages,
-        '🧠 **Analyzing which tools to use...**',
-        accumulatedResponse,
+      // Stream the AI response with tools, yielding text updates to the UI
+      const result = await this.streamWithToolSupport(
+        conversationHistory,
+        tools,
         abortSignal,
-      )) {
-        // Strip ability JSON from display but keep raw text for parsing
-        yield {
-          content: [{ type: 'text' as const, text: this.stripAbilityJsonForDisplay(update.text) }],
+      )
+
+      // If no tool calls, this is the final response — stream it to the user
+      if (result.toolCalls.length === 0 || result.stopReason !== 'tool_use') {
+        const finalContent: Array<{ type: string, [key: string]: unknown }> = [
+          ...completedToolParts,
+        ]
+
+        // If we got an empty response, provide feedback instead of a blank message
+        if (!result.text) {
         }
-        if (update.isComplete) {
-          toolChoiceResponse = update.text.split('🧠 **Analyzing which tools to use...**\n')[1] || ''
-          accumulatedResponse = this.stripAbilityJsonForDisplay(update.text)
+        const responseText = result.text || 'I encountered an issue processing your request. This may be due to a connection interruption. Please try again.'
+
+        // Stream the final text with smooth typing effect
+        const CHARS_PER_YIELD = 15
+        const YIELD_INTERVAL = 20
+        let yielded = 0
+        while (yielded < responseText.length) {
+          const end = Math.min(yielded + CHARS_PER_YIELD, responseText.length)
+          yield { content: [...finalContent, { type: 'text' as const, text: responseText.substring(0, end) }] }
+          yielded = end
+          await new Promise(resolve => setTimeout(resolve, YIELD_INTERVAL))
         }
+
+        return
       }
 
-      // Check if the first response already contains ability calls
-      // This fixes the regression where the AI produces ability JSON in the first response
-      // but the code previously made an unnecessary second call that could lose the abilities
-      const firstResponseAbilityCalls = this.foundAbilityCallsInResponse(toolChoiceResponse)
-
-      let response = ''
-      if (firstResponseAbilityCalls.length > 0) {
-        // First response already has ability calls - use it directly, skip second AI call
-        response = toolChoiceResponse
+      // Build assistant message with text + tool_use content blocks
+      const assistantContent: Array<{ type: string, [key: string]: unknown }> = []
+      if (result.text) {
+        assistantContent.push({ type: 'text', text: result.text })
       }
-      else {
-        // No abilities in first response - make second call to plan tool execution
-        const selectedTools = this.preContextPrompt([{ role: 'user', content: toolChoiceResponse }])
+      for (const tc of result.toolCalls) {
+        assistantContent.push({ type: 'tool_use', id: tc.id, name: tc.name, input: tc.input })
+      }
+      conversationHistory.push({ role: 'assistant', content: assistantContent })
+      const toolResults: Array<{ type: 'tool_result', tool_use_id: string, content: string }> = []
 
-        // Show transition indicator before next API call
-        accumulatedResponse += '\n\n⏳ _Preparing next step..._'
-        yield {
-          content: [{ type: 'text' as const, text: accumulatedResponse }],
+      for (const tc of result.toolCalls) {
+        // Add in-progress tool call to UI immediately (no result yet)
+        const toolPart = {
+          type: 'tool-call' as const,
+          toolCallId: tc.id,
+          toolName: tc.name,
+          args: tc.input,
+          argsText: JSON.stringify(tc.input, null, 2),
+          result: undefined as string | undefined,
+          isError: undefined as boolean | undefined,
         }
+        completedToolParts.push(toolPart)
 
-        // Stream the tool selection and planning response
-        for await (const update of this.streamAIResponseWithProgress(
-          selectedTools,
-          '🎯 **Planning tool execution...**',
-          accumulatedResponse.replace('\n\n⏳ _Preparing next step..._', ''), // Remove transition indicator
-          abortSignal,
-        )) {
-          // Strip ability JSON from display but keep raw text for parsing
-          yield {
-            content: [{ type: 'text' as const, text: this.stripAbilityJsonForDisplay(update.text) }],
+        try {
+          if (!this.mcpIntegration) {
+            throw new Error('MCP integration lost during agentic flow — connection may have dropped')
           }
-          if (update.isComplete) {
-            response = update.text.split('🎯 **Planning tool execution...**\n')[1] || ''
-            accumulatedResponse = this.stripAbilityJsonForDisplay(update.text)
+          this.updateToolExecutionState(true, tc.name)
+
+          // For interactive widget tools, start execution BEFORE yielding UI
+          // so the server creates the pending request before the widget iframe
+          // loads and calls fetch-accounts-data to get the blockingRequestId.
+          const interactiveWidgetTools = ['connect-reconnect-accounts']
+          let executionPromise: Promise<string | { summary: string, tokenCount: number, wasFiltered: boolean }> | null = null
+
+          if (interactiveWidgetTools.includes(tc.name)) {
+            executionPromise = this.mcpIntegration.executeAbilityCall(tc.name, tc.input)
+            // Small delay so the MCP server processes the request before the widget loads
+            await new Promise(resolve => setTimeout(resolve, 200))
           }
+
+          // Yield current state so UI shows tool as in-progress
+          yield { content: [...completedToolParts, { type: 'text' as const, text: '' }] }
+
+          // Execute tool (for interactive widget tools, the promise was already started above)
+          const executionResult = executionPromise
+            ? await executionPromise
+            : await this.mcpIntegration.executeAbilityCall(tc.name, tc.input)
+
+          const resultString = typeof executionResult === 'object'
+            ? JSON.stringify(executionResult, null, 2)
+            : String(executionResult)
+
+          const storedResult = runCodeResultContext.storeResult(tc.name, resultString)
+          const contextContent = storedResult.wasSummarized ? storedResult.summary : resultString
+
+          // Update the tool part with result
+          toolPart.result = contextContent
+
+          toolResults.push({ type: 'tool_result', tool_use_id: tc.id, content: contextContent })
+          yield { content: [...completedToolParts, { type: 'text' as const, text: '' }] }
         }
-      }
-
-      finalResponse = response
-
-      const abilityCalls = this.foundAbilityCallsInResponse(response)
-
-      // If no abilities to execute, check if task is complete
-      if (abilityCalls.length === 0) {
-        if (this.isTaskComplete(response)) {
-          this.onTaskProgress?.({
-            step: currentIteration,
-            totalSteps: this.maxAgenticIterations,
-            currentAction: 'Task completed successfully',
-            isComplete: true,
+        catch (error) {
+          const errorMsg = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
+          toolPart.result = errorMsg
+          toolPart.isError = true
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: tc.id,
+            content: errorMsg,
           })
-          accumulatedResponse += '\n\n✅ **Task Completed Successfully!**'
-          yield {
-            content: [{ type: 'text' as const, text: accumulatedResponse }],
-          }
-          break
+
+          // Yield updated state so UI shows error
+          yield { content: [...completedToolParts, { type: 'text' as const, text: '' }] }
         }
-        else {
-          // AI didn't call abilities but task might not be complete
-          conversationHistory.push({
-            role: 'assistant',
-            content: response,
-          })
-          conversationHistory.push({
-            role: 'user',
-            content: 'Please continue working on the original request or indicate if you need more information to complete the task.',
-          })
-          accumulatedResponse += '\n\n🔄 **Continuing to next iteration...**'
-          yield {
-            content: [{ type: 'text' as const, text: accumulatedResponse }],
-          }
-          continue
+        finally {
+          this.updateToolExecutionState(false)
+        }
+
+        if (abortSignal?.aborted) {
+          throw new Error('Request was aborted')
         }
       }
 
-      // Execute abilities with streaming updates
-      accumulatedResponse += `\n\n🔧 **Executing ${abilityCalls.length} tool(s):**`
-      yield {
-        content: [{ type: 'text' as const, text: accumulatedResponse }],
+      // If all tools errored and assistant had no text, add context so the model
+      // doesn't see a text-less assistant message (which can cause empty responses)
+      if (toolResults.every(tr => tr.content.startsWith('Error:')) && !result.text) {
+        assistantContent.unshift({ type: 'text', text: 'I attempted to use tools but encountered errors.' })
       }
 
-      // Execute each ability and yield updates in real-time
-      for (const abilityCall of abilityCalls) {
-        const { ability: abilityName, parameters } = abilityCall
-
-        const startMessage = `- **${abilityName}**: Starting execution...`
-        accumulatedResponse += `\n${startMessage}`
-        yield {
-          content: [{ type: 'text' as const, text: accumulatedResponse }],
-        }
-
-        this.onTaskProgress?.({
-          step: currentIteration,
-          totalSteps: this.maxAgenticIterations,
-          currentAction: `Executing ${abilityName}`,
-          isComplete: false,
-        })
-
-        const abilityExists = this.mcpIntegration?.functions.some(f => f.function.name === abilityName)
-
-        if (abilityExists && this.mcpIntegration) {
-          try {
-            this.updateToolExecutionState(true, abilityName)
-
-            // Execute the ability with periodic UI updates
-            const executionPromise = this.mcpIntegration.executeAbilityCall(abilityName, parameters)
-
-            // Yield periodic progress updates while waiting for execution
-            let executionComplete = false
-            let executionResult: any = null
-            let executionError: Error | null = null
-
-            executionPromise
-              .then((result) => {
-                executionResult = result
-                executionComplete = true
-              })
-              .catch((err) => {
-                executionError = err
-                executionComplete = true
-              })
-
-            // Show animated progress while waiting - include elapsed time for visibility
-            let loopCount = 0
-            const startTime = Date.now()
-            while (!executionComplete) {
-              loopCount++
-
-              const elapsedSec = Math.floor((Date.now() - startTime) / 1000)
-              const spinner = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'][loopCount % 10]
-
-              // Update the last line with visible progress (elapsed time + spinner)
-              const lines = accumulatedResponse.split('\n')
-              lines[lines.length - 1] = `- **${abilityName}**: ${spinner} Running... (${elapsedSec}s)`
-              const animatedResponse = lines.join('\n')
-
-              yield {
-                content: [{ type: 'text' as const, text: animatedResponse }],
-              }
-
-              await new Promise(resolve => setTimeout(resolve, 300)) // Faster updates for smoother animation
-            }
-
-            if (executionError) {
-              throw executionError
-            }
-
-            const resultSummary = `✅ **${abilityName}** completed successfully`
-            // Replace the "Executing..." line with success message
-            const lines = accumulatedResponse.split('\n')
-            lines[lines.length - 1] = resultSummary
-            accumulatedResponse = lines.join('\n')
-            yield {
-              content: [{ type: 'text' as const, text: accumulatedResponse }],
-            }
-
-            abilitiesRan += `\n\n🚀 **${abilityName}** executed`
-            // Properly serialize the result - executionResult is an object
-            const resultString = typeof executionResult === 'object'
-              ? JSON.stringify(executionResult, null, 2)
-              : String(executionResult)
-
-            // Store result in context service for intelligent summarization
-            // This keeps full results if under 25k tokens, otherwise summarizes
-            const storedResult = runCodeResultContext.storeResult(abilityName, resultString)
-
-            // Use the context-appropriate content (full or summarized)
-            const contextContent = storedResult.wasSummarized
-              ? storedResult.summary
-              : resultString
-
-            abilitiesRan += `\n**Result:**\n\`\`\`json\n${contextContent}\n\`\`\``
-
-            // If result was summarized, mention it so AI knows full data was captured
-            if (storedResult.wasSummarized) {
-              abilitiesRan += `\n_[Result was large (${storedResult.tokenCount} tokens) - summarized with key data preserved. IDs, URLs, and important values extracted for future use.]_`
-            }
-
-            if (abortSignal?.aborted) {
-              throw new Error('Request was aborted')
-            }
-          }
-          catch (error) {
-            const errorMessage = `❌ **${abilityName}** failed: ${error instanceof Error ? error.message : 'Unknown error'}`
-            accumulatedResponse += `\n${errorMessage}`
-            yield {
-              content: [{ type: 'text' as const, text: accumulatedResponse }],
-            }
-            abilitiesRan += `\n\n❌ **Error:** Failed to execute ${abilityName} - ${error instanceof Error ? error.message : 'Unknown error'}`
-          }
-          finally {
-            this.updateToolExecutionState(false)
-          }
-        }
-        else {
-          const searchResult = this.mcpIntegration?.searchAbilities(abilityName, 3)
-          if (searchResult && searchResult.matches.length > 0) {
-            const suggestions = searchResult.matches.map(m => m.ability.name).join(', ')
-            const errorMessage = `⚠️ **${abilityName}** not found. Similar: ${suggestions}`
-            accumulatedResponse += `\n${errorMessage}`
-            yield {
-              content: [{ type: 'text' as const, text: accumulatedResponse }],
-            }
-            abilitiesRan += `\n\n⚠️ **Error:** Ability '${abilityName}' not found. Similar abilities: ${suggestions}`
-          }
-          else {
-            const errorMessage = `⚠️ **${abilityName}** not found`
-            accumulatedResponse += `\n${errorMessage}`
-            yield {
-              content: [{ type: 'text' as const, text: accumulatedResponse }],
-            }
-            abilitiesRan += `\n\n⚠️ **Error:** Ability '${abilityName}' not found`
-          }
-        }
-      }
-
-      // Update accumulated response with tool results summary
-      // Show a brief summary of abilities that ran (avoid truncating mid-code-fence)
-      const abilitySummaryLines = abilitiesRan.split('\n').filter(l => l.includes('**') && l.includes('executed'))
-      accumulatedResponse += `\n\n📊 **Tool Results:**\n${abilitySummaryLines.join('\n') || 'Abilities executed.'}`
-      yield {
-        content: [{ type: 'text' as const, text: accumulatedResponse }],
-      }
-
-      // Show transition indicator before analyzing results (there will be API latency)
-      accumulatedResponse += '\n\n⏳ _Analyzing results..._'
-      yield {
-        content: [{ type: 'text' as const, text: accumulatedResponse }],
-      }
-
-      // Add conversation history for next iteration
-      conversationHistory.push({
-        role: 'assistant',
-        content: `${response} here is result of abilities I just ran ${abilitiesRan}`,
-      })
-
-      conversationHistory.push({
-        role: 'user',
-        content: `Nice, please analyze your results and either:\n1. Continue working by calling more abilities if needed, OR\n2. Provide your final response if the task is now complete.\n\nMake sure to clearly indicate when the task is complete.`,
-      })
+      // Add tool results as a user message (Anthropic format)
+      conversationHistory.push({ role: 'user', content: toolResults })
     }
 
-    // If we've reached max iterations, indicate this
-    if (currentIteration >= this.maxAgenticIterations) {
-      finalResponse += `\n\n⚠️ **Note:** Reached maximum number of agentic iterations (${this.maxAgenticIterations}). The task may not be fully complete.`
-      this.onTaskProgress?.({
-        step: currentIteration,
-        totalSteps: this.maxAgenticIterations,
-        currentAction: 'Maximum iterations reached',
-        isComplete: false,
-      })
-
-      accumulatedResponse += '\n\n⚠️ **Maximum iterations reached**'
-      yield {
-        content: [{ type: 'text' as const, text: accumulatedResponse }],
-      }
-    }
-    conversationHistory.push({
-      role: 'assistant',
-      content: 'the task is complete',
-    })
-
-    const analysisPrompt = [...conversationHistory, {
-      role: 'user' as const,
-      content: `Please analyze the following execution results and provide a clear summary:
-
-**Original Request:** ${originalUserMessage.content}
-
-Provide a concise analysis covering:
-1. What was accomplished
-2. Key results or outputs
-3. Whether the original request was fully satisfied
-4. Any important findings or next steps
-
-Keep it clear and actionable.`,
-    }]
-
-    let analysisResponse = ''
-    for await (const update of this.streamAIResponseWithProgress(
-      analysisPrompt,
-      '🔍 **Analyzing execution results...**',
-      accumulatedResponse,
-      abortSignal,
-    )) {
-      yield {
-        content: [{ type: 'text' as const, text: update.text }],
-      }
-      if (update.isComplete) {
-        analysisResponse = update.text.split('🔍 **Analyzing execution results...**\n')[1] || ''
-        accumulatedResponse = update.text
-      }
-    }
-
-    // Format the complete response with collapsible JSON results
-    const formattedResponse = `
-
-## Analysis
-${analysisResponse}`
-
-    // Yield final complete response
-    yield {
-      content: [{ type: 'text' as const, text: formattedResponse }],
+    // Max iterations reached — get a final summary
+    const finalResult = await this.streamWithToolSupport(conversationHistory, undefined, abortSignal)
+    const finalContent: Array<{ type: string, [key: string]: unknown }> = [...completedToolParts]
+    const CHARS_PER_YIELD = 15
+    const YIELD_INTERVAL = 20
+    let yielded = 0
+    while (yielded < finalResult.text.length) {
+      const end = Math.min(yielded + CHARS_PER_YIELD, finalResult.text.length)
+      yield { content: [...finalContent, { type: 'text' as const, text: finalResult.text.substring(0, end) }] }
+      yielded = end
+      await new Promise(resolve => setTimeout(resolve, YIELD_INTERVAL))
     }
   }
 
-  async* run({ messages, abortSignal }: { messages: readonly Array<{ role: string, content: Array<{ type: string, text?: string }> }>, abortSignal?: AbortSignal }) {
-    try {
-      // Convert assistant-ui messages to our AI provider format
-      const aiMessages: AIMessage[] = messages.map((message) => {
-        // Get the text content from message
-        const textContent = message.content
-          ?.find(c => c.type === 'text')?.text || ''
+  /**
+   * Convert @assistant-ui/react messages to AIMessage[], preserving tool-call history.
+   * assistant-ui stores tool calls as { type: 'tool-call', toolCallId, toolName, args, result }.
+   * We convert these to Anthropic-format tool_use blocks on the assistant message,
+   * and synthesize a following user message with tool_result blocks so the model
+   * retains full context of prior tool interactions across turns.
+   */
+  private convertMessagesToAI(messages: any[]): AIMessage[] {
+    const aiMessages: AIMessage[] = []
 
-        return {
-          role: message.role as 'user' | 'assistant' | 'system',
-          content: textContent,
-        }
-      })
+    for (const message of messages) {
+      const role = message.role as 'user' | 'assistant' | 'system'
+      const parts: any[] = message.content || []
 
-      // Check if this is the first user message and generate thread title
-      const userMessages = aiMessages.filter(m => m.role === 'user')
-      if (userMessages.length === 1 && userMessages[0]?.content) {
-        // Generate title asynchronously (non-blocking)
-        this.generateThreadTitle(userMessages[0].content)
-      }
+      if (role === 'assistant') {
+        const textParts = parts.filter((c: any) => c.type === 'text')
+        const toolCallParts = parts.filter((c: any) => c.type === 'tool-call')
 
-      // Check for missing connections before proceeding (only for keyboard provider with MCP)
-      if (this.currentProvider.provider === 'keyboard' && this.currentProvider.mcpEnabled && !this.skipConnectionCheck) {
-        const lastUserMessage = aiMessages.filter(m => m.role === 'user').pop()
-        if (lastUserMessage?.content) {
-          // Pass full conversation history for proper context understanding
-          const connectionResult = await this.checkConnectionRequirements(aiMessages)
+        if (toolCallParts.length > 0) {
+          // Build assistant message with text + tool_use content blocks
+          const contentBlocks: Array<{ type: string, [key: string]: unknown }> = []
+          for (const tp of textParts) {
+            if (tp.text) contentBlocks.push({ type: 'text', text: tp.text })
+          }
+          for (const tc of toolCallParts) {
+            contentBlocks.push({
+              type: 'tool_use',
+              id: tc.toolCallId,
+              name: tc.toolName,
+              input: tc.args || {},
+            })
+          }
+          aiMessages.push({ role: 'assistant', content: contentBlocks })
 
-          if (!connectionResult.hasAllConnections && connectionResult.missingConnections.length > 0) {
-            // Store the user message for potential "continue anyway" flow
-            this.lastUserMessageForConnectionCheck = lastUserMessage.content
-
-            // Notify callback about missing connections
-            if (this.onMissingConnectionsDetected) {
-              this.onMissingConnectionsDetected(connectionResult)
-            }
-
-            // Yield a response indicating missing connections
-            const serviceNames = connectionResult.missingConnections.map(c => c.name).join(', ')
-            yield {
-              content: [{
-                type: 'text' as const,
-                text: `I don't have access to ${serviceNames} tools - I'm currently missing some app connections.\n\nTo complete your request, I would need access to the following services. Please connect them using the prompts above, then try again.`,
-              }],
-            }
-            return
+          // Synthesize a user message with tool_result blocks
+          const toolResults = toolCallParts
+            .filter((tc: any) => tc.result !== undefined)
+            .map((tc: any) => ({
+              type: 'tool_result',
+              tool_use_id: tc.toolCallId,
+              content: typeof tc.result === 'string' ? tc.result : JSON.stringify(tc.result),
+            }))
+          if (toolResults.length > 0) {
+            aiMessages.push({ role: 'user', content: toolResults })
           }
         }
+        else {
+          // Plain text assistant message
+          const textContent = textParts.map((c: any) => c.text || '').join('') || ''
+          aiMessages.push({ role, content: textContent })
+        }
+      }
+      else {
+        // User and system messages — extract text as before
+        const textContent = parts.find?.((c: any) => c.type === 'text')?.text
+          || (typeof message.content === 'string' ? message.content : '')
+        aiMessages.push({ role, content: textContent })
+      }
+    }
+
+    return aiMessages
+  }
+
+  async* run({ messages, abortSignal }: any) {
+    try {
+      const aiMessages = this.convertMessagesToAI(messages as any[])
+
+      // Generate thread title on first user message
+      const userMessages = aiMessages.filter(m => m.role === 'user')
+      if (userMessages.length === 1 && userMessages[0]?.content) {
+        this.generateThreadTitle(userMessages[0].content as string)
       }
 
-      // Inject enhanced context into system prompt for keyboard provider
+      // Inject enhanced context into system prompt
       if (this.currentProvider.provider === 'keyboard' && this.currentProvider.mcpEnabled && aiMessages.length > 0) {
         try {
-          // Get the user's message for context
           const lastUserMessage = aiMessages[aiMessages.length - 1]
           if (lastUserMessage?.role === 'user') {
-            // Get enhanced context with planning token, user tokens, and codespace info
-            const enhancedSystemPrompt = await contextService.buildEnhancedSystemPrompt(lastUserMessage.content)
+            const enhancedSystemPrompt = await contextService.buildEnhancedSystemPrompt(lastUserMessage.content as string)
             const existingSystemIndex = aiMessages.findIndex(m => m.role === 'system')
             if (existingSystemIndex >= 0) {
-              // Replace existing system message with enhanced one
               aiMessages[existingSystemIndex].content = enhancedSystemPrompt
             }
             else {
-              // Add new system message at the beginning
-              aiMessages.unshift({
-                role: 'system',
-                content: enhancedSystemPrompt,
-              })
+              aiMessages.unshift({ role: 'system', content: enhancedSystemPrompt })
             }
           }
         }
-        catch (error) {
+        catch {
           // Silent fail
         }
       }
 
-      // Special handling for MCP provider (legacy)
-      if (this.currentProvider.provider === 'mcp') {
-        return {
-          content: [{
-            type: 'text' as const,
-            text: `🔌 MCP Provider: This provider uses the Model Context Protocol. Please use the MCP chat component for full functionality.`,
-          }],
-        }
-      }
-
-      // Check if provider is configured
+      // Check provider is configured
       const providerStatus = await window.electronAPI.getAIProviderKeys()
       const currentProviderStatus = providerStatus.find(p => p.provider === this.currentProvider.provider)
-
       if (!currentProviderStatus?.configured && this.currentProvider.provider !== 'keyboard') {
-        return {
-          content: [{
-            type: 'text' as const,
-            text: `❌ ${this.currentProvider.provider} is not configured. Please set up your API key in Settings > AI Providers.`,
-          }],
-        }
+        yield { content: [{ type: 'text' as const, text: `${this.currentProvider.provider} is not configured. Please set up your API key in Settings > AI Providers.` }] }
+        return
       }
 
-      // Check if request was aborted
       if (abortSignal?.aborted) {
         throw new Error('Request was aborted')
       }
 
-      // Handle keyboard.dev ability calling if enabled
+      // Native tool calling — no classification needed, model decides
       const abilitiesAvailable = this.mcpIntegration?.functions || []
       if (this.currentProvider.mcpEnabled && abilitiesAvailable.length > 0) {
-        // Classify query complexity first to route to appropriate handler
-        let queryType = await this.classifyQueryComplexity(aiMessages)
-        if (queryType === 'simple' && this.skipConnectionCheck) {
-          queryType = 'agentic'
+        // Filter out tools whose data is already provided in the system prompt
+        // to prevent the model from making redundant calls before getting to actual work
+        const redundantTools = new Set([
+          'required-starting-context-information',
+          'connect-websocket',
+          'fetch-accounts-data',
+        ])
+        const filteredAbilities = abilitiesAvailable.filter(
+          a => !redundantTools.has(a.function.name),
+        )
+        const nativeTools = ProviderFormats.anthropic.convertTools(filteredAbilities) as Array<{ name: string, description: string, input_schema: Record<string, unknown> }>
+        for await (const result of this.handleNativeToolCalling(aiMessages, nativeTools, abortSignal)) {
+          yield result
         }
-        // Reset skip flag after use
-        this.skipConnectionCheck = false
-
-        if (queryType === 'web-search') {
-          // Web search query - use streamlined web search workflow with current date context
-          for await (const result of this.handleWebSearch(aiMessages, abortSignal)) {
-            yield result
-          }
-          return
-        }
-
-        if (queryType === 'agentic') {
-          // Complex query - use full tool-calling workflow
-          for await (const result of this.handleWithAbilityCalling(aiMessages, abortSignal)) {
-            yield result
-          }
-          return
-        }
-        // Simple query - fall through to regular streaming response below
+        return
       }
 
       if (abortSignal?.aborted) {
         throw new Error('Request was aborted')
       }
 
-      // Set up streaming event handlers
-      let accumulatedText = ''
-      let streamComplete = false
-      let streamError: Error | null = null
+      // Simple streaming (no tools) — for non-MCP providers or when no tools available
+      const streamResult = await this.streamWithToolSupport(aiMessages, undefined, abortSignal)
 
-      const handleChunk = (chunk: string) => {
-        accumulatedText += chunk
-      }
-
-      const handleEnd = () => {
-        streamComplete = true
-      }
-
-      const handleError = (error: string) => {
-        streamError = new Error(error)
-        streamComplete = true
-      }
-
-      // Set up event listeners
-      window.electronAPI.onAIStreamChunk(handleChunk)
-      window.electronAPI.onAIStreamEnd(handleEnd)
-      window.electronAPI.onAIStreamError(handleError)
-
-      try {
-        // Start the stream
-        await window.electronAPI.sendAIMessageStream(
-          this.currentProvider.provider,
-          aiMessages,
-          { model: this.currentProvider.model },
-        )
-
-        let lastYieldedLength = 0
-        const CHARS_PER_YIELD = 15 // Smooth typing effect
-        const YIELD_INTERVAL = 20 // ms between yields
-
-        while (!streamComplete || lastYieldedLength < accumulatedText.length) {
-          if (abortSignal?.aborted) {
-            throw new Error('Request was aborted')
-          }
-
-          if (streamError) {
-            throw streamError
-          }
-
-          // Smooth token release: yield content incrementally
-          if (accumulatedText.length > lastYieldedLength) {
-            const availableNew = accumulatedText.length - lastYieldedLength
-            const charsToYield = Math.min(CHARS_PER_YIELD, availableNew)
-            const newYieldLength = lastYieldedLength + charsToYield
-
-            yield {
-              content: [{ type: 'text' as const, text: accumulatedText.substring(0, newYieldLength) }],
-            }
-            lastYieldedLength = newYieldLength
-
-            // Short delay for smooth typing effect
-            await new Promise(resolve => setTimeout(resolve, YIELD_INTERVAL))
-          }
-          else {
-            // No new content yet, poll at normal rate
-            await new Promise(resolve => setTimeout(resolve, 50))
-          }
-        }
-
-        // Safety net: if the AI produced ability-call JSON in a "simple" response,
-        // it means the classifier was wrong. Parse and execute the abilities.
-        if (this.mcpIntegration && this.foundAbilityCallsInResponse(accumulatedText).length > 0) {
-          // Clean up stream listeners before re-routing
-          window.electronAPI.removeAIStreamListeners()
-          // Re-run through the agentic handler with the accumulated context
-          for await (const result of this.handleWithAbilityCalling(aiMessages, abortSignal)) {
-            yield result
-          }
-          return
-        }
-      }
-      finally {
-        // Clean up event listeners
-        window.electronAPI.removeAIStreamListeners()
+      const CHARS_PER_YIELD = 15
+      const YIELD_INTERVAL = 20
+      let yielded = 0
+      while (yielded < streamResult.text.length) {
+        const end = Math.min(yielded + CHARS_PER_YIELD, streamResult.text.length)
+        yield { content: [{ type: 'text' as const, text: streamResult.text.substring(0, end) }] }
+        yielded = end
+        await new Promise(resolve => setTimeout(resolve, YIELD_INTERVAL))
       }
     }
     catch (err) {
-      // Handle abort errors gracefully
       if (err instanceof Error && err.name === 'AbortError') {
-        throw err // Re-throw abort errors
+        throw err
       }
-
-      // Handle other errors gracefully
       const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred'
-
-      return {
-        content: [{
-          type: 'text' as const,
-          text: `❌ Error: ${errorMessage}`,
-        }],
-      }
+      yield { content: [{ type: 'text' as const, text: `Error: ${errorMessage}` }] }
     }
     finally {
-      // Ensure we stop pinging when the run method completes
       this.cleanup()
     }
-  }
-}
-
-// Helper to create adapters for different providers
-export const createOpenAIAdapter = (model: string = 'gpt-3.5-turbo', mcpEnabled: boolean = false) =>
-  new AIChatAdapter('openai', model, mcpEnabled)
-
-export const createAnthropicAdapter = (model: string = 'claude-sonnet-4-6', mcpEnabled: boolean = false) =>
-  new AIChatAdapter('anthropic', model, mcpEnabled)
-
-export const createGeminiAdapter = (model: string = 'gemini-2.5-flash', mcpEnabled: boolean = false) =>
-  new AIChatAdapter('gemini', model, mcpEnabled)
-
-export const createMCPAdapter = (model: string = 'mcp-server') =>
-  new AIChatAdapter('mcp', model)
-
-// Check provider availability function
-export async function checkProviderAvailability(): Promise<Array<{ provider: string, configured: boolean }>> {
-  try {
-    const providerStatus = await window.electronAPI.getAIProviderKeys()
-    return providerStatus || []
-  }
-  catch (error) {
-    return []
   }
 }

@@ -12,10 +12,18 @@ export class OAuthHttpServer {
   private server: http.Server | null = null
   private port: number = 8080
   private isRunning: boolean = false
+  private callbackPath: string = '/callback'
+  private host: string = 'localhost'
 
-  constructor(port?: number) {
-    if (port) {
+  constructor(port?: number, options?: { callbackPath?: string, host?: string }) {
+    if (port !== undefined) {
       this.port = port
+    }
+    if (options?.callbackPath) {
+      this.callbackPath = options.callbackPath
+    }
+    if (options?.host) {
+      this.host = options.host
     }
   }
 
@@ -33,7 +41,7 @@ export class OAuthHttpServer {
         try {
           const parsedUrl = url.parse(req.url || '', true)
 
-          if (parsedUrl.pathname === '/callback') {
+          if (parsedUrl.pathname === this.callbackPath) {
             const { code, state, error, error_description } = parsedUrl.query
 
             // Send success/error page
@@ -115,8 +123,13 @@ export class OAuthHttpServer {
         }
       })
 
-      this.server.listen(this.port, 'localhost', () => {
+      this.server.listen(this.port, this.host, () => {
         this.isRunning = true
+        // Update port to actual assigned port (important when port 0 is used for random port)
+        const addr = this.server?.address()
+        if (addr && typeof addr === 'object') {
+          this.port = addr.port
+        }
         resolve()
       })
 
@@ -150,7 +163,7 @@ export class OAuthHttpServer {
    * Get the callback URL for this server
    */
   getCallbackUrl(): string {
-    return `http://localhost:${this.port}/callback`
+    return `http://${this.host}:${this.port}${this.callbackPath}`
   }
 
   /**

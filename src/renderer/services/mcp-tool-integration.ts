@@ -1,10 +1,9 @@
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
 import { useMcpClient } from '../hooks/useMcpClient'
 import { AbilityDiscoveryService, type AbilitySearchResult } from './ability-discovery'
-import { generateFingerprint, registerPendingCall, removePendingCall } from './pending-tool-calls'
+import { generateFingerprint, registerInteractiveToolCall, registerPendingCall, removePendingCall } from './pending-tool-calls'
 import { ResultProcessorService } from './result-processor'
 import { toolCacheService } from './tool-cache-service'
-import { webSearchTool } from './web-search-tool'
 
 /**
  * Universal MCP Ability Integration Service
@@ -127,6 +126,17 @@ export function useMCPIntegration(
   // Use cached tools as fallback when MCP client isn't ready
   const availableTools = mcpClient.tools.length > 0 ? mcpClient.tools : toolCacheService.getAllTools()
 
+  // Filter out app-only tools (visibility: ['app']) — these are widget-internal helpers
+  // that should not be callable by the AI model (e.g. search-apps, fetch-accounts-data).
+  // The AI should use the parent tool (e.g. connect-reconnect-accounts) which blocks properly.
+  const modelVisibleTools = availableTools.filter((tool) => {
+    const visibility = (tool as any)?._meta?.ui?.visibility
+    if (Array.isArray(visibility) && visibility.includes('app') && !visibility.includes('model')) {
+      return false
+    }
+    return true
+  })
+
   // Log status for debugging
   if (availableTools.length === 0) {
   }
@@ -136,8 +146,8 @@ export function useMCPIntegration(
   const integrationState: MCPIntegrationState = {
     isEnabled: true, // Always enabled when using this hook
     isConnected: mcpClient.state === 'ready',
-    abilities: availableTools,
-    functions: convertMCPAbilitiesToFunctions(availableTools),
+    abilities: modelVisibleTools,
+    functions: convertMCPAbilitiesToFunctions(modelVisibleTools),
     error: mcpClient.error,
     abilityDiscovery,
     resultProcessor,
@@ -158,22 +168,29 @@ export function useMCPIntegration(
   }
 
   /**
-   * Helper: wait for MCP client to reach 'ready' state after a reconnect attempt
+   * Helper: wait for MCP client to reconnect by polling the client ref's availability.
+   * Note: mcpClient.state is a React state snapshot and won't update inside this closure,
+   * so we rely on retry() completing (which resolves the connect() promise) and then
+   * attempt a simple tool list to verify the connection is live.
    */
-  const waitForReconnect = (timeoutMs: number = 10000): Promise<boolean> => {
+  const waitForReconnect = (timeoutMs: number = 15000): Promise<boolean> => {
     return new Promise((resolve) => {
       if (mcpClient.state === 'ready') return resolve(true)
+      // Just wait for the retry() to complete — the connect() call inside useMcpClient
+      // will set state to 'ready' and restore the client ref
       const start = Date.now()
       const interval = setInterval(() => {
-        if (mcpClient.state === 'ready') {
-          clearInterval(interval)
-          resolve(true)
-        }
-        else if (Date.now() - start > timeoutMs) {
+        // Check if enough time has passed for reconnect to complete
+        if (Date.now() - start > timeoutMs) {
           clearInterval(interval)
           resolve(false)
         }
-      }, 500)
+      }, 1000)
+      // Also resolve early if retry succeeds (connect resolves before timeout)
+      setTimeout(() => {
+        clearInterval(interval)
+        resolve(true) // Optimistically assume reconnect worked — attemptToolCall will fail if not
+      }, Math.min(5000, timeoutMs))
     })
   }
 
@@ -190,50 +207,46 @@ export function useMCPIntegration(
       throw new Error('No tools available. Please ensure connection to mcp.keyboard.dev or wait for tools to be cached.')
     }
 
-    // Intercept web-search calls and route to local implementation
-    if (functionName === 'web-search') {
-      if (!args.query || typeof args.query !== 'string') {
-        throw new Error('Query parameter is required for web search and must be a string')
-      }
-      if (!args.company || typeof args.company !== 'string') {
-        throw new Error('Company parameter is required for web search and must be a string')
-      }
-
-      const result = await webSearchTool.execute({
-        provider: typeof args.provider === 'string' ? args.provider : undefined,
-        query: args.query,
-        company: args.company,
-        maxResults: typeof args.maxResults === 'number' ? args.maxResults : undefined,
-        prioritizeMarkdown: typeof args.prioritizeMarkdown === 'boolean' ? args.prioritizeMarkdown : undefined,
-        prioritizeDocs: typeof args.prioritizeDocs === 'boolean' ? args.prioritizeDocs : undefined,
-        includeDomains: Array.isArray(args.includeDomains) ? args.includeDomains as string[] : undefined,
-        excludeDomains: Array.isArray(args.excludeDomains) ? args.excludeDomains as string[] : undefined,
-      })
-
-      if (executionId) {
-        executionTracker?.updateExecution(executionId, {
-          status: 'success',
-          response: result,
-          metadata: { isLocalExecution: true, intercepted: true },
-        })
-      }
-      return result
-    }
-
     const { name, args: abilityArgs } = prepareMCPAbilityCall(functionName, args)
     const startTime = performance.now()
 
+    const interactiveWidgetTools = ['connect-reconnect-accounts']
     const toolsRequiringApproval = ['run-code']
     let result: CallToolResult
     let pendingCallId: string | null = null
 
-    if (toolsRequiringApproval.includes(name)) {
+    if (interactiveWidgetTools.includes(name)) {
+      // Fire-and-forget: creates the server-side pending request so the widget can fetch the requestId
+      mcpClient.callTool(name, abilityArgs).catch(() => {})
+
+      const interactiveTimeout = 10 * 60 * 1000
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Interactive tool timed out waiting for user action')), interactiveTimeout)
+      })
+
+      await Promise.race([
+        registerInteractiveToolCall(name),
+        timeoutPromise,
+      ])
+
+      // User confirmed — fetch fresh account data
+      const freshData = await mcpClient.callTool('list-connected-accounts', {})
+      result = freshData
+    }
+    else if (toolsRequiringApproval.includes(name)) {
       const explanation = typeof abilityArgs.explanation_of_code === 'string'
         ? abilityArgs.explanation_of_code
         : undefined
       const fingerprint = explanation ? generateFingerprint(explanation) : undefined
       const pending = registerPendingCall(name, fingerprint)
       pendingCallId = pending.id
+
+      // Add a timeout so the pending promise doesn't hang forever (10 min)
+      const pendingTimeout = 10 * 60 * 1000
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error(`Tool call ${name} timed out after ${pendingTimeout / 1000}s. If this was a background job, try using list-background-jobs or poll-background-job to check its status.`)), pendingTimeout)
+      })
+
       try {
         result = await Promise.race([
           mcpClient.callTool(name, abilityArgs).then((mcpResult) => {
@@ -243,6 +256,7 @@ export function useMCPIntegration(
           pending.promise.then((approvalResult) => {
             return approvalResult
           }),
+          timeoutPromise,
         ])
       }
       catch (raceError) {
@@ -285,12 +299,16 @@ export function useMCPIntegration(
         || errorMessage.includes('connection')
         || errorMessage.includes('not available')
         || errorMessage.includes('MCP client is not available')
+        || errorMessage.includes('SSE')
+        || errorMessage.includes('PROTOCOL_ERROR')
+        || errorMessage.includes('disconnected')
+        || errorMessage.includes('Failed')
 
       // On connection error, attempt reconnect + single retry
       if (isConnectionError) {
         try {
           mcpClient.retry()
-          const reconnected = await waitForReconnect(10000)
+          const reconnected = await waitForReconnect(15000)
           if (reconnected) {
             return await attemptToolCall(functionName, args, executionId)
           }
@@ -332,6 +350,9 @@ export function useMCPIntegration(
     searchAbilities,
     getMinimalAbilityDefinitions,
     retry: mcpClient.retry,
+    // Expose raw MCP client functions for MCP Apps host
+    mcpCallTool: mcpClient.callTool,
+    mcpReadResource: mcpClient.readResource,
   }
 }
 

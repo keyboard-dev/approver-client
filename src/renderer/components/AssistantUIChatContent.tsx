@@ -1,11 +1,11 @@
 import { AssistantRuntimeProvider, useLocalRuntime } from '@assistant-ui/react'
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Message } from '../../types'
 import { useAuth } from '../hooks/useAuth'
 import { useMCPEnhancedChat } from '../hooks/useMCPEnhancedChat'
 import { useWebSocketConnection } from '../hooks/useWebSocketConnection'
+import { McpClientProvider } from '../services/mcp-client-context'
 import { AbilityExecutionPanel } from './AbilityExecutionPanel'
-import { AgenticStatusIndicator } from './AgenticStatusIndicator'
 import { Thread } from './assistant-ui/thread'
 import { MCPChatComponent } from './MCPChatComponent'
 import { Badge } from './ui/badge'
@@ -23,6 +23,14 @@ interface ProviderConfig {
   name: string
   models: Array<{ id: string, name: string }>
   supportsMCP?: boolean
+}
+
+interface OrgProviderData {
+  configured: boolean
+  provider_type?: string
+  display_name?: string
+  is_active?: boolean
+  allowed_models?: string[] | null
 }
 
 export const PROVIDERS: ProviderConfig[] = [
@@ -83,6 +91,8 @@ export const AssistantUIChatContent: React.FC<AssistantUIChatContentProps> = ({
   const mcpEnabled = true // Always enabled
   const [availableProviders, setAvailableProviders] = useState<string[]>([])
   const [showExecutionPanel, setShowExecutionPanel] = useState(false)
+  const [orgProvider, setOrgProvider] = useState<OrgProviderData | null>(null)
+  const [dynamicProviders, setDynamicProviders] = useState<ProviderConfig[]>(PROVIDERS)
 
   // Auth and WebSocket connection management
   const { authStatus, isSkippingAuth } = useAuth()
@@ -101,21 +111,44 @@ export const AssistantUIChatContent: React.FC<AssistantUIChatContentProps> = ({
   useEffect(() => {
     const loadProviders = async () => {
       try {
-        const providerStatus = await window.electronAPI.getAIProviderKeys()
-        const configured = providerStatus
-          .filter(p => p.configured)
-          .map(p => p.provider)
+        // Fetch org provider and personal API keys in parallel
+        const [orgResult, providerStatus] = await Promise.all([
+          window.electronAPI.getOrgAIProvider().catch(() => ({ success: false, data: null })),
+          window.electronAPI.getAIProviderKeys(),
+        ])
 
-        // Always include Keyboard and MCP as they don't require traditional API keys
-        const allAvailable = ['keyboard', ...configured, 'mcp']
-        setAvailableProviders(allAvailable)
+        const orgData = orgResult.success && orgResult.data ? orgResult.data : null
+        setOrgProvider(orgData)
 
-        // Set default to first available provider
-        if (allAvailable.length > 0 && !allAvailable.includes(selectedProvider)) {
-          setSelectedProvider(allAvailable[0])
-          const provider = PROVIDERS.find(p => p.id === allAvailable[0])
-          if (provider?.models[0]) {
-            setSelectedModel(provider.models[0].id)
+        if (orgData?.configured && orgData.allowed_models?.length) {
+          // Org provider is configured with allowed models — use those
+          const orgKeyboardProvider: ProviderConfig = {
+            id: 'keyboard',
+            name: orgData.display_name || 'Organization Provider',
+            supportsMCP: true,
+            models: orgData.allowed_models.map(modelId => ({ id: modelId, name: modelId })),
+          }
+          setDynamicProviders([orgKeyboardProvider])
+          setAvailableProviders(['keyboard'])
+          setSelectedProvider('keyboard')
+          setSelectedModel(orgData.allowed_models[0])
+        }
+        else {
+          // No org provider — use personal API keys as before
+          const configured = providerStatus
+            .filter(p => p.configured)
+            .map(p => p.provider)
+
+          const allAvailable = ['keyboard', ...configured, 'mcp']
+          setDynamicProviders(PROVIDERS)
+          setAvailableProviders(allAvailable)
+
+          if (allAvailable.length > 0 && !allAvailable.includes(selectedProvider)) {
+            setSelectedProvider(allAvailable[0])
+            const provider = PROVIDERS.find(p => p.id === allAvailable[0])
+            if (provider?.models[0]) {
+              setSelectedModel(provider.models[0].id)
+            }
           }
         }
       }
@@ -126,7 +159,7 @@ export const AssistantUIChatContent: React.FC<AssistantUIChatContentProps> = ({
       }
     }
     loadProviders()
-  }, [selectedProvider])
+  }, [])
 
   // Get current provider config
   const currentProvider = PROVIDERS.find(p => p.id === selectedProvider)
@@ -134,7 +167,6 @@ export const AssistantUIChatContent: React.FC<AssistantUIChatContentProps> = ({
   // Set MCP to always enabled and auto-connect to codespace
   useEffect(() => {
     mcpChat.setMCPEnabled(true)
-    mcpChat.setAgenticMode(true)
   }, [mcpChat])
 
   useEffect(() => {
@@ -181,6 +213,13 @@ export const AssistantUIChatContent: React.FC<AssistantUIChatContentProps> = ({
 
   const runtime = useLocalRuntime(mcpChat.adapter)
 
+  // MCP Apps host context value
+  const mcpClientContextValue = useMemo(() => ({
+    callTool: mcpChat.mcpCallTool,
+    readResource: mcpChat.mcpReadResource,
+    toolResourceMap: mcpChat.toolResourceMap,
+  }), [mcpChat.mcpCallTool, mcpChat.mcpReadResource, mcpChat.toolResourceMap])
+
   // Handler for provider change
   const handleProviderChange = (providerId: string, defaultModelId?: string) => {
     setSelectedProvider(providerId)
@@ -191,83 +230,74 @@ export const AssistantUIChatContent: React.FC<AssistantUIChatContentProps> = ({
 
   return (
     <TooltipProvider>
-      <AssistantRuntimeProvider runtime={runtime}>
-        <div className="w-full h-full flex flex-col overflow-hidden">
-          {/* Optional header badges */}
-          {(selectedProvider === 'mcp' || availableProviders.length === 0) && (
-            <div className="flex items-center gap-2 p-2">
-              {selectedProvider === 'mcp' && (
-                <Badge variant="outline" className="text-xs">
-                  🔌 MCP Legacy Mode
-                </Badge>
-              )}
+      <McpClientProvider value={mcpClientContextValue}>
+        <AssistantRuntimeProvider runtime={runtime}>
+          <div className="w-full h-full flex flex-col overflow-hidden">
+            {/* Optional header badges */}
+            {(selectedProvider === 'mcp' || availableProviders.length === 0) && (
+              <div className="flex items-center gap-2 p-2">
+                {selectedProvider === 'mcp' && (
+                  <Badge variant="outline" className="text-xs">
+                    🔌 MCP Legacy Mode
+                  </Badge>
+                )}
 
-              {availableProviders.length === 0 && (
-                <Badge variant="destructive" className="text-xs">
-                  No providers configured
-                </Badge>
-              )}
-            </div>
-          )}
+                {availableProviders.length === 0 && (
+                  <Badge variant="destructive" className="text-xs">
+                    No providers configured
+                  </Badge>
+                )}
+              </div>
+            )}
 
-          {/* Main content */}
-          <div className="flex-1 min-h-0 h-full">
-            {selectedProvider === 'mcp'
-              ? (
-                  <MCPChatComponent
-                    serverUrl="https://mcp.keyboard.dev"
-                    clientName="keyboard-approver-mcp"
-                  />
-                )
-              : (
-                  <div className="flex flex-col h-full">
-                    {/* Agentic Status Indicator - only shown when actively working */}
-                    {mcpEnabled && (mcpChat.isExecutingAbility || mcpChat.agenticProgress) && (
-                      <div className="mb-2 px-4">
-                        <AgenticStatusIndicator
-                          isAgenticMode={mcpChat.isAgenticMode}
-                          agenticProgress={mcpChat.agenticProgress}
-                          isExecutingAbility={mcpChat.isExecutingAbility}
-                          currentAbility={mcpChat.currentAbility}
+            {/* Main content */}
+            <div className="flex-1 min-h-0 h-full">
+              {selectedProvider === 'mcp'
+                ? (
+                    <MCPChatComponent
+                      clientName="keyboard-approver-mcp"
+                    />
+                  )
+                : (
+                    <div className="flex flex-col h-full">
+                      <div className="flex-1 flex flex-col min-h-0">
+                        <Thread
+                          currentApprovalMessage={currentApprovalMessage}
+                          onApproveMessage={onApproveMessage}
+                          onRejectMessage={onRejectMessage}
+                          onClearMessage={onClearApprovalMessage}
+                          // Provider/Model props
+                          providers={dynamicProviders}
+                          availableProviders={availableProviders}
+                          selectedProvider={selectedProvider}
+                          selectedModel={selectedModel}
+                          onProviderChange={handleProviderChange}
+                          onModelChange={setSelectedModel}
+                          // Org provider
+                          orgProvider={orgProvider}
+                          // MCP props
+                          mcpConnected={mcpChat.mcpConnected}
+                          mcpAbilities={mcpChat.mcpAbilities}
+                          mcpError={mcpChat.mcpError}
+                          onRetryMCP={mcpChat.refreshMCPConnection}
                         />
                       </div>
-                    )}
-
-                    <div className="flex-1 flex flex-col min-h-0">
-                      <Thread
-                        currentApprovalMessage={currentApprovalMessage}
-                        onApproveMessage={onApproveMessage}
-                        onRejectMessage={onRejectMessage}
-                        onClearMessage={onClearApprovalMessage}
-                        // Provider/Model props
-                        providers={PROVIDERS}
-                        availableProviders={availableProviders}
-                        selectedProvider={selectedProvider}
-                        selectedModel={selectedModel}
-                        onProviderChange={handleProviderChange}
-                        onModelChange={setSelectedModel}
-                        // MCP props
-                        mcpConnected={mcpChat.mcpConnected}
-                        mcpAbilities={mcpChat.mcpAbilities}
-                        mcpError={mcpChat.mcpError}
-                        onRetryMCP={mcpChat.refreshMCPConnection}
-                      />
                     </div>
-                  </div>
-                )}
+                  )}
+            </div>
           </div>
-        </div>
 
-        {/* Ability Execution Panel - Fixed overlay */}
-        <AbilityExecutionPanel
-          executions={mcpChat.executions}
-          isVisible={showExecutionPanel}
-          onClose={() => setShowExecutionPanel(false)}
-          currentStep={mcpChat.agenticProgress?.step}
-          totalSteps={mcpChat.agenticProgress?.totalSteps}
-          currentAction={mcpChat.agenticProgress?.currentAction}
-        />
-      </AssistantRuntimeProvider>
+          {/* Ability Execution Panel - Fixed overlay */}
+          <AbilityExecutionPanel
+            executions={mcpChat.executions}
+            isVisible={showExecutionPanel}
+            onClose={() => setShowExecutionPanel(false)}
+            currentStep={undefined}
+            totalSteps={undefined}
+            currentAction={undefined}
+          />
+        </AssistantRuntimeProvider>
+      </McpClientProvider>
     </TooltipProvider>
   )
 }

@@ -25,13 +25,13 @@ import {
   ErrorPrimitive,
   MessagePrimitive,
   ThreadPrimitive,
-  useThreadRuntime,
 } from '@assistant-ui/react'
 
 import { LazyMotion, MotionConfig, domAnimation } from 'motion/react'
 import * as m from 'motion/react-m'
 import type { FC } from 'react'
-import { useCallback, useState } from 'react'
+import { useState } from 'react'
+import { useOrgCoverImage } from '../../hooks/useOrgCoverImage'
 import { useNavigate } from 'react-router-dom'
 
 import { Message, Script } from '../../../types'
@@ -39,14 +39,12 @@ import { cn } from '../../lib/utils'
 import { contextService } from '../../services/context-service'
 import { ScriptSelector } from '../ScriptSelector'
 import { Button } from '../ui/button'
-import { ConnectAppsModal } from '../ui/ConnectAppsModal'
 import { ApprovalMessage } from './ApprovalMessage'
 import {
   ComposerAddAttachment,
   ComposerAttachments,
   UserMessageAttachments,
 } from './attachment'
-import { ConnectionRequirementsMessage } from './ConnectionRequirementsMessage'
 import { MarkdownText } from './markdown-text'
 import { Reasoning, ReasoningGroup } from './reasoning'
 import { SettingsTabType, ThreadLeftSidebar } from './thread-left-sidebar'
@@ -70,12 +68,12 @@ interface ProviderConfig {
   supportsMCP?: boolean
 }
 
-interface MissingConnectionProp {
-  id: string
-  name: string
-  icon: string
-  source: 'pipedream' | 'composio' | 'local'
-  isConnecting?: boolean
+interface OrgProviderData {
+  configured: boolean
+  provider_type?: string
+  display_name?: string
+  is_active?: boolean
+  allowed_models?: string[] | null
 }
 
 interface ThreadCustomProps {
@@ -90,19 +88,13 @@ interface ThreadCustomProps {
   selectedModel?: string
   onProviderChange?: (providerId: string, defaultModelId?: string) => void
   onModelChange?: (modelId: string) => void
+  // Org provider
+  orgProvider?: OrgProviderData | null
   // MCP status
   mcpConnected?: boolean
   mcpAbilities?: number
   mcpError?: string | null
   onRetryMCP?: () => void
-  // Connection requirements
-  missingConnections?: MissingConnectionProp[]
-  showConnectionPrompt?: boolean
-  onClearConnectionPrompt?: () => void
-  onSkipConnectionCheck?: () => void
-  getContinuationMessage?: () => Promise<string | null>
-  /** AI reasoning explaining why connections are needed */
-  connectionReasoning?: string
 }
 
 export const Thread: FC<ThreadCustomProps> = ({
@@ -117,88 +109,19 @@ export const Thread: FC<ThreadCustomProps> = ({
   selectedModel,
   onProviderChange,
   onModelChange,
+  // Org provider
+  orgProvider,
   // MCP props
   mcpConnected,
   mcpAbilities,
   mcpError,
   onRetryMCP,
-  // Connection requirements props
-  missingConnections = [],
-  showConnectionPrompt = false,
-  onClearConnectionPrompt,
-  onSkipConnectionCheck,
-  getContinuationMessage,
-  connectionReasoning,
 }) => {
   const navigate = useNavigate()
   const [selectedScripts, setSelectedScripts] = useState<Script[]>([])
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(false)
   const [rightSidebarOpen, setRightSidebarOpen] = useState(false)
   const [activeSettingsTab, setActiveSettingsTab] = useState<SettingsTabType | null>(null)
-  const [thinkingExpanded, setThinkingExpanded] = useState(false)
-  const [connectingServiceId, setConnectingServiceId] = useState<string | null>(null)
-  const [connectAppsModalOpen, setConnectAppsModalOpen] = useState(false)
-  const threadRuntime = useThreadRuntime()
-
-  // Handle connection button click
-  const handleConnect = useCallback(async (connection: MissingConnectionProp) => {
-    setConnectingServiceId(connection.id)
-
-    try {
-      switch (connection.source) {
-        case 'local': {
-          // For local OAuth, we need to look up the provider ID dynamically
-          const { getServiceInfo } = await import('../../services/connection-detection-service')
-          const serviceInfo = await getServiceInfo(connection.id)
-          if (serviceInfo?.localProviderId) {
-            await window.electronAPI.startServerProviderOAuth('keyboard-api', serviceInfo.localProviderId)
-          }
-          break
-        }
-
-        case 'pipedream': {
-          // Use the connection.id directly as the pipedream slug
-          const { pipedreamService } = await import('../../services/pipedream-service')
-          await pipedreamService.openConnectLink(connection.id)
-          break
-        }
-
-        case 'composio': {
-          // Use the connection.id directly as the composio slug
-          const { openConnectionUrl } = await import('../../services/composio-service')
-          await openConnectionUrl(connection.id)
-          break
-        }
-      }
-    }
-    catch (error) {
-    }
-    finally {
-      // Reset after a delay to allow the OAuth flow to complete
-      setTimeout(() => {
-        setConnectingServiceId(null)
-      }, 3000)
-    }
-  }, [])
-
-  // Handle dismiss connection prompt - continues with the original message
-  const handleDismissConnectionPrompt = useCallback(async () => {
-    if (getContinuationMessage) {
-      const continuationMessage = await getContinuationMessage()
-      if (continuationMessage && threadRuntime) {
-        // Send the continuation message to the AI
-        threadRuntime.append({
-          role: 'user',
-          content: [{ type: 'text', text: continuationMessage }],
-        })
-        return
-      }
-    }
-    // Fallback to just clearing the prompt
-    onClearConnectionPrompt?.()
-    onSkipConnectionCheck?.()
-  }, [onClearConnectionPrompt, onSkipConnectionCheck, getContinuationMessage, threadRuntime])
-
   // Get settings panel based on active tab
   const getSettingsPanel = () => {
     if (!activeSettingsTab) return null
@@ -365,23 +288,6 @@ export const Thread: FC<ThreadCustomProps> = ({
                   onClearMessage={onClearMessage}
                 />
 
-                {/* Connection Requirements Prompt - shown when connections are missing */}
-                {showConnectionPrompt && missingConnections.length > 0 && (
-                  <ConnectionRequirementsMessage
-                    explanation="I don't have access to the required tools - I'm currently missing some app connections."
-                    missingConnections={missingConnections.map(c => ({
-                      ...c,
-                      isConnecting: connectingServiceId === c.id,
-                    }))}
-                    onConnect={handleConnect}
-                    onDismiss={handleDismissConnectionPrompt}
-                    isExpanded={thinkingExpanded}
-                    onToggleExpanded={() => setThinkingExpanded(!thinkingExpanded)}
-                    onSearchConnectors={() => setConnectAppsModalOpen(true)}
-                    reasoningContent={connectionReasoning}
-                  />
-                )}
-
                 <ThreadPrimitive.If empty={false}>
                   <div className="aui-thread-viewport-spacer min-h-8 grow" />
                 </ThreadPrimitive.If>
@@ -433,6 +339,7 @@ export const Thread: FC<ThreadCustomProps> = ({
                 selectedModel={selectedModel}
                 onProviderChange={onProviderChange}
                 onModelChange={onModelChange}
+                orgProvider={orgProvider}
                 mcpConnected={mcpConnected}
                 mcpAbilities={mcpAbilities}
                 mcpError={mcpError}
@@ -440,12 +347,6 @@ export const Thread: FC<ThreadCustomProps> = ({
               />
             </div>
           )}
-
-          {/* Connect Apps Modal - for searching connectors */}
-          <ConnectAppsModal
-            isOpen={connectAppsModalOpen}
-            onClose={() => setConnectAppsModalOpen(false)}
-          />
 
         </div>
       </MotionConfig>
@@ -471,12 +372,15 @@ const ThreadScrollToBottom: FC = () => {
 import heroBackgroundUrl from '../../../../assets/hero-background.png'
 
 const ThreadWelcome: FC = () => {
+  const { url: orgCoverUrl } = useOrgCoverImage()
+  const backgroundSrc = orgCoverUrl || heroBackgroundUrl
+
   return (
     <div className="aui-thread-welcome-root flex w-full flex-grow flex-col relative">
-      {/* Background image with gradient overlay - keyboard design */}
+      {/* Background image with gradient overlay */}
       <div className="absolute inset-0 overflow-hidden">
         <img
-          src={heroBackgroundUrl}
+          src={backgroundSrc}
           alt=""
           className="absolute w-full h-[156.89%] left-0 top-[-22.95%] object-cover"
         />
@@ -723,7 +627,7 @@ const AssistantMessage: FC = () => {
         data-role="assistant"
       >
         <div className="flex flex-wrap gap-[6px] items-start w-full">
-          <div className="aui-assistant-message-content max-w-[720px] text-[#171717] text-[14px] font-medium leading-normal break-words">
+          <div className="aui-assistant-message-content w-full text-[#171717] text-[14px] font-medium leading-normal break-words [&>:not(.aui-tool-fallback-root)]:max-w-[720px]">
             <MessagePrimitive.Parts
               components={{
                 Text: MarkdownText,

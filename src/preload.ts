@@ -111,20 +111,6 @@ export interface UpdateInfo {
   releaseNotes?: string
 }
 
-export interface WebSearchGeneralCitation {
-  type: 'web_search_result'
-  url: string
-  title: string
-}
-
-export interface WebSearchGeneralResponse {
-  content: Array<{
-    type: 'text'
-    text: string
-    citations?: WebSearchGeneralCitation[]
-  }>
-}
-
 export interface CreditsBalance {
   success: true
   balance_cents: number
@@ -345,14 +331,12 @@ export interface ElectronAPI {
   getAIProviderKeys: () => Promise<Array<{ provider: string, hasKey: boolean, configured: boolean }>>
   removeAIProviderKey: (provider: string) => Promise<void>
   testAIProviderConnection: (provider: string) => Promise<{ success: boolean, error?: string }>
-  sendAIMessage: (provider: string, messages: Array<{ role: 'user' | 'assistant' | 'system', content: string }>, config?: { model?: string }) => Promise<string>
-  sendAIMessageStream: (provider: string, messages: Array<{ role: 'user' | 'assistant' | 'system', content: string }>, config?: { model?: string }) => Promise<string>
-  onAIStreamChunk: (callback: (chunk: string) => void) => void
+  sendAIMessage: (provider: string, messages: Array<{ role: 'user' | 'assistant' | 'system', content: string | any[] }>, config?: { model?: string, tools?: any[] }) => Promise<string>
+  sendAIMessageStream: (provider: string, messages: Array<{ role: 'user' | 'assistant' | 'system', content: string | any[] }>, config?: { model?: string, tools?: any[] }) => Promise<string>
+  onAIStreamChunk: (callback: (chunk: string | Record<string, unknown>) => void) => void
   onAIStreamEnd: (callback: () => void) => void
   onAIStreamError: (callback: (error: string) => void) => void
   removeAIStreamListeners: () => void
-  webSearch: (provider: string, query: string, company: string) => Promise<unknown>
-  webSearchGeneral: (query: string) => Promise<WebSearchGeneralResponse>
   getUserTokens: () => Promise<{ tokensAvailable?: string[], error?: string }>
   getCodespaceInfo: () => Promise<CodespaceInfo>
   // Credits balance
@@ -427,11 +411,15 @@ export interface ElectronAPI {
   }) => Promise<{ success: boolean, data?: unknown, error?: string }>
   getTriggerTasks: (deployedTriggerId: string, limit?: number) => Promise<{ success: boolean, data?: unknown, error?: string }>
   checkUserTokenStatus: () => Promise<{ success: boolean, data?: unknown, error?: string }>
-  storeUserRefreshToken: () => Promise<{ success: boolean, data?: unknown, error?: string }>
+  startTriggersOAuth: () => Promise<{ success: boolean, data?: unknown, error?: string }>
+  deleteUserRefreshToken: () => Promise<{ success: boolean, data?: unknown, error?: string }>
   // Connector Notes
   getConnectorNotes: () => Promise<{ success: boolean, notes?: Array<{ id: string, source: string, appSlug: string, note: string, createdAt: string, updatedAt: string }>, error?: string }>
   upsertConnectorNote: (source: string, appSlug: string, note: string) => Promise<{ success: boolean, error?: string }>
   deleteConnectorNote: (source: string, appSlug: string) => Promise<{ success: boolean, error?: string }>
+  // Organization Branding
+  getOrgCoverImage: () => Promise<{ success: boolean, url?: string | null, error?: string }>
+  getOrgAIProvider: () => Promise<{ success: boolean, data?: { configured: boolean, provider_type?: string, display_name?: string, is_active?: boolean, allowed_models?: string[] | null }, error?: string }>
   // Composio Integration
   initiateComposioConnection: (request: { appName: string, redirectUrl?: string, authConfig?: Record<string, unknown> }) => Promise<{ success: boolean, data?: unknown, error?: string }>
   listComposioConnectedAccounts: (params?: { appName?: string, status?: string }) => Promise<{ success: boolean, data?: unknown, error?: string }>
@@ -525,6 +513,9 @@ export interface ElectronAPI {
   createSecurityPolicy: (policy: Omit<SecurityPolicy, 'id' | 'createdAt' | 'updatedAt' | 'created_by' | 'user_id'>) => Promise<SecurityPolicy>
   updateSecurityPolicy: (updates: Partial<SecurityPolicy>) => Promise<SecurityPolicy | null>
   deleteSecurityPolicy: () => Promise<boolean>
+
+  // MCP server URL (overridable via MCP_SERVER_URL env var)
+  getMcpServerUrl: () => Promise<string>
 }
 
 // Expose protected methods that allow the renderer process to use
@@ -745,9 +736,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAIProviderKeys: (): Promise<Array<{ provider: string, hasKey: boolean, configured: boolean }>> => ipcRenderer.invoke('get-ai-provider-keys'),
   removeAIProviderKey: (provider: string): Promise<void> => ipcRenderer.invoke('remove-ai-provider-key', provider),
   testAIProviderConnection: (provider: string): Promise<{ success: boolean, error?: string }> => ipcRenderer.invoke('test-ai-provider-connection', provider),
-  sendAIMessage: (provider: string, messages: Array<{ role: 'user' | 'assistant' | 'system', content: string }>, config?: { model?: string }): Promise<string> => ipcRenderer.invoke('send-ai-message', provider, messages, config),
-  sendAIMessageStream: (provider: string, messages: Array<{ role: 'user' | 'assistant' | 'system', content: string }>, config?: { model?: string }): Promise<string> => ipcRenderer.invoke('send-ai-message-stream', provider, messages, config),
-  onAIStreamChunk: (callback: (chunk: string) => void): void => {
+  sendAIMessage: (provider: string, messages: Array<{ role: 'user' | 'assistant' | 'system', content: string | any[] }>, config?: { model?: string, tools?: any[] }): Promise<string> => ipcRenderer.invoke('send-ai-message', provider, messages, config),
+  sendAIMessageStream: (provider: string, messages: Array<{ role: 'user' | 'assistant' | 'system', content: string | any[] }>, config?: { model?: string, tools?: any[] }): Promise<string> => ipcRenderer.invoke('send-ai-message-stream', provider, messages, config),
+  onAIStreamChunk: (callback: (chunk: string | Record<string, unknown>) => void): void => {
     ipcRenderer.on('ai-stream-chunk', (_event, chunk) => callback(chunk))
   },
   onAIStreamEnd: (callback: () => void): void => {
@@ -761,8 +752,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.removeAllListeners('ai-stream-end')
     ipcRenderer.removeAllListeners('ai-stream-error')
   },
-  webSearch: (provider: string, query: string, company: string): Promise<unknown> => ipcRenderer.invoke('web-search', provider, query, company),
-  webSearchGeneral: (query: string): Promise<WebSearchGeneralResponse> => ipcRenderer.invoke('web-search-general', query),
   getUserTokens: (): Promise<{ tokensAvailable?: string[], error?: string }> => ipcRenderer.invoke('get-user-tokens'),
   getCodespaceInfo: (): Promise<CodespaceInfo> => ipcRenderer.invoke('get-codespace-info'),
   // Credits balance
@@ -837,11 +826,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('update-trigger-task', taskId, config),
   getTriggerTasks: (deployedTriggerId: string, limit = 10): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('get-trigger-tasks', deployedTriggerId, limit),
   checkUserTokenStatus: (): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('check-user-token-status'),
-  storeUserRefreshToken: (): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('store-user-refresh-token'),
+  startTriggersOAuth: (): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('start-triggers-oauth'),
+  deleteUserRefreshToken: (): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('delete-user-refresh-token'),
   // Connector Notes
   getConnectorNotes: (): Promise<{ success: boolean, notes?: Array<{ id: string, source: string, appSlug: string, note: string, createdAt: string, updatedAt: string }>, error?: string }> => ipcRenderer.invoke('get-connector-notes'),
   upsertConnectorNote: (source: string, appSlug: string, note: string): Promise<{ success: boolean, error?: string }> => ipcRenderer.invoke('upsert-connector-note', source, appSlug, note),
   deleteConnectorNote: (source: string, appSlug: string): Promise<{ success: boolean, error?: string }> => ipcRenderer.invoke('delete-connector-note', source, appSlug),
+  // Organization Branding
+  getOrgCoverImage: (): Promise<{ success: boolean, url?: string | null, error?: string }> => ipcRenderer.invoke('get-org-cover-image'),
+  getOrgAIProvider: () => ipcRenderer.invoke('get-org-ai-provider'),
   // Composio Integration
   initiateComposioConnection: (request: { appName: string, redirectUrl?: string, authConfig?: Record<string, unknown> }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('initiate-composio-connection', request),
   listComposioConnectedAccounts: (params?: { appName?: string, status?: string }): Promise<{ success: boolean, data?: unknown, error?: string }> => ipcRenderer.invoke('list-composio-connected-accounts', params),
@@ -934,6 +927,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   updateSecurityPolicy: (updates: Partial<SecurityPolicy>): Promise<SecurityPolicy | null> =>
     ipcRenderer.invoke('security-policy:update', updates),
   deleteSecurityPolicy: (): Promise<boolean> => ipcRenderer.invoke('security-policy:delete'),
+
+  getMcpServerUrl: (): Promise<string> => ipcRenderer.invoke('get-mcp-server-url'),
 } as ElectronAPI)
 
 // Extend the global Window interface

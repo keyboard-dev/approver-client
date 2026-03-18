@@ -102,6 +102,7 @@ import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
 import * as WebSocket from 'ws'
+import { OAuthHttpServer } from './oauth-http-server'
 
 // Try to load .env.local from multiple locations (for built apps with local config)
 try {
@@ -125,7 +126,7 @@ try {
 catch (err) {
 }
 import { aiRuntime, initializeAIProviders } from './ai-provider/setup'
-import { webSearch } from './ai-provider/utils/dedicated-web'
+
 import { getQueuedProtocolUrls, initializeApp as initializeElectronApp, type AppInitializerResult } from './app-initializer'
 import { AutoUpdateManager } from './auto-update-manager'
 
@@ -1637,6 +1638,10 @@ class MenuBarNotificationApp {
   }
 
   private setupIPC(): void {
+    ipcMain.handle('get-mcp-server-url', () => {
+      return process.env.MCP_SERVER_URL || 'https://mcp.keyboard.dev'
+    })
+
     // OAuth-related IPC handlers (Legacy) - delegate to AuthService
     ipcMain.handle('start-oauth', async (): Promise<void> => {
       await this.authService.startOAuthFlow()
@@ -2145,7 +2150,7 @@ class MenuBarNotificationApp {
       }
     })
 
-    ipcMain.handle('send-ai-message', async (_event, provider: string, messages: Array<{ role: 'user' | 'assistant' | 'system', content: string }>, config?: { model?: string }): Promise<string> => {
+    ipcMain.handle('send-ai-message', async (_event, provider: string, messages: Array<{ role: 'user' | 'assistant' | 'system', content: string | any[] }>, config?: { model?: string, tools?: any[] }): Promise<string> => {
       try {
         const authTokens = this.authService.getAuthTokens()
 
@@ -2158,7 +2163,7 @@ class MenuBarNotificationApp {
       }
     })
 
-    ipcMain.handle('send-ai-message-stream', async (event, provider: string, messages: Array<{ role: 'user' | 'assistant' | 'system', content: string }>, config?: { model?: string }): Promise<string> => {
+    ipcMain.handle('send-ai-message-stream', async (event, provider: string, messages: Array<{ role: 'user' | 'assistant' | 'system', content: string | any[] }>, config?: { model?: string, tools?: any[] }): Promise<string> => {
       try {
         const authTokens = this.authService.getAuthTokens()
 
@@ -2168,6 +2173,8 @@ class MenuBarNotificationApp {
             const generator = aiRuntime.streamMessage(provider, messages, config || {}, authTokens || undefined)
 
             for await (const chunk of generator) {
+              if (typeof chunk !== 'string') {
+              }
               event.sender.send('ai-stream-chunk', chunk)
             }
 
@@ -2185,50 +2192,6 @@ class MenuBarNotificationApp {
       }
       catch (error) {
         throw new Error(`Failed to stream message to ${provider}: ${error instanceof Error ? error.message : 'Unknown error'}`)
-      }
-    })
-
-    ipcMain.handle('web-search', async (_event, provider: string, query: string, company: string) => {
-      try {
-        const authTokens = this.authService.getAuthTokens()
-        const accessToken = authTokens?.access_token || ''
-        const response = await webSearch({ accessToken, query, company })
-        return response
-      }
-      catch (error) {
-        throw new Error(`Failed to perform web search with ${provider}: ${error instanceof Error ? error.message : 'Unknown error'}`)
-      }
-    })
-
-    // General web search using the new /api/ai/inference endpoint with webSearch enabled
-    ipcMain.handle('web-search-general', async (_event, query: string) => {
-      try {
-        const authTokens = this.authService.getAuthTokens()
-        const accessToken = authTokens?.access_token || ''
-
-        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/ai/inference`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'claude-sonnet-4-6',
-            messages: [{ role: 'user', content: query }],
-            webSearch: true,
-            webSearchMaxUses: 3,
-          }),
-        })
-
-        if (!response.ok) {
-          const errorText = await response.text()
-          throw new Error(`API error: ${response.status} - ${errorText}`)
-        }
-
-        return response.json()
-      }
-      catch (error) {
-        throw new Error(`Failed to perform general web search: ${error instanceof Error ? error.message : 'Unknown error'}`)
       }
     })
 
@@ -2975,17 +2938,116 @@ class MenuBarNotificationApp {
       }
     })
 
-    // Store User Refresh Token IPC handler
-    ipcMain.handle('store-user-refresh-token', async (_event) => {
+    // Start Triggers OAuth flow — opens browser with WORKOS_CLIENT_ID, receives code via localhost callback
+    ipcMain.handle('start-triggers-oauth', async (_event) => {
       try {
         const accessToken = await this.authService.getValidAccessToken()
-        const refreshToken = await this.authService.getRefreshToken()
-        if (!refreshToken) {
-          return {
-            success: false,
-            error: 'Failed to refresh tokens',
-          }
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
         }
+
+        const state = crypto.randomBytes(16).toString('hex')
+
+        // Start localhost callback server on fixed port 8082
+        const oauthServer = new OAuthHttpServer(8082, { callbackPath: '/auth/callback', host: '127.0.0.1' })
+
+        const callbackResult = await new Promise<{ success: boolean, refresh_token?: string, error?: string }>((resolve) => {
+          const startFlow = async () => {
+            await oauthServer.startServer(async (callbackData) => {
+              try {
+                if (callbackData.error) {
+                  resolve({ success: false, error: callbackData.error_description || callbackData.error })
+                  return
+                }
+
+                if (!callbackData.code) {
+                  resolve({ success: false, error: 'No authorization code received' })
+                  return
+                }
+
+                // Exchange code for tokens via WorkOS SDK on remote-oauth-server
+                const tokenResponse = await fetch(`${this.OAUTH_SERVER_URL}/oauth/trigger/token`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    code: callbackData.code,
+                  }),
+                })
+
+                if (!tokenResponse.ok) {
+                  const errorData = await tokenResponse.json().catch(() => ({ error: 'Token exchange failed' })) as { error?: string, error_description?: string }
+                  resolve({ success: false, error: errorData.error_description || errorData.error || 'Token exchange failed' })
+                  return
+                }
+
+                const tokens = await tokenResponse.json() as { refresh_token: string }
+                resolve({ success: true, refresh_token: tokens.refresh_token })
+              }
+              catch (err) {
+                resolve({ success: false, error: err instanceof Error ? err.message : 'Token exchange failed' })
+              }
+            })
+
+            // Get authorization URL from remote-oauth-server (uses WorkOS SDK)
+            const redirectUri = oauthServer.getCallbackUrl()
+            const authorizeResponse = await fetch(
+              `${this.OAUTH_SERVER_URL}/oauth/trigger/authorize?` + new URLSearchParams({
+                redirect_uri: redirectUri,
+                state,
+              }).toString(),
+            )
+
+            if (!authorizeResponse.ok) {
+              const errBody = await authorizeResponse.text().catch(() => '')
+              oauthServer.stopServer()
+              resolve({ success: false, error: `Failed to get authorization URL: ${authorizeResponse.status} ${errBody}` })
+              return
+            }
+
+            const authorizeData = await authorizeResponse.json() as { authorization_url: string }
+            shell.openExternal(authorizeData.authorization_url)
+          }
+
+          startFlow().catch((err) => {
+            oauthServer.stopServer()
+            resolve({ success: false, error: err instanceof Error ? err.message : 'Failed to start OAuth flow' })
+          })
+        })
+
+        if (!callbackResult.success || !callbackResult.refresh_token) {
+          return { success: false, error: callbackResult.error || 'OAuth flow failed' }
+        }
+
+        // Store the refresh token via token vault
+        const storeResponse = await fetch(`${this.OAUTH_SERVER_URL}/api/token-vault/user-token`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ refresh_token: callbackResult.refresh_token }),
+        })
+
+        if (!storeResponse.ok) {
+          const errorData = await storeResponse.json().catch(() => ({ error: 'Unknown error' })) as { error?: string, details?: string }
+          throw new Error(errorData.error || errorData.details || `HTTP error! status: ${storeResponse.status}`)
+        }
+
+        const data = await storeResponse.json()
+        return { success: true, data }
+      }
+      catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    })
+
+    // Delete User Refresh Token IPC handler
+    ipcMain.handle('delete-user-refresh-token', async () => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
         if (!accessToken) {
           return {
             success: false,
@@ -2994,14 +3056,10 @@ class MenuBarNotificationApp {
         }
 
         const response = await fetch(`${this.OAUTH_SERVER_URL}/api/token-vault/user-token`, {
-          method: 'POST',
+          method: 'DELETE',
           headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
           },
-          body: JSON.stringify({
-            refresh_token: refreshToken,
-          }),
         })
 
         if (!response.ok) {
@@ -3222,7 +3280,7 @@ class MenuBarNotificationApp {
         const response = await fetch(`${this.OAUTH_SERVER_URL}/api/connector-notes/${encodeURIComponent(source)}/${encodeURIComponent(appSlug)}`, {
           method: 'PUT',
           headers: {
-            Authorization: `Bearer ${accessToken}`,
+            'Authorization': `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({ note }),
@@ -3259,6 +3317,120 @@ class MenuBarNotificationApp {
       }
       catch (error) {
         return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+      }
+    })
+
+    // =========================================================================
+    // Organization Cover Image
+    // =========================================================================
+
+    ipcMain.handle('get-org-cover-image', async () => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        // Try to extract org_id from JWT payload first
+        let orgId: string | null = null
+        try {
+          const payloadB64 = accessToken.split('.')[1]
+          if (payloadB64) {
+            const payload = JSON.parse(Buffer.from(payloadB64, 'base64').toString()) as { org_id?: string }
+            orgId = payload.org_id || null
+          }
+        }
+        catch {
+          // JWT decode failed, fall through to API lookup
+        }
+
+        // Fall back to my-organization endpoint if no org_id in JWT
+        if (!orgId) {
+          const orgResponse = await fetch(`${this.OAUTH_SERVER_URL}/api/organizations/my-organization`, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          })
+
+          if (!orgResponse.ok) {
+            return { success: false, error: 'No organization found' }
+          }
+
+          const orgData = await orgResponse.json() as { organization?: { id?: string }, id?: string }
+          orgId = orgData.organization?.id || orgData.id || null
+        }
+
+        if (!orgId) {
+          return { success: false, error: 'No organization found' }
+        }
+
+        // Fetch cover image
+        const coverResponse = await fetch(`${this.OAUTH_SERVER_URL}/api/organizations/${orgId}/cover-image`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        })
+
+        if (!coverResponse.ok) {
+          if (coverResponse.status === 404) {
+            return { success: true, url: null }
+          }
+          return { success: false, error: 'Failed to fetch cover image' }
+        }
+
+        const coverData = await coverResponse.json() as { url?: string }
+        return { success: true, url: coverData.url || null }
+      }
+      catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+      }
+    })
+
+    ipcMain.handle('get-org-ai-provider', async () => {
+      try {
+        const accessToken = await this.authService.getValidAccessToken()
+        if (!accessToken) {
+          return { success: true, data: { configured: false } }
+        }
+
+        let orgId: string | null = null
+        try {
+          const payloadB64 = accessToken.split('.')[1]
+          if (payloadB64) {
+            const payload = JSON.parse(Buffer.from(payloadB64, 'base64').toString()) as { org_id?: string }
+            orgId = payload.org_id || null
+          }
+        }
+        catch {
+          // JWT decode failed, fall through to API lookup
+        }
+
+        if (!orgId) {
+          const orgResponse = await fetch(`${this.OAUTH_SERVER_URL}/api/organizations/my-organization`, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          })
+
+          if (!orgResponse.ok) {
+            return { success: true, data: { configured: false } }
+          }
+
+          const orgData = await orgResponse.json() as { organization?: { id?: string }, id?: string }
+          orgId = orgData.organization?.id || orgData.id || null
+        }
+
+        if (!orgId) {
+          return { success: true, data: { configured: false } }
+        }
+
+        const response = await fetch(`${this.OAUTH_SERVER_URL}/api/organizations/${orgId}/ai-provider`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        })
+
+        if (!response.ok) {
+          return { success: true, data: { configured: false } }
+        }
+
+        const data = await response.json()
+        return { success: true, data }
+      }
+      catch (error) {
+        return { success: true, data: { configured: false } }
       }
     })
 
