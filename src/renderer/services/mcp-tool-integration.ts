@@ -1,7 +1,7 @@
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
 import { useMcpClient } from '../hooks/useMcpClient'
 import { AbilityDiscoveryService, type AbilitySearchResult } from './ability-discovery'
-import { generateFingerprint, registerPendingCall, removePendingCall } from './pending-tool-calls'
+import { generateFingerprint, registerInteractiveToolCall, registerPendingCall, removePendingCall } from './pending-tool-calls'
 import { ResultProcessorService } from './result-processor'
 import { toolCacheService } from './tool-cache-service'
 
@@ -210,11 +210,30 @@ export function useMCPIntegration(
     const { name, args: abilityArgs } = prepareMCPAbilityCall(functionName, args)
     const startTime = performance.now()
 
+    const interactiveWidgetTools = ['connect-reconnect-accounts']
     const toolsRequiringApproval = ['run-code']
     let result: CallToolResult
     let pendingCallId: string | null = null
 
-    if (toolsRequiringApproval.includes(name)) {
+    if (interactiveWidgetTools.includes(name)) {
+      // Fire-and-forget: creates the server-side pending request so the widget can fetch the requestId
+      mcpClient.callTool(name, abilityArgs).catch(() => {})
+
+      const interactiveTimeout = 10 * 60 * 1000
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Interactive tool timed out waiting for user action')), interactiveTimeout)
+      })
+
+      await Promise.race([
+        registerInteractiveToolCall(name),
+        timeoutPromise,
+      ])
+
+      // User confirmed — fetch fresh account data
+      const freshData = await mcpClient.callTool('list-connected-accounts', {})
+      result = freshData
+    }
+    else if (toolsRequiringApproval.includes(name)) {
       const explanation = typeof abilityArgs.explanation_of_code === 'string'
         ? abilityArgs.explanation_of_code
         : undefined

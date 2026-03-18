@@ -1,6 +1,7 @@
 import { AppBridge, PostMessageTransport } from '@modelcontextprotocol/ext-apps/app-bridge'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMcpClientContext } from '../../services/mcp-client-context'
+import { resolveInteractiveToolCall } from '../../services/pending-tool-calls'
 
 interface McpAppHostProps {
   resourceUri: string
@@ -103,6 +104,10 @@ export const McpAppHost: React.FC<McpAppHostProps> = ({
         bridge.oncalltool = async (params: { name: string, arguments?: Record<string, unknown> }) => {
           try {
             const result = await callToolRef.current(params.name, params.arguments || {})
+            // When widget signals "Done", resolve the client-side blocking
+            if (params.name === 'submit-user-response') {
+              resolveInteractiveToolCall('connect-reconnect-accounts', result)
+            }
             return result
           }
           catch (e) {

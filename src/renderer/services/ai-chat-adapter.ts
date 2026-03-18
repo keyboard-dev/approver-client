@@ -325,15 +325,31 @@ export class AIChatAdapter implements ChatModelAdapter {
         }
         completedToolParts.push(toolPart)
 
-        // Yield current state so UI shows tool as in-progress
-        yield { content: [...completedToolParts, { type: 'text' as const, text: '' }] }
-
         try {
           if (!this.mcpIntegration) {
             throw new Error('MCP integration lost during agentic flow — connection may have dropped')
           }
           this.updateToolExecutionState(true, tc.name)
-          const executionResult = await this.mcpIntegration.executeAbilityCall(tc.name, tc.input)
+
+          // For interactive widget tools, start execution BEFORE yielding UI
+          // so the server creates the pending request before the widget iframe
+          // loads and calls fetch-accounts-data to get the blockingRequestId.
+          const interactiveWidgetTools = ['connect-reconnect-accounts']
+          let executionPromise: Promise<string | { summary: string, tokenCount: number, wasFiltered: boolean }> | null = null
+
+          if (interactiveWidgetTools.includes(tc.name)) {
+            executionPromise = this.mcpIntegration.executeAbilityCall(tc.name, tc.input)
+            // Small delay so the MCP server processes the request before the widget loads
+            await new Promise(resolve => setTimeout(resolve, 200))
+          }
+
+          // Yield current state so UI shows tool as in-progress
+          yield { content: [...completedToolParts, { type: 'text' as const, text: '' }] }
+
+          // Execute tool (for interactive widget tools, the promise was already started above)
+          const executionResult = executionPromise
+            ? await executionPromise
+            : await this.mcpIntegration.executeAbilityCall(tc.name, tc.input)
 
           const resultString = typeof executionResult === 'object'
             ? JSON.stringify(executionResult, null, 2)
@@ -394,16 +410,72 @@ export class AIChatAdapter implements ChatModelAdapter {
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  /**
+   * Convert @assistant-ui/react messages to AIMessage[], preserving tool-call history.
+   * assistant-ui stores tool calls as { type: 'tool-call', toolCallId, toolName, args, result }.
+   * We convert these to Anthropic-format tool_use blocks on the assistant message,
+   * and synthesize a following user message with tool_result blocks so the model
+   * retains full context of prior tool interactions across turns.
+   */
+  private convertMessagesToAI(messages: any[]): AIMessage[] {
+    const aiMessages: AIMessage[] = []
+
+    for (const message of messages) {
+      const role = message.role as 'user' | 'assistant' | 'system'
+      const parts: any[] = message.content || []
+
+      if (role === 'assistant') {
+        const textParts = parts.filter((c: any) => c.type === 'text')
+        const toolCallParts = parts.filter((c: any) => c.type === 'tool-call')
+
+        if (toolCallParts.length > 0) {
+          // Build assistant message with text + tool_use content blocks
+          const contentBlocks: Array<{ type: string, [key: string]: unknown }> = []
+          for (const tp of textParts) {
+            if (tp.text) contentBlocks.push({ type: 'text', text: tp.text })
+          }
+          for (const tc of toolCallParts) {
+            contentBlocks.push({
+              type: 'tool_use',
+              id: tc.toolCallId,
+              name: tc.toolName,
+              input: tc.args || {},
+            })
+          }
+          aiMessages.push({ role: 'assistant', content: contentBlocks })
+
+          // Synthesize a user message with tool_result blocks
+          const toolResults = toolCallParts
+            .filter((tc: any) => tc.result !== undefined)
+            .map((tc: any) => ({
+              type: 'tool_result',
+              tool_use_id: tc.toolCallId,
+              content: typeof tc.result === 'string' ? tc.result : JSON.stringify(tc.result),
+            }))
+          if (toolResults.length > 0) {
+            aiMessages.push({ role: 'user', content: toolResults })
+          }
+        }
+        else {
+          // Plain text assistant message
+          const textContent = textParts.map((c: any) => c.text || '').join('') || ''
+          aiMessages.push({ role, content: textContent })
+        }
+      }
+      else {
+        // User and system messages — extract text as before
+        const textContent = parts.find?.((c: any) => c.type === 'text')?.text
+          || (typeof message.content === 'string' ? message.content : '')
+        aiMessages.push({ role, content: textContent })
+      }
+    }
+
+    return aiMessages
+  }
+
   async* run({ messages, abortSignal }: any) {
     try {
-      const aiMessages: AIMessage[] = (messages as any[]).map((message: any) => {
-        const textContent = message.content?.find((c: any) => c.type === 'text')?.text || ''
-        return {
-          role: message.role as 'user' | 'assistant' | 'system',
-          content: textContent,
-        }
-      })
+      const aiMessages = this.convertMessagesToAI(messages as any[])
 
       // Generate thread title on first user message
       const userMessages = aiMessages.filter(m => m.role === 'user')
@@ -450,9 +522,7 @@ export class AIChatAdapter implements ChatModelAdapter {
         // to prevent the model from making redundant calls before getting to actual work
         const redundantTools = new Set([
           'required-starting-context-information',
-          'list-connected-accounts',
           'connect-websocket',
-          'connect-reconnect-accounts',
           'fetch-accounts-data',
         ])
         const filteredAbilities = abilitiesAvailable.filter(
