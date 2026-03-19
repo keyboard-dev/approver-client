@@ -70,6 +70,7 @@ export class AIRuntime {
       baseUrl: config.baseUrl,
       model: config.model,
       tools: config.tools,
+      thinking: config.thinking,
     }
 
     if (!provider.validateConfig(fullConfig)) {

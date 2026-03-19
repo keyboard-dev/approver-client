@@ -38,6 +38,7 @@ export class AIChatAdapter implements ChatModelAdapter {
   private isToolsExecuting = false
   private onThreadTitleGenerated?: (title: string) => void
   private titleGeneratedForThread = false
+  private thinkingConfig?: { type: 'enabled', budget_tokens: number }
 
   constructor(provider: string = 'openai', model?: string, mcpEnabled: boolean = false) {
     this.currentProvider = { provider, model, mcpEnabled }
@@ -65,6 +66,10 @@ export class AIChatAdapter implements ChatModelAdapter {
 
   setToolExecutionTracker(tracker: (isExecuting: boolean, toolName?: string) => void) {
     this.setToolExecutionState = tracker
+  }
+
+  setThinking(config?: { type: 'enabled', budget_tokens: number }) {
+    this.thinkingConfig = config
   }
 
   setSelectedScripts(scripts: Script[]) {
@@ -141,10 +146,16 @@ export class AIChatAdapter implements ChatModelAdapter {
     tools: Array<{ name: string, description: string, input_schema: Record<string, unknown> }> | undefined,
     abortSignal: AbortSignal | undefined,
     modelOverride?: string,
+    callbacks?: {
+      onText?: (fullText: string) => void
+      onToolStart?: (id: string, name: string) => void
+      onThinking?: (fullThinking: string) => void
+    },
   ): Promise<StreamResult> {
     window.electronAPI.removeAIStreamListeners()
 
     let fullText = ''
+    let thinkingText = ''
     let streamComplete = false
     let streamError: Error | null = null
     let stopReason = 'end_turn'
@@ -154,16 +165,23 @@ export class AIChatAdapter implements ChatModelAdapter {
     const handleChunk = (chunk: string | Record<string, unknown>) => {
       if (typeof chunk === 'string') {
         fullText += chunk
+        callbacks?.onText?.(fullText)
       }
       else {
         const event = chunk as unknown as StreamEvent
         switch (event.type) {
           case 'text':
             fullText += event.text
+            callbacks?.onText?.(fullText)
+            break
+          case 'thinking_delta':
+            thinkingText += event.text
+            callbacks?.onThinking?.(thinkingText)
             break
           case 'tool_use_start': {
             currentToolIndex++
             toolCallMap.set(currentToolIndex, { id: event.id, name: event.name, jsonParts: [] })
+            callbacks?.onToolStart?.(event.id, event.name)
             break
           }
           case 'tool_use_delta': {
@@ -197,7 +215,7 @@ export class AIChatAdapter implements ChatModelAdapter {
       await window.electronAPI.sendAIMessageStream(
         this.currentProvider.provider,
         messages,
-        { model: modelOverride || this.currentProvider.model, tools },
+        { model: modelOverride || this.currentProvider.model, tools, thinking: this.thinkingConfig },
       )
 
       while (!streamComplete) {
@@ -236,6 +254,18 @@ export class AIChatAdapter implements ChatModelAdapter {
   }
 
   /**
+   * Build an HTML-comment marker for tool activity state (parsed by SmartText).
+   */
+  private buildToolActivityMarker(
+    iteration: number,
+    phase: 'running' | 'complete',
+    entries: Array<{ name: string, phase: 'running' | 'complete' | 'error', startedAt: number, completedAt?: number }>,
+  ): string {
+    const data = { iteration, phase, tools: entries }
+    return `<!--TOOL_ACTIVITY_JSON\n${JSON.stringify(data)}\nTOOL_ACTIVITY_JSON_END-->`
+  }
+
+  /**
    * Native tool calling loop. The model decides when to use tools via structured tool_use blocks.
    * No classification, no JSON parsing from text, no completion heuristics needed.
    */
@@ -271,6 +301,9 @@ export class AIChatAdapter implements ChatModelAdapter {
       isError?: boolean
     }> = []
 
+    // Track tool activity entries for the smart panel
+    const toolActivityEntries: Array<{ name: string, phase: 'running' | 'complete' | 'error', startedAt: number, completedAt?: number }> = []
+
     yield { content: [{ type: 'text' as const, text: '' }] }
 
     while (currentIteration < this.maxAgenticIterations) {
@@ -279,44 +312,101 @@ export class AIChatAdapter implements ChatModelAdapter {
         throw new Error('Request was aborted')
       }
 
-      // Stream the AI response with tools, yielding text updates to the UI
-      const result = await this.streamWithToolSupport(
-        conversationHistory,
-        tools,
-        abortSignal,
-      )
+      // Stream the AI response, yielding text to the UI in real-time
+      let streamingText = ''
+      let streamingThinking = ''
+      const pendingStreamTools: Array<{ id: string, name: string }> = []
+      let streamResult: StreamResult | null = null
+      let streamError: Error | null = null
 
-      // If no tool calls, this is the final response — stream it to the user
+      this.streamWithToolSupport(
+        conversationHistory, tools, abortSignal, undefined,
+        {
+          onText: (text) => { streamingText = text },
+          onToolStart: (id, name) => { pendingStreamTools.push({ id, name }) },
+          onThinking: (text) => { streamingThinking = text },
+        },
+      ).then(r => { streamResult = r }).catch(e => { streamError = e as Error })
+
+      // Poll and yield streaming text + pending tool indicators to the UI
+      while (!streamResult && !streamError) {
+        if (abortSignal?.aborted) throw new Error('Request was aborted')
+        const liveContent: Array<{ type: string, [key: string]: unknown }> = [...completedToolParts]
+        for (const ts of pendingStreamTools) {
+          liveContent.push({ type: 'tool-call', toolCallId: ts.id, toolName: ts.name, args: {}, argsText: '…' })
+        }
+        if (streamingThinking) {
+          liveContent.push({ type: 'reasoning' as const, text: streamingThinking })
+        }
+        if (streamingText) {
+          liveContent.push({ type: 'text' as const, text: streamingText })
+        }
+        yield { content: liveContent }
+        await new Promise(resolve => setTimeout(resolve, 50))
+      }
+      if (streamError) throw streamError
+      const result = streamResult!
+
+      console.log('[NativeToolCall][stream-result]', {
+        iteration: currentIteration,
+        textLength: result.text.length,
+        toolCallCount: result.toolCalls.length,
+        stopReason: result.stopReason,
+      })
+
+      // If no tool calls, this is the final response (text already streamed above)
       if (result.toolCalls.length === 0 || result.stopReason !== 'tool_use') {
+        const responseText = result.text || ''
+
+        // Empty response = likely API/connection/payload issue — retry once before fallback
+        if (!responseText && currentIteration <= 2) {
+          console.warn('[NativeToolCall][empty-response] Empty response on iteration', currentIteration, '— retrying')
+          continue
+        }
+
+        const displayText = responseText || 'I encountered an issue processing your request. This may be due to a connection interruption. Please try again.'
+
         const finalContent: Array<{ type: string, [key: string]: unknown }> = [
           ...completedToolParts,
         ]
 
-        // If we got an empty response, provide feedback instead of a blank message
-        if (!result.text) {
+        // Text was already streamed in real-time, yield final state with reasoning part
+        if (streamingThinking) {
+          finalContent.push({ type: 'reasoning' as const, text: streamingThinking })
         }
-        const responseText = result.text || 'I encountered an issue processing your request. This may be due to a connection interruption. Please try again.'
-
-        // Stream the final text with smooth typing effect
-        const CHARS_PER_YIELD = 15
-        const YIELD_INTERVAL = 20
-        let yielded = 0
-        while (yielded < responseText.length) {
-          const end = Math.min(yielded + CHARS_PER_YIELD, responseText.length)
-          yield { content: [...finalContent, { type: 'text' as const, text: responseText.substring(0, end) }] }
-          yielded = end
-          await new Promise(resolve => setTimeout(resolve, YIELD_INTERVAL))
-        }
+        yield { content: [...finalContent, { type: 'text' as const, text: displayText }] }
 
         // Post-loop evaluation: assess task completion with Haiku (only if tools were used)
         if (completedToolParts.length > 0 && userGoal) {
           try {
-            const evalSystemPrompt = buildTaskCompletionPrompt(responseText, userGoal)
+            // Build tool signals from stored results
+            const allResults = runCodeResultContext.getAllResults()
+            let toolSignals = ''
+            if (allResults.length > 0) {
+              toolSignals = allResults.map(r => {
+                const parts: string[] = [`Tool: ${r.toolName}`]
+                const ed = r.extractedData
+                if (ed.errorMessages.length > 0) parts.push(`Errors: ${ed.errorMessages.join('; ')}`)
+                if (ed.successIndicators.length > 0) parts.push(`Success: ${ed.successIndicators.join('; ')}`)
+                if (Object.keys(ed.keyValuePairs).length > 0) parts.push(`Data: ${JSON.stringify(ed.keyValuePairs)}`)
+                if (ed.urls.length > 0) parts.push(`URLs: ${ed.urls.slice(0, 5).join(', ')}`)
+                if (ed.ids.length > 0) parts.push(`IDs: ${ed.ids.slice(0, 5).join(', ')}`)
+                if (ed.dataWriteIndicators && ed.dataWriteIndicators.length > 0) parts.push(`Data writes: ${ed.dataWriteIndicators.join('; ')}`)
+                const hasData = ed.ids.length > 0 || ed.urls.length > 0 || Object.keys(ed.keyValuePairs).length > 0
+                if (!hasData && ed.errorMessages.length === 0) parts.push('WARNING: No meaningful data extracted')
+                const hasResourceUrl = ed.urls.length > 0 || ed.ids.length > 0
+                const hasDataWrite = ed.dataWriteIndicators && ed.dataWriteIndicators.length > 0
+                if (hasResourceUrl && !hasDataWrite) parts.push('WARNING: Resource created but no data-write confirmation')
+                return parts.join(' | ')
+              }).join('\n')
+            }
+
+            const evalSystemPrompt = buildTaskCompletionPrompt(displayText, userGoal, toolSignals)
 
             // Yield "evaluating" state so UI shows spinner
             const evaluatingData = { evalType: 'task-completion', phase: 'evaluating', reasoning: '', result: {} }
             const evalMarkerEvaluating = `\n\n<!--EVAL_PHASE_JSON\n${JSON.stringify(evaluatingData)}\nEVAL_PHASE_JSON_END-->`
-            yield { content: [...finalContent, { type: 'text' as const, text: responseText + evalMarkerEvaluating }] }
+            yield { content: [...finalContent, { type: 'text' as const, text: displayText + evalMarkerEvaluating }] }
 
             // Call Haiku for evaluation (no tools, just text inference)
             const evalResult = await this.streamWithToolSupport(
@@ -349,9 +439,19 @@ export class AIChatAdapter implements ChatModelAdapter {
             // Yield "complete" state so UI shows result
             const completedData = { evalType: 'task-completion', phase: 'complete', reasoning, result: parsed }
             const evalMarkerComplete = `\n\n<!--EVAL_PHASE_JSON\n${JSON.stringify(completedData)}\nEVAL_PHASE_JSON_END-->`
-            yield { content: [...finalContent, { type: 'text' as const, text: responseText + evalMarkerComplete }] }
+            yield { content: [...finalContent, { type: 'text' as const, text: displayText + evalMarkerComplete }] }
 
             console.log('[NativeToolCall][eval]', { isComplete: parsed.isComplete, reasoning: reasoning.slice(0, 200) })
+
+            if (!parsed.isComplete) {
+              // Self-healing: add corrective messages and re-enter the loop
+              conversationHistory.push({ role: 'assistant', content: displayText })
+              conversationHistory.push({
+                role: 'user',
+                content: `The task is not yet complete. ${reasoning}. If you created a resource, verify its contents by reading it back before declaring completion. Please continue and ensure the task is fully done.`,
+              })
+              continue // Re-enter the agentic while loop
+            }
           } catch (evalError) {
             // Evaluation is non-critical — if it fails, just skip it
             console.warn('[NativeToolCall][eval:error]', evalError instanceof Error ? evalError.message : evalError)
@@ -385,6 +485,10 @@ export class AIChatAdapter implements ChatModelAdapter {
         }
         completedToolParts.push(toolPart)
 
+        // Track this tool as running in the activity panel
+        const activityEntry: { name: string, phase: 'running' | 'complete' | 'error', startedAt: number, completedAt?: number } = { name: tc.name, phase: 'running', startedAt: Date.now() }
+        toolActivityEntries.push(activityEntry)
+
         try {
           if (!this.mcpIntegration) {
             throw new Error('MCP integration lost during agentic flow — connection may have dropped')
@@ -403,8 +507,9 @@ export class AIChatAdapter implements ChatModelAdapter {
             await new Promise(resolve => setTimeout(resolve, 200))
           }
 
-          // Yield current state so UI shows tool as in-progress
-          yield { content: [...completedToolParts, { type: 'text' as const, text: '' }] }
+          // Yield current state so UI shows tool as in-progress with activity panel
+          const runningMarker = this.buildToolActivityMarker(currentIteration, 'running', toolActivityEntries)
+          yield { content: [...completedToolParts, { type: 'text' as const, text: runningMarker }] }
 
           // Execute tool (for interactive widget tools, the promise was already started above)
           const executionResult = executionPromise
@@ -421,13 +526,23 @@ export class AIChatAdapter implements ChatModelAdapter {
           // Update the tool part with result
           toolPart.result = contextContent
 
+          // Mark activity entry as complete
+          activityEntry.phase = 'complete'
+          activityEntry.completedAt = Date.now()
+
           toolResults.push({ type: 'tool_result', tool_use_id: tc.id, content: contextContent })
-          yield { content: [...completedToolParts, { type: 'text' as const, text: '' }] }
+          const completedMarker = this.buildToolActivityMarker(currentIteration, 'running', toolActivityEntries)
+          yield { content: [...completedToolParts, { type: 'text' as const, text: completedMarker }] }
         }
         catch (error) {
           const errorMsg = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
           toolPart.result = errorMsg
           toolPart.isError = true
+
+          // Mark activity entry as error
+          activityEntry.phase = 'error'
+          activityEntry.completedAt = Date.now()
+
           toolResults.push({
             type: 'tool_result',
             tool_use_id: tc.id,
@@ -435,7 +550,8 @@ export class AIChatAdapter implements ChatModelAdapter {
           })
 
           // Yield updated state so UI shows error
-          yield { content: [...completedToolParts, { type: 'text' as const, text: '' }] }
+          const errorMarker = this.buildToolActivityMarker(currentIteration, 'running', toolActivityEntries)
+          yield { content: [...completedToolParts, { type: 'text' as const, text: errorMarker }] }
         }
         finally {
           this.updateToolExecutionState(false)
@@ -588,7 +704,68 @@ export class AIChatAdapter implements ChatModelAdapter {
         const filteredAbilities = abilitiesAvailable.filter(
           a => !redundantTools.has(a.function.name),
         )
-        const nativeTools = ProviderFormats.anthropic.convertTools(filteredAbilities) as Array<{ name: string, description: string, input_schema: Record<string, unknown> }>
+
+        // Tool selection: use Haiku to pick only relevant tools for this request
+        let selectedAbilities = filteredAbilities
+        try {
+          const lastUserMsg = aiMessages.findLast(m => m.role === 'user')
+          const userQuery = typeof lastUserMsg?.content === 'string'
+            ? lastUserMsg.content
+            : Array.isArray(lastUserMsg?.content)
+              ? (lastUserMsg.content as Array<{ type: string, text?: string }>).filter(p => p.type === 'text').map(p => p.text || '').join(' ')
+              : ''
+
+          if (userQuery && filteredAbilities.length > 8) {
+            const toolList = filteredAbilities.map(a =>
+              `- ${a.function.name}: ${(a.function.description || '').slice(0, 120)}`
+            ).join('\n')
+
+            const selectorResult = await this.streamWithToolSupport(
+              [
+                {
+                  role: 'system',
+                  content: `You are a tool selector. Given a user request and a list of available tools, return ONLY a JSON array of tool names that are needed to complete the request. Include tools the task might need across multiple steps (e.g. if building something, include both create and deploy tools). Be inclusive rather than exclusive — it's better to include an extra tool than to miss one needed. Return valid JSON only, no explanation.`,
+                },
+                {
+                  role: 'user',
+                  content: `User request: "${userQuery.slice(0, 500)}"\n\nAvailable tools:\n${toolList}\n\nReturn JSON array of relevant tool names:`,
+                },
+              ],
+              undefined,
+              abortSignal,
+              'claude-haiku-4-5-20251001',
+            )
+
+            let selectedNames: string[] = []
+            try {
+              let jsonStr = selectorResult.text.trim()
+              const fenceMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/)
+              if (fenceMatch) jsonStr = fenceMatch[1].trim()
+              selectedNames = JSON.parse(jsonStr)
+            }
+            catch {
+              console.warn('[NativeToolCall][tool-selector] Failed to parse selection, using all tools')
+            }
+
+            if (Array.isArray(selectedNames) && selectedNames.length > 0) {
+              const nameSet = new Set(selectedNames)
+              const matched = filteredAbilities.filter(a => nameSet.has(a.function.name))
+              if (matched.length > 0) {
+                selectedAbilities = matched
+                console.log('[NativeToolCall][tool-selector]', {
+                  from: filteredAbilities.length,
+                  to: selectedAbilities.length,
+                  selected: selectedNames,
+                })
+              }
+            }
+          }
+        }
+        catch (selectorErr) {
+          console.warn('[NativeToolCall][tool-selector] Selection failed, using all tools:', (selectorErr as Error).message)
+        }
+
+        const nativeTools = ProviderFormats.anthropic.convertTools(selectedAbilities) as Array<{ name: string, description: string, input_schema: Record<string, unknown> }>
         for await (const result of this.handleNativeToolCalling(aiMessages, nativeTools, abortSignal)) {
           yield result
         }

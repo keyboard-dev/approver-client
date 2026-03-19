@@ -91,6 +91,9 @@ interface ThreadCustomProps {
   onModelChange?: (modelId: string) => void
   // Org provider
   orgProvider?: OrgProviderData | null
+  // Thinking mode
+  thinkingEnabled?: boolean
+  onThinkingChange?: (enabled: boolean) => void
   // MCP status
   mcpConnected?: boolean
   mcpAbilities?: number
@@ -112,6 +115,9 @@ export const Thread: FC<ThreadCustomProps> = ({
   onModelChange,
   // Org provider
   orgProvider,
+  // Thinking mode
+  thinkingEnabled,
+  onThinkingChange,
   // MCP props
   mcpConnected,
   mcpAbilities,
@@ -341,6 +347,8 @@ export const Thread: FC<ThreadCustomProps> = ({
                 onProviderChange={onProviderChange}
                 onModelChange={onModelChange}
                 orgProvider={orgProvider}
+                thinkingEnabled={thinkingEnabled}
+                onThinkingChange={onThinkingChange}
                 mcpConnected={mcpConnected}
                 mcpAbilities={mcpAbilities}
                 mcpError={mcpError}

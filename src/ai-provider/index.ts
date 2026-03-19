@@ -10,6 +10,7 @@ export interface AIProviderConfig {
   baseUrl?: string
   model?: string
   tools?: Array<{ name: string, description: string, input_schema: Record<string, unknown> }>
+  thinking?: { type: 'enabled', budget_tokens: number }
 }
 
 export type StreamEvent
@@ -18,6 +19,7 @@ export type StreamEvent
     | { type: 'tool_use_delta', id: string, json: string }
     | { type: 'tool_use_end', id: string }
     | { type: 'message_end', stop_reason: string }
+    | { type: 'thinking_delta', text: string }
 
 export interface AIProvider {
   name: string

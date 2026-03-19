@@ -280,6 +280,9 @@ interface ThreadSidebarProps {
   onModelChange?: (modelId: string) => void
   // Org provider (passed from parent to avoid duplicate fetch)
   orgProvider?: OrgProviderData | null
+  // Thinking mode
+  thinkingEnabled?: boolean
+  onThinkingChange?: (enabled: boolean) => void
   // MCP status
   mcpConnected?: boolean
   mcpAbilities?: number
@@ -296,6 +299,8 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
   onProviderChange,
   onModelChange,
   orgProvider,
+  thinkingEnabled,
+  onThinkingChange,
   mcpConnected,
   mcpAbilities,
   mcpError,
@@ -605,6 +610,33 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
                 )}
               </>
             )}
+            {/* Extended Thinking Toggle */}
+            <div
+              className="bg-[#fafafa] border border-[#dbdbdb] flex items-center justify-between p-[10px] rounded-[12px] w-full cursor-pointer hover:bg-[#f5f5f5] transition-colors"
+              onClick={() => onThinkingChange?.(!thinkingEnabled)}
+            >
+              <div className="flex flex-col gap-[2px]">
+                <p className="font-medium text-[14px] text-[#171717] leading-normal">
+                  Extended thinking
+                </p>
+                <p className="text-[11px] text-[#737373] leading-normal">
+                  Deeper reasoning for complex tasks
+                </p>
+              </div>
+              <div
+                className={cn(
+                  'relative w-[36px] h-[20px] rounded-full transition-colors shrink-0',
+                  thinkingEnabled ? 'bg-[#171717]' : 'bg-[#dbdbdb]',
+                )}
+              >
+                <div
+                  className={cn(
+                    'absolute top-[2px] w-[16px] h-[16px] rounded-full bg-white transition-transform',
+                    thinkingEnabled ? 'translate-x-[18px]' : 'translate-x-[2px]',
+                  )}
+                />
+              </div>
+            </div>
           </div>
         )}
       </div>

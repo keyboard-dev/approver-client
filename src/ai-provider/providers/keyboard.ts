@@ -139,8 +139,12 @@ export class KeyboardProvider implements AIProvider {
       model: config.model || 'claude-sonnet-4-6',
       system: systemMessage?.content,
       messages: validMessages,
-      temperature: 0.7,
+      temperature: config.thinking ? 1 : 0.7,
       stream: true,
+    }
+
+    if (config.thinking) {
+      requestBody.thinking = config.thinking
     }
 
     if (config.tools?.length) {
@@ -153,14 +157,44 @@ export class KeyboardProvider implements AIProvider {
       })
     }
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${authTokens.access_token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody),
+    const bodyString = JSON.stringify(requestBody)
+    const bodySizeKB = Math.round(bodyString.length / 1024)
+    const toolCount = (requestBody.tools as any[])?.length || 0
+    const systemSizeKB = Math.round((typeof requestBody.system === 'string' ? requestBody.system.length : 0) / 1024)
+    console.log('[NativeToolCall][Keyboard] Request payload', {
+      totalSizeKB: bodySizeKB,
+      systemPromptKB: systemSizeKB,
+      toolCount,
+      messageCount: (requestBody.messages as any[])?.length || 0,
     })
+    if (bodySizeKB > 500) {
+      console.warn(`[NativeToolCall][Keyboard] Large payload: ${bodySizeKB}KB (system: ${systemSizeKB}KB, ${toolCount} tools)`)
+    }
+
+    // Fetch with one retry — TLS socket terminations are transient
+    let response: Response
+    try {
+      response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${authTokens.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: bodyString,
+      })
+    }
+    catch (fetchErr) {
+      console.warn('[NativeToolCall][Keyboard] Fetch failed, retrying once:', (fetchErr as Error).message)
+      await new Promise(r => setTimeout(r, 1500))
+      response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${authTokens.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: bodyString,
+      })
+    }
 
     if (!response.ok) {
       const errorText = await response.text()
@@ -182,9 +216,6 @@ export class KeyboardProvider implements AIProvider {
 
         const rawChunk = decoder.decode(value, { stream: true })
         buffer += rawChunk
-        // Log first 500 chars of raw chunk to see what the API is actually returning
-        if (rawChunk.length > 0) {
-        }
         const lines = buffer.split('\n')
         buffer = lines.pop() || ''
 
@@ -208,6 +239,9 @@ export class KeyboardProvider implements AIProvider {
               if (parsed.type === 'content_block_start' && parsed.content_block?.type === 'tool_use') {
                 yield { type: 'tool_use_start', id: parsed.content_block.id, name: parsed.content_block.name } as StreamEvent
               }
+              else if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'thinking_delta') {
+                yield { type: 'thinking_delta', text: parsed.delta.thinking } as StreamEvent
+              }
               else if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'input_json_delta') {
                 yield { type: 'tool_use_delta', id: String(parsed.index), json: parsed.delta.partial_json } as StreamEvent
               }
@@ -229,6 +263,7 @@ export class KeyboardProvider implements AIProvider {
             }
           }
           else if (line.trim().length > 0) {
+            console.warn('[NativeToolCall][Keyboard] Non-SSE line:', line.slice(0, 200))
           }
         }
       }
