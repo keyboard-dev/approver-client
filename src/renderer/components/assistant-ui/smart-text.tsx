@@ -6,6 +6,7 @@ import { ResearchPhaseDisplay, type ResearchPhaseData } from './research-phase-d
 import { EvaluationDisplay, type EvalPhaseData } from './evaluation-display'
 import { PolishStepDisplay, type PolishStepData } from './polish-step-display'
 import { PolishSummaryDisplay, type PolishSummaryData } from './polish-summary-display'
+import { ToolActivityDisplay, type ToolActivityData } from './tool-activity-display'
 
 const RESEARCH_MARKER = '<!--RESEARCH_PHASE_JSON'
 const RESEARCH_END_MARKER = 'RESEARCH_PHASE_JSON_END-->'
@@ -18,6 +19,9 @@ const POLISH_STEP_END_MARKER = 'POLISH_STEP_JSON_END-->'
 
 const POLISH_SUMMARY_MARKER = '<!--POLISH_SUMMARY_JSON'
 const POLISH_SUMMARY_END_MARKER = 'POLISH_SUMMARY_JSON_END-->'
+
+const TOOL_ACTIVITY_MARKER = '<!--TOOL_ACTIVITY_JSON'
+const TOOL_ACTIVITY_END_MARKER = 'TOOL_ACTIVITY_JSON_END-->'
 
 function parseResearchData(text: string): ResearchPhaseData | null {
   const startIdx = text.indexOf(RESEARCH_MARKER)
@@ -87,6 +91,23 @@ function parsePolishSummaryData(text: string): PolishSummaryData | null {
   }
 }
 
+function parseToolActivityData(text: string): ToolActivityData | null {
+  const startIdx = text.indexOf(TOOL_ACTIVITY_MARKER)
+  if (startIdx === -1) return null
+
+  const endIdx = text.indexOf(TOOL_ACTIVITY_END_MARKER)
+  if (endIdx === -1) return null
+
+  const jsonStart = startIdx + TOOL_ACTIVITY_MARKER.length
+  const jsonStr = text.slice(jsonStart, endIdx).trim()
+
+  try {
+    return JSON.parse(jsonStr) as ToolActivityData
+  } catch {
+    return null
+  }
+}
+
 const SmartTextImpl = () => {
   const part = useMessagePartText()
   const text = 'text' in part ? part.text : ''
@@ -95,6 +116,11 @@ const SmartTextImpl = () => {
   const evalData = useMemo(() => parseEvalData(text), [text])
   const polishStepData = useMemo(() => parsePolishStepData(text), [text])
   const polishSummaryData = useMemo(() => parsePolishSummaryData(text), [text])
+  const toolActivityData = useMemo(() => parseToolActivityData(text), [text])
+
+  if (toolActivityData) {
+    return <ToolActivityDisplay data={toolActivityData} />
+  }
 
   if (polishSummaryData) {
     return <PolishSummaryDisplay data={polishSummaryData} />

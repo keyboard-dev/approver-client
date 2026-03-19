@@ -245,6 +245,9 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
                         onModelChange={setSelectedModel}
                         // Org provider
                         orgProvider={orgProvider}
+                        // Thinking mode
+                        thinkingEnabled={mcpChat.thinkingEnabled}
+                        onThinkingChange={mcpChat.setThinkingEnabled}
                         // MCP props
                         mcpConnected={mcpChat.mcpConnected}
                         mcpAbilities={mcpChat.mcpAbilities}

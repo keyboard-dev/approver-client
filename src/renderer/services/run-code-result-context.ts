@@ -24,6 +24,7 @@ export interface ExtractedImportantData {
   keyValuePairs: Record<string, string>
   errorMessages: string[]
   successIndicators: string[]
+  dataWriteIndicators: string[]
 }
 
 export interface ResultContextOptions {
@@ -57,6 +58,7 @@ function extractImportantData(text: string): ExtractedImportantData {
     keyValuePairs: {},
     errorMessages: [],
     successIndicators: [],
+    dataWriteIndicators: [],
   }
 
   // Extract URLs
@@ -157,6 +159,30 @@ function extractImportantData(text: string): ExtractedImportantData {
     }
   }
   extracted.successIndicators = [...new Set(extracted.successIndicators)].slice(0, 5)
+
+  // Extract data-write indicators (evidence that data was actually written to a resource)
+  const dataWritePatterns = [
+    /wrote\s+(\d+)\s+rows?/gi,
+    /inserted\s+(\d+)\s+records?/gi,
+    /updated\s+(\d+)\s+(?:cells?|rows?|records?|items?)/gi,
+    /added\s+(\d+)\s+(?:rows?|records?|items?|entries)/gi,
+    /populated\s+(\d+)\s+(?:cells?|rows?|columns?)/gi,
+    /"(?:rows?Count|rowCount|numRows|totalRows|recordCount)":\s*(\d+)/gi,
+    /"(?:updatedRows|insertedRows|affectedRows|changedRows)":\s*(\d+)/gi,
+    /appended?\s+(\d+)\s+(?:rows?|records?)/gi,
+    /set\s+(\d+)\s+(?:values?|cells?)/gi,
+  ]
+
+  for (const pattern of dataWritePatterns) {
+    const matches = text.matchAll(pattern)
+    for (const match of matches) {
+      const count = parseInt(match[1] || '0', 10)
+      if (count > 0) {
+        extracted.dataWriteIndicators.push(match[0].trim())
+      }
+    }
+  }
+  extracted.dataWriteIndicators = [...new Set(extracted.dataWriteIndicators)].slice(0, 5)
 
   return extracted
 }
