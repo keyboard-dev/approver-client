@@ -51,6 +51,7 @@ import { Reasoning, ReasoningGroup } from './reasoning'
 import { SettingsTabType, ThreadLeftSidebar } from './thread-left-sidebar'
 import { ThreadSidebar } from './thread-sidebar'
 import { ToolFallback } from './tool-fallback'
+import { RunCodeToolPart, AbilityCallToolPart } from './tool-parts'
 // Settings panels
 import { AdvancedPanel } from '../screens/settings/panels/AdvancedPanel'
 import { AICreditsPanel } from '../screens/settings/panels/AICreditsPanel'
@@ -642,7 +643,18 @@ const AssistantMessage: FC = () => {
                 Text: SmartText,
                 Reasoning,
                 ReasoningGroup,
-                tools: { Fallback: ToolFallback },
+                tools: {
+                  by_name: {
+                    'run-code': RunCodeToolPart,
+                    'web-search': AbilityCallToolPart,
+                    'save-keyboard-shortcut-script-template': AbilityCallToolPart,
+                    'update-keyboard-shortcut-script-template': AbilityCallToolPart,
+                    'poll-background-job': AbilityCallToolPart,
+                    'list-background-jobs': AbilityCallToolPart,
+                    'search-images': AbilityCallToolPart,
+                  },
+                  Fallback: ToolFallback,
+                },
               }}
             />
             <MessageError />

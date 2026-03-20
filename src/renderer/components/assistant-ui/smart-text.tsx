@@ -1,5 +1,7 @@
 import { memo, useMemo } from 'react'
 import { useMessagePartText } from '@assistant-ui/react'
+import Markdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 import { MarkdownText } from './markdown-text'
 import { ResearchPhaseDisplay, type ResearchPhaseData } from './research-phase-display'
@@ -108,37 +110,98 @@ function parseToolActivityData(text: string): ToolActivityData | null {
   }
 }
 
+/** Strip a marker (from start tag to end tag) out of text */
+function stripMarker(text: string, startMarker: string, endMarker: string): string {
+  const startIdx = text.indexOf(startMarker)
+  if (startIdx === -1) return text
+  const endIdx = text.indexOf(endMarker)
+  if (endIdx === -1) return text
+  return (text.slice(0, startIdx) + text.slice(endIdx + endMarker.length)).trim()
+}
+
+const MarkdownContent = memo(function MarkdownContent({ text }: { text: string }) {
+  if (!text) return null
+  return (
+    <div className="aui-md">
+      <Markdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          a: ({ href, children }) => (
+            <a
+              href={href}
+              className="font-medium text-primary underline underline-offset-4 cursor-pointer"
+              onClick={(e) => {
+                e.preventDefault()
+                if (href) window.electronAPI.openExternalUrl(href)
+              }}
+            >
+              {children}
+            </a>
+          ),
+        }}
+      >
+        {text}
+      </Markdown>
+    </div>
+  )
+})
+
 const SmartTextImpl = () => {
   const part = useMessagePartText()
   const text = 'text' in part ? part.text : ''
 
-  const researchData = useMemo(() => parseResearchData(text), [text])
-  const evalData = useMemo(() => parseEvalData(text), [text])
-  const polishStepData = useMemo(() => parsePolishStepData(text), [text])
-  const polishSummaryData = useMemo(() => parsePolishSummaryData(text), [text])
+  // Tool activity is rendered alongside other content, not as a replacement
   const toolActivityData = useMemo(() => parseToolActivityData(text), [text])
 
-  if (toolActivityData) {
-    return <ToolActivityDisplay data={toolActivityData} />
-  }
+  // Strip tool activity marker to get the "rest" of the text for other displays
+  const restText = useMemo(
+    () => toolActivityData ? stripMarker(text, TOOL_ACTIVITY_MARKER, TOOL_ACTIVITY_END_MARKER) : text,
+    [text, toolActivityData],
+  )
+
+  const researchData = useMemo(() => parseResearchData(restText), [restText])
+  const evalData = useMemo(() => parseEvalData(restText), [restText])
+  const polishStepData = useMemo(() => parsePolishStepData(restText), [restText])
+  const polishSummaryData = useMemo(() => parsePolishSummaryData(restText), [restText])
+
+  // Build the "rest" content (everything except tool activity)
+  let restContent: React.ReactNode = null
 
   if (polishSummaryData) {
-    return <PolishSummaryDisplay data={polishSummaryData} />
+    restContent = <PolishSummaryDisplay data={polishSummaryData} />
+  }
+  else if (polishStepData) {
+    restContent = <PolishStepDisplay data={polishStepData} />
+  }
+  else if (researchData) {
+    restContent = <ResearchPhaseDisplay data={researchData} />
+  }
+  else if (evalData) {
+    const evalIdx = restText.indexOf(EVAL_MARKER)
+    const preEvalText = evalIdx > 0 ? restText.slice(0, evalIdx).trim() : ''
+    restContent = (
+      <>
+        {preEvalText && <MarkdownContent text={preEvalText} />}
+        <EvaluationDisplay data={evalData} />
+      </>
+    )
+  }
+  else if (restText) {
+    // No special markers — render as markdown (use MarkdownText for hook-based rendering when no stripping needed)
+    restContent = toolActivityData ? <MarkdownContent text={restText} /> : <MarkdownText />
   }
 
-  if (polishStepData) {
-    return <PolishStepDisplay data={polishStepData} />
+  // If we have tool activity, render it above the rest of the content
+  if (toolActivityData) {
+    return (
+      <>
+        <ToolActivityDisplay data={toolActivityData} />
+        {restContent}
+      </>
+    )
   }
 
-  if (researchData) {
-    return <ResearchPhaseDisplay data={researchData} />
-  }
-
-  if (evalData) {
-    return <EvaluationDisplay data={evalData} />
-  }
-
-  return <MarkdownText />
+  return <>{restContent}</>
 }
 
 export const SmartText = memo(SmartTextImpl)

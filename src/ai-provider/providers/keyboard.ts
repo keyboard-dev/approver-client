@@ -137,6 +137,7 @@ export class KeyboardProvider implements AIProvider {
 
     const requestBody: Record<string, unknown> = {
       model: config.model || 'claude-sonnet-4-6',
+      max_tokens: 16384,
       system: systemMessage?.content,
       messages: validMessages,
       temperature: config.thinking ? 1 : 0.7,
@@ -166,7 +167,12 @@ export class KeyboardProvider implements AIProvider {
       systemPromptKB: systemSizeKB,
       toolCount,
       messageCount: (requestBody.messages as any[])?.length || 0,
+      model: requestBody.model,
+      temperature: requestBody.temperature,
+      max_tokens: requestBody.max_tokens,
+      thinking: requestBody.thinking,
     })
+    console.log('[NativeToolCall][Keyboard] Full request body:', JSON.stringify(requestBody, null, 2))
     if (bodySizeKB > 500) {
       console.warn(`[NativeToolCall][Keyboard] Large payload: ${bodySizeKB}KB (system: ${systemSizeKB}KB, ${toolCount} tools)`)
     }
