@@ -243,21 +243,25 @@ export class KeyboardProvider implements AIProvider {
                 throw new Error(errMsg)
               }
               if (parsed.type === 'content_block_start' && parsed.content_block?.type === 'tool_use') {
+                console.log('[Keyboard][SSE] tool_use_start', { id: parsed.content_block.id, name: parsed.content_block.name })
                 yield { type: 'tool_use_start', id: parsed.content_block.id, name: parsed.content_block.name } as StreamEvent
               }
               else if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'thinking_delta') {
                 yield { type: 'thinking_delta', text: parsed.delta.thinking } as StreamEvent
               }
               else if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'input_json_delta') {
+                console.log('[Keyboard][SSE] tool_use_delta', { index: parsed.index, jsonLen: parsed.delta.partial_json?.length, json: parsed.delta.partial_json?.slice(0, 100) })
                 yield { type: 'tool_use_delta', id: String(parsed.index), json: parsed.delta.partial_json } as StreamEvent
               }
               else if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
                 yield parsed.delta.text
               }
               else if (parsed.type === 'content_block_stop') {
+                console.log('[Keyboard][SSE] content_block_stop', { index: parsed.index })
                 yield { type: 'tool_use_end', id: String(parsed.index) } as StreamEvent
               }
               else if (parsed.type === 'message_delta' && parsed.delta?.stop_reason) {
+                console.log('[Keyboard][SSE] message_end', { stop_reason: parsed.delta.stop_reason })
                 yield { type: 'message_end', stop_reason: parsed.delta.stop_reason } as StreamEvent
               }
             }

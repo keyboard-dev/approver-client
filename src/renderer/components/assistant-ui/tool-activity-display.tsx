@@ -4,7 +4,7 @@ import { cn } from '../../lib/utils'
 
 export interface ToolActivityEntry {
   name: string
-  phase: 'preparing' | 'running' | 'complete' | 'error'
+  phase: 'running' | 'complete' | 'error'
   startedAt: number
   completedAt?: number
   result?: string
@@ -45,12 +45,11 @@ function ToolEntryRow({ tool, index }: { tool: ToolActivityEntry, index: number 
           hasDetail && 'cursor-pointer hover:bg-[#fafafa] rounded -mx-1 px-1',
         )}
       >
-        {tool.phase === 'preparing' && <Loader className="size-3 text-amber-500 animate-spin shrink-0" />}
         {tool.phase === 'running' && <Loader className="size-3 text-blue-500 animate-spin shrink-0" />}
         {tool.phase === 'complete' && <CheckCircle className="size-3 text-emerald-500 shrink-0" />}
         {tool.phase === 'error' && <XCircle className="size-3 text-red-500 shrink-0" />}
         <span className="text-[12px] text-[#404040] truncate flex-1">
-          {tool.phase === 'preparing' ? `Preparing ${tool.name}…` : tool.name}
+          {tool.name}
         </span>
         <span className="text-[11px] text-[#a3a3a3] shrink-0 mr-1">{formatElapsed(tool)}</span>
         {hasDetail && (
@@ -106,13 +105,10 @@ export const ToolActivityDisplay = memo(function ToolActivityDisplay({ data }: T
 
   const completedCount = data.tools.filter(t => t.phase === 'complete').length
   const errorCount = data.tools.filter(t => t.phase === 'error').length
-  const preparingCount = data.tools.filter(t => t.phase === 'preparing').length
   const total = data.tools.length
 
   const statusText = data.phase === 'running'
-    ? preparingCount > 0 && completedCount === 0
-      ? `Preparing ${preparingCount} tool${preparingCount > 1 ? 's' : ''}…`
-      : `${completedCount} of ${total} complete`
+    ? `${completedCount} of ${total} complete`
     : errorCount > 0
       ? `${completedCount} complete, ${errorCount} failed`
       : `${total} complete`

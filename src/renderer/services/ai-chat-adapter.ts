@@ -3,7 +3,6 @@ import type { StreamEvent } from '../../ai-provider/index'
 import { Script } from '../../types'
 import { contextService } from './context-service'
 import { ProviderFormats, useMCPIntegration } from './mcp-tool-integration'
-import { buildTaskCompletionPrompt } from './prompt-builders'
 import { runCodeResultContext } from './run-code-result-context'
 
 interface AIMessage {
@@ -192,6 +191,7 @@ export class AIChatAdapter implements ChatModelAdapter {
             const acc = toolCallMap.get(idx) || toolCallMap.get(currentToolIndex)
             if (acc) {
               acc.jsonParts.push(event.json)
+              // console.log('[NativeToolCall][delta]', acc.name, 'chunk:', event)
               // Update shared ref with partial args for live UI rendering
               if (toolArgsRef && acc) {
                 const existing = toolArgsRef.get(acc.id)
@@ -224,6 +224,7 @@ export class AIChatAdapter implements ChatModelAdapter {
     window.electronAPI.onAIStreamError(handleError)
 
     try {
+      //console.log('[NativeToolCall][stream-start]', JSON.stringify(messages))
       await window.electronAPI.sendAIMessageStream(
         this.currentProvider.provider,
         messages,
@@ -272,7 +273,7 @@ export class AIChatAdapter implements ChatModelAdapter {
   private buildToolActivityMarker(
     iteration: number,
     phase: 'running' | 'complete',
-    entries: Array<{ name: string, phase: 'preparing' | 'running' | 'complete' | 'error', startedAt: number, completedAt?: number, result?: string }>,
+    entries: Array<{ name: string, phase: 'running' | 'complete' | 'error', startedAt: number, completedAt?: number, result?: string }>,
   ): string {
     const data = { iteration, phase, tools: entries }
     return `<!--TOOL_ACTIVITY_JSON\n${JSON.stringify(data)}\nTOOL_ACTIVITY_JSON_END-->`
@@ -315,12 +316,10 @@ export class AIChatAdapter implements ChatModelAdapter {
     }> = []
 
     // Track tool activity entries for the smart panel
-    const toolActivityEntries: Array<{ name: string, phase: 'preparing' | 'running' | 'complete' | 'error', startedAt: number, completedAt?: number, result?: string }> = []
+    const toolActivityEntries: Array<{ name: string, phase: 'running' | 'complete' | 'error', startedAt: number, completedAt?: number, result?: string }> = []
 
-    // Limit eval-triggered retries to prevent infinite loops where eval keeps saying "not complete"
-    // but the model just rephrases without actually doing new work
-    let evalRetryCount = 0
-    const maxEvalRetries = 1
+    // Only do the deliverable verification re-entry once to prevent infinite loops
+    let deliverableCheckDone = false
 
     yield { content: [{ type: 'text' as const, text: '' }] }
 
@@ -337,6 +336,10 @@ export class AIChatAdapter implements ChatModelAdapter {
       const streamingToolArgs = new Map<string, { id: string, name: string, partialJson: string }>()
       let streamResult: StreamResult | null = null
       let streamError: Error | null = null
+      let lastYieldedTextLen = 0
+      const CHARS_PER_YIELD = 15
+      const YIELD_INTERVAL_ACTIVE = 20
+      const YIELD_INTERVAL_IDLE = 50
 
       this.streamWithToolSupport(
         conversationHistory, tools, abortSignal, undefined,
@@ -349,7 +352,9 @@ export class AIChatAdapter implements ChatModelAdapter {
       ).then(r => { streamResult = r }).catch(e => { streamError = e as Error })
 
       // Poll and yield streaming text + pending tool indicators to the UI
-      while (!streamResult && !streamError) {
+      // Keep looping until stream is done AND all buffered text has been shown
+      console.log('what is the steam result', streamResult)
+      while ((!streamResult && !streamError) || (streamResult && lastYieldedTextLen < streamingText.length)) {
         if (abortSignal?.aborted) throw new Error('Request was aborted')
         const liveContent: Array<{ type: string, [key: string]: unknown }> = [...completedToolParts]
 
@@ -361,17 +366,13 @@ export class AIChatAdapter implements ChatModelAdapter {
           textPart += this.buildToolActivityMarker(currentIteration, 'running', toolActivityEntries)
         }
 
-        // Show preparing indicator when model is building tool calls
+        // When model is building tool calls, yield partial tool-call parts for RunCodeDisplay
         if (pendingStreamTools.length > 0) {
-          const preparingEntries = pendingStreamTools.map(ts => ({
-            name: ts.name,
-            phase: 'preparing' as const,
-            startedAt: Date.now(),
-          }))
-          // Merge with existing activity entries for a single marker
-          const allEntries = [...toolActivityEntries, ...preparingEntries]
-          textPart = this.buildToolActivityMarker(currentIteration, 'running', allEntries)
-          if (streamingText) textPart = streamingText + '\n\n' + textPart
+          if (streamingText) {
+            const charsToShow = Math.min(lastYieldedTextLen + CHARS_PER_YIELD, streamingText.length)
+            lastYieldedTextLen = charsToShow
+            textPart += (textPart ? '\n\n' : '') + streamingText.substring(0, charsToShow)
+          }
 
           // Yield partial tool-call parts so RunCodeToolPart can show code as it streams
           for (const st of pendingStreamTools) {
@@ -392,7 +393,9 @@ export class AIChatAdapter implements ChatModelAdapter {
           }
         }
         else if (streamingText) {
-          textPart += (textPart ? '\n\n' : '') + streamingText
+          const charsToShow = Math.min(lastYieldedTextLen + CHARS_PER_YIELD, streamingText.length)
+          lastYieldedTextLen = charsToShow
+          textPart += (textPart ? '\n\n' : '') + streamingText.substring(0, charsToShow)
         }
 
         if (streamingThinking) {
@@ -402,18 +405,21 @@ export class AIChatAdapter implements ChatModelAdapter {
           liveContent.push({ type: 'text' as const, text: textPart })
         }
 
+   
         yield { content: liveContent }
-        await new Promise(resolve => setTimeout(resolve, 50))
+        const hasUnshownContent = lastYieldedTextLen < streamingText.length
+        await new Promise(resolve => setTimeout(resolve, hasUnshownContent ? YIELD_INTERVAL_ACTIVE : YIELD_INTERVAL_IDLE))
       }
+
       if (streamError) throw streamError
       const result = streamResult!
 
-      console.log('[NativeToolCall][stream-result]', {
-        iteration: currentIteration,
-        textLength: result.text.length,
-        toolCallCount: result.toolCalls.length,
-        stopReason: result.stopReason,
-      })
+      // console.log('[NativeToolCall][stream-result]', {
+      //   iteration: currentIteration,
+      //   textLength: result.text.length,
+      //   toolCallCount: result.toolCalls.length,
+      //   stopReason: result.stopReason,
+      // })
 
       // If no tool calls, this is the final response (text already streamed above)
       // When stopReason is max_tokens but tool calls exist, the model wanted to use tools — execute them
@@ -443,125 +449,24 @@ export class AIChatAdapter implements ChatModelAdapter {
         }
         yield { content: [...finalContent, { type: 'text' as const, text: activityPrefix + displayText }] }
 
-        // Post-loop evaluation: assess task completion with Haiku (only if tools were used)
-        if (completedToolParts.length > 0 && userGoal) {
-          try {
-            // Build tool signals from stored results
-            const allResults = runCodeResultContext.getAllResults()
-            let toolSignals = ''
-            if (allResults.length > 0) {
-              toolSignals = allResults.map(r => {
-                const parts: string[] = [`Tool: ${r.toolName}`]
-                const ed = r.extractedData
-                if (ed.errorMessages.length > 0) parts.push(`Errors: ${ed.errorMessages.join('; ')}`)
-                if (ed.successIndicators.length > 0) parts.push(`Success: ${ed.successIndicators.join('; ')}`)
-                if (Object.keys(ed.keyValuePairs).length > 0) parts.push(`Data: ${JSON.stringify(ed.keyValuePairs)}`)
-                if (ed.urls.length > 0) parts.push(`URLs: ${ed.urls.slice(0, 5).join(', ')}`)
-                if (ed.ids.length > 0) parts.push(`IDs: ${ed.ids.slice(0, 5).join(', ')}`)
-                if (ed.dataWriteIndicators && ed.dataWriteIndicators.length > 0) parts.push(`Data writes: ${ed.dataWriteIndicators.join('; ')}`)
-                const hasData = ed.ids.length > 0 || ed.urls.length > 0 || Object.keys(ed.keyValuePairs).length > 0
-                if (!hasData && ed.errorMessages.length === 0) parts.push('WARNING: No meaningful data extracted')
-                const hasResourceUrl = ed.urls.length > 0 || ed.ids.length > 0
-                const hasDataWrite = ed.dataWriteIndicators && ed.dataWriteIndicators.length > 0
-                if (hasResourceUrl && !hasDataWrite) parts.push('WARNING: Resource created but no data-write confirmation')
-                return parts.join(' | ')
-              }).join('\n')
-            }
+        // Deliverable verification: if tools were used, let the model check whether the
+        // last result contains a concrete deliverable. If not, re-enter the loop so it
+        // can do a GET/verification call.
+        if (completedToolParts.length > 0 && userGoal && !deliverableCheckDone) {
+          deliverableCheckDone = true
+          const latestResult = runCodeResultContext.getLatestResult()
+          if (latestResult) {
+            const resultPreview = latestResult.wasSummarized
+              ? latestResult.summary.slice(0, 2000)
+              : latestResult.fullResult.slice(0, 2000)
 
-            const evalSystemPrompt = buildTaskCompletionPrompt(displayText, userGoal, toolSignals)
-
-            // Yield "evaluating" state so UI shows spinner
-            const evaluatingData = { evalType: 'task-completion', phase: 'evaluating', reasoning: '', result: {} }
-            const evalMarkerEvaluating = `\n\n<!--EVAL_PHASE_JSON\n${JSON.stringify(evaluatingData)}\nEVAL_PHASE_JSON_END-->`
-            yield { content: [...finalContent, { type: 'text' as const, text: activityPrefix + displayText + evalMarkerEvaluating }] }
-
-            // Call Haiku for evaluation (no tools, just text inference)
-            const evalResult = await this.streamWithToolSupport(
-              [
-                { role: 'system', content: evalSystemPrompt },
-                { role: 'user', content: 'Evaluate whether the task is complete.' },
-              ],
-              undefined,
-              abortSignal,
-              'claude-haiku-4-5-20251001',
-            )
-
-            // Parse the JSON response from Haiku
-            let parsed: Record<string, unknown> = {}
-            try {
-              let jsonStr = evalResult.text.trim()
-              const fenceMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/)
-              if (fenceMatch) jsonStr = fenceMatch[1].trim()
-              parsed = JSON.parse(jsonStr)
-            } catch {
-              console.warn('[NativeToolCall][eval:parse-failure]', evalResult.text.slice(0, 300))
-            }
-            if (parsed.isComplete === undefined) {
-              parsed.isComplete = false
-              parsed.reasoning = parsed.reasoning ?? 'Evaluation parse failed — defaulting to not complete'
-            }
-
-            const reasoning = (parsed.reasoning as string) ?? evalResult.text.slice(0, 500)
-
-            // Yield "complete" state so UI shows result
-            const completedData = { evalType: 'task-completion', phase: 'complete', reasoning, result: parsed }
-            const evalMarkerComplete = `\n\n<!--EVAL_PHASE_JSON\n${JSON.stringify(completedData)}\nEVAL_PHASE_JSON_END-->`
-
-            console.log('[NativeToolCall][eval]', { isComplete: parsed.isComplete, reasoning: reasoning.slice(0, 200) })
-
-            if (!parsed.isComplete) {
-              // Yield eval marker now so UI shows the "not complete" state before continuing
-              yield { content: [...finalContent, { type: 'text' as const, text: activityPrefix + displayText + evalMarkerComplete }] }
-
-              // Only retry if we haven't exceeded eval retry limit — prevents infinite loops
-              // where the model keeps responding with text but never actually does new work
-              if (evalRetryCount < maxEvalRetries) {
-                evalRetryCount++
-                console.log('[NativeToolCall][eval] Retrying (attempt', evalRetryCount, 'of', maxEvalRetries, ')')
-                // Self-healing: add corrective messages and re-enter the loop
-                conversationHistory.push({ role: 'assistant', content: displayText })
-                conversationHistory.push({
-                  role: 'user',
-                  content: `The task is not yet complete. ${reasoning}. If you created a resource, verify its contents by reading it back before declaring completion. Please continue and ensure the task is fully done.`,
-                })
-                continue // Re-enter the agentic while loop
-              }
-              else {
-                console.log('[NativeToolCall][eval] Max eval retries reached, returning response as-is')
-              }
-            }
-
-            // isComplete path: try follow-up first, then yield once
-            let finalDisplayText = displayText
-            if (toolSignals) {
-              try {
-                console.log('[NativeToolCall][deliverables] Starting follow-up call to surface deliverables')
-                conversationHistory.push({ role: 'assistant', content: displayText })
-                conversationHistory.push({
-                  role: 'user',
-                  content: 'Task is complete. If there are any deliverable links, URLs, file IDs, or key outputs from the tool results, provide them now in a brief follow-up. If there are no deliverables to surface, respond with exactly "NO_DELIVERABLES".',
-                })
-
-                const followUp = await this.streamWithToolSupport(
-                  conversationHistory,
-                  undefined, // no tools — model can't loop
-                  undefined, // fresh call, no abort signal
-                )
-
-                const followUpText = followUp.text?.trim()
-                console.log('[NativeToolCall][deliverables] Follow-up response:', followUpText?.slice(0, 300))
-                if (followUpText && followUpText !== 'NO_DELIVERABLES' && followUpText.length > 0) {
-                  finalDisplayText = displayText + '\n\n' + followUpText
-                }
-              } catch (followUpErr) {
-                console.warn('[NativeToolCall][deliverables] Follow-up failed:', followUpErr instanceof Error ? followUpErr.message : followUpErr)
-              }
-            }
-            // Single yield for isComplete path — includes follow-up text if available
-            yield { content: [...finalContent, { type: 'text' as const, text: activityPrefix + finalDisplayText + evalMarkerComplete }] }
-          } catch (evalError) {
-            // Evaluation is non-critical — if it fails, just skip it
-            console.warn('[NativeToolCall][eval:error]', evalError instanceof Error ? evalError.message : evalError)
+            conversationHistory.push({ role: 'assistant', content: displayText })
+            conversationHistory.push({
+              role: 'user',
+              content: `Look at the last tool result:\n\n${resultPreview}\n\nDoes it contain a concrete deliverable (a URL, resource ID, structured data, or image)? If yes, present it to the user. If not, use run-code to do a GET request or verification call to retrieve/confirm the deliverable.`,
+            })
+            console.log('[NativeToolCall][deliverable-check] Re-entering loop to let model verify deliverables')
+            continue // Re-enter the agentic while loop
           }
         }
 
@@ -571,9 +476,11 @@ export class AIChatAdapter implements ChatModelAdapter {
       // Build assistant message with text + tool_use content blocks
       const assistantContent: Array<{ type: string, [key: string]: unknown }> = []
       if (result.text) {
+        // console.log('[NativeToolCall][assistant-content] Text:', result.text)
         assistantContent.push({ type: 'text', text: result.text })
       }
       for (const tc of result.toolCalls) {
+        // console.log('[NativeToolCall][assistant-content] Tool call:', tc)
         assistantContent.push({ type: 'tool_use', id: tc.id, name: tc.name, input: tc.input })
       }
       conversationHistory.push({ role: 'assistant', content: assistantContent })
@@ -593,7 +500,7 @@ export class AIChatAdapter implements ChatModelAdapter {
         completedToolParts.push(toolPart)
 
         // Track this tool as running in the activity panel
-        const activityEntry: { name: string, phase: 'preparing' | 'running' | 'complete' | 'error', startedAt: number, completedAt?: number, result?: string } = { name: tc.name, phase: 'running', startedAt: Date.now() }
+        const activityEntry: { name: string, phase: 'running' | 'complete' | 'error', startedAt: number, completedAt?: number, result?: string } = { name: tc.name, phase: 'running', startedAt: Date.now() }
         toolActivityEntries.push(activityEntry)
 
         // Skip execution of truncated tool calls — they'll fail with empty/partial input anyway

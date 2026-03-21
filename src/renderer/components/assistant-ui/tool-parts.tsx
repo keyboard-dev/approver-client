@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { ToolCallMessagePartComponent } from '@assistant-ui/react'
 import { ChevronDownIcon, CheckCircleIcon, XCircleIcon } from 'lucide-react'
 import { cn } from '../../lib/utils'
-import { parseRunCodeBlock, RunCodeDisplay } from './run-code-display'
+import { RunCodeDisplay } from './run-code-display'
 import { AbilityCallDisplay } from './ability-call-display'
 
 /**
@@ -17,28 +17,53 @@ export const RunCodeToolPart: ToolCallMessagePartComponent = ({
   result,
   isError,
 }) => {
-  // Try to render as RunCodeDisplay using the args
-  // MCP run-code tool uses 'explanation_of_code', webapp uses 'explanation'/'description'
-  const runCodeData = args?.code
-    ? {
-        explanation: typeof args.explanation_of_code === 'string' ? args.explanation_of_code : typeof args.explanation === 'string' ? args.explanation : typeof args.description === 'string' ? args.description : undefined,
-        code: typeof args.code === 'string' ? args.code : undefined,
-        language: typeof args.language === 'string' ? args.language : undefined,
-      }
-    : parseRunCodeBlock(argsText, true)
+  const isComplete = result !== undefined
 
-  if (runCodeData?.code) {
+  // Completed: use parsed args for clean display
+  if (isComplete) {
+    const explanation = typeof args?.explanation_of_code === 'string' ? args.explanation_of_code
+      : typeof args?.explanation === 'string' ? args.explanation : undefined
+    const code = typeof args?.code === 'string' ? args.code : undefined
+    const language = typeof args?.language === 'string' ? args.language : undefined
+    if (explanation || code) {
+      return (
+        <div data-tool-part="run-code" className="my-2">
+          <RunCodeDisplay data={{ explanation, code, language }} />
+          <ToolResult result={result} isError={isError} />
+        </div>
+      )
+    }
+  }
+
+  // Streaming: extract partial fields from argsText for progressive display
+  if (argsText) {
+    const explanation = typeof args?.explanation_of_code === 'string' ? args.explanation_of_code
+      : typeof args?.explanation === 'string' ? args.explanation
+      : argsText.match(/"(?:explanation_of_code|explanation)"\s*:\s*"((?:[^"\\]|\\.)*)"?/)?.[1]
+          ?.replace(/\\n/g, '\n')?.replace(/\\t/g, '\t')?.replace(/\\"/g, '"')
+      ?? undefined
+    const code = typeof args?.code === 'string' ? args.code
+      : argsText.match(/"code"\s*:\s*"((?:[^"\\]|\\.)*)/)?.[1]
+          ?.replace(/\\n/g, '\n')?.replace(/\\t/g, '\t')?.replace(/\\"/g, '"')
+      ?? undefined
+    const language = typeof args?.language === 'string' ? args.language
+      : argsText.match(/"language"\s*:\s*"((?:[^"\\]|\\.)*)"/)?.[1] ?? undefined
+
+    console.log('[RunCodeToolPart][streaming]', {
+      ts: Date.now(),
+      hasExplanation: !!explanation,
+      codeLen: code?.length ?? 0,
+      argsTextLen: argsText.length,
+    })
+
     return (
       <div data-tool-part="run-code" className="my-2">
-        <RunCodeDisplay data={runCodeData} rawCode={argsText} />
-        {result !== undefined && (
-          <ToolResult result={result} isError={isError} />
-        )}
+        <RunCodeDisplay data={{ explanation, code, language }} rawStreamingText={argsText} />
+        {isComplete && <ToolResult result={result} isError={isError} />}
       </div>
     )
   }
 
-  // Fallback: generic display
   return <GenericToolPart toolName={toolName} argsText={argsText} result={result} isError={isError} />
 }
 

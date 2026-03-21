@@ -1,5 +1,5 @@
 import { memo, useState } from 'react'
-import { CheckIcon, ChevronDownIcon, CopyIcon, PlayIcon } from 'lucide-react'
+import { CheckIcon, ChevronDownIcon, CopyIcon, Loader, PlayIcon } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
 interface RunCodeData {
@@ -9,39 +9,31 @@ interface RunCodeData {
 }
 
 /**
- * Parse a run-code JSON block from raw code content.
+ * Parse a run-code JSON block from raw code content (markdown code blocks).
  * Handles both complete JSON and partial streaming content via regex fallback.
  * Returns null if the content is not a run-code block.
  */
-/**
- * Parse a run-code JSON block from raw code content.
- * Handles both complete JSON and partial streaming content via regex fallback.
- * When isToolArgs is true, skips the "run-code" marker check (tool name already known).
- * Returns null if the content is not a run-code block.
- */
-export function parseRunCodeBlock(rawContent: string, isToolArgs = false): RunCodeData | null {
+export function parseRunCodeBlock(rawContent: string): RunCodeData | null {
   if (!rawContent) return null
-  // When parsing markdown code blocks, require "run-code" marker; for tool args, skip this check
-  if (!isToolArgs && !rawContent.includes('"run-code"')) return null
+  if (!rawContent.includes('"run-code"')) return null
 
   // Try full JSON parse first
   try {
     const parsed = JSON.parse(rawContent)
-    if (isToolArgs || parsed?.ability === 'run-code' || parsed?.type === 'run-code') {
-      if (!parsed.code) return null // No code yet -- don't render empty block
-      return {
-        explanation: parsed.explanation_of_code ?? parsed.explanation ?? parsed.description ?? undefined,
-        code: parsed.code ?? undefined,
-        language: parsed.language ?? undefined,
-      }
+    if (parsed?.ability === 'run-code' || parsed?.type === 'run-code') {
+      const explanation = parsed.explanation_of_code ?? parsed.explanation ?? parsed.description ?? undefined
+      const code = parsed.code ?? undefined
+      const language = parsed.language ?? undefined
+      if (explanation || code) return { explanation, code, language }
+      return null
     }
   } catch {
     // Streaming / incomplete JSON -- use regex fallback
   }
 
-  // Regex fallback for streaming partial JSON
+  // Regex fallback for markdown code blocks -- require code field
   const codeMatch = rawContent.match(/"code"\s*:\s*"((?:[^"\\]|\\.)*)/)
-  if (!codeMatch) return null // No code field yet -- don't collapse prematurely
+  if (!codeMatch) return null
 
   const explanation =
     rawContent.match(/"(?:explanation_of_code|explanation|description)"\s*:\s*"((?:[^"\\]|\\.)*)"?/)?.[1]
@@ -54,7 +46,6 @@ export function parseRunCodeBlock(rawContent: string, isToolArgs = false): RunCo
     .replace(/\\t/g, '\t')
     .replace(/\\"/g, '"')
 
-  // Don't render if code is empty (streaming hasn't populated it yet, or AI truncated it)
   if (!code) return null
 
   const language =
@@ -65,19 +56,32 @@ export function parseRunCodeBlock(rawContent: string, isToolArgs = false): RunCo
 
 interface RunCodeDisplayProps {
   data: RunCodeData
-  rawCode: string
+  rawStreamingText?: string
 }
 
-export const RunCodeDisplay = memo(function RunCodeDisplay({ data, rawCode: _rawCode }: RunCodeDisplayProps) {
+export const RunCodeDisplay = memo(function RunCodeDisplay({ data, rawStreamingText }: RunCodeDisplayProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [isCopied, setIsCopied] = useState(false)
 
+  const isStreaming = !!rawStreamingText
   const lineCount = data.code ? data.code.split('\n').length : 0
-  const summary = data.explanation
-    ? data.explanation.length > 80
-      ? `${data.explanation.slice(0, 80)}...`
-      : data.explanation
-    : `${lineCount} line${lineCount !== 1 ? 's' : ''} of code`
+  const summary = !data.code && !data.explanation
+    ? 'Writing code…'
+    : data.explanation
+      ? data.explanation.length > 80
+        ? `${data.explanation.slice(0, 80)}...`
+        : data.explanation
+      : `${lineCount} line${lineCount !== 1 ? 's' : ''} of code`
+
+  console.log('[RunCodeDisplay][render]', {
+    ts: Date.now(),
+    isStreaming,
+    hasCode: !!data.code,
+    codeLen: data.code?.length ?? 0,
+    hasExplanation: !!data.explanation,
+    hasRawStreaming: !!rawStreamingText,
+    rawStreamingLen: rawStreamingText?.length ?? 0,
+  })
 
   const copyCode = () => {
     if (!data.code || isCopied) return
@@ -96,7 +100,9 @@ export const RunCodeDisplay = memo(function RunCodeDisplay({ data, rawCode: _raw
           onClick={() => setIsExpanded(!isExpanded)}
           className="flex items-center gap-2.5 w-full px-3 py-2 text-left hover:bg-[#fafafa] transition-colors"
         >
-          <PlayIcon className="size-3.5 text-emerald-500 shrink-0" />
+          {isStreaming && !data.code
+            ? <Loader className="size-3.5 text-blue-500 shrink-0 animate-spin" />
+            : <PlayIcon className="size-3.5 text-emerald-500 shrink-0" />}
           <span className="text-[13px] font-medium text-[#171717] shrink-0">
             Run Code
           </span>
@@ -122,6 +128,13 @@ export const RunCodeDisplay = memo(function RunCodeDisplay({ data, rawCode: _raw
             {data.explanation && (
               <div className="px-3 pt-2 pb-1">
                 <p className="text-[12px] text-[#525252] leading-relaxed">{data.explanation}</p>
+              </div>
+            )}
+            {isStreaming && rawStreamingText && (
+              <div className="px-3 pb-3 pt-1">
+                <pre className="max-h-[400px] overflow-auto rounded-md bg-[#1e1e1e] p-3 text-[12px] text-[#d4d4d4] leading-relaxed whitespace-pre-wrap break-words font-mono">
+                  {rawStreamingText}
+                </pre>
               </div>
             )}
             {data.code && (
