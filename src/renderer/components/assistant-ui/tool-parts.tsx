@@ -21,7 +21,8 @@ export const RunCodeToolPart: ToolCallMessagePartComponent = ({
 
   // Completed: use parsed args for clean display
   if (isComplete) {
-    const explanation = typeof args?.explanation_of_code === 'string' ? args.explanation_of_code
+    const explanation = typeof args?.explanation_of_code === 'string'
+      ? args.explanation_of_code
       : typeof args?.explanation === 'string' ? args.explanation : undefined
     const code = typeof args?.code === 'string' ? args.code : undefined
     const language = typeof args?.language === 'string' ? args.language : undefined
@@ -37,24 +38,21 @@ export const RunCodeToolPart: ToolCallMessagePartComponent = ({
 
   // Streaming: extract partial fields from argsText for progressive display
   if (argsText) {
-    const explanation = typeof args?.explanation_of_code === 'string' ? args.explanation_of_code
-      : typeof args?.explanation === 'string' ? args.explanation
-      : argsText.match(/"(?:explanation_of_code|explanation)"\s*:\s*"((?:[^"\\]|\\.)*)"?/)?.[1]
+    const explanation = typeof args?.explanation_of_code === 'string'
+      ? args.explanation_of_code
+      : typeof args?.explanation === 'string'
+        ? args.explanation
+        : argsText.match(/"(?:explanation_of_code|explanation)"\s*:\s*"((?:[^"\\]|\\.)*)"?/)?.[1]
           ?.replace(/\\n/g, '\n')?.replace(/\\t/g, '\t')?.replace(/\\"/g, '"')
-      ?? undefined
-    const code = typeof args?.code === 'string' ? args.code
+          ?? undefined
+    const code = typeof args?.code === 'string'
+      ? args.code
       : argsText.match(/"code"\s*:\s*"((?:[^"\\]|\\.)*)/)?.[1]
-          ?.replace(/\\n/g, '\n')?.replace(/\\t/g, '\t')?.replace(/\\"/g, '"')
-      ?? undefined
-    const language = typeof args?.language === 'string' ? args.language
+        ?.replace(/\\n/g, '\n')?.replace(/\\t/g, '\t')?.replace(/\\"/g, '"')
+        ?? undefined
+    const language = typeof args?.language === 'string'
+      ? args.language
       : argsText.match(/"language"\s*:\s*"((?:[^"\\]|\\.)*)"/)?.[1] ?? undefined
-
-    console.log('[RunCodeToolPart][streaming]', {
-      ts: Date.now(),
-      hasExplanation: !!explanation,
-      codeLen: code?.length ?? 0,
-      argsTextLen: argsText.length,
-    })
 
     return (
       <div data-tool-part="run-code" className="my-2">
@@ -123,7 +121,8 @@ function getResultSummary(result: string, isError: boolean): string {
         return keys.length > 4 ? `{${preview}, ...}` : `{${preview}}`
       }
     }
-  } catch { /* not JSON -- fall through */ }
+  }
+  catch { /* not JSON -- fall through */ }
 
   // Plain text: skip trivial lines like lone braces/brackets
   const lines = result.split('\n')
@@ -139,7 +138,7 @@ function getResultSummary(result: string, isError: boolean): string {
 /**
  * Shared collapsible result display for tool parts.
  */
-export function ToolResult({ result, isError }: { result: unknown; isError?: boolean }) {
+export function ToolResult({ result, isError }: { result: unknown, isError?: boolean }) {
   const [isExpanded, setIsExpanded] = useState(false)
   const resultStr = typeof result === 'string' ? result : JSON.stringify(result, null, 2)
   const summary = getResultSummary(resultStr, !!isError)
@@ -148,7 +147,8 @@ export function ToolResult({ result, isError }: { result: unknown; isError?: boo
     <div className={cn(
       'mt-1 border rounded-lg overflow-hidden',
       isError ? 'border-red-200 bg-white' : 'border-green-200 bg-white',
-    )}>
+    )}
+    >
       <button
         type="button"
         onClick={() => setIsExpanded(!isExpanded)}
@@ -176,7 +176,8 @@ export function ToolResult({ result, isError }: { result: unknown; isError?: boo
           <pre className={cn(
             'whitespace-pre-wrap break-words text-[11px] max-h-[400px] overflow-auto font-mono',
             isError ? 'text-red-700' : 'text-green-700',
-          )}>
+          )}
+          >
             {resultStr}
           </pre>
         </div>
@@ -188,12 +189,13 @@ export function ToolResult({ result, isError }: { result: unknown; isError?: boo
 /**
  * Generic fallback for tools that don't have specialized display.
  */
-export function GenericToolPart({ toolName, argsText, result, isError }: { toolName: string; argsText: string; result?: unknown; isError?: boolean }) {
+export function GenericToolPart({ toolName, argsText, result, isError }: { toolName: string, argsText: string, result?: unknown, isError?: boolean }) {
   // Reuse the AbilityCallDisplay for generic display
   let parsedArgs: Record<string, unknown> = {}
   try {
     parsedArgs = JSON.parse(argsText)
-  } catch {
+  }
+  catch {
     parsedArgs = { raw: argsText }
   }
 

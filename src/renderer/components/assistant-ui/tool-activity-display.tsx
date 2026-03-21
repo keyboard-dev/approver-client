@@ -118,17 +118,20 @@ export const ToolActivityDisplay = memo(function ToolActivityDisplay({ data }: T
       <div className={cn(
         'border border-[#e5e5e5] rounded-lg overflow-hidden bg-white w-full transition-colors',
         flashGreen && 'animate-flash-green',
-      )}>
+      )}
+      >
         <button
           type="button"
           onClick={() => setIsExpanded(!isExpanded)}
           className="flex items-center gap-2.5 w-full px-3 py-2 text-left hover:bg-[#fafafa] transition-colors"
         >
-          {data.phase === 'running' ? (
-            <Loader className="size-3.5 text-blue-500 shrink-0 animate-spin" />
-          ) : (
-            <Wrench className="size-3.5 text-emerald-500 shrink-0" />
-          )}
+          {data.phase === 'running'
+            ? (
+                <Loader className="size-3.5 text-blue-500 shrink-0 animate-spin" />
+              )
+            : (
+                <Wrench className="size-3.5 text-emerald-500 shrink-0" />
+              )}
           <span className="text-[13px] font-medium text-[#171717] shrink-0">
             Tool Activity
           </span>

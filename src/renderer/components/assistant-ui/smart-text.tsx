@@ -37,7 +37,8 @@ function parseResearchData(text: string): ResearchPhaseData | null {
 
   try {
     return JSON.parse(jsonStr) as ResearchPhaseData
-  } catch {
+  }
+  catch {
     return null
   }
 }
@@ -54,7 +55,8 @@ function parseEvalData(text: string): EvalPhaseData | null {
 
   try {
     return JSON.parse(jsonStr) as EvalPhaseData
-  } catch {
+  }
+  catch {
     return null
   }
 }
@@ -71,7 +73,8 @@ function parsePolishStepData(text: string): PolishStepData | null {
 
   try {
     return JSON.parse(jsonStr) as PolishStepData
-  } catch {
+  }
+  catch {
     return null
   }
 }
@@ -88,7 +91,8 @@ function parsePolishSummaryData(text: string): PolishSummaryData | null {
 
   try {
     return JSON.parse(jsonStr) as PolishSummaryData
-  } catch {
+  }
+  catch {
     return null
   }
 }
@@ -105,7 +109,8 @@ function parseToolActivityData(text: string): ToolActivityData | null {
 
   try {
     return JSON.parse(jsonStr) as ToolActivityData
-  } catch {
+  }
+  catch {
     return null
   }
 }

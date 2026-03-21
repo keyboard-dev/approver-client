@@ -7,7 +7,7 @@ export interface AbilityCallData {
   parameters: Record<string, unknown>
 }
 
-const ABILITY_MAP: Record<string, { icon: typeof SearchIcon; label: string; summaryParam?: string }> = {
+const ABILITY_MAP: Record<string, { icon: typeof SearchIcon, label: string, summaryParam?: string }> = {
   'web-search': { icon: SearchIcon, label: 'Web Search', summaryParam: 'query' },
   'save-keyboard-shortcut-script-template': { icon: SaveIcon, label: 'Save Shortcut', summaryParam: 'name' },
   'update-keyboard-shortcut-script-template': { icon: PencilIcon, label: 'Update Shortcut', summaryParam: 'name' },
@@ -37,7 +37,8 @@ export function parseAbilityBlock(rawContent: string): AbilityCallData | null {
       const result = { ability, parameters: rest.parameters ?? rest }
       return result
     }
-  } catch {
+  }
+  catch {
     // Streaming / incomplete JSON -- use regex fallback
   }
 
@@ -81,7 +82,8 @@ export const AbilityCallDisplay = memo(function AbilityCallDisplay({ data }: Abi
   if (mapping?.summaryParam && data.parameters[mapping.summaryParam]) {
     const val = String(data.parameters[mapping.summaryParam])
     summary = val.length > 80 ? `${val.slice(0, 80)}...` : val
-  } else if (!mapping?.summaryParam) {
+  }
+  else if (!mapping?.summaryParam) {
     const firstStr = Object.values(data.parameters).find(v => typeof v === 'string')
     if (firstStr) {
       const val = String(firstStr)

@@ -162,19 +162,7 @@ export class KeyboardProvider implements AIProvider {
     const bodySizeKB = Math.round(bodyString.length / 1024)
     const toolCount = (requestBody.tools as any[])?.length || 0
     const systemSizeKB = Math.round((typeof requestBody.system === 'string' ? requestBody.system.length : 0) / 1024)
-    console.log('[NativeToolCall][Keyboard] Request payload', {
-      totalSizeKB: bodySizeKB,
-      systemPromptKB: systemSizeKB,
-      toolCount,
-      messageCount: (requestBody.messages as any[])?.length || 0,
-      model: requestBody.model,
-      temperature: requestBody.temperature,
-      max_tokens: requestBody.max_tokens,
-      thinking: requestBody.thinking,
-    })
-    console.log('[NativeToolCall][Keyboard] Full request body:', JSON.stringify(requestBody, null, 2))
     if (bodySizeKB > 500) {
-      console.warn(`[NativeToolCall][Keyboard] Large payload: ${bodySizeKB}KB (system: ${systemSizeKB}KB, ${toolCount} tools)`)
     }
 
     // Fetch with one retry — TLS socket terminations are transient
@@ -190,7 +178,6 @@ export class KeyboardProvider implements AIProvider {
       })
     }
     catch (fetchErr) {
-      console.warn('[NativeToolCall][Keyboard] Fetch failed, retrying once:', (fetchErr as Error).message)
       await new Promise(r => setTimeout(r, 1500))
       response = await fetch(url, {
         method: 'POST',
@@ -243,25 +230,21 @@ export class KeyboardProvider implements AIProvider {
                 throw new Error(errMsg)
               }
               if (parsed.type === 'content_block_start' && parsed.content_block?.type === 'tool_use') {
-                console.log('[Keyboard][SSE] tool_use_start', { id: parsed.content_block.id, name: parsed.content_block.name })
                 yield { type: 'tool_use_start', id: parsed.content_block.id, name: parsed.content_block.name } as StreamEvent
               }
               else if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'thinking_delta') {
                 yield { type: 'thinking_delta', text: parsed.delta.thinking } as StreamEvent
               }
               else if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'input_json_delta') {
-                console.log('[Keyboard][SSE] tool_use_delta', { index: parsed.index, jsonLen: parsed.delta.partial_json?.length, json: parsed.delta.partial_json?.slice(0, 100) })
                 yield { type: 'tool_use_delta', id: String(parsed.index), json: parsed.delta.partial_json } as StreamEvent
               }
               else if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
                 yield parsed.delta.text
               }
               else if (parsed.type === 'content_block_stop') {
-                console.log('[Keyboard][SSE] content_block_stop', { index: parsed.index })
                 yield { type: 'tool_use_end', id: String(parsed.index) } as StreamEvent
               }
               else if (parsed.type === 'message_delta' && parsed.delta?.stop_reason) {
-                console.log('[Keyboard][SSE] message_end', { stop_reason: parsed.delta.stop_reason })
                 yield { type: 'message_end', stop_reason: parsed.delta.stop_reason } as StreamEvent
               }
             }
@@ -273,7 +256,6 @@ export class KeyboardProvider implements AIProvider {
             }
           }
           else if (line.trim().length > 0) {
-            console.warn('[NativeToolCall][Keyboard] Non-SSE line:', line.slice(0, 200))
           }
         }
       }
