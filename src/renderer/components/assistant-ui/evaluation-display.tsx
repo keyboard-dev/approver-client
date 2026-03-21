@@ -9,21 +9,21 @@ export interface EvalPhaseData {
   result?: Record<string, unknown>
 }
 
-const EVAL_CONFIG: Record<string, { icon: typeof Gauge; label: string; resultLabel: (r: Record<string, unknown>) => string }> = {
+const EVAL_CONFIG: Record<string, { icon: typeof Gauge, label: string, resultLabel: (r: Record<string, unknown>) => string }> = {
   'task-completion': {
     icon: Gauge,
     label: 'Evaluating task completion',
-    resultLabel: (r) => r.isComplete ? 'Task complete' : 'Continuing...',
+    resultLabel: r => r.isComplete ? 'Task complete' : 'Continuing...',
   },
   'recovery-research': {
     icon: Gauge,
     label: 'Evaluating recovery strategy',
-    resultLabel: (r) => r.needsResearch ? 'Research needed' : 'No research needed',
+    resultLabel: r => r.needsResearch ? 'Research needed' : 'No research needed',
   },
   'polish-evaluation': {
     icon: Sparkles,
     label: 'Evaluating polish opportunity',
-    resultLabel: (r) => r.shouldPolish ? 'Polish needed' : 'Already polished',
+    resultLabel: r => r.shouldPolish ? 'Polish needed' : 'Already polished',
   },
 }
 
@@ -65,17 +65,20 @@ export const EvaluationDisplay = memo(function EvaluationDisplay({ data }: Evalu
       <div className={cn(
         'border border-[#e5e5e5] rounded-lg overflow-hidden bg-white w-full transition-colors',
         flashGreen && 'animate-flash-green',
-      )}>
+      )}
+      >
         <button
           type="button"
           onClick={() => setIsExpanded(!isExpanded)}
           className="flex items-center gap-2.5 w-full px-3 py-2 text-left hover:bg-[#fafafa] transition-colors"
         >
-          {isEvaluating ? (
-            <Loader className="size-3.5 text-blue-500 shrink-0 animate-spin" />
-          ) : (
-            <Icon className="size-3.5 text-emerald-500 shrink-0" />
-          )}
+          {isEvaluating
+            ? (
+                <Loader className="size-3.5 text-blue-500 shrink-0 animate-spin" />
+              )
+            : (
+                <Icon className="size-3.5 text-emerald-500 shrink-0" />
+              )}
           <span className="text-[13px] font-medium text-[#171717] shrink-0">
             {config.label}
           </span>

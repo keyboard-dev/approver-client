@@ -21,7 +21,7 @@ export interface PolishStepData {
   conclusion?: string
 }
 
-const PHASE_LABELS: Record<string, { label: string; activeText: string; icon: typeof Sparkles }> = {
+const PHASE_LABELS: Record<string, { label: string, activeText: string, icon: typeof Sparkles }> = {
   discovering: { label: 'Discovery', activeText: 'Finding artifact...', icon: FileSearch },
   capturing: { label: 'Visual Inspection', activeText: 'Capturing visual...', icon: Camera },
   analyzing: { label: 'Analysis', activeText: 'Planning improvements...', icon: ClipboardList },
@@ -41,26 +41,40 @@ function AnalysisReasoning({ reasoning }: { reasoning: string }) {
         <div className="max-h-[200px] overflow-auto text-[12px] text-[#404040] bg-[#fafafa] rounded p-2 space-y-1">
           {parsed.artifactType && (
             <div className="text-[11px] font-medium text-[#737373] mb-1">
-              Artifact: {parsed.artifactType}
+              Artifact:
+              {' '}
+              {parsed.artifactType}
             </div>
           )}
           <ol className="list-decimal list-inside space-y-0.5">
-            {parsed.improvements.map((imp: { action?: string; target?: string }, i: number) => (
+            {parsed.improvements.map((imp: { action?: string, target?: string }, i: number) => (
               <li key={i} className="text-[12px]">
                 <span className="font-medium">{imp.action}</span>
-                {imp.target && <span className="text-[#737373]"> — {imp.target}</span>}
+                {imp.target && (
+                  <span className="text-[#737373]">
+                    {' '}
+                    —
+                    {imp.target}
+                  </span>
+                )}
               </li>
             ))}
           </ol>
           {parsed.imageSearches?.length > 0 && (
             <div className="mt-1.5 text-[11px] text-[#737373]">
-              {parsed.imageSearches.length} image{parsed.imageSearches.length !== 1 ? 's' : ''} to find
+              {parsed.imageSearches.length}
+              {' '}
+              image
+              {parsed.imageSearches.length !== 1 ? 's' : ''}
+              {' '}
+              to find
             </div>
           )}
         </div>
       )
     }
-  } catch {
+  }
+  catch {
     // Not valid JSON — fall through to raw display
   }
   return (
@@ -119,7 +133,8 @@ export const PolishStepDisplay = memo(function PolishStepDisplay({ data }: Polis
       <div className={cn(
         'border border-[#e5e5e5] rounded-lg overflow-hidden bg-white w-full transition-colors',
         flashGreen && 'animate-flash-green',
-      )}>
+      )}
+      >
         <button
           type="button"
           onClick={() => setIsExpanded(!isExpanded)}
@@ -144,21 +159,26 @@ export const PolishStepDisplay = memo(function PolishStepDisplay({ data }: Polis
           <div className="border-t border-[#f0f0f0]">
             <div className="px-3 pt-2 pb-1">
               <span className="text-[11px] font-medium text-[#737373]">
-                {originalPhase === 'discovering' ? 'Reading the created artifact to understand its structure'
-                  : originalPhase === 'capturing' ? 'Capturing screenshots of the artifact for visual quality review'
-                  : originalPhase === 'analyzing' ? 'Planning visual and cosmetic improvements'
-                  : 'Applying improvements from the plan'}
+                {originalPhase === 'discovering'
+                  ? 'Reading the created artifact to understand its structure'
+                  : originalPhase === 'capturing'
+                    ? 'Capturing screenshots of the artifact for visual quality review'
+                    : originalPhase === 'analyzing'
+                      ? 'Planning visual and cosmetic improvements'
+                      : 'Applying improvements from the plan'}
               </span>
             </div>
             {data.reasoning && (
               <div className="px-3 py-2">
-                {originalPhase === 'analyzing' ? (
-                  <AnalysisReasoning reasoning={data.reasoning} />
-                ) : (
-                  <div className="max-h-[200px] overflow-auto text-[12px] text-[#404040] bg-[#fafafa] rounded p-2 whitespace-pre-wrap">
-                    {data.reasoning}
-                  </div>
-                )}
+                {originalPhase === 'analyzing'
+                  ? (
+                      <AnalysisReasoning reasoning={data.reasoning} />
+                    )
+                  : (
+                      <div className="max-h-[200px] overflow-auto text-[12px] text-[#404040] bg-[#fafafa] rounded p-2 whitespace-pre-wrap">
+                        {data.reasoning}
+                      </div>
+                    )}
               </div>
             )}
 
@@ -180,7 +200,8 @@ export const PolishStepDisplay = memo(function PolishStepDisplay({ data }: Polis
                         tc.isError
                           ? 'border-red-200 bg-red-50 text-red-700'
                           : 'border-[#e5e5e5] bg-white text-[#404040]',
-                      )}>
+                      )}
+                      >
                         {tc.result.slice(0, 500)}
                       </div>
                     )}

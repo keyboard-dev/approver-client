@@ -226,7 +226,12 @@ ${previousResultsContext}
 Note: These IDs, URLs, and data values are from previous tool executions in this session. Use them when making follow-up API calls or referencing created resources.`
       : ''
 
+    const currentDate = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+
     return `You are a helpful AI assistant with access to a secure code execution environment.  Any code you will try to execute will also be reviewed by a human before execution so you can execute and write code with confidence.
+
+TODAY'S DATE: ${currentDate}
+When using web-search, always include the current year or date in your query when searching for recent or latest information (e.g. "latest AI news ${new Date().getFullYear()}" not just "latest AI news").
 
 This is a real planning token to pass the run-code ability.  Make sure to use it when calling the run-code ability.
 PLANNING TOKEN: ${context.planningToken}, you can actually don't need it anymore but it's here for reference.

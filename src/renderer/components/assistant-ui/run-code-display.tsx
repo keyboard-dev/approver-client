@@ -27,7 +27,8 @@ export function parseRunCodeBlock(rawContent: string): RunCodeData | null {
       if (explanation || code) return { explanation, code, language }
       return null
     }
-  } catch {
+  }
+  catch {
     // Streaming / incomplete JSON -- use regex fallback
   }
 
@@ -35,8 +36,8 @@ export function parseRunCodeBlock(rawContent: string): RunCodeData | null {
   const codeMatch = rawContent.match(/"code"\s*:\s*"((?:[^"\\]|\\.)*)/)
   if (!codeMatch) return null
 
-  const explanation =
-    rawContent.match(/"(?:explanation_of_code|explanation|description)"\s*:\s*"((?:[^"\\]|\\.)*)"?/)?.[1]
+  const explanation
+    = rawContent.match(/"(?:explanation_of_code|explanation|description)"\s*:\s*"((?:[^"\\]|\\.)*)"?/)?.[1]
       ?.replace(/\\n/g, '\n')
       ?.replace(/\\t/g, '\t')
       ?.replace(/\\"/g, '"') ?? undefined
@@ -48,8 +49,8 @@ export function parseRunCodeBlock(rawContent: string): RunCodeData | null {
 
   if (!code) return null
 
-  const language =
-    rawContent.match(/"language"\s*:\s*"((?:[^"\\]|\\.)*)"/)?.[1] ?? undefined
+  const language
+    = rawContent.match(/"language"\s*:\s*"((?:[^"\\]|\\.)*)"/)?.[1] ?? undefined
 
   return { explanation, code, language }
 }
@@ -72,16 +73,6 @@ export const RunCodeDisplay = memo(function RunCodeDisplay({ data, rawStreamingT
         ? `${data.explanation.slice(0, 80)}...`
         : data.explanation
       : `${lineCount} line${lineCount !== 1 ? 's' : ''} of code`
-
-  console.log('[RunCodeDisplay][render]', {
-    ts: Date.now(),
-    isStreaming,
-    hasCode: !!data.code,
-    codeLen: data.code?.length ?? 0,
-    hasExplanation: !!data.explanation,
-    hasRawStreaming: !!rawStreamingText,
-    rawStreamingLen: rawStreamingText?.length ?? 0,
-  })
 
   const copyCode = () => {
     if (!data.code || isCopied) return

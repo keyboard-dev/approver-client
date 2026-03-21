@@ -58,12 +58,20 @@ export const ResearchPhaseDisplay = memo(function ResearchPhaseDisplay({ data }:
         </span>
         {currentRound && currentRound > 1 && (
           <span className="inline-flex items-center text-[11px] font-medium text-[#6366f1] bg-[#eef2ff] border border-[#c7d2fe] rounded-full px-1.5 py-0.5">
-            Round {currentRound}{totalRounds ? `/${totalRounds}` : ''}
+            Round
+            {' '}
+            {currentRound}
+            {totalRounds ? `/${totalRounds}` : ''}
           </span>
         )}
         {!isComplete && (
           <span className="text-[12px] text-[#a3a3a3]">
-            {completedCount} of {totalSearches} complete
+            {completedCount}
+            {' '}
+            of
+            {totalSearches}
+            {' '}
+            complete
           </span>
         )}
       </div>
@@ -219,8 +227,7 @@ const SummarizationRow = memo(function SummarizationRow({ phase, accumulatedText
         <span className="shrink-0">
           {isSummarizing
             ? <Loader className="size-3.5 text-purple-500 animate-spin" />
-            : <CheckCircle className="size-3.5 text-green-500" />
-          }
+            : <CheckCircle className="size-3.5 text-green-500" />}
         </span>
         <span className="text-[13px] font-medium text-[#171717] truncate min-w-0 flex-1">
           {title}

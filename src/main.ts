@@ -2174,7 +2174,6 @@ class MenuBarNotificationApp {
 
             for await (const chunk of generator) {
               if (typeof chunk !== 'string') {
-                console.log('[IPC][ai-stream-chunk] structured:', JSON.stringify(chunk).slice(0, 200))
               }
               event.sender.send('ai-stream-chunk', chunk)
             }
