@@ -5,11 +5,15 @@ import { contextService } from './context-service'
 import { ProviderFormats, useMCPIntegration } from './mcp-tool-integration'
 import { runCodeResultContext } from './run-code-result-context'
 
-// ─── Types ──────────────────────────────────────────────────────────────────
-
 interface AIMessage {
   role: 'user' | 'assistant' | 'system'
   content: string | Array<{ type: string, [key: string]: unknown }>
+}
+
+interface AIProviderSelection {
+  provider: string
+  model?: string
+  mcpEnabled?: boolean
 }
 
 interface ToolCallAccumulator {
@@ -24,64 +28,39 @@ interface StreamResult {
   stopReason: string
 }
 
-interface ToolCallPart {
-  type: 'tool-call'
-  toolCallId: string
-  toolName: string
-  args: Record<string, unknown>
-  argsText: string
-  result?: string
-  isError?: boolean
-}
-
-interface ActivityEntry {
-  name: string
-  phase: 'running' | 'complete' | 'error'
-  startedAt: number
-  completedAt?: number
-  result?: string
-}
-
-// Content parts yielded to the UI
-type ContentPart = { type: string, [key: string]: unknown }
-
-// The 4 MCP tools this adapter uses
-const ENABLED_TOOLS = ['run-code', 'web-search', 'list-connected-accounts', 'connect-reconnect-accounts']
-
-// Streaming config — yield at the natural SSE cadence, no artificial character throttling
-const YIELD_INTERVAL = 30 // ms between UI yields (matches SSE chunk arrival rate)
-
-// ─── Adapter ────────────────────────────────────────────────────────────────
-
 export class AIChatAdapter implements ChatModelAdapter {
-  private provider = 'keyboard'
-  private model?: string
-  private mcpEnabled = true
+  private currentProvider: AIProviderSelection = { provider: 'openai', model: 'gpt-3.5-turbo', mcpEnabled: false }
   private mcpIntegration: ReturnType<typeof useMCPIntegration> | null = null
   private setToolExecutionState?: (isExecuting: boolean, toolName?: string) => void
+  private maxAgenticIterations = 10
   private pingInterval: NodeJS.Timeout | null = null
   private isToolsExecuting = false
   private onThreadTitleGenerated?: (title: string) => void
   private titleGeneratedForThread = false
   private thinkingConfig?: { type: 'enabled', budget_tokens: number }
-  private maxIterations = 10
 
-  constructor(provider = 'keyboard', model?: string, mcpEnabled = true) {
-    this.provider = provider
-    this.model = model
-    this.mcpEnabled = mcpEnabled
+  constructor(provider: string = 'openai', model?: string, mcpEnabled: boolean = false) {
+    this.currentProvider = { provider, model, mcpEnabled }
   }
 
-  // ─── Public configuration ───────────────────────────────────────────────
+  setThreadTitleCallback(callback: (title: string) => void) {
+    this.onThreadTitleGenerated = callback
+  }
+
+  resetTitleGeneration() {
+    this.titleGeneratedForThread = false
+  }
 
   setProvider(provider: string, model?: string, mcpEnabled?: boolean) {
-    this.provider = provider
-    this.model = model
-    this.mcpEnabled = mcpEnabled ?? this.mcpEnabled
+    this.currentProvider = {
+      provider,
+      model,
+      mcpEnabled: mcpEnabled ?? this.currentProvider.mcpEnabled,
+    }
   }
 
-  setMCPIntegration(integration: ReturnType<typeof useMCPIntegration> | null) {
-    this.mcpIntegration = integration
+  setMCPIntegration(mcpIntegration: ReturnType<typeof useMCPIntegration> | null) {
+    this.mcpIntegration = mcpIntegration
   }
 
   setToolExecutionTracker(tracker: (isExecuting: boolean, toolName?: string) => void) {
@@ -96,323 +75,71 @@ export class AIChatAdapter implements ChatModelAdapter {
     contextService.setSelectedScripts(scripts)
   }
 
-  setThreadTitleCallback(callback: (title: string) => void) {
-    this.onThreadTitleGenerated = callback
+  private startPeriodicPing() {
+    if (this.pingInterval) {
+      return
+    }
+    this.pingInterval = setInterval(async () => {
+      try {
+        await window.electronAPI.sendManualPing()
+      }
+      catch {
+        // Silent fail
+      }
+    }, 10000)
   }
 
-  resetTitleGeneration() {
-    this.titleGeneratedForThread = false
+  private stopPeriodicPing() {
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval)
+      this.pingInterval = null
+    }
   }
 
-  // ─── Main entry point ───────────────────────────────────────────────────
-
-  async* run({ messages, abortSignal }: any) {
-    try {
-      const aiMessages = this.convertMessagesToAI(messages as any[])
-
-      // Generate thread title on first user message (fire and forget)
-      const userMessages = aiMessages.filter(m => m.role === 'user')
-      if (userMessages.length === 1 && userMessages[0]?.content) {
-        this.generateThreadTitle(userMessages[0].content as string)
-      }
-
-      // Inject system prompt with MCP context
-      if (this.mcpEnabled) {
-        await this.injectSystemPrompt(aiMessages)
-      }
-
-      // Get MCP tools
-      const tools = this.getEnabledTools()
-
-      if (tools.length > 0 && this.mcpEnabled) {
-        // Agentic mode: stream + execute tools in a loop
-        yield* this.agenticLoop(aiMessages, tools, abortSignal)
-      }
-      else {
-        // Simple mode: just stream text
-        yield* this.streamText(aiMessages, abortSignal)
-      }
+  private updateToolExecutionState(isExecuting: boolean, toolName?: string) {
+    const wasExecuting = this.isToolsExecuting
+    this.isToolsExecuting = isExecuting
+    this.setToolExecutionState?.(isExecuting, toolName)
+    if (isExecuting && !wasExecuting) {
+      this.startPeriodicPing()
     }
-    catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') throw err
-      const msg = err instanceof Error ? err.message : 'Unknown error occurred'
-      yield { content: [{ type: 'text' as const, text: `Error: ${msg}` }] }
-    }
-    finally {
+    else if (!isExecuting && wasExecuting) {
       this.stopPeriodicPing()
     }
   }
 
-  // ─── Agentic loop ──────────────────────────────────────────────────────
-  //
-  // Pipeline per iteration:
-  //   1. Stream AI response (text + tool_use blocks), yielding live content
-  //   2. If no tool calls → final response, done
-  //   3. Execute each tool call, yielding progress to UI
-  //   4. Append results to conversation history
-  //   5. Continue loop (model decides if more tools needed)
+  private cleanup() {
+    this.stopPeriodicPing()
+  }
 
-  private async* agenticLoop(
-    aiMessages: AIMessage[],
-    tools: Array<{ name: string, description: string, input_schema: Record<string, unknown> }>,
-    abortSignal?: AbortSignal,
-  ): AsyncGenerator<{ content: ContentPart[] }, void, unknown> {
-    if (!this.mcpIntegration) throw new Error('MCP integration not available')
-
-    const history: AIMessage[] = [...aiMessages]
-    const completedToolParts: ToolCallPart[] = []
-    const activityEntries: ActivityEntry[] = []
-    let deliverableCheckDone = false
-
-    yield { content: [{ type: 'text' as const, text: '' }] }
-
-    for (let iteration = 1; iteration <= this.maxIterations; iteration++) {
-      this.checkAbort(abortSignal)
-
-      // ── Phase 1: Stream AI response ────────────────────────────────
-      const { result, thinkingText } = yield* this.streamAndYield(
-        history, tools, abortSignal, completedToolParts, activityEntries, iteration,
+  private async generateThreadTitle(userMessage: string): Promise<void> {
+    if (this.titleGeneratedForThread || !this.onThreadTitleGenerated) {
+      return
+    }
+    this.titleGeneratedForThread = true
+    try {
+      const response = await window.electronAPI.sendAIMessage(
+        'keyboard',
+        [
+          { role: 'system', content: 'Generate a brief 3-6 word title for this chat based on the user message. Return ONLY the title, no quotes or punctuation.' },
+          { role: 'user', content: userMessage },
+        ],
+        { model: 'claude-haiku-4-5-20251001' },
       )
-
-      // ── Phase 2: Check if we're done ───────────────────────────────
-      const hasToolCalls = result.toolCalls.length > 0
-      const wantsTools = result.stopReason === 'tool_use' || result.stopReason === 'max_tokens'
-
-      if (!hasToolCalls || !wantsTools) {
-        // Final response — yield with activity summary
-        yield* this.yieldFinalResponse(
-          result, thinkingText, completedToolParts, activityEntries,
-          iteration, history, deliverableCheckDone,
-        )
-
-        // Deliverable verification: check if we should re-enter the loop
-        if (completedToolParts.length > 0 && !deliverableCheckDone) {
-          const shouldContinue = this.injectDeliverableCheck(history, result.text, aiMessages)
-          if (shouldContinue) {
-            deliverableCheckDone = true
-            continue
-          }
-        }
-        return
+      const title = response?.trim()
+      if (title && title.length > 0) {
+        this.onThreadTitleGenerated(title)
       }
-
-      // ── Phase 3: Execute tool calls ────────────────────────────────
-      const toolResults = yield* this.executeToolCalls(
-        result, completedToolParts, activityEntries, iteration, abortSignal,
-      )
-
-      // ── Phase 4: Update conversation history ───────────────────────
-      this.appendToolTurn(history, result, toolResults)
     }
-
-    // Max iterations reached — get final summary without tools
-    yield* this.streamText(history, abortSignal, completedToolParts)
+    catch {
+      // Silently fail
+    }
   }
 
-  // ─── Stream AI response and yield live content ──────────────────────────
-
-  private async* streamAndYield(
-    history: AIMessage[],
-    tools: Array<{ name: string, description: string, input_schema: Record<string, unknown> }>,
-    abortSignal: AbortSignal | undefined,
-    completedToolParts: ToolCallPart[],
-    activityEntries: ActivityEntry[],
-    iteration: number,
-  ): AsyncGenerator<{ content: ContentPart[] }, { result: StreamResult, thinkingText: string }, unknown> {
-    let streamingText = ''
-    let streamingThinking = ''
-    const pendingTools: Array<{ id: string, name: string }> = []
-    const toolArgsMap = new Map<string, { id: string, name: string, partialJson: string }>()
-    let streamResult: StreamResult | null = null
-    let streamError: Error | null = null
-    let lastYieldedLen = 0
-
-    // Start streaming (non-blocking)
-    this.streamWithToolSupport(
-      history, tools, abortSignal, undefined,
-      {
-        onText: text => { streamingText = text },
-        onToolStart: (id, name) => { pendingTools.push({ id, name }) },
-        onThinking: text => { streamingThinking = text },
-      },
-      toolArgsMap,
-    ).then(r => { streamResult = r }).catch(e => { streamError = e as Error })
-
-    // Yield live content as it arrives — no character throttling.
-    // SSE chunks arrive at a natural cadence (~10-50 chars every few ms).
-    // We yield ALL new text each tick so the UI stays in sync with the stream.
-    while ((!streamResult && !streamError) || (streamResult && lastYieldedLen < streamingText.length)) {
-      this.checkAbort(abortSignal)
-
-      const content: ContentPart[] = [...completedToolParts]
-      let textPart = ''
-
-      // Activity marker from previous iterations
-      if (activityEntries.length > 0) {
-        textPart += this.buildActivityMarker(iteration, 'running', activityEntries)
-      }
-
-      // Yield ALL new text that arrived since last tick (no artificial metering)
-      if (streamingText.length > lastYieldedLen) {
-        lastYieldedLen = streamingText.length
-        textPart += (textPart ? '\n\n' : '') + streamingText
-      }
-
-      // Partial tool call args (for RunCodeDisplay streaming)
-      for (const tool of pendingTools) {
-        const partial = toolArgsMap.get(tool.id)
-        if (partial?.partialJson) {
-          let args: Record<string, unknown> = {}
-          try { args = JSON.parse(partial.partialJson) } catch { /* partial JSON */ }
-          content.push({
-            type: 'tool-call' as const,
-            toolCallId: tool.id,
-            toolName: tool.name,
-            args,
-            argsText: partial.partialJson,
-            result: undefined,
-            isError: undefined,
-          })
-        }
-      }
-
-      if (streamingThinking) {
-        content.push({ type: 'reasoning' as const, text: streamingThinking })
-      }
-      if (textPart) {
-        content.push({ type: 'text' as const, text: textPart })
-      }
-
-      yield { content }
-      await new Promise(resolve => setTimeout(resolve, YIELD_INTERVAL))
-    }
-
-    if (streamError) throw streamError
-
-    return { result: streamResult!, thinkingText: streamingThinking }
-  }
-
-  // ─── Execute tool calls and yield progress ──────────────────────────────
-
-  private async* executeToolCalls(
-    result: StreamResult,
-    completedToolParts: ToolCallPart[],
-    activityEntries: ActivityEntry[],
-    iteration: number,
-    abortSignal?: AbortSignal,
-  ): AsyncGenerator<
-    { content: ContentPart[] },
-    Array<{ type: 'tool_result', tool_use_id: string, content: string }>,
-    unknown
-  > {
-    const toolResults: Array<{ type: 'tool_result', tool_use_id: string, content: string }> = []
-
-    for (const tc of result.toolCalls) {
-      const toolPart: ToolCallPart = {
-        type: 'tool-call',
-        toolCallId: tc.id,
-        toolName: tc.name,
-        args: tc.input,
-        argsText: JSON.stringify(tc.input, null, 2),
-      }
-      completedToolParts.push(toolPart)
-
-      const activity: ActivityEntry = { name: tc.name, phase: 'running', startedAt: Date.now() }
-      activityEntries.push(activity)
-
-      // Handle truncated input
-      if (tc.inputTruncated) {
-        const errorMsg = 'Tool input was truncated due to response length limits. Please retry with smaller code.'
-        this.markToolError(toolPart, activity, errorMsg)
-        toolResults.push({ type: 'tool_result', tool_use_id: tc.id, content: errorMsg })
-        yield { content: [...completedToolParts, { type: 'text' as const, text: this.buildActivityMarker(iteration, 'running', activityEntries) }] }
-        continue
-      }
-
-      try {
-        if (!this.mcpIntegration) throw new Error('MCP integration lost — connection may have dropped')
-        this.updateToolExecution(true, tc.name)
-
-        // Interactive widget tools need early execution (before UI yields)
-        const isInteractive = tc.name === 'connect-reconnect-accounts'
-        let executionPromise: Promise<string | { summary: string, tokenCount: number, wasFiltered: boolean }> | null = null
-
-        if (isInteractive) {
-          executionPromise = this.mcpIntegration.executeAbilityCall(tc.name, tc.input)
-          await new Promise(resolve => setTimeout(resolve, 200))
-        }
-
-        // Show tool as in-progress
-        yield { content: [...completedToolParts, { type: 'text' as const, text: this.buildActivityMarker(iteration, 'running', activityEntries) }] }
-
-        // Execute
-        const executionResult = executionPromise
-          ? await executionPromise
-          : await this.mcpIntegration.executeAbilityCall(tc.name, tc.input)
-
-        const resultString = typeof executionResult === 'object'
-          ? JSON.stringify(executionResult, null, 2)
-          : String(executionResult)
-
-        const stored = runCodeResultContext.storeResult(tc.name, resultString)
-        const contextContent = stored.wasSummarized ? stored.summary : resultString
-
-        // Mark complete
-        toolPart.result = contextContent
-        activity.phase = 'complete'
-        activity.completedAt = Date.now()
-        activity.result = contextContent.slice(0, 2000)
-
-        toolResults.push({ type: 'tool_result', tool_use_id: tc.id, content: contextContent })
-        yield { content: [...completedToolParts, { type: 'text' as const, text: this.buildActivityMarker(iteration, 'running', activityEntries) }] }
-      }
-      catch (error) {
-        const errorMsg = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
-        this.markToolError(toolPart, activity, errorMsg)
-        toolResults.push({ type: 'tool_result', tool_use_id: tc.id, content: errorMsg })
-        yield { content: [...completedToolParts, { type: 'text' as const, text: this.buildActivityMarker(iteration, 'running', activityEntries) }] }
-      }
-      finally {
-        this.updateToolExecution(false)
-      }
-
-      this.checkAbort(abortSignal)
-    }
-
-    return toolResults
-  }
-
-  // ─── Yield final text response ──────────────────────────────────────────
-
-  private async* yieldFinalResponse(
-    result: StreamResult,
-    thinkingText: string,
-    completedToolParts: ToolCallPart[],
-    activityEntries: ActivityEntry[],
-    iteration: number,
-    history: AIMessage[],
-    deliverableCheckDone: boolean,
-  ): AsyncGenerator<{ content: ContentPart[] }, void, unknown> {
-    const responseText = result.text || 'I encountered an issue processing your request. This may be due to a connection interruption. Please try again.'
-
-    const activityPrefix = activityEntries.length > 0
-      ? this.buildActivityMarker(iteration, 'complete', activityEntries) + '\n\n'
-      : ''
-
-    const content: ContentPart[] = [...completedToolParts]
-    if (thinkingText) {
-      content.push({ type: 'reasoning' as const, text: thinkingText })
-    }
-    content.push({ type: 'text' as const, text: activityPrefix + responseText })
-
-    yield { content }
-  }
-
-  // ─── SSE Stream handler ─────────────────────────────────────────────────
-  //
-  // Manages the IPC bridge to the main process for SSE streaming.
-  // Accumulates text + tool_use events and returns the complete result.
-
+  /**
+   * Stream an AI response, handling both text and tool_use events.
+   * Yields text updates for smooth streaming. Returns the complete result.
+   */
   private async streamWithToolSupport(
     messages: AIMessage[],
     tools: Array<{ name: string, description: string, input_schema: Record<string, unknown> }> | undefined,
@@ -423,6 +150,7 @@ export class AIChatAdapter implements ChatModelAdapter {
       onToolStart?: (id: string, name: string) => void
       onThinking?: (fullThinking: string) => void
     },
+    /** Shared ref: the streaming loop populates this with partial tool args as they arrive */
     toolArgsRef?: Map<string, { id: string, name: string, partialJson: string }>,
   ): Promise<StreamResult> {
     window.electronAPI.removeAIStreamListeners()
@@ -439,60 +167,76 @@ export class AIChatAdapter implements ChatModelAdapter {
       if (typeof chunk === 'string') {
         fullText += chunk
         callbacks?.onText?.(fullText)
-        return
       }
-
-      const event = chunk as unknown as StreamEvent
-      switch (event.type) {
-        case 'text':
-          fullText += event.text
-          callbacks?.onText?.(fullText)
-          break
-        case 'thinking_delta':
-          thinkingText += event.text
-          callbacks?.onThinking?.(thinkingText)
-          break
-        case 'tool_use_start': {
-          currentToolIndex++
-          toolCallMap.set(currentToolIndex, { id: event.id, name: event.name, jsonParts: [] })
-          if (toolArgsRef) toolArgsRef.set(event.id, { id: event.id, name: event.name, partialJson: '' })
-          callbacks?.onToolStart?.(event.id, event.name)
-          break
-        }
-        case 'tool_use_delta': {
-          const idx = parseInt(event.id, 10)
-          const acc = toolCallMap.get(idx) || toolCallMap.get(currentToolIndex)
-          if (acc) {
-            acc.jsonParts.push(event.json)
-            if (toolArgsRef) {
-              const existing = toolArgsRef.get(acc.id)
-              if (existing) existing.partialJson = acc.jsonParts.join('')
-            }
+      else {
+        const event = chunk as unknown as StreamEvent
+        switch (event.type) {
+          case 'text':
+            fullText += event.text
+            callbacks?.onText?.(fullText)
+            break
+          case 'thinking_delta':
+            thinkingText += event.text
+            callbacks?.onThinking?.(thinkingText)
+            break
+          case 'tool_use_start': {
+            currentToolIndex++
+            toolCallMap.set(currentToolIndex, { id: event.id, name: event.name, jsonParts: [] })
+            if (toolArgsRef) toolArgsRef.set(event.id, { id: event.id, name: event.name, partialJson: '' })
+            callbacks?.onToolStart?.(event.id, event.name)
+            break
           }
-          break
+          case 'tool_use_delta': {
+            const idx = parseInt(event.id, 10)
+            const acc = toolCallMap.get(idx) || toolCallMap.get(currentToolIndex)
+            if (acc) {
+              acc.jsonParts.push(event.json)
+              // Update shared ref with partial args for live UI rendering
+              if (toolArgsRef && acc) {
+                const existing = toolArgsRef.get(acc.id)
+                if (existing) {
+                  existing.partialJson = acc.jsonParts.join('')
+                }
+              }
+            }
+            break
+          }
+          case 'tool_use_end': // Block complete, input already accumulated
+            break
+          case 'message_end':
+            stopReason = event.stop_reason
+            break
         }
-        case 'tool_use_end':
-          break
-        case 'message_end':
-          stopReason = event.stop_reason
-          break
       }
     }
 
+    const handleEnd = () => {
+      streamComplete = true
+    }
+    const handleError = (err: string) => {
+      streamError = new Error(err)
+      streamComplete = true
+    }
+
     window.electronAPI.onAIStreamChunk(handleChunk)
-    window.electronAPI.onAIStreamEnd(() => { streamComplete = true })
-    window.electronAPI.onAIStreamError((err: string) => { streamError = new Error(err); streamComplete = true })
+    window.electronAPI.onAIStreamEnd(handleEnd)
+    window.electronAPI.onAIStreamError(handleError)
 
     try {
+      // console.log('[NativeToolCall][stream-start]', JSON.stringify(messages))
       await window.electronAPI.sendAIMessageStream(
-        this.provider,
+        this.currentProvider.provider,
         messages,
-        { model: modelOverride || this.model, tools, thinking: this.thinkingConfig },
+        { model: modelOverride || this.currentProvider.model, tools, thinking: this.thinkingConfig },
       )
 
       while (!streamComplete) {
-        if (abortSignal?.aborted) throw new Error('Request was aborted')
-        if (streamError) throw streamError
+        if (abortSignal?.aborted) {
+          throw new Error('Request was aborted')
+        }
+        if (streamError) {
+          throw streamError
+        }
         await new Promise(resolve => setTimeout(resolve, 30))
       }
 
@@ -505,8 +249,12 @@ export class AIChatAdapter implements ChatModelAdapter {
         let inputTruncated = false
         const jsonStr = acc.jsonParts.join('')
         if (jsonStr) {
-          try { input = JSON.parse(jsonStr) }
-          catch { inputTruncated = true }
+          try {
+            input = JSON.parse(jsonStr)
+          }
+          catch {
+            inputTruncated = true // JSON was incomplete due to max_tokens truncation
+          }
         }
         toolCalls.push({ id: acc.id, name: acc.name, input, inputTruncated })
       }
@@ -518,97 +266,376 @@ export class AIChatAdapter implements ChatModelAdapter {
     }
   }
 
-  // ─── Simple text streaming (no tools) ───────────────────────────────────
+  /**
+   * Build an HTML-comment marker for tool activity state (parsed by SmartText).
+   */
+  private buildToolActivityMarker(
+    iteration: number,
+    phase: 'running' | 'complete',
+    entries: Array<{ name: string, phase: 'running' | 'complete' | 'error', startedAt: number, completedAt?: number, result?: string }>,
+  ): string {
+    const data = { iteration, phase, tools: entries }
+    return `<!--TOOL_ACTIVITY_JSON\n${JSON.stringify(data)}\nTOOL_ACTIVITY_JSON_END-->`
+  }
 
-  private async* streamText(
-    messages: AIMessage[],
+  /**
+   * Native tool calling loop. The model decides when to use tools via structured tool_use blocks.
+   * No classification, no JSON parsing from text, no completion heuristics needed.
+   */
+  private async* handleNativeToolCalling(
+    aiMessages: AIMessage[],
+    tools: Array<{ name: string, description: string, input_schema: Record<string, unknown> }>,
     abortSignal?: AbortSignal,
-    prefixParts: ContentPart[] = [],
-  ): AsyncGenerator<{ content: ContentPart[] }, void, unknown> {
-    // Stream with live text updates — same pattern as streamAndYield
-    let streamingText = ''
-    let streamResult: StreamResult | null = null
-    let streamError: Error | null = null
-    let lastYieldedLen = 0
-
-    this.streamWithToolSupport(
-      messages, undefined, abortSignal, undefined,
-      { onText: (text) => { streamingText = text } },
-    ).then((r) => { streamResult = r }).catch((e) => { streamError = e as Error })
-
-    while ((!streamResult && !streamError) || (streamResult && lastYieldedLen < streamingText.length)) {
-      this.checkAbort(abortSignal)
-      if (streamingText.length > lastYieldedLen) {
-        lastYieldedLen = streamingText.length
-        yield { content: [...prefixParts, { type: 'text' as const, text: streamingText }] }
-      }
-      await new Promise(resolve => setTimeout(resolve, YIELD_INTERVAL))
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ): AsyncGenerator<{ content: any[] }, void, unknown> {
+    if (!this.mcpIntegration) {
+      throw new Error('MCP integration not available')
     }
 
-    if (streamError) throw streamError
-  }
+    const conversationHistory: AIMessage[] = [...aiMessages]
+    let currentIteration = 0
 
-  // ─── Conversation history helpers ───────────────────────────────────────
-
-  private appendToolTurn(
-    history: AIMessage[],
-    result: StreamResult,
-    toolResults: Array<{ type: 'tool_result', tool_use_id: string, content: string }>,
-  ) {
-    // Build assistant message with text + tool_use blocks
-    const assistantContent: Array<{ type: string, [key: string]: unknown }> = []
-    if (result.text) assistantContent.push({ type: 'text', text: result.text })
-    for (const tc of result.toolCalls) {
-      assistantContent.push({ type: 'tool_use', id: tc.id, name: tc.name, input: tc.input })
-    }
-
-    // If all tools errored with no text, add context to avoid empty assistant message
-    if (toolResults.every(tr => tr.content.startsWith('Error:')) && !result.text) {
-      assistantContent.unshift({ type: 'text', text: 'I attempted to use tools but encountered errors.' })
-    }
-
-    history.push({ role: 'assistant', content: assistantContent })
-    history.push({ role: 'user', content: toolResults })
-
-    // If any tool calls had truncated input, hint the model to use smaller code
-    if (result.toolCalls.some(tc => tc.inputTruncated)) {
-      history.push({
-        role: 'user',
-        content: 'Note: Your previous response was too long and got truncated, which caused incomplete tool input. Please break your work into smaller steps.',
-      })
-    }
-  }
-
-  private injectDeliverableCheck(history: AIMessage[], responseText: string, originalMessages: AIMessage[]): boolean {
-    const lastUserMsg = originalMessages.findLast(m => m.role === 'user')
+    // Extract the user's original goal for evaluation context
+    const lastUserMsg = aiMessages.findLast(m => m.role === 'user')
     const userGoal = typeof lastUserMsg?.content === 'string'
       ? lastUserMsg.content
       : Array.isArray(lastUserMsg?.content)
         ? lastUserMsg.content.filter((p: { type: string }) => p.type === 'text').map((p: { text?: string }) => p.text || '').join(' ')
         : ''
 
-    if (!userGoal) return false
+    // Track all completed tool calls for the UI across iterations
+    const completedToolParts: Array<{
+      type: 'tool-call'
+      toolCallId: string
+      toolName: string
+      args: Record<string, unknown>
+      argsText: string
+      result?: string
+      isError?: boolean
+    }> = []
 
-    const latestResult = runCodeResultContext.getLatestResult()
-    if (!latestResult) return false
+    // Track tool activity entries for the smart panel
+    const toolActivityEntries: Array<{ name: string, phase: 'running' | 'complete' | 'error', startedAt: number, completedAt?: number, result?: string }> = []
 
-    const preview = latestResult.wasSummarized
-      ? latestResult.summary.slice(0, 2000)
-      : latestResult.fullResult.slice(0, 2000)
+    // Only do the deliverable verification re-entry once to prevent infinite loops
+    const deliverableCheckDone = false
 
-    history.push({ role: 'assistant', content: responseText || '' })
-    history.push({
-      role: 'user',
-      content: `Look at the last tool result:\n\n${preview}\n\nDoes it contain a concrete deliverable (a URL, resource ID, structured data, or image)? If yes, present it to the user. If not, use run-code to do a GET request or verification call to retrieve/confirm the deliverable.`,
-    })
-    return true
+    yield { content: [{ type: 'text' as const, text: '' }] }
+
+    while (currentIteration < this.maxAgenticIterations) {
+      currentIteration++
+      if (abortSignal?.aborted) {
+        throw new Error('Request was aborted')
+      }
+
+      // Stream the AI response, yielding text to the UI in real-time
+      let streamingText = ''
+      let streamingThinking = ''
+      const pendingStreamTools: Array<{ id: string, name: string }> = []
+      const streamingToolArgs = new Map<string, { id: string, name: string, partialJson: string }>()
+      let streamResult: StreamResult | null = null
+      let streamError: Error | null = null
+      let lastYieldedTextLen = 0
+      const CHARS_PER_YIELD = 15
+      const YIELD_INTERVAL_ACTIVE = 20
+      const YIELD_INTERVAL_IDLE = 50
+
+      this.streamWithToolSupport(
+        conversationHistory, tools, abortSignal, undefined,
+        {
+          onText: (text) => { streamingText = text },
+          onToolStart: (id, name) => { pendingStreamTools.push({ id, name }) },
+          onThinking: (text) => { streamingThinking = text },
+        },
+        streamingToolArgs,
+      ).then((r) => { streamResult = r }).catch((e) => { streamError = e as Error })
+
+      // Poll and yield streaming text + pending tool indicators to the UI
+      // Keep looping until stream is done AND all buffered text has been shown
+      while ((!streamResult && !streamError) || (streamResult && lastYieldedTextLen < streamingText.length)) {
+        if (abortSignal?.aborted) throw new Error('Request was aborted')
+        const liveContent: Array<{ type: string, [key: string]: unknown }> = [...completedToolParts]
+
+        // Build text: include persisted activity marker for completed tools + current streaming content
+        let textPart = ''
+
+        // Persisted activity marker for tools from previous iterations
+        if (toolActivityEntries.length > 0) {
+          textPart += this.buildToolActivityMarker(currentIteration, 'running', toolActivityEntries)
+        }
+
+        // Add pending stream tools to activity panel as soon as they appear (before execution starts)
+        for (const st of pendingStreamTools) {
+          if (!toolActivityEntries.some(e => e.name === st.name && e.phase === 'running' && !e.completedAt)) {
+            toolActivityEntries.push({ name: st.name, phase: 'running', startedAt: Date.now() })
+          }
+        }
+
+        // When model is building tool calls, yield partial tool-call parts for RunCodeDisplay
+        if (pendingStreamTools.length > 0) {
+          if (streamingText) {
+            const charsToShow = Math.min(lastYieldedTextLen + CHARS_PER_YIELD, streamingText.length)
+            lastYieldedTextLen = charsToShow
+            textPart += (textPart ? '\n\n' : '') + streamingText.substring(0, charsToShow)
+          }
+
+          // Yield partial tool-call parts so RunCodeToolPart can show code as it streams
+          for (const st of pendingStreamTools) {
+            const partial = streamingToolArgs.get(st.id)
+            if (partial?.partialJson) {
+              let partialArgs: Record<string, unknown> = {}
+              try { partialArgs = JSON.parse(partial.partialJson) }
+              catch { /* partial JSON — use argsText fallback */ }
+              liveContent.push({
+                type: 'tool-call' as const,
+                toolCallId: st.id,
+                toolName: st.name,
+                args: partialArgs,
+                argsText: partial.partialJson,
+                result: undefined,
+                isError: undefined,
+              })
+            }
+          }
+        }
+        else if (streamingText) {
+          const charsToShow = Math.min(lastYieldedTextLen + CHARS_PER_YIELD, streamingText.length)
+          lastYieldedTextLen = charsToShow
+          textPart += (textPart ? '\n\n' : '') + streamingText.substring(0, charsToShow)
+        }
+
+        if (streamingThinking) {
+          liveContent.push({ type: 'reasoning' as const, text: streamingThinking })
+        }
+        if (textPart) {
+          liveContent.push({ type: 'text' as const, text: textPart })
+        }
+
+        yield { content: liveContent }
+        const hasUnshownContent = lastYieldedTextLen < streamingText.length
+        await new Promise(resolve => setTimeout(resolve, hasUnshownContent ? YIELD_INTERVAL_ACTIVE : YIELD_INTERVAL_IDLE))
+      }
+
+      if (streamError) throw streamError
+      const result = streamResult!
+
+      // console.log('[NativeToolCall][stream-result]', {
+      //   iteration: currentIteration,
+      //   textLength: result.text.length,
+      //   toolCallCount: result.toolCalls.length,
+      //   stopReason: result.stopReason,
+      // })
+
+      // If no tool calls, this is the final response (text already streamed above)
+      // When stopReason is max_tokens but tool calls exist, the model wanted to use tools — execute them
+      if (result.toolCalls.length === 0 || (result.stopReason !== 'tool_use' && result.stopReason !== 'max_tokens')) {
+        const responseText = result.text || ''
+
+        // Empty response = likely API/connection/payload issue — retry once before fallback
+        if (!responseText && currentIteration <= 2) {
+          continue
+        }
+
+        const displayText = responseText || 'I encountered an issue processing your request. This may be due to a connection interruption. Please try again.'
+
+        // Build persisted activity marker so tool history stays visible in the final message
+        const activityPrefix = toolActivityEntries.length > 0
+          ? this.buildToolActivityMarker(currentIteration, 'complete', toolActivityEntries) + '\n\n'
+          : ''
+
+        const finalContent: Array<{ type: string, [key: string]: unknown }> = [
+          ...completedToolParts,
+        ]
+
+        // Text was already streamed in real-time, yield final state with reasoning part
+        if (streamingThinking) {
+          finalContent.push({ type: 'reasoning' as const, text: streamingThinking })
+        }
+        yield { content: [...finalContent, { type: 'text' as const, text: activityPrefix + displayText }] }
+
+        // Deliverable verification: if tools were used, let the model check whether the
+        // last result contains a concrete deliverable. If not, re-enter the loop so it
+        // can do a GET/verification call.
+        // if (completedToolParts.length > 0 && userGoal && !deliverableCheckDone) {
+        //   deliverableCheckDone = true
+        //   const latestResult = runCodeResultContext.getLatestResult()
+        //   if (latestResult) {
+        //     const resultPreview = latestResult.wasSummarized
+        //       ? latestResult.summary.slice(0, 2000)
+        //       : latestResult.fullResult.slice(0, 2000)
+
+        //     conversationHistory.push({ role: 'assistant', content: displayText })
+        //     conversationHistory.push({
+        //       role: 'user',
+        //       content: `Look at the last tool result:\n\n${resultPreview}\n\nDoes it contain a concrete deliverable (a URL, resource ID, structured data, or image)? If yes, present it to the user. If not, use run-code to do a GET request or verification call to retrieve/confirm the deliverable.`,
+        //     })
+        //     continue // Re-enter the agentic while loop
+        //   }
+        // }
+
+        return
+      }
+
+      // Build assistant message with text + tool_use content blocks
+      const assistantContent: Array<{ type: string, [key: string]: unknown }> = []
+      if (result.text) {
+        // console.log('[NativeToolCall][assistant-content] Text:', result.text)
+        assistantContent.push({ type: 'text', text: result.text })
+      }
+      for (const tc of result.toolCalls) {
+        // console.log('[NativeToolCall][assistant-content] Tool call:', tc)
+        assistantContent.push({ type: 'tool_use', id: tc.id, name: tc.name, input: tc.input })
+      }
+      conversationHistory.push({ role: 'assistant', content: assistantContent })
+      const toolResults: Array<{ type: 'tool_result', tool_use_id: string, content: string }> = []
+
+      for (const tc of result.toolCalls) {
+        // Add in-progress tool call to UI immediately (no result yet)
+        const toolPart = {
+          type: 'tool-call' as const,
+          toolCallId: tc.id,
+          toolName: tc.name,
+          args: tc.input,
+          argsText: JSON.stringify(tc.input, null, 2),
+          result: undefined as string | undefined,
+          isError: undefined as boolean | undefined,
+        }
+        completedToolParts.push(toolPart)
+
+        // Reuse activity entry from streaming phase, or create new one
+        let activityEntry = toolActivityEntries.find(e => e.name === tc.name && e.phase === 'running' && !e.completedAt)
+        if (!activityEntry) {
+          activityEntry = { name: tc.name, phase: 'running', startedAt: Date.now() }
+          toolActivityEntries.push(activityEntry)
+        }
+
+        // Skip execution of truncated tool calls — they'll fail with empty/partial input anyway
+        if (tc.inputTruncated) {
+          toolPart.result = 'Tool input was truncated due to response length limits. Please retry with smaller code.'
+          toolPart.isError = true
+          activityEntry.phase = 'error'
+          activityEntry.completedAt = Date.now()
+          toolResults.push({ type: 'tool_result', tool_use_id: tc.id, content: toolPart.result })
+          const errorMarker = this.buildToolActivityMarker(currentIteration, 'running', toolActivityEntries)
+          yield { content: [...completedToolParts, { type: 'text' as const, text: errorMarker }] }
+          continue
+        }
+
+        try {
+          if (!this.mcpIntegration) {
+            throw new Error('MCP integration lost during agentic flow — connection may have dropped')
+          }
+          this.updateToolExecutionState(true, tc.name)
+
+          // For interactive widget tools, start execution BEFORE yielding UI
+          // so the server creates the pending request before the widget iframe
+          // loads and calls fetch-accounts-data to get the blockingRequestId.
+          const interactiveWidgetTools = ['connect-reconnect-accounts']
+          let executionPromise: Promise<string | { summary: string, tokenCount: number, wasFiltered: boolean }> | null = null
+
+          if (interactiveWidgetTools.includes(tc.name)) {
+            executionPromise = this.mcpIntegration.executeAbilityCall(tc.name, tc.input)
+            // Small delay so the MCP server processes the request before the widget loads
+            await new Promise(resolve => setTimeout(resolve, 200))
+          }
+
+          // Yield current state so UI shows tool as in-progress with activity panel
+          const runningMarker = this.buildToolActivityMarker(currentIteration, 'running', toolActivityEntries)
+          yield { content: [...completedToolParts, { type: 'text' as const, text: runningMarker }] }
+
+          // Execute tool (for interactive widget tools, the promise was already started above)
+          const executionResult = executionPromise
+            ? await executionPromise
+            : await this.mcpIntegration.executeAbilityCall(tc.name, tc.input)
+
+          const resultString = typeof executionResult === 'object'
+            ? JSON.stringify(executionResult, null, 2)
+            : String(executionResult)
+
+          const storedResult = runCodeResultContext.storeResult(tc.name, resultString)
+          const contextContent = storedResult.wasSummarized ? storedResult.summary : resultString
+
+          // Update the tool part with result
+          toolPart.result = contextContent
+
+          // Mark activity entry as complete
+          activityEntry.phase = 'complete'
+          activityEntry.completedAt = Date.now()
+          activityEntry.result = contextContent.slice(0, 2000)
+
+          toolResults.push({ type: 'tool_result', tool_use_id: tc.id, content: contextContent })
+          const completedMarker = this.buildToolActivityMarker(currentIteration, 'running', toolActivityEntries)
+          yield { content: [...completedToolParts, { type: 'text' as const, text: completedMarker }] }
+        }
+        catch (error) {
+          const errorMsg = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
+          toolPart.result = errorMsg
+          toolPart.isError = true
+
+          // Mark activity entry as error
+          activityEntry.phase = 'error'
+          activityEntry.completedAt = Date.now()
+          activityEntry.result = errorMsg
+
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: tc.id,
+            content: errorMsg,
+          })
+
+          // Yield updated state so UI shows error
+          const errorMarker = this.buildToolActivityMarker(currentIteration, 'running', toolActivityEntries)
+          yield { content: [...completedToolParts, { type: 'text' as const, text: errorMarker }] }
+        }
+        finally {
+          this.updateToolExecutionState(false)
+        }
+
+        if (abortSignal?.aborted) {
+          throw new Error('Request was aborted')
+        }
+      }
+
+      // If all tools errored and assistant had no text, add context so the model
+      // doesn't see a text-less assistant message (which can cause empty responses)
+      if (toolResults.every(tr => tr.content.startsWith('Error:')) && !result.text) {
+        assistantContent.unshift({ type: 'text', text: 'I attempted to use tools but encountered errors.' })
+      }
+
+      // Add tool results as a user message (Anthropic format)
+      conversationHistory.push({ role: 'user', content: toolResults })
+
+      // If any tool calls had truncated input, inject a corrective hint so the model generates smaller code
+      const hadTruncation = result.toolCalls.some(tc => tc.inputTruncated)
+      if (hadTruncation) {
+        conversationHistory.push({
+          role: 'user',
+          content: 'Note: Your previous response was too long and got truncated, which caused incomplete tool input. Please break your work into smaller steps — generate less code per tool call. For example, create the resource first, then populate data in a separate call.',
+        })
+      }
+    }
+
+    // Max iterations reached — get a final summary
+    const finalResult = await this.streamWithToolSupport(conversationHistory, undefined, abortSignal)
+    const finalContent: Array<{ type: string, [key: string]: unknown }> = [...completedToolParts]
+    const CHARS_PER_YIELD = 15
+    const YIELD_INTERVAL = 20
+    let yielded = 0
+    while (yielded < finalResult.text.length) {
+      const end = Math.min(yielded + CHARS_PER_YIELD, finalResult.text.length)
+      yield { content: [...finalContent, { type: 'text' as const, text: finalResult.text.substring(0, end) }] }
+      yielded = end
+      await new Promise(resolve => setTimeout(resolve, YIELD_INTERVAL))
+    }
   }
 
-  // ─── Message conversion ─────────────────────────────────────────────────
-  //
-  // Converts @assistant-ui/react messages to Anthropic-format AIMessages.
-  // Preserves tool-call history across turns.
-
+  /**
+   * Convert @assistant-ui/react messages to AIMessage[], preserving tool-call history.
+   * assistant-ui stores tool calls as { type: 'tool-call', toolCallId, toolName, args, result }.
+   * We convert these to Anthropic-format tool_use blocks on the assistant message,
+   * and synthesize a following user message with tool_result blocks so the model
+   * retains full context of prior tool interactions across turns.
+   */
   private convertMessagesToAI(messages: any[]): AIMessage[] {
     const aiMessages: AIMessage[] = []
 
@@ -621,15 +648,22 @@ export class AIChatAdapter implements ChatModelAdapter {
         const toolCallParts = parts.filter((c: any) => c.type === 'tool-call')
 
         if (toolCallParts.length > 0) {
+          // Build assistant message with text + tool_use content blocks
           const contentBlocks: Array<{ type: string, [key: string]: unknown }> = []
           for (const tp of textParts) {
             if (tp.text) contentBlocks.push({ type: 'text', text: tp.text })
           }
           for (const tc of toolCallParts) {
-            contentBlocks.push({ type: 'tool_use', id: tc.toolCallId, name: tc.toolName, input: tc.args || {} })
+            contentBlocks.push({
+              type: 'tool_use',
+              id: tc.toolCallId,
+              name: tc.toolName,
+              input: tc.args || {},
+            })
           }
           aiMessages.push({ role: 'assistant', content: contentBlocks })
 
+          // Synthesize a user message with tool_result blocks
           const toolResults = toolCallParts
             .filter((tc: any) => tc.result !== undefined)
             .map((tc: any) => ({
@@ -642,10 +676,13 @@ export class AIChatAdapter implements ChatModelAdapter {
           }
         }
         else {
-          aiMessages.push({ role, content: textParts.map((c: any) => c.text || '').join('') || '' })
+          // Plain text assistant message
+          const textContent = textParts.map((c: any) => c.text || '').join('') || ''
+          aiMessages.push({ role, content: textContent })
         }
       }
       else {
+        // User and system messages — extract text as before
         const textContent = parts.find?.((c: any) => c.type === 'text')?.text
           || (typeof message.content === 'string' ? message.content : '')
         aiMessages.push({ role, content: textContent })
@@ -655,101 +692,151 @@ export class AIChatAdapter implements ChatModelAdapter {
     return aiMessages
   }
 
-  // ─── Tool helpers ───────────────────────────────────────────────────────
-
-  private getEnabledTools(): Array<{ name: string, description: string, input_schema: Record<string, unknown> }> {
-    const allAbilities = this.mcpIntegration?.functions || []
-    const filtered = allAbilities.filter(a => ENABLED_TOOLS.includes(a.function.name))
-    return ProviderFormats.anthropic.convertTools(filtered) as Array<{ name: string, description: string, input_schema: Record<string, unknown> }>
-  }
-
-  private markToolError(toolPart: ToolCallPart, activity: ActivityEntry, errorMsg: string) {
-    toolPart.result = errorMsg
-    toolPart.isError = true
-    activity.phase = 'error'
-    activity.completedAt = Date.now()
-    activity.result = errorMsg
-  }
-
-  // ─── UI markers ────────────────────────────────────────────────────────
-
-  private buildActivityMarker(iteration: number, phase: 'running' | 'complete', entries: ActivityEntry[]): string {
-    return `<!--TOOL_ACTIVITY_JSON\n${JSON.stringify({ iteration, phase, tools: entries })}\nTOOL_ACTIVITY_JSON_END-->`
-  }
-
-  // ─── System prompt injection ────────────────────────────────────────────
-
-  private async injectSystemPrompt(aiMessages: AIMessage[]) {
+  async* run({ messages, abortSignal }: any) {
     try {
-      const lastUserMessage = aiMessages.findLast(m => m.role === 'user')
-      if (!lastUserMessage) return
+      const aiMessages = this.convertMessagesToAI(messages as any[])
 
-      const userContent = typeof lastUserMessage.content === 'string'
-        ? lastUserMessage.content
-        : ''
-      if (!userContent) return
-
-      const enhancedPrompt = await contextService.buildEnhancedSystemPrompt(userContent)
-      const existingIdx = aiMessages.findIndex(m => m.role === 'system')
-      if (existingIdx >= 0) {
-        aiMessages[existingIdx].content = enhancedPrompt
+      // Generate thread title on first user message
+      const userMessages = aiMessages.filter(m => m.role === 'user')
+      if (userMessages.length === 1 && userMessages[0]?.content) {
+        this.generateThreadTitle(userMessages[0].content as string)
       }
-      else {
-        aiMessages.unshift({ role: 'system', content: enhancedPrompt })
+
+      // Inject enhanced context into system prompt
+      if (this.currentProvider.provider === 'keyboard' && this.currentProvider.mcpEnabled && aiMessages.length > 0) {
+        try {
+          const lastUserMessage = aiMessages[aiMessages.length - 1]
+          if (lastUserMessage?.role === 'user') {
+            const enhancedSystemPrompt = await contextService.buildEnhancedSystemPrompt(lastUserMessage.content as string)
+            const existingSystemIndex = aiMessages.findIndex(m => m.role === 'system')
+            if (existingSystemIndex >= 0) {
+              aiMessages[existingSystemIndex].content = enhancedSystemPrompt
+            }
+            else {
+              aiMessages.unshift({ role: 'system', content: enhancedSystemPrompt })
+            }
+          }
+        }
+        catch {
+          // Silent fail
+        }
+      }
+
+      // Check provider is configured
+      const providerStatus = await window.electronAPI.getAIProviderKeys()
+      const currentProviderStatus = providerStatus.find(p => p.provider === this.currentProvider.provider)
+      if (!currentProviderStatus?.configured && this.currentProvider.provider !== 'keyboard') {
+        yield { content: [{ type: 'text' as const, text: `${this.currentProvider.provider} is not configured. Please set up your API key in Settings > AI Providers.` }] }
+        return
+      }
+
+      if (abortSignal?.aborted) {
+        throw new Error('Request was aborted')
+      }
+
+      // Native tool calling — no classification needed, model decides
+      const abilitiesAvailable = this.mcpIntegration?.functions || []
+      if (this.currentProvider.mcpEnabled && abilitiesAvailable.length > 0) {
+        // Filter out tools whose data is already provided in the system prompt
+        // to prevent the model from making redundant calls before getting to actual work
+        const redundantTools = new Set([
+          'required-starting-context-information',
+          'connect-websocket',
+          'fetch-accounts-data',
+        ])
+        const filteredAbilities = abilitiesAvailable.filter(
+          a => !redundantTools.has(a.function.name),
+        )
+
+        // Tool selection: use Haiku to pick only relevant tools for this request
+        const selectedAbilities = filteredAbilities
+        // try {
+        //   const lastUserMsg = aiMessages.findLast(m => m.role === 'user')
+        //   const userQuery = typeof lastUserMsg?.content === 'string'
+        //     ? lastUserMsg.content
+        //     : Array.isArray(lastUserMsg?.content)
+        //       ? (lastUserMsg.content as Array<{ type: string, text?: string }>).filter(p => p.type === 'text').map(p => p.text || '').join(' ')
+        //       : ''
+
+        //   if (userQuery && filteredAbilities.length > 8) {
+        //     const toolList = filteredAbilities.map(a =>
+        //       `- ${a.function.name}: ${(a.function.description || '').slice(0, 120)}`,
+        //     ).join('\n')
+
+        //     console.log('what is the tool list', toolList)
+
+        //     const selectorResult = await this.streamWithToolSupport(
+        //       [
+        //         {
+        //           role: 'system',
+        //           content: `You are a tool selector. Given a user request and a list of available tools, return ONLY a JSON array of tool names that are needed to complete the request. Include tools the task might need across multiple steps (e.g. if building something, include both create and deploy tools). Be inclusive rather than exclusive — it's better to include an extra tool than to miss one needed. Return valid JSON only, no explanation.`,
+        //         },
+        //         {
+        //           role: 'user',
+        //           content: `User request: "${userQuery.slice(0, 500)}"\n\nAvailable tools:\n${toolList}\n\nReturn JSON array of relevant tool names:`,
+        //         },
+        //       ],
+        //       undefined,
+        //       abortSignal,
+        //       'claude-haiku-4-5-20251001',
+        //     )
+
+        //     let selectedNames: string[] = []
+        //     try {
+        //       let jsonStr = selectorResult.text.trim()
+        //       const fenceMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/)
+        //       if (fenceMatch) jsonStr = fenceMatch[1].trim()
+        //       selectedNames = JSON.parse(jsonStr)
+        //     }
+        //     catch {
+        //     }
+
+        //     if (Array.isArray(selectedNames) && selectedNames.length > 0) {
+        //       const nameSet = new Set(selectedNames)
+        //       const matched = filteredAbilities.filter(a => nameSet.has(a.function.name))
+        //       if (matched.length > 0) {
+        //         selectedAbilities = matched
+        //       }
+        //     }
+        //   }
+        // }
+        // catch (selectorErr) {
+        // }
+        const relevantAbilities = ['run-code', 'web-search', 'list-connected-accounts', 'connect-reconnect-accounts']
+        const abilitiesToUse = abilitiesAvailable.filter(a => relevantAbilities.includes(a.function.name))
+        const nativeTools = ProviderFormats.anthropic.convertTools(abilitiesToUse) as Array<{ name: string, description: string, input_schema: Record<string, unknown> }>
+        for await (const result of this.handleNativeToolCalling(aiMessages, nativeTools, abortSignal)) {
+          yield result
+        }
+        return
+      }
+
+      if (abortSignal?.aborted) {
+        throw new Error('Request was aborted')
+      }
+
+      // Simple streaming (no tools) — for non-MCP providers or when no tools available
+      const streamResult = await this.streamWithToolSupport(aiMessages, undefined, abortSignal)
+
+      const CHARS_PER_YIELD = 15
+      const YIELD_INTERVAL = 20
+      let yielded = 0
+      while (yielded < streamResult.text.length) {
+        const end = Math.min(yielded + CHARS_PER_YIELD, streamResult.text.length)
+        yield { content: [{ type: 'text' as const, text: streamResult.text.substring(0, end) }] }
+        yielded = end
+        await new Promise(resolve => setTimeout(resolve, YIELD_INTERVAL))
       }
     }
-    catch {
-      // Silent fail — adapter works without enhanced context
+    catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        throw err
+      }
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred'
+      yield { content: [{ type: 'text' as const, text: `Error: ${errorMessage}` }] }
     }
-  }
-
-  // ─── Thread title generation ────────────────────────────────────────────
-
-  private async generateThreadTitle(userMessage: string) {
-    if (this.titleGeneratedForThread || !this.onThreadTitleGenerated) return
-    this.titleGeneratedForThread = true
-    try {
-      const response = await window.electronAPI.sendAIMessage(
-        'keyboard',
-        [
-          { role: 'system', content: 'Generate a brief 3-6 word title for this chat based on the user message. Return ONLY the title, no quotes or punctuation.' },
-          { role: 'user', content: userMessage },
-        ],
-        { model: 'claude-haiku-4-5-20251001' },
-      )
-      const title = response?.trim()
-      if (title) this.onThreadTitleGenerated(title)
+    finally {
+      this.cleanup()
     }
-    catch { /* silent */ }
-  }
-
-  // ─── Periodic ping (keeps WS alive during tool execution) ──────────────
-
-  private updateToolExecution(isExecuting: boolean, toolName?: string) {
-    const wasExecuting = this.isToolsExecuting
-    this.isToolsExecuting = isExecuting
-    this.setToolExecutionState?.(isExecuting, toolName)
-    if (isExecuting && !wasExecuting) this.startPeriodicPing()
-    else if (!isExecuting && wasExecuting) this.stopPeriodicPing()
-  }
-
-  private startPeriodicPing() {
-    if (this.pingInterval) return
-    this.pingInterval = setInterval(async () => {
-      try { await window.electronAPI.sendManualPing() } catch { /* silent */ }
-    }, 10000)
-  }
-
-  private stopPeriodicPing() {
-    if (this.pingInterval) {
-      clearInterval(this.pingInterval)
-      this.pingInterval = null
-    }
-  }
-
-  // ─── Utilities ──────────────────────────────────────────────────────────
-
-  private checkAbort(signal?: AbortSignal) {
-    if (signal?.aborted) throw new Error('Request was aborted')
   }
 }

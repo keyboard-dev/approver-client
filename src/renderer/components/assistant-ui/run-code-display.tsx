@@ -1,4 +1,4 @@
-import { memo, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import { CheckIcon, ChevronDownIcon, CopyIcon, Loader, PlayIcon } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
@@ -61,10 +61,14 @@ interface RunCodeDisplayProps {
 }
 
 export const RunCodeDisplay = memo(function RunCodeDisplay({ data, rawStreamingText }: RunCodeDisplayProps) {
-  const [isExpanded, setIsExpanded] = useState(false)
+  const isStreaming = !!rawStreamingText
+  const [isExpanded, setIsExpanded] = useState(isStreaming)
   const [isCopied, setIsCopied] = useState(false)
 
-  const isStreaming = !!rawStreamingText
+  // Auto-expand when streaming starts
+  useEffect(() => {
+    if (isStreaming) setIsExpanded(true)
+  }, [isStreaming])
   const lineCount = data.code ? data.code.split('\n').length : 0
   const summary = !data.code && !data.explanation
     ? 'Writing code…'
@@ -119,6 +123,13 @@ export const RunCodeDisplay = memo(function RunCodeDisplay({ data, rawStreamingT
             {data.explanation && (
               <div className="px-3 pt-2 pb-1">
                 <p className="text-[12px] text-[#525252] leading-relaxed">{data.explanation}</p>
+              </div>
+            )}
+            {isStreaming && !data.code && (
+              <div className="px-3 py-3">
+                <p className="text-[13px] text-[#a3a3a3] font-mono animate-pulse">
+                  ###### executing task ######
+                </p>
               </div>
             )}
             {isStreaming && rawStreamingText && (
