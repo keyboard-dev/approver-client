@@ -156,8 +156,11 @@ export class KeyboardProvider implements AIProvider {
         seen.add(t.name)
         return true
       })
+      // Debug: verify run-code property order
+      const rc = (requestBody.tools as any[]).find((t: any) => t.name === 'run-code')
+      if (rc?.input_schema?.properties) {
+      }
     }
-
     const bodyString = JSON.stringify(requestBody)
     const bodySizeKB = Math.round(bodyString.length / 1024)
     const toolCount = (requestBody.tools as any[])?.length || 0
@@ -201,6 +204,9 @@ export class KeyboardProvider implements AIProvider {
 
     const decoder = new TextDecoder()
     let buffer = ''
+    let toolJsonAccum = '' // accumulates partial_json to track current field
+    let toolStreamStartTime = 0
+    let lastFieldSeen = ''
 
     try {
       while (true) {
@@ -230,12 +236,21 @@ export class KeyboardProvider implements AIProvider {
                 throw new Error(errMsg)
               }
               if (parsed.type === 'content_block_start' && parsed.content_block?.type === 'tool_use') {
+                toolJsonAccum = ''
+                toolStreamStartTime = Date.now()
+                lastFieldSeen = ''
                 yield { type: 'tool_use_start', id: parsed.content_block.id, name: parsed.content_block.name } as StreamEvent
               }
               else if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'thinking_delta') {
                 yield { type: 'thinking_delta', text: parsed.delta.thinking } as StreamEvent
               }
               else if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'input_json_delta') {
+                toolJsonAccum += parsed.delta.partial_json || ''
+                const keyMatches = [...toolJsonAccum.matchAll(/"([^"]+)"\s*:/g)]
+                const currentField = keyMatches.length > 0 ? keyMatches[keyMatches.length - 1][1] : '(none)'
+                if (currentField !== lastFieldSeen) {
+                  lastFieldSeen = currentField
+                }
                 yield { type: 'tool_use_delta', id: String(parsed.index), json: parsed.delta.partial_json } as StreamEvent
               }
               else if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
