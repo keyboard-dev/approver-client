@@ -1,4 +1,4 @@
-import { memo, useEffect, useState } from 'react'
+import { memo, useState } from 'react'
 import { CheckIcon, ChevronDownIcon, CopyIcon, Loader, PlayIcon } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
@@ -62,13 +62,8 @@ interface RunCodeDisplayProps {
 
 export const RunCodeDisplay = memo(function RunCodeDisplay({ data, rawStreamingText }: RunCodeDisplayProps) {
   const isStreaming = !!rawStreamingText
-  const [isExpanded, setIsExpanded] = useState(isStreaming)
+  const [isExpanded, setIsExpanded] = useState(false)
   const [isCopied, setIsCopied] = useState(false)
-
-  // Auto-expand when streaming starts
-  useEffect(() => {
-    if (isStreaming) setIsExpanded(true)
-  }, [isStreaming])
   const lineCount = data.code ? data.code.split('\n').length : 0
   const summary = !data.code && !data.explanation
     ? 'Writing code…'
