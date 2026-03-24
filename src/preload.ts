@@ -332,7 +332,7 @@ export interface ElectronAPI {
   removeAIProviderKey: (provider: string) => Promise<void>
   testAIProviderConnection: (provider: string) => Promise<{ success: boolean, error?: string }>
   sendAIMessage: (provider: string, messages: Array<{ role: 'user' | 'assistant' | 'system', content: string | any[] }>, config?: { model?: string, tools?: any[] }) => Promise<string>
-  sendAIMessageStream: (provider: string, messages: Array<{ role: 'user' | 'assistant' | 'system', content: string | any[] }>, config?: { model?: string, tools?: any[] }) => Promise<string>
+  sendAIMessageStream: (provider: string, messages: Array<{ role: 'user' | 'assistant' | 'system', content: string | any[] }>, config?: { model?: string, tools?: any[], thinking?: { type: 'enabled', budget_tokens: number } }) => Promise<string>
   onAIStreamChunk: (callback: (chunk: string | Record<string, unknown>) => void) => void
   onAIStreamEnd: (callback: () => void) => void
   onAIStreamError: (callback: (error: string) => void) => void
@@ -737,7 +737,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   removeAIProviderKey: (provider: string): Promise<void> => ipcRenderer.invoke('remove-ai-provider-key', provider),
   testAIProviderConnection: (provider: string): Promise<{ success: boolean, error?: string }> => ipcRenderer.invoke('test-ai-provider-connection', provider),
   sendAIMessage: (provider: string, messages: Array<{ role: 'user' | 'assistant' | 'system', content: string | any[] }>, config?: { model?: string, tools?: any[] }): Promise<string> => ipcRenderer.invoke('send-ai-message', provider, messages, config),
-  sendAIMessageStream: (provider: string, messages: Array<{ role: 'user' | 'assistant' | 'system', content: string | any[] }>, config?: { model?: string, tools?: any[] }): Promise<string> => ipcRenderer.invoke('send-ai-message-stream', provider, messages, config),
+  sendAIMessageStream: (provider: string, messages: Array<{ role: 'user' | 'assistant' | 'system', content: string | any[] }>, config?: { model?: string, tools?: any[], thinking?: { type: 'enabled', budget_tokens: number } }): Promise<string> => ipcRenderer.invoke('send-ai-message-stream', provider, messages, config),
   onAIStreamChunk: (callback: (chunk: string | Record<string, unknown>) => void): void => {
     ipcRenderer.on('ai-stream-chunk', (_event, chunk) => callback(chunk))
   },
