@@ -8,6 +8,15 @@ module.exports = {
   ],
   theme: {
     extend: {
+      keyframes: {
+        'flash-green': {
+          '0%': { backgroundColor: 'rgb(187 247 208 / 0.5)' },
+          '100%': { backgroundColor: 'transparent' },
+        },
+      },
+      animation: {
+        'flash-green': 'flash-green 0.6s ease-out',
+      },
       fontFamily: {
         'inter': ['Inter', 'sans-serif'],
         'sans': ['Inter', 'sans-serif'],

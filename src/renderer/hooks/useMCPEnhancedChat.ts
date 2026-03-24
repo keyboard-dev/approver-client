@@ -51,6 +51,10 @@ export interface MCPEnhancedChatState {
   mcpAbilities: number
   mcpError?: string
 
+  // Thinking mode
+  thinkingEnabled: boolean
+  setThinkingEnabled: (enabled: boolean) => void
+
   // Ability execution state
   isExecutingAbility: boolean
   currentAbility?: string
@@ -84,6 +88,7 @@ export interface MCPEnhancedChatState {
 export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedChatState {
   const [adapter] = useState(() => new AIChatAdapter(config.provider, config.model, config.mcpEnabled))
   const [mcpEnabled, setMCPEnabledState] = useState(config.mcpEnabled)
+  const [thinkingEnabled, setThinkingEnabledState] = useState(false)
   const [isExecutingAbility, setIsExecutingAbility] = useState(false)
   const [currentAbility, setCurrentAbility] = useState<string | undefined>()
   const [executions, setExecutions] = useState<AbilityExecution[]>([])
@@ -208,6 +213,12 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
     }
   }, [adapter, mcpEnabled, mcpIntegration, setAbilityExecutionState])
 
+  // Handle thinking mode toggle
+  const setThinkingEnabled = useCallback((enabled: boolean) => {
+    setThinkingEnabledState(enabled)
+    adapter.setThinking(enabled ? { type: 'enabled', budget_tokens: 10000 } : undefined)
+  }, [adapter])
+
   // Handle MCP enablement toggle
   const setMCPEnabled = useCallback((enabled: boolean) => {
     setMCPEnabledState(enabled)
@@ -256,6 +267,8 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
     mcpConnected: mcpEnabled ? mcpIntegration.isConnected : false,
     mcpAbilities: mcpIntegration.abilities?.length || 0,
     mcpError: mcpIntegration.error,
+    thinkingEnabled,
+    setThinkingEnabled,
     isExecutingAbility,
     currentAbility,
     executions,

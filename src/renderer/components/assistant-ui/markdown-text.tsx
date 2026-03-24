@@ -14,6 +14,8 @@ import remarkGfm from 'remark-gfm'
 
 import { cn } from '../../lib/utils'
 import { TooltipIconButton } from './tooltip-icon-button'
+import { parseRunCodeBlock, RunCodeDisplay } from './run-code-display'
+import { parseAbilityBlock, AbilityCallDisplay } from './ability-call-display'
 
 const MarkdownTextImpl = () => {
   return (
@@ -32,6 +34,19 @@ const CodeHeader: FC<CodeHeaderProps> = ({ language, code }) => {
   const onCopy = () => {
     if (!code || isCopied) return
     copyToClipboard(code)
+  }
+
+  // Intercept run-code JSON blocks
+  if (code) {
+    const runCodeData = parseRunCodeBlock(code)
+    if (runCodeData) {
+      return <RunCodeDisplay data={runCodeData} rawCode={code} />
+    }
+
+    const abilityData = parseAbilityBlock(code)
+    if (abilityData) {
+      return <AbilityCallDisplay data={abilityData} rawCode={code} />
+    }
   }
 
   const isAbilityResult = language === 'ability-result'
@@ -254,15 +269,26 @@ const defaultComponents = memoizeMarkdownComponents({
       {...props}
     />
   ),
-  pre: ({ className, ...props }) => (
-    <pre
-      className={cn(
-        'aui-md-pre overflow-x-auto !rounded-t-none rounded-b-lg bg-black p-4 text-white',
-        className,
-      )}
-      {...props}
-    />
-  ),
+  pre: ({ className, children, ...props }) => {
+    // Hide raw JSON pre block when CodeHeader intercepted it as run-code/ability display
+    const childText = typeof children === 'object' && children !== null && 'props' in (children as any)
+      ? String((children as any).props?.children ?? '')
+      : ''
+    if (childText && (parseRunCodeBlock(childText) || parseAbilityBlock(childText))) {
+      return null
+    }
+    return (
+      <pre
+        className={cn(
+          'aui-md-pre overflow-x-auto !rounded-t-none rounded-b-lg bg-black p-4 text-white',
+          className,
+        )}
+        {...props}
+      >
+        {children}
+      </pre>
+    )
+  },
   code: function Code({ className, ...props }) {
     const isCodeBlock = useIsMarkdownCodeBlock()
     return (

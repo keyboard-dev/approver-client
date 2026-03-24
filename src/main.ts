@@ -2163,7 +2163,7 @@ class MenuBarNotificationApp {
       }
     })
 
-    ipcMain.handle('send-ai-message-stream', async (event, provider: string, messages: Array<{ role: 'user' | 'assistant' | 'system', content: string | any[] }>, config?: { model?: string, tools?: any[] }): Promise<string> => {
+    ipcMain.handle('send-ai-message-stream', async (event, provider: string, messages: Array<{ role: 'user' | 'assistant' | 'system', content: string | any[] }>, config?: { model?: string, tools?: any[], thinking?: { type: 'enabled', budget_tokens: number } }): Promise<string> => {
       try {
         const authTokens = this.authService.getAuthTokens()
 

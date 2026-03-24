@@ -137,10 +137,15 @@ export class KeyboardProvider implements AIProvider {
 
     const requestBody: Record<string, unknown> = {
       model: config.model || 'claude-sonnet-4-6',
+      max_tokens: 16384,
       system: systemMessage?.content,
       messages: validMessages,
-      temperature: 0.7,
+      temperature: config.thinking ? 1 : 0.7,
       stream: true,
+    }
+
+    if (config.thinking) {
+      requestBody.thinking = config.thinking
     }
 
     if (config.tools?.length) {
@@ -151,16 +156,41 @@ export class KeyboardProvider implements AIProvider {
         seen.add(t.name)
         return true
       })
+      // Debug: verify run-code property order
+      const rc = (requestBody.tools as any[]).find((t: any) => t.name === 'run-code')
+      if (rc?.input_schema?.properties) {
+      }
+    }
+    const bodyString = JSON.stringify(requestBody)
+    const bodySizeKB = Math.round(bodyString.length / 1024)
+    const toolCount = (requestBody.tools as any[])?.length || 0
+    const systemSizeKB = Math.round((typeof requestBody.system === 'string' ? requestBody.system.length : 0) / 1024)
+    if (bodySizeKB > 500) {
     }
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${authTokens.access_token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody),
-    })
+    // Fetch with one retry — TLS socket terminations are transient
+    let response: Response
+    try {
+      response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${authTokens.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: bodyString,
+      })
+    }
+    catch (fetchErr) {
+      await new Promise(r => setTimeout(r, 1500))
+      response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${authTokens.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: bodyString,
+      })
+    }
 
     if (!response.ok) {
       const errorText = await response.text()
@@ -174,6 +204,9 @@ export class KeyboardProvider implements AIProvider {
 
     const decoder = new TextDecoder()
     let buffer = ''
+    let toolJsonAccum = '' // accumulates partial_json to track current field
+    let toolStreamStartTime = 0
+    let lastFieldSeen = ''
 
     try {
       while (true) {
@@ -182,9 +215,6 @@ export class KeyboardProvider implements AIProvider {
 
         const rawChunk = decoder.decode(value, { stream: true })
         buffer += rawChunk
-        // Log first 500 chars of raw chunk to see what the API is actually returning
-        if (rawChunk.length > 0) {
-        }
         const lines = buffer.split('\n')
         buffer = lines.pop() || ''
 
@@ -206,9 +236,21 @@ export class KeyboardProvider implements AIProvider {
                 throw new Error(errMsg)
               }
               if (parsed.type === 'content_block_start' && parsed.content_block?.type === 'tool_use') {
+                toolJsonAccum = ''
+                toolStreamStartTime = Date.now()
+                lastFieldSeen = ''
                 yield { type: 'tool_use_start', id: parsed.content_block.id, name: parsed.content_block.name } as StreamEvent
               }
+              else if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'thinking_delta') {
+                yield { type: 'thinking_delta', text: parsed.delta.thinking } as StreamEvent
+              }
               else if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'input_json_delta') {
+                toolJsonAccum += parsed.delta.partial_json || ''
+                const keyMatches = [...toolJsonAccum.matchAll(/"([^"]+)"\s*:/g)]
+                const currentField = keyMatches.length > 0 ? keyMatches[keyMatches.length - 1][1] : '(none)'
+                if (currentField !== lastFieldSeen) {
+                  lastFieldSeen = currentField
+                }
                 yield { type: 'tool_use_delta', id: String(parsed.index), json: parsed.delta.partial_json } as StreamEvent
               }
               else if (parsed.type === 'content_block_delta' && parsed.delta?.text) {

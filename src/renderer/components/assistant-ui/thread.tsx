@@ -46,10 +46,12 @@ import {
   UserMessageAttachments,
 } from './attachment'
 import { MarkdownText } from './markdown-text'
+import { SmartText } from './smart-text'
 import { Reasoning, ReasoningGroup } from './reasoning'
 import { SettingsTabType, ThreadLeftSidebar } from './thread-left-sidebar'
 import { ThreadSidebar } from './thread-sidebar'
 import { ToolFallback } from './tool-fallback'
+import { RunCodeToolPart, AbilityCallToolPart } from './tool-parts'
 // Settings panels
 import { AdvancedPanel } from '../screens/settings/panels/AdvancedPanel'
 import { AICreditsPanel } from '../screens/settings/panels/AICreditsPanel'
@@ -90,6 +92,9 @@ interface ThreadCustomProps {
   onModelChange?: (modelId: string) => void
   // Org provider
   orgProvider?: OrgProviderData | null
+  // Thinking mode
+  thinkingEnabled?: boolean
+  onThinkingChange?: (enabled: boolean) => void
   // MCP status
   mcpConnected?: boolean
   mcpAbilities?: number
@@ -111,6 +116,9 @@ export const Thread: FC<ThreadCustomProps> = ({
   onModelChange,
   // Org provider
   orgProvider,
+  // Thinking mode
+  thinkingEnabled,
+  onThinkingChange,
   // MCP props
   mcpConnected,
   mcpAbilities,
@@ -340,6 +348,8 @@ export const Thread: FC<ThreadCustomProps> = ({
                 onProviderChange={onProviderChange}
                 onModelChange={onModelChange}
                 orgProvider={orgProvider}
+                thinkingEnabled={thinkingEnabled}
+                onThinkingChange={onThinkingChange}
                 mcpConnected={mcpConnected}
                 mcpAbilities={mcpAbilities}
                 mcpError={mcpError}
@@ -630,10 +640,21 @@ const AssistantMessage: FC = () => {
           <div className="aui-assistant-message-content w-full text-[#171717] text-[14px] font-medium leading-normal break-words [&>:not(.aui-tool-fallback-root)]:max-w-[720px]">
             <MessagePrimitive.Parts
               components={{
-                Text: MarkdownText,
+                Text: SmartText,
                 Reasoning,
                 ReasoningGroup,
-                tools: { Fallback: ToolFallback },
+                tools: {
+                  by_name: {
+                    'run-code': RunCodeToolPart,
+                    'web-search': AbilityCallToolPart,
+                    'save-keyboard-shortcut-script-template': AbilityCallToolPart,
+                    'update-keyboard-shortcut-script-template': AbilityCallToolPart,
+                    'poll-background-job': AbilityCallToolPart,
+                    'list-background-jobs': AbilityCallToolPart,
+                    'search-images': AbilityCallToolPart,
+                  },
+                  Fallback: ToolFallback,
+                },
               }}
             />
             <MessageError />
