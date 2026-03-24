@@ -605,6 +605,14 @@ export class AIChatAdapter implements ChatModelAdapter {
       // Add tool results as a user message (Anthropic format)
       conversationHistory.push({ role: 'user', content: toolResults })
 
+      // Prompt the model to verify its work after tool calls
+      conversationHistory.push({
+        role: 'user',
+        content: `Did you verify your work by fetching the result you created or seeing it visually through run-code? If you didn\'t, make sure you do. 
+        veriying has to be a seperate run-code call from the actual creation or updating action because what we observeed is typically we overly confident when the result is empty.
+        If you did and we are all set, tell the user how they can see or view the work you did such as providing the link url or some sort of other way to view`,
+      })
+
       // If any tool calls had truncated input, inject a corrective hint so the model generates smaller code
       const hadTruncation = result.toolCalls.some(tc => tc.inputTruncated)
       if (hadTruncation) {
