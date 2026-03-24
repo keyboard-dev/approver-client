@@ -400,6 +400,15 @@ export class AIChatAdapter implements ChatModelAdapter {
         if (textPart) {
           liveContent.push({ type: 'text' as const, text: textPart })
         }
+        catch (error) {
+          const errorMsg = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
+          toolPart.result = errorMsg
+          toolPart.isError = true
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: tc.id,
+            content: errorMsg,
+          })
 
         yield { content: liveContent }
         const hasUnshownContent = lastYieldedTextLen < streamingText.length
