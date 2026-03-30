@@ -206,7 +206,7 @@ export const Thread: FC<ThreadCustomProps> = ({
         <div className="flex h-full w-full gap-0 overflow-hidden">
           {/* Left Sidebar - Thread List & Settings Navigation */}
           {leftSidebarOpen && (
-            <div className="h-full shrink-0 border-r border-[#dbdbdb]">
+            <div className="h-full shrink-0">
               <ThreadLeftSidebar
                 isOpen={leftSidebarOpen}
                 activeTab={activeSettingsTab}
