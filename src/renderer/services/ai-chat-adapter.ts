@@ -28,6 +28,65 @@ interface StreamResult {
   stopReason: string
 }
 
+/**
+ * Parse text-format tool calls that the model outputs as plain text instead of structured tool_use blocks.
+ * This happens when the model mimics the `[Used tool: name({...})]` format from conversation history.
+ */
+function parseTextFormatToolCalls(text: string): Array<{ name: string, input: Record<string, unknown>, rawMatch: string }> {
+  const results: Array<{ name: string, input: Record<string, unknown>, rawMatch: string }> = []
+  const prefix = '[Used tool: '
+  let searchFrom = 0
+
+  while (true) {
+    const startIdx = text.indexOf(prefix, searchFrom)
+    if (startIdx === -1) break
+
+    const afterPrefix = startIdx + prefix.length
+    const parenIdx = text.indexOf('(', afterPrefix)
+    if (parenIdx === -1) { searchFrom = afterPrefix; continue }
+
+    const toolName = text.substring(afterPrefix, parenIdx).trim()
+    if (!toolName) { searchFrom = afterPrefix; continue }
+
+    const jsonStart = parenIdx + 1
+    if (text[jsonStart] !== '{') { searchFrom = jsonStart; continue }
+
+    // Brace-counting to find matching closing brace (handles nested JSON reliably)
+    let depth = 0
+    let inString = false
+    let escape = false
+    let jsonEnd = -1
+
+    for (let i = jsonStart; i < text.length; i++) {
+      const ch = text[i]
+      if (escape) { escape = false; continue }
+      if (ch === '\\' && inString) { escape = true; continue }
+      if (ch === '"' && !escape) { inString = !inString; continue }
+      if (inString) continue
+      if (ch === '{') depth++
+      else if (ch === '}') {
+        depth--
+        if (depth === 0) { jsonEnd = i + 1; break }
+      }
+    }
+
+    if (jsonEnd === -1) { searchFrom = jsonStart; continue }
+
+    // Expect ')]' to close the pattern
+    if (text.substring(jsonEnd, jsonEnd + 2) !== ')]') { searchFrom = jsonEnd; continue }
+
+    try {
+      const input = JSON.parse(text.substring(jsonStart, jsonEnd))
+      results.push({ name: toolName, input, rawMatch: text.substring(startIdx, jsonEnd + 2) })
+    }
+    catch { /* skip malformed JSON */ }
+
+    searchFrom = jsonEnd + 2
+  }
+
+  return results
+}
+
 export class AIChatAdapter implements ChatModelAdapter {
   private currentProvider: AIProviderSelection = { provider: 'openai', model: 'gpt-3.5-turbo', mcpEnabled: false }
   private mcpIntegration: ReturnType<typeof useMCPIntegration> | null = null
@@ -247,6 +306,23 @@ export class AIChatAdapter implements ChatModelAdapter {
           }
         }
         toolCalls.push({ id: acc.id, name: acc.name, input, inputTruncated })
+      }
+
+      // Recovery: if the model output tool calls as text instead of structured blocks, parse and convert them
+      if (toolCalls.length === 0 && fullText.includes('[Used tool: ')) {
+        const parsed = parseTextFormatToolCalls(fullText)
+        if (parsed.length > 0) {
+          console.log(`[NativeToolCall][Recovery] Detected ${parsed.length} text-format tool call(s), converting to structured calls`)
+          for (const p of parsed) {
+            toolCalls.push({
+              id: `toolu_text_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+              name: p.name,
+              input: p.input,
+            })
+            fullText = fullText.replace(p.rawMatch, '').trim()
+          }
+          stopReason = 'tool_use'
+        }
       }
 
       return { text: fullText, toolCalls, stopReason }
