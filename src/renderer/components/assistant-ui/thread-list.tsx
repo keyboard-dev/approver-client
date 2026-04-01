@@ -23,8 +23,8 @@ export const NewChatButton: FC<NewChatButtonProps> = ({ onChatSelect }) => {
           type="button"
           onClick={onChatSelect}
           className={cn(
-            'flex items-center gap-[10px] px-[16px] py-[10px] w-full text-left transition-colors',
-            'hover:bg-[#e5e5e5] rounded-md',
+            'flex items-center gap-[10px] mx-[8px] px-[4px] py-[10px] w-[calc(100%-16px)] text-left transition-colors',
+            'hover:bg-[#e5e5e5] rounded-[4px]',
           )}
         >
           <PlusIcon className="size-[18px] text-[#171717]" />

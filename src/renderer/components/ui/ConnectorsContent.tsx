@@ -7,7 +7,7 @@
  */
 
 import { ExternalLink, Search, X } from 'lucide-react'
-import React, { useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import squaresIconUrl from '../../../../assets/icon-squares.svg'
 import { useComposio } from '../../hooks/useComposio'
@@ -21,8 +21,10 @@ import { PipedreamAccount } from '../../services/pipedream-service'
 // Types
 // =============================================================================
 
+const BROWSE_PAGE_SIZE = 20
+
 export interface ConnectorsContentProps {
-  /** Max height for the available connectors list */
+  /** Max height for the available connectors list. When omitted the list fills available space. */
   maxConnectorsHeight?: string
   /** Additional className for the container */
   className?: string
@@ -173,12 +175,23 @@ const ConnectorRow: React.FC<ConnectorRowProps> = ({
 // =============================================================================
 
 export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
-  maxConnectorsHeight = '400px',
+  maxConnectorsHeight,
   className = '',
   showDescription = false,
   showDocsLink = false,
 }) => {
   const { showPopup, hidePopup } = usePopup()
+
+  const [browsableLimit, setBrowsableLimit] = useState(BROWSE_PAGE_SIZE)
+  const listRef = useRef<HTMLDivElement>(null)
+
+  const handleListScroll = useCallback(() => {
+    const el = listRef.current
+    if (!el) return
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 150) {
+      setBrowsableLimit(prev => prev + BROWSE_PAGE_SIZE)
+    }
+  }, [])
 
   // Local (Keyboard API) connectors
   const {
@@ -234,6 +247,10 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
   const [searchQuery, setSearchQuery] = useState('')
   const [connectError, setConnectError] = useState<string | null>(null)
   const [filterType, setFilterType] = useState<FilterType>('all')
+
+  useEffect(() => {
+    setBrowsableLimit(BROWSE_PAGE_SIZE)
+  }, [searchQuery, filterType])
 
   // ==========================================================================
   // Computed Values
@@ -426,7 +443,7 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
   const showPipedreamDefaults = !isSearching && filteredPipedreamDefaultApps.length > 0
 
   return (
-    <div className={`flex flex-col gap-[15px] ${className}`}>
+    <div className={`flex flex-col gap-[15px] ${!maxConnectorsHeight ? 'h-full' : ''} ${className}`}>
       {/* Filter Tabs and Search Row */}
       <div className="flex flex-col gap-[10px]">
         <div className="flex items-center justify-between">
@@ -435,10 +452,10 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-[#737373]" />
             <input
               type="text"
-              placeholder="Search app name..."
+              placeholder="Search from 3,000+ apps"
               value={searchQuery}
               onChange={e => handleSearchChange(e.target.value)}
-              className="w-full h-8 pl-8 pr-8 py-2 bg-white border border-[#e5e5e5] rounded-[5px] text-[14px] font-medium text-[#171717] placeholder:text-[#737373] focus:outline-none focus:border-[#a5a5a5]"
+              className="w-full h-8 pl-8 pr-8 py-2 bg-[#FAFAFA] border border-[#e5e5e5] rounded-[5px] text-[14px] font-medium text-[#171717] placeholder:text-[#737373] focus:outline-none focus:border-[#a5a5a5]"
             />
             {searchQuery && (
               <button
@@ -484,8 +501,10 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
 
       {/* Unified Connectors List (bordered container) */}
       <div
-        className="border border-[#e5e5e5] rounded-[6px] p-[15px] flex flex-col gap-[10px] overflow-y-auto"
-        style={{ maxHeight: maxConnectorsHeight }}
+        ref={listRef}
+        onScroll={handleListScroll}
+        className={`bg-[#FAFAFA] border border-[#e5e5e5] rounded-[6px] p-[15px] flex flex-col gap-[10px] overflow-y-auto ${!maxConnectorsHeight ? 'flex-1 min-h-0' : ''}`}
+        style={maxConnectorsHeight ? { maxHeight: maxConnectorsHeight } : undefined}
       >
         {/* Loading State */}
         {localLoading && (
@@ -574,7 +593,7 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
                 Searching Pipedream apps...
               </div>
             )}
-            {showPipedreamResults && filteredPipedreamApps.map(app => (
+            {showPipedreamResults && filteredPipedreamApps.slice(0, browsableLimit).map(app => (
               <ConnectorRow
                 key={`pipedream-${app.id}`}
                 icon={app.logoUrl || squaresIconUrl}
@@ -610,6 +629,7 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
                     || accToolkitSlug === appName || accToolkitSlug === appSlug
                 }),
               )
+              .slice(0, browsableLimit)
               .map(app => (
                 <ConnectorRow
                   key={`composio-${app.slug}`}
@@ -649,7 +669,7 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
                 Loading more apps...
               </div>
             )}
-            {showPipedreamDefaults && filteredPipedreamDefaultApps.map(app => (
+            {showPipedreamDefaults && filteredPipedreamDefaultApps.slice(0, browsableLimit).map(app => (
               <ConnectorRow
                 key={`pipedream-default-${app.id}`}
                 icon={app.logoUrl || squaresIconUrl}
@@ -685,6 +705,7 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
                     || accToolkitSlug === appName || accToolkitSlug === appSlug
                 }),
               )
+              .slice(0, browsableLimit)
               .map(app => (
                 <ConnectorRow
                   key={`composio-default-${app.slug}`}

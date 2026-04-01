@@ -141,19 +141,19 @@ export const AICreditsPanel: React.FC = () => {
   }
 
   return (
-    <div className="grow shrink min-w-0 h-full py-[0.5rem] flex flex-col gap-[0.63rem] overflow-y-auto">
-      <div className="text-[1.13rem] px-[0.94rem]">
+    <div className="grow shrink min-w-0 h-full p-[16px] flex flex-col gap-[0.63rem] overflow-y-auto">
+      <div className="text-[1.13rem]">
         AI Credits
       </div>
 
       {credits.loading && (
-        <div className="p-[0.94rem] border border-[#E5E5E5] rounded-[0.38rem] flex items-center justify-center">
+        <div className="p-[0.94rem] bg-[#FAFAFA] border border-[#E5E5E5] rounded-[0.38rem] flex items-center justify-center">
           <div className="text-[#737373]">Loading credits balance...</div>
         </div>
       )}
 
       {credits.error && (
-        <div className="p-[0.94rem] border border-[#E5E5E5] rounded-[0.38rem] flex flex-col gap-[0.63rem]">
+        <div className="p-[0.94rem] bg-[#FAFAFA] border border-[#E5E5E5] rounded-[0.38rem] flex flex-col gap-[0.63rem]">
           <div className="text-red-500">{credits.error}</div>
           <button
             onClick={fetchCreditsBalance}
@@ -167,7 +167,7 @@ export const AICreditsPanel: React.FC = () => {
       {credits.balance && (
         <>
           {/* Current Balance Card */}
-          <div className="p-[0.94rem] border border-[#E5E5E5] rounded-[0.38rem] flex flex-col gap-[0.63rem]">
+          <div className="p-[0.94rem] bg-[#FAFAFA] border border-[#E5E5E5] rounded-[0.38rem] flex flex-col gap-[0.63rem]">
             <div className="flex justify-between items-center">
               <div className="text-[#737373]">Current Balance</div>
               <button
@@ -192,7 +192,7 @@ export const AICreditsPanel: React.FC = () => {
           </div>
 
           {/* Usage Breakdown */}
-          <div className="p-[0.94rem] border border-[#E5E5E5] rounded-[0.38rem] flex flex-col gap-[0.63rem]">
+          <div className="p-[0.94rem] bg-[#FAFAFA] border border-[#E5E5E5] rounded-[0.38rem] flex flex-col gap-[0.63rem]">
             <div className="text-[#737373]">Usage Breakdown</div>
 
             <div className="grid grid-cols-3 gap-[0.94rem]">
@@ -223,7 +223,7 @@ export const AICreditsPanel: React.FC = () => {
           </div>
 
           {/* Last Updated */}
-          <div className="px-[0.94rem] text-sm text-[#737373]">
+          <div className="text-sm text-[#737373]">
             Last updated:
             {' '}
             {formatDate(credits.balance.updated_at)}
