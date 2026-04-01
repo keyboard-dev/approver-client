@@ -288,7 +288,7 @@ export const SecurityPolicyPanel: React.FC = () => {
   const getDialogDescription = () => {
     switch (addItemDialog.type) {
       case 'domain': return 'Enter the domain that should be allowed (e.g., api.github.com)'
-      case 'package': return 'Enter the npm package name (e.g., axios)'
+      case 'package': return 'Enter the npm package name (e.g., react)'
       case 'binary': return 'Enter the binary name (e.g., ffmpeg)'
       default: return ''
     }

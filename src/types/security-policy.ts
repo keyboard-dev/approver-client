@@ -113,7 +113,7 @@ export const FREE_TIER_POLICY: SecurityPolicy = {
       { method: 'GET', path: '/repos/*', allow: true, description: 'Read repositories' },
     ],
   },
-  allowedPackages: ['axios', 'lodash'],
+  allowedPackages: ['lodash'],
   allowedBinaries: [],
 }
 
@@ -133,7 +133,7 @@ export const PRO_TIER_POLICY: SecurityPolicy = {
       { method: 'GET', path: '/*', allow: true, description: 'Read GitHub API' },
     ],
   },
-  allowedPackages: ['stripe', 'axios', 'lodash'],
+  allowedPackages: ['stripe', 'lodash'],
   allowedBinaries: [],
 }
 
@@ -161,6 +161,6 @@ export const ENTERPRISE_TIER_POLICY: SecurityPolicy = {
       { method: '*', path: '/*', allow: true, description: 'Full GitHub API access' },
     ],
   },
-  allowedPackages: ['stripe', 'axios', 'openai', 'aws-sdk'],
+  allowedPackages: ['stripe', 'openai', 'aws-sdk'],
   allowedBinaries: ['ffmpeg', 'ffprobe', 'convert'],
 }
