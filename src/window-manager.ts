@@ -36,6 +36,7 @@ export class WindowManager {
     this.mainWindow = new BrowserWindow({
       frame: false,
       height: DEFAULT_WINDOW_HEIGHT,
+      minWidth: 400,
       icon: iconPath,
       transparent: isMac, // Only macOS needs transparent for vibrancy
       width: DEFAULT_WINDOW_WIDTH,
@@ -49,13 +50,14 @@ export class WindowManager {
       ...(isMac && {
         alwaysOnTop: false,
         titleBarStyle: 'hidden',
+        trafficLightPosition: { x: 20, y: 13 },
         type: 'panel',
         vibrancy: 'under-window',
         visualEffectState: 'active',
       }),
       ...(isWindows && {
         backgroundMaterial: 'mica', // Win11 22H2+: native mica effect
-        backgroundColor: nativeTheme.shouldUseDarkColors ? '#1f1f1f' : '#f5f5f5', // Win10 fallback: follows system theme
+        backgroundColor: nativeTheme.shouldUseDarkColors ? '#1f1f1f' : '#EBEBEB', // Win10 fallback: follows system theme
       }),
     })
 

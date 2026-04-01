@@ -26,7 +26,8 @@
     "publish": "electron-forge publish",
     "encrypt-keys": "npx @dotenvx/dotenvx encrypt",
     "lint": "eslint .",
-    "lint:fix": "eslint . --fix"
+    "lint:fix": "eslint . --fix",
+    "claude-code": "npx @anthropic-ai/claude-code"
   },
   "dependencies": {
     "@assistant-ui/react": "0.11.37",

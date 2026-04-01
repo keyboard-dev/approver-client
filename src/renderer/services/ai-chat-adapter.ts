@@ -112,17 +112,34 @@ export class AIChatAdapter implements ChatModelAdapter {
     this.stopPeriodicPing()
   }
 
-  private generateThreadTitle(userMessage: string): void {
+  private async generateThreadTitleWithAI(firstUserMessage: string): Promise<void> {
     if (this.titleGeneratedForThread || !this.onThreadTitleGenerated) {
       return
     }
     this.titleGeneratedForThread = true
-    // Use the user's actual message as the title, truncated to a readable length
-    const title = userMessage.length > 50
-      ? userMessage.slice(0, 50).trim() + '...'
-      : userMessage.trim()
-    if (title.length > 0) {
-      this.onThreadTitleGenerated(title)
+    try {
+      const result = await this.streamWithToolSupport(
+        [
+          {
+            role: 'user',
+            content: `Generate a very brief title of maximum 5 words for a conversation that starts with this message. Reply with ONLY the title, no quotes, no punctuation at the end:\n\n${firstUserMessage.slice(0, 300)}`,
+          },
+        ],
+        undefined,
+        undefined,
+        'claude-haiku-4-5-20251001',
+      )
+      let title = result.text.trim().replace(/^["']|["']$/g, '').trim()
+      const words = title.split(/\s+/)
+      if (words.length > 5) {
+        title = words.slice(0, 5).join(' ')
+      }
+      if (title.length > 0) {
+        this.onThreadTitleGenerated(title)
+      }
+    }
+    catch {
+      // Silent fail
     }
   }
 
@@ -691,13 +708,15 @@ export class AIChatAdapter implements ChatModelAdapter {
   }
 
   async* run({ messages, abortSignal }: any) {
+    let runCompleted = false
+    let firstUserMessageForTitle: string | undefined
     try {
       const aiMessages = this.convertMessagesToAI(messages as any[])
 
-      // Generate thread title on first user message
+      // Capture first user message for post-response title generation
       const userMessages = aiMessages.filter(m => m.role === 'user')
       if (userMessages.length === 1 && userMessages[0]?.content) {
-        this.generateThreadTitle(userMessages[0].content as string)
+        firstUserMessageForTitle = userMessages[0].content as string
       }
 
       // Inject enhanced context into system prompt
@@ -806,6 +825,7 @@ export class AIChatAdapter implements ChatModelAdapter {
         for await (const result of this.handleNativeToolCalling(aiMessages, nativeTools, abortSignal)) {
           yield result
         }
+        runCompleted = true
         return
       }
 
@@ -825,6 +845,7 @@ export class AIChatAdapter implements ChatModelAdapter {
         yielded = end
         await new Promise(resolve => setTimeout(resolve, YIELD_INTERVAL))
       }
+      runCompleted = true
     }
     catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
@@ -835,6 +856,9 @@ export class AIChatAdapter implements ChatModelAdapter {
     }
     finally {
       this.cleanup()
+      if (runCompleted && firstUserMessageForTitle) {
+        void this.generateThreadTitleWithAI(firstUserMessageForTitle)
+      }
     }
   }
 }

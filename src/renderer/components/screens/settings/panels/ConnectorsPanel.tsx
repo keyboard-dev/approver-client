@@ -9,7 +9,7 @@ import React from 'react'
 
 import { useAuth } from '../../../../hooks/useAuth'
 import { Confirmation } from '../../../ui/Confirmation'
-import { ConnectorsContent, SourceTag } from '../../../ui/ConnectorsContent'
+import { ConnectorsContent } from '../../../ui/ConnectorsContent'
 
 // =============================================================================
 // Main Component
@@ -19,7 +19,7 @@ export const ConnectorsPanel: React.FC = () => {
   const { isAuthenticated, isSkippingAuth } = useAuth()
 
   return (
-    <div className="relative grow shrink min-w-0 h-full py-2 flex flex-col gap-4 overflow-auto">
+    <div className="relative grow shrink min-w-0 h-full p-[16px] flex flex-col gap-4">
       {/* Auth Gate */}
       {(!isAuthenticated || isSkippingAuth) && (
         <Confirmation
@@ -32,61 +32,34 @@ export const ConnectorsPanel: React.FC = () => {
       )}
 
       {/* Header */}
-      <div className="px-4">
+      <div className="shrink-0">
         <div className="text-lg font-medium">Connectors</div>
         <div className="text-[#737373] text-sm">
-          Connect your accounts to let Keyboard access external services on your behalf.
+          Connect your apps to enable Keyboard to take actions on your behalf.
+          {' '}
+          Local connectors are managed by Keyboard. Pipedream apps are powered by
           {' '}
           <button
-            className="underline"
-            onClick={() => window.electronAPI.openExternalUrl('https://docs.keyboard.dev/')}
+            className="underline hover:text-[#404040]"
+            onClick={() => window.electronAPI.openExternalUrl('https://pipedream.com')}
           >
-            Learn more
+            Pipedream Connect
           </button>
+          . Composio apps are powered by
+          {' '}
+          <button
+            className="underline hover:text-[#404040]"
+            onClick={() => window.electronAPI.openExternalUrl('https://composio.dev')}
+          >
+            Composio
+          </button>
+          .
         </div>
       </div>
 
       {/* Core Content */}
-      <div className="px-4 flex-1 min-h-0 flex flex-col">
-        <ConnectorsContent maxConnectorsHeight="400px" />
-      </div>
-
-      {/* Info Footer */}
-      <div className="px-4 mt-auto pt-4 pb-2">
-        <div className="flex flex-col gap-1.5 text-xs text-[#A3A3A3]">
-          <span className="inline-flex items-center gap-1.5">
-            <SourceTag source="local" />
-            <span>connectors are managed by Keyboard.</span>
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <SourceTag source="pipedream" />
-            <span>
-              apps are powered by
-              {' '}
-              <button
-                className="underline hover:text-[#737373]"
-                onClick={() => window.electronAPI.openExternalUrl('https://pipedream.com')}
-              >
-                Pipedream Connect
-              </button>
-              .
-            </span>
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <SourceTag source="composio" />
-            <span>
-              apps are powered by
-              {' '}
-              <button
-                className="underline hover:text-[#737373]"
-                onClick={() => window.electronAPI.openExternalUrl('https://composio.dev')}
-              >
-                Composio
-              </button>
-              .
-            </span>
-          </span>
-        </div>
+      <div className="flex-1 min-h-0 flex flex-col">
+        <ConnectorsContent />
       </div>
     </div>
   )

@@ -416,14 +416,14 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
   return (
     <div className="flex flex-col gap-[10px] h-full w-full overflow-x-clip overflow-y-auto">
       {/* Overview Header */}
-      <div className="flex items-center justify-center px-[15px]">
+      <div className="flex items-center justify-center px-[8px]">
         <p className="flex-1 font-semibold text-[14px] text-[#737373] leading-normal">
           Overview
         </p>
       </div>
 
       {/* MCP Connection Status */}
-      <div className="px-[15px]">
+      <div className="px-[8px]">
         {mcpConnected
           ? (
               <div className="flex items-center gap-2 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2">
@@ -469,7 +469,7 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
       </div>
 
       {/* Model Preferences Section */}
-      <div className="flex flex-col gap-[10px] px-[15px]">
+      <div className="flex flex-col gap-[10px] px-[8px]">
         <button
           type="button"
           onClick={() => setModelPreferencesOpen(!modelPreferencesOpen)}
@@ -642,10 +642,10 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
       </div>
 
       {/* Divider */}
-      <div className="h-[1px] bg-[#dbdbdb] w-full" />
+      <div className="shrink-0 h-px bg-[#dbdbdb] w-full" />
 
       {/* Connectors Section */}
-      <div className="flex flex-col gap-[10px] px-[15px]">
+      <div className="flex flex-col gap-[10px] px-[8px]">
         <button
           type="button"
           onClick={() => setConnectorsOpen(!connectorsOpen)}

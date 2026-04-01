@@ -8,10 +8,6 @@ import {
   ChevronRightIcon,
   CopyIcon,
   Loader2Icon,
-  PanelLeftCloseIcon,
-  PanelLeftOpenIcon,
-  PanelRightCloseIcon,
-  PanelRightOpenIcon,
   PencilIcon,
   RefreshCwIcon,
   Square,
@@ -25,14 +21,17 @@ import {
   ErrorPrimitive,
   MessagePrimitive,
   ThreadPrimitive,
+  useAssistantState,
+  useThreadListItem,
 } from '@assistant-ui/react'
 
 import { LazyMotion, MotionConfig, domAnimation } from 'motion/react'
 import * as m from 'motion/react-m'
 import type { FC } from 'react'
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useOrgCoverImage } from '../../hooks/useOrgCoverImage'
-import { useNavigate } from 'react-router-dom'
+import { useSidebarStore } from '../../stores/sidebar-store'
 
 import { Message, Script } from '../../../types'
 import { cn } from '../../lib/utils'
@@ -55,12 +54,7 @@ import { RunCodeToolPart, AbilityCallToolPart } from './tool-parts'
 // Settings panels
 import { AdvancedPanel } from '../screens/settings/panels/AdvancedPanel'
 import { AICreditsPanel } from '../screens/settings/panels/AICreditsPanel'
-import { AIProvidersPanel } from '../screens/settings/panels/AIProvidersPanel'
 import { ConnectorsPanel } from '../screens/settings/panels/ConnectorsPanel'
-import { KeyPanel } from '../screens/settings/panels/KeyPanel'
-import { NotificationPanel } from '../screens/settings/panels/NotificationPanel'
-import { SecurityPolicyPanel } from '../screens/settings/panels/SecurityPolicyPanel'
-import { TriggersPanel } from '../screens/settings/panels/TriggersPanel'
 import { TooltipIconButton } from './tooltip-icon-button'
 
 interface ProviderConfig {
@@ -102,6 +96,18 @@ interface ThreadCustomProps {
   onRetryMCP?: () => void
 }
 
+// Maps between SettingsTabType and URL hash fragment
+const PANEL_TO_HASH: Partial<Record<SettingsTabType, string>> = {
+  Connectors: '#connectors',
+  'AI Credits': '#ai-credits',
+  Advanced: '#advanced',
+}
+const HASH_TO_PANEL: Record<string, SettingsTabType> = {
+  '#connectors': 'Connectors',
+  '#ai-credits': 'AI Credits',
+  '#advanced': 'Advanced',
+}
+
 export const Thread: FC<ThreadCustomProps> = ({
   currentApprovalMessage,
   onApproveMessage,
@@ -125,61 +131,35 @@ export const Thread: FC<ThreadCustomProps> = ({
   mcpError,
   onRetryMCP,
 }) => {
-  const navigate = useNavigate()
   const [selectedScripts, setSelectedScripts] = useState<Script[]>([])
-  const [leftSidebarOpen, setLeftSidebarOpen] = useState(false)
-  const [rightSidebarOpen, setRightSidebarOpen] = useState(false)
-  const [activeSettingsTab, setActiveSettingsTab] = useState<SettingsTabType | null>(null)
+  const {
+    leftSidebarOpen,
+    setLeftSidebarOpen,
+    rightSidebarOpen,
+    setRightSidebarOpen,
+    leftSidebarWidth,
+    setLeftSidebarWidth,
+    rightSidebarWidth,
+    setRightSidebarWidth,
+    setSettingsPanelOpen,
+    setActivePanelTitle,
+  } = useSidebarStore()
+  const navigate = useNavigate()
+  const { hash } = useLocation()
+  const activeSettingsTab: SettingsTabType | null = HASH_TO_PANEL[hash] ?? null
+
+  // Sync settings panel state + title to store so Layout can reflect current view
+  useEffect(() => {
+    setSettingsPanelOpen(activeSettingsTab !== null)
+    setActivePanelTitle(activeSettingsTab)
+  }, [activeSettingsTab, setSettingsPanelOpen, setActivePanelTitle])
   // Get settings panel based on active tab
   const getSettingsPanel = () => {
-    if (!activeSettingsTab) return null
-
     switch (activeSettingsTab) {
-      case 'WebSocket':
-        return (
-          <KeyPanel
-            confirmationDescription="Submitting this form will generate a new WebSocket key. Be aware that any scripts or applications using this key will need to be updated."
-            description="Applications need this key to connect to the approver. Treat it like a password — do not share it. The key is stored securely on your device."
-            getKeyInfo={window.electronAPI.getWSKeyInfo}
-            keyName="Connection key"
-            onKeyGenerated={window.electronAPI.onWSKeyGenerated}
-            onUnmount={() => window.electronAPI.removeAllListeners('ws-key-generated')}
-            regenerateKey={window.electronAPI.regenerateWSKey}
-            title="WebSocket"
-          />
-        )
-      case 'Security':
-        return (
-          <KeyPanel
-            confirmationDescription="Are you sure you want to regenerate the encryption key? This will invalidate all previously encrypted data."
-            description="The encryption key we use to encrypt data that Keyboard will save for you."
-            getKeyInfo={window.electronAPI.getEncryptionKeyInfo}
-            keyName="Encryption key"
-            onKeyGenerated={window.electronAPI.onEncryptionKeyGenerated}
-            onUnmount={() => window.electronAPI.removeAllListeners('encryption-key-generated')}
-            regenerateKey={async () => {
-              const keyInfo = await window.electronAPI.getEncryptionKeyInfo()
-              if (keyInfo.source === 'environment') {
-                alert('Cannot regenerate encryption key when using environment variable.')
-                return
-              }
-              return window.electronAPI.regenerateEncryptionKey()
-            }}
-            title="Security"
-          />
-        )
-      case 'Security Policies':
-        return <SecurityPolicyPanel />
-      case 'AI Providers':
-        return <AIProvidersPanel />
       case 'AI Credits':
         return <AICreditsPanel />
-      case 'Notifications':
-        return <NotificationPanel />
       case 'Connectors':
         return <ConnectorsPanel />
-      case 'Triggers':
-        return <TriggersPanel />
       case 'Advanced':
         return <AdvancedPanel />
       default:
@@ -191,35 +171,65 @@ export const Thread: FC<ThreadCustomProps> = ({
   const showChat = !activeSettingsTab
 
   const handleSettingsTabClick = (tab: SettingsTabType) => {
-    if (activeSettingsTab === tab) {
-      // Toggle off if clicking same tab
-      setActiveSettingsTab(null)
-    }
-    else {
-      setActiveSettingsTab(tab)
-    }
+    navigate(`/chat${PANEL_TO_HASH[tab] ?? ''}`)
   }
+
+  const handleLeftResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    const startX = e.clientX
+    const startWidth = leftSidebarWidth
+    const onMouseMove = (ev: MouseEvent) => {
+      setLeftSidebarWidth(Math.min(570, Math.max(280, startWidth + (ev.clientX - startX))))
+    }
+    const onMouseUp = () => {
+      document.removeEventListener('mousemove', onMouseMove)
+      document.removeEventListener('mouseup', onMouseUp)
+    }
+    document.addEventListener('mousemove', onMouseMove)
+    document.addEventListener('mouseup', onMouseUp)
+  }, [leftSidebarWidth, setLeftSidebarWidth])
+
+  const handleRightResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    const startX = e.clientX
+    const startWidth = rightSidebarWidth
+    const onMouseMove = (ev: MouseEvent) => {
+      setRightSidebarWidth(Math.min(570, Math.max(280, startWidth - (ev.clientX - startX))))
+    }
+    const onMouseUp = () => {
+      document.removeEventListener('mousemove', onMouseMove)
+      document.removeEventListener('mouseup', onMouseUp)
+    }
+    document.addEventListener('mousemove', onMouseMove)
+    document.addEventListener('mouseup', onMouseUp)
+  }, [rightSidebarWidth, setRightSidebarWidth])
 
   return (
     <LazyMotion features={domAnimation}>
       <MotionConfig reducedMotion="user">
         <div className="flex h-full w-full gap-0 overflow-hidden">
-          {/* Left Sidebar - Thread List & Settings Navigation */}
+          {/* Left Sidebar - always rendered; collapsed to icon strip when leftSidebarOpen is false */}
+          <div className="h-full pt-[8px] shrink-0 mr-[0.63rem]">
+            <ThreadLeftSidebar
+              isOpen={leftSidebarOpen}
+              width={leftSidebarWidth}
+              activeTab={activeSettingsTab}
+              onTabClick={handleSettingsTabClick}
+              onChatSelect={() => navigate('/chat')}
+            />
+          </div>
           {leftSidebarOpen && (
-            <div className="h-full shrink-0 border-r border-[#dbdbdb]">
-              <ThreadLeftSidebar
-                isOpen={leftSidebarOpen}
-                activeTab={activeSettingsTab}
-                onTabClick={handleSettingsTabClick}
-                onApprovalRequestsClick={() => navigate('/approvals')}
-                onChatSelect={() => setActiveSettingsTab(null)}
-              />
+            <div
+              className="group relative h-full w-[8px] shrink-0 cursor-col-resize"
+              onMouseDown={handleLeftResizeStart}
+            >
+              <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[2px] bg-[#d4d4d4] opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
           )}
 
           {/* Settings Panel - Shown when a settings tab is active (takes full remaining width) */}
-          {leftSidebarOpen && activeSettingsTab && (
-            <div className="h-full flex-1 overflow-auto bg-white">
+          {activeSettingsTab && (
+            <div className="h-full flex-1 overflow-auto bg-[#f5f5f5] rounded-[20px] border border-[#dbdbdb]">
               {getSettingsPanel()}
             </div>
           )}
@@ -229,106 +239,24 @@ export const Thread: FC<ThreadCustomProps> = ({
             <ThreadPrimitive.Root
               className="aui-root aui-thread-root @container flex h-full flex-1 flex-col bg-[#f5f5f5] border border-[#dbdbdb] rounded-[20px] overflow-hidden"
               style={{
-                ['--thread-max-width' as string]: '44rem',
+                ['--thread-max-width' as string]: '960px',
               }}
             >
-              {/* Header with title and sidebar toggles */}
-              <div className="flex items-center justify-between p-[16px] border-b border-[#eaeaea]">
-                <div className="flex items-center gap-[10px]">
-                  {/* Left sidebar toggle */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setLeftSidebarOpen(!leftSidebarOpen)
-                      if (leftSidebarOpen) {
-                        setActiveSettingsTab(null)
-                      }
-                    }}
-                    className="flex items-center justify-center p-[2px] hover:bg-[#ebebeb] rounded-md transition-colors"
-                    aria-label={leftSidebarOpen ? 'Close settings' : 'Open settings'}
-                  >
-                    {leftSidebarOpen
-                      ? (
-                          <PanelLeftCloseIcon className="size-[20px] text-[#171717]" />
-                        )
-                      : (
-                          <PanelLeftOpenIcon className="size-[20px] text-[#171717]" />
-                        )}
-                  </button>
-                  <p className="font-semibold text-[16px] text-[#171717]">
-                    New chat
-                  </p>
-                </div>
-                {/* Right sidebar toggle */}
-                <button
-                  type="button"
-                  onClick={() => setRightSidebarOpen(!rightSidebarOpen)}
-                  className="flex items-center justify-center p-[2px] hover:bg-[#ebebeb] rounded-md transition-colors"
-                  aria-label={rightSidebarOpen ? 'Close sidebar' : 'Open sidebar'}
-                >
-                  {rightSidebarOpen
-                    ? (
-                        <PanelRightCloseIcon className="size-[20px] text-[#171717]" />
-                      )
-                    : (
-                        <PanelRightOpenIcon className="size-[20px] text-[#171717]" />
-                      )}
-                </button>
+              {/* Header with title */}
+              <div className="flex items-center p-[16px] border-b border-[#eaeaea]">
+                <p className="font-semibold text-[16px] text-[#171717]">
+                  <ThreadTitle />
+                </p>
               </div>
 
-              <ThreadPrimitive.Viewport className="aui-thread-viewport relative flex flex-1 flex-col overflow-y-auto overflow-x-hidden px-4 min-h-0">
-                <ThreadPrimitive.If empty>
-                  <ThreadWelcome />
-                </ThreadPrimitive.If>
-
-                <ThreadPrimitive.Messages
-                  components={{
-                    UserMessage,
-                    EditComposer,
-                    AssistantMessage,
-                  }}
-                />
-
-                <ApprovalMessage
-                  currentApprovalMessage={currentApprovalMessage}
-                  onApproveMessage={onApproveMessage}
-                  onRejectMessage={onRejectMessage}
-                  onClearMessage={onClearMessage}
-                />
-
-                <ThreadPrimitive.If empty={false}>
-                  <div className="aui-thread-viewport-spacer min-h-8 grow" />
-                </ThreadPrimitive.If>
-              </ThreadPrimitive.Viewport>
-
-              {/* MCP Connection Status Banner */}
-              {mcpConnected === false && (
-                <div className="mx-5 mb-2 flex items-center gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm text-amber-800">
-                  {mcpError
-                    ? <AlertCircleIcon className="size-4 shrink-0 text-amber-600" />
-                    : <WifiOffIcon className="size-4 shrink-0 text-amber-600" />}
-                  <span className="flex-1">
-                    {mcpError
-                      ? `Connection error: ${mcpError}`
-                      : 'Connecting to automation server...'}
-                  </span>
-                  {mcpError && onRetryMCP
-                    ? (
-                        <button
-                          type="button"
-                          onClick={onRetryMCP}
-                          className="shrink-0 rounded-md bg-amber-200 px-2.5 py-1 text-xs font-medium text-amber-900 hover:bg-amber-300 transition-colors"
-                        >
-                          Retry
-                        </button>
-                      )
-                    : !mcpError && (
-                        <Loader2Icon className="size-4 shrink-0 animate-spin text-amber-600" />
-                      )}
-                </div>
-              )}
-
-              <Composer
+              <ThreadChatArea
+                currentApprovalMessage={currentApprovalMessage}
+                onApproveMessage={onApproveMessage}
+                onRejectMessage={onRejectMessage}
+                onClearMessage={onClearMessage}
+                mcpConnected={mcpConnected}
+                mcpError={mcpError}
+                onRetryMCP={onRetryMCP}
                 selectedScripts={selectedScripts}
                 onScriptSelect={setSelectedScripts}
               />
@@ -337,7 +265,14 @@ export const Thread: FC<ThreadCustomProps> = ({
 
           {/* Right Sidebar - Only show when chat is visible */}
           {showChat && rightSidebarOpen && (
-            <div className="h-full py-[10px] pl-[10px] shrink-0 w-[280px]">
+            <>
+            <div
+              className="group relative h-full w-[8px] shrink-0 cursor-col-resize"
+              onMouseDown={handleRightResizeStart}
+            >
+              <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[2px] bg-[#d4d4d4] opacity-0 group-hover:opacity-100 transition-opacity" />
+            </div>
+            <div className="h-full py-[8px] shrink-0" style={{ width: rightSidebarWidth }}>
               <ThreadSidebar
                 isOpen={rightSidebarOpen}
                 onClose={() => setRightSidebarOpen(false)}
@@ -356,11 +291,107 @@ export const Thread: FC<ThreadCustomProps> = ({
                 onRetryMCP={onRetryMCP}
               />
             </div>
+            </>
           )}
 
         </div>
       </MotionConfig>
     </LazyMotion>
+  )
+}
+
+interface ThreadChatAreaProps {
+  currentApprovalMessage?: Message
+  onApproveMessage?: (message: Message) => void
+  onRejectMessage?: (message: Message) => void
+  onClearMessage?: () => void
+  mcpConnected?: boolean
+  mcpError?: string | null
+  onRetryMCP?: () => void
+  selectedScripts: Script[]
+  onScriptSelect: (scripts: Script[]) => void
+}
+
+const ThreadChatArea: FC<ThreadChatAreaProps> = ({
+  currentApprovalMessage,
+  onApproveMessage,
+  onRejectMessage,
+  onClearMessage,
+  mcpConnected,
+  mcpError,
+  onRetryMCP,
+  selectedScripts,
+  onScriptSelect,
+}) => {
+  const isThreadEmpty = useAssistantState(({ thread }) => thread.messages.length === 0 && !thread.isLoading)
+
+  return (
+    <div className={cn('flex flex-col flex-1 min-h-0', isThreadEmpty && 'max-h-[677px]')}>
+      <ThreadPrimitive.Viewport className="aui-thread-viewport relative flex flex-1 flex-col overflow-y-auto overflow-x-hidden px-4 min-h-0">
+        <ThreadPrimitive.If empty>
+          <ThreadWelcome />
+        </ThreadPrimitive.If>
+
+        <ThreadPrimitive.Messages
+          components={{
+            UserMessage,
+            EditComposer,
+            AssistantMessage,
+          }}
+        />
+
+        <ApprovalMessage
+          currentApprovalMessage={currentApprovalMessage}
+          onApproveMessage={onApproveMessage}
+          onRejectMessage={onRejectMessage}
+          onClearMessage={onClearMessage}
+        />
+
+        <ThreadPrimitive.If running>
+          <div className="w-full max-w-[960px] mx-auto px-[20px] py-[10px]">
+            <span className="animate-cursor-blink text-[#171717] text-[14px] font-medium select-none">_</span>
+          </div>
+        </ThreadPrimitive.If>
+
+        <ThreadPrimitive.If empty={false}>
+          <div className="aui-thread-viewport-spacer min-h-8 grow" />
+        </ThreadPrimitive.If>
+      </ThreadPrimitive.Viewport>
+
+      {/* MCP Connection Status Banner */}
+      {mcpConnected === false && (
+        <div className="w-full max-w-[960px] mx-auto px-5 mb-2">
+          <div className="flex items-center gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm text-amber-800">
+            {mcpError
+              ? <AlertCircleIcon className="size-4 shrink-0 text-amber-600" />
+              : <WifiOffIcon className="size-4 shrink-0 text-amber-600" />}
+            <span className="flex-1">
+              {mcpError
+                ? `Connection error: ${mcpError}`
+                : 'Connecting to automation server...'}
+            </span>
+            {mcpError && onRetryMCP
+              ? (
+                  <button
+                    type="button"
+                    onClick={onRetryMCP}
+                    className="shrink-0 rounded-md bg-amber-200 px-2.5 py-1 text-xs font-medium text-amber-900 hover:bg-amber-300 transition-colors"
+                  >
+                    Retry
+                  </button>
+                )
+              : !mcpError && (
+                  <Loader2Icon className="size-4 shrink-0 animate-spin text-amber-600" />
+                )}
+          </div>
+        </div>
+      )}
+
+      <Composer
+        selectedScripts={selectedScripts}
+        onScriptSelect={onScriptSelect}
+      />
+    </div>
   )
 }
 
@@ -381,12 +412,17 @@ const ThreadScrollToBottom: FC = () => {
 // Hero background image from design (keyboard with dotted pattern)
 import heroBackgroundUrl from '../../../../assets/hero-background.png'
 
+function ThreadTitle() {
+  const threadListItem = useThreadListItem({ optional: true })
+  return <>{threadListItem?.title ?? 'New chat'}</>
+}
+
 const ThreadWelcome: FC = () => {
   const { url: orgCoverUrl } = useOrgCoverImage()
   const backgroundSrc = orgCoverUrl || heroBackgroundUrl
 
   return (
-    <div className="aui-thread-welcome-root flex w-full flex-grow flex-col relative">
+    <div className="aui-thread-welcome-root flex w-[calc(100%+2rem)] flex-grow flex-col relative -mx-4">
       {/* Background image with gradient overlay */}
       <div className="absolute inset-0 overflow-hidden">
         <img
@@ -403,16 +439,16 @@ const ThreadWelcome: FC = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 20 }}
-          className="bg-white/10 backdrop-blur-lg px-5 py-2.5 rounded-full"
+          className="bg-white/20 backdrop-blur-md border border-white/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.4)] px-5 py-2.5 rounded-full"
         >
           <span
             className="text-center block"
             style={{
               color: '#171717',
-              fontFamily: '"Doto", sans-serif',
+              fontFamily: '"Instrument Serif", serif',
               fontSize: '2rem',
               fontStyle: 'normal',
-              fontWeight: 700,
+              fontWeight: 400,
               lineHeight: 'normal',
             }}
           >
@@ -500,18 +536,8 @@ const Composer: FC<ComposerProps> = ({ selectedScripts = [], onScriptSelect }) =
   }
 
   return (
-    <div className="aui-composer-wrapper sticky bottom-0 flex w-full flex-col gap-2.5 overflow-visible px-5 pb-10">
+    <div className="aui-composer-wrapper sticky bottom-0 flex w-full max-w-[960px] mx-auto flex-col gap-2.5 overflow-visible px-5 pb-10">
       <ThreadScrollToBottom />
-
-      {/* Script Selector Dropdown (shown when expanded) */}
-      {showScriptDropdown && onScriptSelect && (
-        <div className="aui-script-selector-wrapper mb-2">
-          <ScriptSelector
-            selectedScripts={selectedScripts}
-            onScriptSelect={handleScriptSelect}
-          />
-        </div>
-      )}
 
       <ComposerPrimitive.Root className="aui-composer-root relative flex w-full flex-col rounded-xl border border-[#dbdbdb] bg-[#fafafa] p-4 min-h-[100px] max-h-[260px] justify-between">
         <ComposerAttachments />
@@ -525,24 +551,8 @@ const Composer: FC<ComposerProps> = ({ selectedScripts = [], onScriptSelect }) =
 
         {/* Bottom action bar */}
         <div className="flex items-center justify-between mt-4">
-          {/* Left side: Flow shortcuts */}
           <div className="flex items-center gap-2.5">
             <ComposerAddAttachment />
-            <button
-              type="button"
-              onClick={() => setShowScriptDropdown(!showScriptDropdown)}
-              className="flex items-center gap-0 text-sm font-medium text-[#737373] hover:text-[#171717] transition-colors"
-            >
-              <span>Flow shortcuts</span>
-              <ChevronDownIcon className={cn('size-5 transition-transform', showScriptDropdown && 'rotate-180')} />
-            </button>
-            {selectedScripts.length > 0 && (
-              <span className="text-xs text-[#737373] bg-[#ebebeb] px-2 py-0.5 rounded-full">
-                {selectedScripts.length}
-                {' '}
-                selected
-              </span>
-            )}
           </div>
 
           {/* Right side: Send button */}
@@ -554,10 +564,10 @@ const Composer: FC<ComposerProps> = ({ selectedScripts = [], onScriptSelect }) =
                 type="submit"
                 variant="ghost"
                 size="icon"
-                className="aui-composer-send size-6 rounded-full p-0 text-[#171717] hover:bg-[#ebebeb]"
+                className="aui-composer-send size-6 rounded-full p-1 bg-[#171717] hover:bg-[#171717] text-white disabled:bg-transparent disabled:text-[#171717] disabled:cursor-default"
                 aria-label="Send message"
               >
-                <ArrowUpIcon className="aui-composer-send-icon size-5" />
+                <ArrowUpIcon className="aui-composer-send-icon size-4" />
               </TooltipIconButton>
             </ComposerPrimitive.Send>
           </ThreadPrimitive.If>
@@ -633,11 +643,11 @@ const AssistantMessage: FC = () => {
   return (
     <MessagePrimitive.Root asChild>
       <div
-        className="aui-assistant-message-root w-full animate-in px-[20px] py-[10px] duration-150 ease-out fade-in slide-in-from-bottom-1 last:mb-24"
+        className="aui-assistant-message-root w-full max-w-[960px] mx-auto animate-in px-[20px] py-[10px] duration-150 ease-out fade-in slide-in-from-bottom-1 last:mb-24"
         data-role="assistant"
       >
         <div className="flex flex-wrap gap-[6px] items-start w-full">
-          <div className="aui-assistant-message-content w-full text-[#171717] text-[14px] font-medium leading-normal break-words [&>:not(.aui-tool-fallback-root)]:max-w-[720px]">
+          <div className="aui-assistant-message-content w-full text-[#171717] text-[14px] font-medium leading-normal break-words [&>:not(.aui-tool-fallback-root)]:max-w-[960px]">
             <MessagePrimitive.Parts
               components={{
                 Text: SmartText,
@@ -701,12 +711,12 @@ const UserMessage: FC = () => {
   return (
     <MessagePrimitive.Root asChild>
       <div
-        className="aui-user-message-root w-full animate-in px-[20px] py-[10px] duration-150 ease-out fade-in slide-in-from-bottom-1 first:mt-3"
+        className="aui-user-message-root w-full max-w-[960px] mx-auto animate-in px-[20px] py-[10px] duration-150 ease-out fade-in slide-in-from-bottom-1 first:mt-3"
         data-role="user"
       >
         <div className="flex flex-wrap gap-[10px] items-start justify-end w-full">
           <UserMessageAttachments />
-          <div className="aui-user-message-content-wrapper relative min-w-0 max-w-[720px]">
+          <div className="aui-user-message-content-wrapper relative min-w-0 max-w-[960px]">
             <div className="aui-user-message-content bg-[#171717] text-white rounded-[12px] p-[10px] break-words text-[14px] font-medium leading-normal">
               <MessagePrimitive.Parts />
             </div>

@@ -171,14 +171,14 @@ export const AdvancedPanel: React.FC = () => {
 
   return (
     <div
-      className="grow shrink min-w-0 h-full py-[0.5rem] flex flex-col gap-[0.63rem] overflow-y-auto"
+      className="grow shrink min-w-0 h-full p-[16px] flex flex-col gap-[0.63rem] overflow-y-auto"
     >
-      <div className="text-[1.13rem] px-[0.94rem]">
+      <div className="text-[1.13rem]">
         Advanced
       </div>
 
       <div
-        className="p-[0.94rem] border border-[#E5E5E5] rounded-[0.38rem] flex flex-col"
+        className="p-[0.94rem] bg-[#FAFAFA] border border-[#E5E5E5] rounded-[0.38rem] flex flex-col"
       >
         <div
           className="flex gap-[0.63rem]"
@@ -211,7 +211,7 @@ export const AdvancedPanel: React.FC = () => {
       </div>
 
       <div
-        className="p-[0.94rem] border border-[#E5E5E5] rounded-[0.38rem] flex flex-col gap-[0.63rem]"
+        className="p-[0.94rem] bg-[#FAFAFA] border border-[#E5E5E5] rounded-[0.38rem] flex flex-col gap-[0.63rem]"
       >
         <div
           className="flex gap-[0.63rem]"
