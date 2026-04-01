@@ -169,7 +169,7 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
                 Token is expired!
               </div>
               <div
-                className="text-[#737373] text-[0.75rem]"
+                className="text-[#737373] dark:text-[#a9a9a9] text-[0.75rem]"
               >
                 You must re-authenticate this token in order to use the connector.
               </div>
@@ -208,7 +208,7 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
     <>
       <button
         onClick={onBack}
-        className="py-[0.31rem] mt-[-0.31rem] px-[0.31rem] text-[#737373]"
+        className="py-[0.31rem] mt-[-0.31rem] px-[0.31rem] text-[#737373] dark:text-[#a9a9a9]"
       >
         &lt; All requests
       </button>
@@ -226,7 +226,7 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
           && (
             <div>
               <div
-                className="text-[#737373]"
+                className="text-[#737373] dark:text-[#a9a9a9]"
               >
                 Risk level
               </div>
@@ -246,7 +246,7 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
           && (
             <div>
               <div
-                className="text-[#737373]"
+                className="text-[#737373] dark:text-[#a9a9a9]"
               >
                 Status
               </div>
@@ -261,7 +261,7 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
 
         <div>
           <div
-            className="text-[#737373]"
+            className="text-[#737373] dark:text-[#a9a9a9]"
           >
             Created
           </div>
@@ -272,7 +272,7 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
       </div>
 
       <div
-        className="flex w-full gap-[0.31rem] border border-[#E5E5E5] rounded-[0.38rem] bg-[#F3F3F3] p-[0.25rem] text-[#737373] font-semibold flex-wrap"
+        className="flex w-full gap-[0.31rem] border border-[#E5E5E5] rounded-[0.38rem] bg-[#F3F3F3] p-[0.25rem] text-[#737373] dark:text-[#a9a9a9] font-semibold flex-wrap"
         style={{
           flexDirection: isThin ? 'column' : 'row',
         }}
@@ -360,7 +360,7 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
                 />
               )
             : (
-                <div className="flex items-center justify-center h-full text-[#737373]">
+                <div className="flex items-center justify-center h-full text-[#737373] dark:text-[#a9a9a9]">
                   Loading editor...
                 </div>
               )}
@@ -380,7 +380,7 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
             <ButtonDesigned
               variant="secondary"
               onClick={onReject}
-              className="grow shrink basis-0 min-w-0 flex gap-[0.31rem] items-center justify-center"
+              className="grow shrink basis-0 min-w-0 flex gap-[0.31rem] items-center justify-center dark:bg-[#171717] dark:text-white dark:hover:bg-[#242424]"
             >
               <img src={greyXIconUrl} alt="x" className="w-[0.75rem] h-[0.75rem]" />
               Reject
@@ -389,15 +389,15 @@ export const ApprovalScreen: React.FC<ApprovalScreenProps> = ({
             <ButtonDesigned
               variant="primary-black"
               onClick={onApprove}
-              className="grow shrink basis-0 min-w-0 flex gap-[0.31rem] items-center justify-center"
+              className="grow shrink basis-0 min-w-0 flex gap-[0.31rem] items-center justify-center dark:bg-[#F3F3F3] dark:text-[#171717] dark:hover:bg-[#E6E6E6]"
             >
-              <img src={blueCheckIconUrl} alt="check" className="w-[0.75rem] h-[0.75rem] brightness-0 invert" />
+              <img src={blueCheckIconUrl} alt="check" className="w-[0.75rem] h-[0.75rem] brightness-0 invert dark:invert-0" />
               Approve script execution
             </ButtonDesigned>
           </div>
 
           <div
-            className="text-[#737373] text-[0.75rem] text-center w-full"
+            className="text-[#737373] dark:text-[#a9a9a9] text-[0.75rem] text-center w-full"
           >
             AI can make mistakes. Always review before approving.
           </div>

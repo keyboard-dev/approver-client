@@ -127,7 +127,7 @@ export const SettingsScreen: React.FC = () => {
     <>
       <button
         onClick={() => navigate('/approvals')}
-        className="text-[#737373]"
+        className="text-[#737373] dark:text-[#a9a9a9]"
       >
         &lt;  Back to requests
       </button>

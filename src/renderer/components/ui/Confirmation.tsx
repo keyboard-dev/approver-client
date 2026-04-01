@@ -31,7 +31,7 @@ export const Confirmation: React.FC<{
     >
       {title && (
         <div
-          className="text-[1rem] text-[#000] font-semibold"
+          className="text-[1rem] text-[#000] dark:text-[#f5f5f5] font-semibold"
         >
           {title}
         </div>
@@ -39,7 +39,7 @@ export const Confirmation: React.FC<{
 
       {description && (
         <div
-          className="text-[#000]"
+          className="text-[#000] dark:text-[#a9a9a9]"
         >
           {description}
         </div>
@@ -51,7 +51,7 @@ export const Confirmation: React.FC<{
         >
           {onConfirm && (
             <ButtonDesigned
-              className="basis-0 grow px-[0.63rem] py-[0.38rem]"
+              className="basis-0 grow px-[0.63rem] py-[0.38rem] bg-[#FC8E8F] hover:bg-[#ff9e9f] text-[#f5f5f5]"
               variant="primary"
               onClick={onConfirm}
               disabled={disabled}

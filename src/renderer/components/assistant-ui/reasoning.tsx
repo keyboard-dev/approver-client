@@ -13,7 +13,7 @@ import { cn } from '../../lib/utils'
  */
 export const Reasoning: FC<ReasoningMessagePartProps> = ({ text }) => {
   return (
-    <div className="aui-reasoning-content text-[14px] text-[#737373] leading-normal whitespace-pre-wrap">
+    <div className="aui-reasoning-content text-[14px] text-[#737373] dark:text-[#a9a9a9] leading-normal whitespace-pre-wrap">
       {text}
     </div>
   )
@@ -72,7 +72,7 @@ export const ReasoningGroup: FC<PropsWithChildren<ReasoningGroupProps>> = ({
       <div className="flex gap-[6px] items-center">
         {/* Thinking time */}
         <div className="max-w-[720px] rounded-[12px]">
-          <p className="font-medium text-[14px] text-[#737373] leading-normal">
+          <p className="font-medium text-[14px] text-[#737373] dark:text-[#a9a9a9] leading-normal">
             {isReasoningStreaming ? 'Thinking' : 'Thought'}
             {' for '}
             {displayTime}
@@ -92,7 +92,7 @@ export const ReasoningGroup: FC<PropsWithChildren<ReasoningGroupProps>> = ({
         >
           <ChevronDownIcon
             className={cn(
-              'w-[16px] h-[16px] text-[#737373] transition-transform',
+              'w-[16px] h-[16px] text-[#737373] dark:text-[#a9a9a9] transition-transform',
               isExpanded ? '' : '-rotate-90',
             )}
           />

@@ -144,7 +144,7 @@ export const KeyboardApiConnectors: React.FC<KeyboardApiConnectorsProps> = ({
     <div className={`flex flex-col gap-[0.94rem] ${className}`}>
       <div className="flex flex-col gap-[0.5rem]">
         <div className="text-[1rem] font-medium">{title}</div>
-        <div className="text-[#737373] text-[14px]">{description}</div>
+        <div className="text-[#737373] dark:text-[#a9a9a9] text-[14px]">{description}</div>
       </div>
 
       <div className="border border-neutral-200 rounded-[6px] p-[15px] w-full">

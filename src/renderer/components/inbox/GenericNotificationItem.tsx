@@ -70,7 +70,7 @@ export const GenericNotificationItem: React.FC<GenericNotificationItemProps> = (
               : (
                   <button
                     type="button"
-                    className="text-xs text-[#737373] hover:text-[#525252]"
+                    className="text-xs text-[#737373] dark:text-[#a9a9a9] hover:text-[#525252]"
                     onClick={handleDismiss}
                   >
                     Dismiss

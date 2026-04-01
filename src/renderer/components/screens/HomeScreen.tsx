@@ -211,7 +211,7 @@ export const HomeScreen: React.FC = () => {
         return (
           <div className="flex-1 flex flex-col items-center justify-center p-8">
             <h1 className="text-2xl font-semibold text-[#171717] mb-4">Welcome to Keyboard</h1>
-            <p className="text-[#737373] text-center max-w-md">
+            <p className="text-[#737373] dark:text-[#a9a9a9] text-center max-w-md">
               Your AI-powered automation assistant. Select "Agentic chat" to start automating tasks.
             </p>
           </div>
@@ -229,7 +229,7 @@ export const HomeScreen: React.FC = () => {
         return (
           <div className="flex-1 flex flex-col p-8">
             <h2 className="text-xl font-semibold text-[#171717] mb-4">Flow Shortcuts</h2>
-            <p className="text-[#737373]">Manage and run your saved automation scripts.</p>
+            <p className="text-[#737373] dark:text-[#a9a9a9]">Manage and run your saved automation scripts.</p>
             {/* TODO: Add flow shortcuts list/management */}
           </div>
         )
@@ -237,7 +237,7 @@ export const HomeScreen: React.FC = () => {
         return (
           <div className="flex-1 flex flex-col p-8">
             <h2 className="text-xl font-semibold text-[#171717] mb-4">Task Approvals</h2>
-            <p className="text-[#737373]">Review and approve pending automation tasks.</p>
+            <p className="text-[#737373] dark:text-[#a9a9a9]">Review and approve pending automation tasks.</p>
             {/* TODO: Add task approvals list */}
           </div>
         )
@@ -275,7 +275,7 @@ export const HomeScreen: React.FC = () => {
   // Gate on authentication - show login screen if not authenticated
   if (!authStatus.authenticated && !isSkippingAuth) {
     return (
-      <div className="w-full h-full flex items-center justify-center p-4">
+      <div className="w-full h-full p-4">
         <AuthComponent />
       </div>
     )

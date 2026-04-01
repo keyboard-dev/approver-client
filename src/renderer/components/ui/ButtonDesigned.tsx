@@ -1,11 +1,11 @@
 import React from 'react'
 import { cn } from '../../lib/utils'
 
-const CLEAR_BUTTON_CLASS = 'bg-transparent hover:bg-transparent active:bg-transparent disabled:bg-transparent disabled:text-[#737373]'
+const CLEAR_BUTTON_CLASS = 'bg-transparent hover:bg-transparent active:bg-transparent disabled:bg-transparent disabled:text-[#737373] dark:text-[#a9a9a9]'
 const DESTRUCTIVE_BUTTON_CLASS = 'text-[#D23535] hover:text-[#FFF] bg-[#F7F7F7] hover:bg-[#D23535] disabled:bg-[#F7F7F7] disabled:text-[#D9D9D9]'
 const PRIMARY_BLACK_BUTTON_CLASS = 'text-white bg-[#171717] hover:bg-[#171717] active:bg-[#171717] disabled:bg-[#171717] disabled:text-white'
-const PRIMARY_BUTTON_CLASS = 'text-[#5093B7] bg-[#E4EBEF] hover:bg-[#D5E0E6] active:bg-[#C5D4DD] disabled:bg-[#E4EBEF] disabled:text-[#5093B7]'
-const SECONDARY_BUTTON_CLASS = 'text-[#737373] bg-[#F3F3F3] hover:bg-[#E6E6E6] active:bg-[#D9D9D9] disabled:bg-[#F3F3F3] disabled:text-[#D9D9D9]'
+const PRIMARY_BUTTON_CLASS = 'text-[#5093B7] dark:text-[#99A0FF] bg-[#E4EBEF] dark:bg-[#242424] hover:bg-[#D5E0E6] dark:hover:bg-[#2a2a2a] active:bg-[#C5D4DD] disabled:bg-[#E4EBEF] disabled:text-[#5093B7]'
+const SECONDARY_BUTTON_CLASS = 'text-[#737373] dark:text-[#a9a9a9] bg-[#F3F3F3] dark:bg-[#3a3a3a] hover:bg-[#E6E6E6] dark:hover:bg-[#444] active:bg-[#D9D9D9] disabled:bg-[#F3F3F3] disabled:text-[#D9D9D9]'
 
 export const ButtonDesigned: React.FC<{
   children: React.ReactNode
@@ -40,7 +40,7 @@ export const ButtonDesigned: React.FC<{
       variantClass = CLEAR_BUTTON_CLASS
       break
   }
-  const borderClass = hasBorder ? 'border border-[#CCC]' : 'border border-transparent'
+  const borderClass = hasBorder ? 'border border-[#CCC] dark:border-transparent' : 'border border-transparent'
 
   return (
     <button

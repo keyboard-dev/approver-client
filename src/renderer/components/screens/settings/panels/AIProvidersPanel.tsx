@@ -158,7 +158,7 @@ export const AIProvidersPanel: React.FC = () => {
         AI Providers
       </div>
 
-      <div className="px-[0.94rem] text-[#737373] text-sm">
+      <div className="px-[0.94rem] text-[#737373] dark:text-[#a9a9a9] text-sm">
         Configure API keys for AI providers to enable chat functionality. Keys are stored securely and encrypted on your device.
       </div>
 
@@ -174,7 +174,7 @@ export const AIProvidersPanel: React.FC = () => {
                         Org Override
                       </span>
                     </div>
-                    <div className="text-[#737373] text-sm">
+                    <div className="text-[#737373] dark:text-[#a9a9a9] text-sm">
                       {PROVIDER_TYPE_LABELS[orgProvider.provider_type || ''] || orgProvider.provider_type || 'Custom Provider'}
                     </div>
                   </div>
@@ -184,7 +184,7 @@ export const AIProvidersPanel: React.FC = () => {
                 </div>
                 {orgProvider.allowed_models && orgProvider.allowed_models.length > 0 && (
                   <div className="text-sm">
-                    <span className="text-[#737373]">Allowed models: </span>
+                    <span className="text-[#737373] dark:text-[#a9a9a9]">Allowed models: </span>
                     {orgProvider.allowed_models.join(', ')}
                   </div>
                 )}
@@ -212,7 +212,7 @@ export const AIProvidersPanel: React.FC = () => {
                             </span>
                           )}
                         </div>
-                        <div className="text-[#737373] text-sm">{provider.description}</div>
+                        <div className="text-[#737373] dark:text-[#a9a9a9] text-sm">{provider.description}</div>
                       </div>
                       {!provider.isBuiltIn && provider.helpUrl && (
                         <a

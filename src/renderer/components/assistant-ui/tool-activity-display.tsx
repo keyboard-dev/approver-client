@@ -42,13 +42,13 @@ function ToolEntryRow({ tool, index }: { tool: ToolActivityEntry, index: number 
         onClick={() => hasDetail && setIsDetailOpen(!isDetailOpen)}
         className={cn(
           'flex items-center gap-2 py-1 w-full text-left',
-          hasDetail && 'cursor-pointer hover:bg-[#fafafa] rounded -mx-1 px-1',
+          hasDetail && 'cursor-pointer hover:bg-[#fafafa] dark:hover:bg-[#2a2a2a] rounded -mx-1 px-1',
         )}
       >
         {tool.phase === 'running' && <Loader className="size-3 text-blue-500 animate-spin shrink-0" />}
         {tool.phase === 'complete' && <CheckCircle className="size-3 text-emerald-500 shrink-0" />}
         {tool.phase === 'error' && <XCircle className="size-3 text-red-500 shrink-0" />}
-        <span className="text-[12px] text-[#404040] truncate flex-1">
+        <span className="text-[12px] text-[#404040] dark:text-[#d4d4d4] truncate flex-1">
           {tool.name}
         </span>
         <span className="text-[11px] text-[#a3a3a3] shrink-0 mr-1">{formatElapsed(tool)}</span>
@@ -116,14 +116,14 @@ export const ToolActivityDisplay = memo(function ToolActivityDisplay({ data }: T
   return (
     <div data-tool-activity-display className="my-2">
       <div className={cn(
-        'border border-[#e5e5e5] rounded-lg overflow-hidden bg-white w-full transition-colors',
+        'border border-[#e5e5e5] dark:border-[#333] rounded-lg overflow-hidden bg-white dark:bg-[#1e1e1e] w-full transition-colors',
         flashGreen && 'animate-flash-green',
       )}
       >
         <button
           type="button"
           onClick={() => setIsExpanded(!isExpanded)}
-          className="flex items-center gap-2.5 w-full px-3 py-2 text-left hover:bg-[#fafafa] transition-colors"
+          className="flex items-center gap-2.5 w-full px-3 py-2 text-left hover:bg-[#fafafa] dark:hover:bg-[#2a2a2a] transition-colors"
         >
           {data.phase === 'running'
             ? (
@@ -132,7 +132,7 @@ export const ToolActivityDisplay = memo(function ToolActivityDisplay({ data }: T
             : (
                 <Wrench className="size-3.5 text-emerald-500 shrink-0" />
               )}
-          <span className="text-[13px] font-medium text-[#171717] shrink-0">
+          <span className="text-[13px] font-medium text-[#171717] dark:text-[#e5e5e5] shrink-0">
             Tool Activity
           </span>
           <span className="text-[12px] text-[#a3a3a3] truncate min-w-0 flex-1">
@@ -147,7 +147,7 @@ export const ToolActivityDisplay = memo(function ToolActivityDisplay({ data }: T
         </button>
 
         {isExpanded && data.tools.length > 0 && (
-          <div className="border-t border-[#f0f0f0] px-3 py-1.5">
+          <div className="border-t border-[#f0f0f0] dark:border-[#2e2e2e] px-3 py-1.5">
             {data.tools.map((tool, i) => (
               <ToolEntryRow key={`${tool.name}-${i}`} tool={tool} index={i} />
             ))}

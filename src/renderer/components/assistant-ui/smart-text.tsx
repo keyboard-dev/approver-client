@@ -134,7 +134,7 @@ const MarkdownContent = memo(function MarkdownContent({ text }: { text: string }
           a: ({ href, children }) => (
             <a
               href={href}
-              className="font-medium text-primary underline underline-offset-4 cursor-pointer"
+              className="font-medium text-[#99A0FF] underline underline-offset-4 cursor-pointer"
               onClick={(e) => {
                 e.preventDefault()
                 if (href) window.electronAPI.openExternalUrl(href)

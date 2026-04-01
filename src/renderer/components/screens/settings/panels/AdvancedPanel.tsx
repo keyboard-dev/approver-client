@@ -178,7 +178,7 @@ export const AdvancedPanel: React.FC = () => {
       </div>
 
       <div
-        className="p-[0.94rem] bg-[#FAFAFA] border border-[#E5E5E5] rounded-[0.38rem] flex flex-col"
+        className="p-[0.94rem] bg-[#FAFAFA] dark:bg-[#242424] border border-[#E5E5E5] dark:border-[#2e2e2e] rounded-[0.38rem] flex flex-col"
       >
         <div
           className="flex gap-[0.63rem]"
@@ -190,7 +190,7 @@ export const AdvancedPanel: React.FC = () => {
               Full code execution
             </div>
             <div
-              className="text-[#737373]"
+              className="text-[#737373] dark:text-[#a9a9a9]"
             >
               Enable full code execution mode. When enabled, creates a configuration file at ~/.keyboard-mcp/full-code-execution.
             </div>
@@ -211,7 +211,7 @@ export const AdvancedPanel: React.FC = () => {
       </div>
 
       <div
-        className="p-[0.94rem] bg-[#FAFAFA] border border-[#E5E5E5] rounded-[0.38rem] flex flex-col gap-[0.63rem]"
+        className="p-[0.94rem] bg-[#FAFAFA] dark:bg-[#242424] border border-[#E5E5E5] dark:border-[#2e2e2e] rounded-[0.38rem] flex flex-col gap-[0.63rem]"
       >
         <div
           className="flex gap-[0.63rem]"
@@ -223,7 +223,7 @@ export const AdvancedPanel: React.FC = () => {
               Execution Environment
             </div>
             <div
-              className="text-[#737373]"
+              className="text-[#737373] dark:text-[#a9a9a9]"
             >
               Choose where code execution should run. GitHub Codespace uses your GitHub Codespace as an execution, while Keyboard Environment uses a managed keyboard environment for you.
             </div>

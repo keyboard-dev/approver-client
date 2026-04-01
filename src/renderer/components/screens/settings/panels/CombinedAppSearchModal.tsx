@@ -165,7 +165,7 @@ export const CombinedAppSearchModal: React.FC<CombinedAppSearchModalProps> = ({
                 onClick={handleBackToApps}
                 className="p-1 hover:bg-gray-100 rounded"
               >
-                <ArrowLeft className="w-5 h-5 text-[#737373]" />
+                <ArrowLeft className="w-5 h-5 text-[#737373] dark:text-[#a9a9a9]" />
               </button>
               <div className="flex items-center gap-3">
                 {firstTriggerLogo && (
@@ -181,7 +181,7 @@ export const CombinedAppSearchModal: React.FC<CombinedAppSearchModalProps> = ({
                     {' '}
                     Triggers
                   </h3>
-                  <p className="text-sm text-[#737373]">
+                  <p className="text-sm text-[#737373] dark:text-[#a9a9a9]">
                     Select a trigger to configure
                   </p>
                 </div>
@@ -189,7 +189,7 @@ export const CombinedAppSearchModal: React.FC<CombinedAppSearchModalProps> = ({
             </div>
             <button
               onClick={handleClose}
-              className="text-[#737373] hover:text-[#171717]"
+              className="text-[#737373] dark:text-[#a9a9a9] hover:text-[#171717]"
             >
               <X className="w-5 h-5" />
             </button>
@@ -199,14 +199,14 @@ export const CombinedAppSearchModal: React.FC<CombinedAppSearchModalProps> = ({
           {!triggersLoading && triggers.length > 0 && (
             <div className="flex gap-3 mb-4">
               {composioCount > 0 && (
-                <span className="text-sm text-[#737373]">
+                <span className="text-sm text-[#737373] dark:text-[#a9a9a9]">
                   <span className="font-medium text-purple-700">{composioCount}</span>
                   {' '}
                   from Composio
                 </span>
               )}
               {pipedreamCount > 0 && (
-                <span className="text-sm text-[#737373]">
+                <span className="text-sm text-[#737373] dark:text-[#a9a9a9]">
                   <span className="font-medium text-orange-700">{pipedreamCount}</span>
                   {' '}
                   from Pipedream
@@ -227,13 +227,13 @@ export const CombinedAppSearchModal: React.FC<CombinedAppSearchModalProps> = ({
             {triggersLoading
               ? (
                   <div className="flex items-center justify-center py-12">
-                    <div className="text-[#737373]">Loading triggers from both platforms...</div>
+                    <div className="text-[#737373] dark:text-[#a9a9a9]">Loading triggers from both platforms...</div>
                   </div>
                 )
               : triggers.length === 0
                 ? (
                     <div className="flex items-center justify-center py-12">
-                      <div className="text-center text-[#737373]">
+                      <div className="text-center text-[#737373] dark:text-[#a9a9a9]">
                         No triggers available for
                         {' '}
                         {selectedAppName}
@@ -265,7 +265,7 @@ export const CombinedAppSearchModal: React.FC<CombinedAppSearchModalProps> = ({
                                   <SourceBadge source={trigger.source} />
                                 </div>
                                 <svg
-                                  className="w-5 h-5 text-[#737373] flex-shrink-0"
+                                  className="w-5 h-5 text-[#737373] dark:text-[#a9a9a9] flex-shrink-0"
                                   fill="none"
                                   stroke="currentColor"
                                   viewBox="0 0 24 24"
@@ -274,7 +274,7 @@ export const CombinedAppSearchModal: React.FC<CombinedAppSearchModalProps> = ({
                                 </svg>
                               </div>
                               {trigger.description && (
-                                <p className="text-sm text-[#737373] mb-2 line-clamp-2">{trigger.description}</p>
+                                <p className="text-sm text-[#737373] dark:text-[#a9a9a9] mb-2 line-clamp-2">{trigger.description}</p>
                               )}
                               <div className="flex gap-2 flex-wrap items-center">
                                 <span className="text-xs px-2 py-1 bg-[#F5F5F5] rounded font-mono">
@@ -318,11 +318,11 @@ export const CombinedAppSearchModal: React.FC<CombinedAppSearchModalProps> = ({
         <div className="flex items-center justify-between mb-4">
           <div>
             <h3 className="text-lg font-semibold">Search for App</h3>
-            <p className="text-sm text-[#737373]">Find triggers from Composio and Pipedream</p>
+            <p className="text-sm text-[#737373] dark:text-[#a9a9a9]">Find triggers from Composio and Pipedream</p>
           </div>
           <button
             onClick={handleClose}
-            className="text-[#737373] hover:text-[#171717]"
+            className="text-[#737373] dark:text-[#a9a9a9] hover:text-[#171717]"
           >
             <X className="w-5 h-5" />
           </button>
@@ -331,7 +331,7 @@ export const CombinedAppSearchModal: React.FC<CombinedAppSearchModalProps> = ({
         {/* Search Bar */}
         <div className="flex gap-3 mb-6">
           <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#737373]" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#737373] dark:text-[#a9a9a9]" />
             <input
               type="text"
               value={searchQuery}
@@ -362,20 +362,20 @@ export const CombinedAppSearchModal: React.FC<CombinedAppSearchModalProps> = ({
           {loading && apps.length === 0
             ? (
                 <div className="flex items-center justify-center py-12">
-                  <div className="text-[#737373]">Loading apps...</div>
+                  <div className="text-[#737373] dark:text-[#a9a9a9]">Loading apps...</div>
                 </div>
               )
             : apps.length === 0
               ? (
                   <div className="flex items-center justify-center py-12">
-                    <div className="text-center text-[#737373]">
+                    <div className="text-center text-[#737373] dark:text-[#a9a9a9]">
                       Enter a search term to find apps with triggers.
                     </div>
                   </div>
                 )
               : (
                   <>
-                    <div className="mb-4 text-sm text-[#737373]">
+                    <div className="mb-4 text-sm text-[#737373] dark:text-[#a9a9a9]">
                       {apps.length}
                       {' '}
                       supported app

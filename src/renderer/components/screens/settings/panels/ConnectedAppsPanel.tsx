@@ -50,7 +50,7 @@ const AppCard: React.FC<AppCardProps> = ({ app, isConnecting, onConnect }) => {
         <div>
           <div className="font-medium text-[#171717]">{app.name}</div>
           {app.description && (
-            <div className="text-sm text-[#737373] line-clamp-1 max-w-[300px]">
+            <div className="text-sm text-[#737373] dark:text-[#a9a9a9] line-clamp-1 max-w-[300px]">
               {app.description}
             </div>
           )}
@@ -101,7 +101,7 @@ const ConnectedAccountCard: React.FC<ConnectedAccountCardProps> = ({
         </div>
         <div>
           <div className="font-medium text-[#171717]">{account.app.name}</div>
-          <div className="text-sm text-[#737373]">
+          <div className="text-sm text-[#737373] dark:text-[#a9a9a9]">
             {account.name}
             {!account.healthy && (
               <span className="ml-2 text-[#D23535]">• Needs reconnection</span>
@@ -208,7 +208,7 @@ export const ConnectedAppsPanel: React.FC = () => {
       {/* Header */}
       <div className="px-4">
         <div className="text-lg font-medium">Pipedream Integrations</div>
-        <div className="text-[#737373] text-sm">
+        <div className="text-[#737373] dark:text-[#a9a9a9] text-sm">
           Connect your accounts to let Keyboard access external services on your behalf.
           {' '}
           <button
@@ -223,7 +223,7 @@ export const ConnectedAppsPanel: React.FC = () => {
       {/* Search Section */}
       <div className="px-4">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#737373]" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#737373] dark:text-[#a9a9a9]" />
           <input
             type="text"
             placeholder="Search 3,000+ apps (Slack, Notion, Google Sheets...)"
@@ -234,7 +234,7 @@ export const ConnectedAppsPanel: React.FC = () => {
           {searchQuery && (
             <button
               onClick={clearSearch}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-[#737373] hover:text-[#171717]"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-[#737373] dark:text-[#a9a9a9] hover:text-[#171717]"
             >
               <X className="w-4 h-4" />
             </button>
@@ -254,7 +254,7 @@ export const ConnectedAppsPanel: React.FC = () => {
       {/* Search Results */}
       {searchQuery && (
         <div className="px-4">
-          <div className="text-sm font-medium mb-2 text-[#737373]">
+          <div className="text-sm font-medium mb-2 text-[#737373] dark:text-[#a9a9a9]">
             {appsLoading
               ? 'Searching...'
               : `${apps.length} app${apps.length !== 1 ? 's' : ''} found`}
@@ -269,7 +269,7 @@ export const ConnectedAppsPanel: React.FC = () => {
               />
             ))}
             {!appsLoading && apps.length === 0 && searchQuery && (
-              <div className="text-center py-6 text-[#737373]">
+              <div className="text-center py-6 text-[#737373] dark:text-[#a9a9a9]">
                 No apps found for "
                 {searchQuery}
                 "
@@ -282,7 +282,7 @@ export const ConnectedAppsPanel: React.FC = () => {
       {/* Default Productivity Apps (when no search query) */}
       {!searchQuery && (
         <div className="px-4">
-          <div className="text-sm font-medium mb-2 text-[#737373]">
+          <div className="text-sm font-medium mb-2 text-[#737373] dark:text-[#a9a9a9]">
             {defaultAppsLoading
               ? 'Loading productivity apps...'
               : 'Productivity Apps'}
@@ -297,7 +297,7 @@ export const ConnectedAppsPanel: React.FC = () => {
               />
             ))}
             {!defaultAppsLoading && defaultApps.length === 0 && (
-              <div className="text-center py-6 text-[#737373]">
+              <div className="text-center py-6 text-[#737373] dark:text-[#a9a9a9]">
                 No productivity apps available
               </div>
             )}
@@ -315,7 +315,7 @@ export const ConnectedAppsPanel: React.FC = () => {
       {/* Connected Accounts Section */}
       <div className="px-4">
         <div className="flex items-center justify-between mb-2">
-          <div className="text-sm font-medium text-[#737373]">
+          <div className="text-sm font-medium text-[#737373] dark:text-[#a9a9a9]">
             Connected Accounts (
             {accounts.length}
             )
@@ -323,7 +323,7 @@ export const ConnectedAppsPanel: React.FC = () => {
           <button
             onClick={() => refreshAccounts()}
             disabled={accountsLoading}
-            className="text-[#737373] hover:text-[#171717] disabled:opacity-50"
+            className="text-[#737373] dark:text-[#a9a9a9] hover:text-[#171717] disabled:opacity-50"
           >
             <RefreshCw className={`w-4 h-4 ${accountsLoading ? 'animate-spin' : ''}`} />
           </button>
@@ -337,14 +337,14 @@ export const ConnectedAppsPanel: React.FC = () => {
 
         {accountsLoading && accounts.length === 0
           ? (
-              <div className="text-center py-8 text-[#737373]">
+              <div className="text-center py-8 text-[#737373] dark:text-[#a9a9a9]">
                 Loading connected accounts...
               </div>
             )
           : accounts.length === 0
             ? (
                 <div className="text-center py-8 border border-dashed border-[#E5E5E5] rounded-lg">
-                  <div className="text-[#737373] mb-2">No connected accounts yet</div>
+                  <div className="text-[#737373] dark:text-[#a9a9a9] mb-2">No connected accounts yet</div>
                   <div className="text-sm text-[#A3A3A3]">
                     Search for an app above to get started
                   </div>

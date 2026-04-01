@@ -103,9 +103,9 @@ export const Layout: React.FC = () => {
   const pageTitle = activePanelTitle ?? getPageTitle(pathname)
 
   return (
-    <div className="w-full h-screen bg-[#EBEBEB] draggable rounded-[0.5rem]">
+    <div className="w-full h-screen bg-[#EBEBEB] dark:bg-[#161616] draggable rounded-[0.5rem]">
     <div
-      className="flex flex-col w-full h-full p-[0.63rem] pt-0 items-center text-[0.88rem] text-[#171717] font-medium font-inter"
+      className="flex flex-col w-full h-full pl-[0.63rem] pr-[16px] pb-[0.63rem] pt-0 items-center text-[0.88rem] text-[#171717] dark:text-[#f5f5f5] font-medium font-inter"
     >
       <div className="relative flex w-full ml-[1.25rem] my-[0.5rem] py-[4px] items-center z-20">
         {/* Left: sidebar toggle */}
@@ -167,7 +167,7 @@ export const Layout: React.FC = () => {
       </div>
 
       <div
-        className={`flex flex-col w-full min-w-0 grow min-h-0 bg-[#EBEBEB] rounded-[0.5rem] not-draggable gap-[0.63rem] items-start overflow-auto ${isSignInPage ? 'pt-0 pb-[0.75rem]' : 'pt-[4px] pb-[0.75rem]'}`}
+        className={`flex flex-col w-full min-w-0 grow min-h-0 bg-[#EBEBEB] dark:bg-[#161616] rounded-[0.5rem] not-draggable gap-[0.63rem] items-start overflow-auto ${isSignInPage ? 'pt-0 pb-[0.75rem]' : 'pt-[4px] pb-[0.75rem]'}`}
       >
         <Outlet />
       </div>

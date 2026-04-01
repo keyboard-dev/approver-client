@@ -50,7 +50,7 @@ export const AddServerPopup: React.FC<ManualProviderFormProps> = ({
             </div>
 
             <div
-              className="text-[#737373]"
+              className="text-[#737373] dark:text-[#a9a9a9]"
             >
               A name for this server, e.g., “My Salesforce”.
             </div>
@@ -76,7 +76,7 @@ export const AddServerPopup: React.FC<ManualProviderFormProps> = ({
             </div>
 
             <div
-              className="text-[#737373]"
+              className="text-[#737373] dark:text-[#a9a9a9]"
             >
               Provided by the service you’re connecting to.
             </div>

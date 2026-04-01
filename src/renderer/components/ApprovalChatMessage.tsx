@@ -122,10 +122,10 @@ export const ApprovalChatMessage: React.FC<ApprovalChatMessageProps> = ({
   const renderContent = (expanded = false) => (
     <>
       {/* Info Bar */}
-      <div className="rounded-[0.38rem] border border-[#E5E5E5] w-full px-[0.63rem] py-[0.44rem] flex justify-between text-[0.75rem]">
+      <div className="rounded-[0.38rem] border border-[#E5E5E5] dark:border-[#333] w-full px-[0.63rem] py-[0.44rem] flex justify-between text-[0.75rem]">
         {risk_level && (
           <div>
-            <div className="text-[#737373] mb-1">Risk level</div>
+            <div className="text-[#737373] dark:text-[#a9a9a9] mb-1">Risk level</div>
             <div
               className="rounded-full px-[0.5rem] py-[0.25rem] w-fit capitalize"
               style={{
@@ -140,8 +140,8 @@ export const ApprovalChatMessage: React.FC<ApprovalChatMessageProps> = ({
 
         {status && (
           <div>
-            <div className="text-[#737373] mb-1">Status</div>
-            <div className="flex items-center gap-[0.25rem] capitalize">
+            <div className="text-[#737373] dark:text-[#a9a9a9] mb-1">Status</div>
+            <div className="flex items-center gap-[0.25rem] capitalize dark:text-[#d4d4d4]">
               <img src={statusIconUrl} alt="Status" className="w-[0.75rem] h-[0.75rem]" />
               {status}
             </div>
@@ -149,19 +149,19 @@ export const ApprovalChatMessage: React.FC<ApprovalChatMessageProps> = ({
         )}
 
         <div>
-          <div className="text-[#737373] mb-1">Created</div>
-          <div className="text-[0.7rem]">{createdAt}</div>
+          <div className="text-[#737373] dark:text-[#a9a9a9] mb-1">Created</div>
+          <div className="text-[0.7rem] dark:text-[#d4d4d4]">{createdAt}</div>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex w-full gap-[0.31rem] border border-[#E5E5E5] rounded-[0.38rem] bg-[#F3F3F3] p-[0.25rem] text-[#737373] font-semibold text-[0.75rem]">
+      <div className="flex w-full gap-[0.31rem] border border-[#E5E5E5] dark:border-[#333] rounded-[0.38rem] bg-[#F3F3F3] dark:bg-[#262626] p-[0.25rem] text-[#737373] dark:text-[#a9a9a9] font-semibold text-[0.75rem]">
         <button
           onClick={() => setActiveTab('explanation')}
           className={`grow basis-0 flex items-center justify-center py-[0.5rem] rounded-[0.25rem] gap-[0.31rem] border-none outline-none ${
             activeTab === 'explanation'
-              ? 'bg-white'
-              : 'hover:bg-[#E6E6E6]'
+              ? 'bg-white dark:bg-[#2e2e2e]'
+              : 'hover:bg-[#E6E6E6] dark:hover:bg-[#333]'
           }`}
         >
           <img src={thinkingIconUrl} alt="thinking" className="w-[0.75rem] h-[0.75rem]" />
@@ -172,8 +172,8 @@ export const ApprovalChatMessage: React.FC<ApprovalChatMessageProps> = ({
             onClick={() => setActiveTab('code')}
             className={`grow basis-0 flex items-center justify-center py-[0.5rem] rounded-[0.25rem] gap-[0.31rem] border-none outline-none ${
               activeTab === 'code'
-                ? 'bg-white'
-                : 'hover:bg-[#E6E6E6]'
+                ? 'bg-white dark:bg-[#2e2e2e]'
+                : 'hover:bg-[#E6E6E6] dark:hover:bg-[#333]'
             }`}
           >
             <img src={codeIconUrl} alt="code" className="w-[0.75rem] h-[0.75rem]" />
@@ -184,18 +184,18 @@ export const ApprovalChatMessage: React.FC<ApprovalChatMessageProps> = ({
 
       {/* Content */}
       {activeTab === 'explanation' && !isCodeResponseApproval && explanation && (
-        <div className={`p-[0.75rem] border border-[#E5E5E5] rounded-[0.38rem] w-full text-[0.88rem] overflow-auto ${expanded ? '' : 'max-h-[400px]'}`}>
+        <div className={`p-[0.75rem] border border-[#E5E5E5] dark:border-[#333] dark:text-[#d4d4d4] rounded-[0.38rem] w-full text-[0.88rem] overflow-auto ${expanded ? '' : 'max-h-[400px]'}`}>
           {explanation}
         </div>
       )}
 
       {activeTab === 'explanation' && isCodeResponseApproval && codespaceResponse?.data && (
-        <div className={`border border-[#E5E5E5] rounded-[0.38rem] w-full overflow-auto ${expanded ? '' : 'max-h-[400px]'}`}>
+        <div className={`border border-[#E5E5E5] dark:border-[#333] rounded-[0.38rem] w-full overflow-auto ${expanded ? '' : 'max-h-[400px]'}`}>
           <div className="p-[0.75rem]">
             {codespaceResponse.data.stdout && (
               <div className="mb-3">
-                <div className="text-[0.75rem] font-medium text-[#737373] mb-1">Output:</div>
-                <pre className="text-[0.75rem] bg-[#F3F3F3] p-2 rounded overflow-x-auto">
+                <div className="text-[0.75rem] font-medium text-[#737373] dark:text-[#a9a9a9] mb-1">Output:</div>
+                <pre className="text-[0.75rem] bg-[#F3F3F3] dark:bg-[#262626] dark:text-[#d4d4d4] p-2 rounded overflow-x-auto">
                   {codespaceResponse.data.stdout}
                 </pre>
               </div>
@@ -211,14 +211,14 @@ export const ApprovalChatMessage: React.FC<ApprovalChatMessageProps> = ({
               </div>
             )}
             {!codespaceResponse.data.stdout && !codespaceResponse.data.stderr && (
-              <div className="text-[0.75rem] text-[#737373] italic">No output available</div>
+              <div className="text-[0.75rem] text-[#737373] dark:text-[#a9a9a9] italic">No output available</div>
             )}
           </div>
         </div>
       )}
 
       {activeTab === 'code' && code && (
-        <div className={`border border-[#E5E5E5] rounded-[0.38rem] w-full overflow-auto ${expanded ? '' : 'max-h-[400px]'}`}>
+        <div className={`border border-[#E5E5E5] dark:border-[#333] rounded-[0.38rem] w-full overflow-auto ${expanded ? '' : 'max-h-[400px]'}`}>
           <pre className="text-[0.75rem] p-[0.75rem] overflow-x-auto bg-[#282c34] text-[#abb2bf] font-mono">
             <code>{code}</code>
           </pre>
@@ -254,7 +254,7 @@ export const ApprovalChatMessage: React.FC<ApprovalChatMessageProps> = ({
             </ButtonDesigned>
           </div>
 
-          <div className="text-[#737373] text-[0.75rem] text-center w-full">
+          <div className="text-[#737373] dark:text-[#a9a9a9] text-[0.75rem] text-center w-full">
             AI can make mistakes. Always review before approving.
           </div>
         </div>
@@ -262,8 +262,8 @@ export const ApprovalChatMessage: React.FC<ApprovalChatMessageProps> = ({
 
       {/* Status message for completed approvals */}
       {status !== 'pending' && (
-        <div className="w-full pt-2 border-t border-[#E5E5E5]">
-          <div className="text-[0.75rem] text-[#737373] flex items-center gap-2">
+        <div className="w-full pt-2 border-t border-[#E5E5E5] dark:border-[#333]">
+          <div className="text-[0.75rem] text-[#737373] dark:text-[#a9a9a9] flex items-center gap-2">
             <img src={statusIconUrl} alt="Status" className="w-[0.75rem] h-[0.75rem]" />
             {status === 'approved'
               ? (isCodeResponseApproval ? 'Code execution approved' : 'Security request approved')
@@ -281,20 +281,20 @@ export const ApprovalChatMessage: React.FC<ApprovalChatMessageProps> = ({
         className="mx-auto w-full max-w-[var(--thread-max-width)] animate-in py-2 duration-150 ease-out fade-in slide-in-from-bottom-1"
         data-role="system"
       >
-        <div className="rounded-[0.38rem] border border-[#E5E5E5] bg-white p-[0.63rem] flex flex-col gap-[0.5rem]">
+        <div className="rounded-[0.38rem] border border-[#E5E5E5] dark:border-[#333] bg-white dark:bg-[#1e1e1e] p-[0.63rem] flex flex-col gap-[0.5rem]">
           {/* Title with Expand Button */}
           <div className="flex items-center justify-between">
-            <div className="font-bold text-[1rem]">
+            <div className="font-bold text-[1rem] dark:text-[#e5e5e5]">
               {isCodeResponseApproval ? 'Code execution approval' : 'Security evaluation request'}
             </div>
             <div className="pr-[2.5em] pb-[2.5em]">
               <TooltipDesigned tooltipText="Expand to full screen">
                 <button
                   onClick={() => setIsFullScreen(true)}
-                  className="p-[0.38rem] border border-[#E5E5E5] rounded-[0.25rem] hover:bg-[#F3F3F3] transition-colors shrink-0"
+                  className="p-[0.38rem] border border-[#E5E5E5] dark:border-[#333] rounded-[0.25rem] hover:bg-[#F3F3F3] dark:hover:bg-[#2a2a2a] transition-colors shrink-0"
                   type="button"
                 >
-                  <Maximize2 size={14} strokeWidth={2} className="text-[#737373]" />
+                  <Maximize2 size={14} strokeWidth={2} className="text-[#737373] dark:text-[#a9a9a9]" />
                 </button>
               </TooltipDesigned>
             </div>

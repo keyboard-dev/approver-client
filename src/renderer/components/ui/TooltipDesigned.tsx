@@ -43,7 +43,7 @@ export const TooltipDesigned: React.FC<{
   return (
     <div
       className={cn(
-        'relative w-[1rem] h-[1rem] p-[0.13rem] text-[#737373]',
+        'relative w-[1rem] h-[1rem] p-[0.13rem] text-[#737373] dark:text-[#a9a9a9]',
         className,
       )}
       onMouseEnter={() => setIsTooltipVisible(true)}

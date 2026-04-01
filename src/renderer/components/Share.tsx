@@ -72,12 +72,12 @@ export const Share: React.FC<ShareProps> = ({
     <>
       <button
         onClick={onBack}
-        className="py-[0.31rem] mt-[-0.31rem] px-[0.31rem] text-[#737373]"
+        className="py-[0.31rem] mt-[-0.31rem] px-[0.31rem] text-[#737373] dark:text-[#a9a9a9]"
       >
         &lt; Back
       </button>
 
-      <div className="flex w-full border border-[#E5E5E5] rounded-[0.38rem] bg-[#F3F3F3] p-[0.25rem] text-[#737373] font-semibold">
+      <div className="flex w-full border border-[#E5E5E5] rounded-[0.38rem] bg-[#F3F3F3] p-[0.25rem] text-[#737373] dark:text-[#a9a9a9] font-semibold">
         <button
           onClick={() => setActiveTab('details')}
           className="grow basis-0 flex items-center justify-center py-[0.5rem] rounded-[0.25rem] gap-[0.31rem] border-none outline-none"
@@ -105,7 +105,7 @@ export const Share: React.FC<ShareProps> = ({
       {activeTab === 'details' && (
         <div className="w-full grow overflow-auto min-h-0 flex flex-col gap-[1rem]">
           <div className="flex flex-col gap-[0.5rem]">
-            <label className="text-[#737373] text-[0.75rem]">Title</label>
+            <label className="text-[#737373] dark:text-[#a9a9a9] text-[0.75rem]">Title</label>
             <input
               type="text"
               value={formData.title}
@@ -115,7 +115,7 @@ export const Share: React.FC<ShareProps> = ({
           </div>
 
           <div className="flex flex-col gap-[0.5rem]">
-            <label className="text-[#737373] text-[0.75rem]">Description</label>
+            <label className="text-[#737373] dark:text-[#a9a9a9] text-[0.75rem]">Description</label>
             <textarea
               value={formData.description}
               onChange={e => handleInputChange('description', e.target.value)}
@@ -124,7 +124,7 @@ export const Share: React.FC<ShareProps> = ({
           </div>
 
           <div className="flex flex-col gap-[0.5rem]">
-            <label className="text-[#737373] text-[0.75rem]">Keyboard API Keys Required</label>
+            <label className="text-[#737373] dark:text-[#a9a9a9] text-[0.75rem]">Keyboard API Keys Required</label>
             {formData.keyboard_api_keys_required.map((key, index) => (
               <div key={index} className="flex gap-[0.5rem]">
                 <input
@@ -135,7 +135,7 @@ export const Share: React.FC<ShareProps> = ({
                 />
                 <button
                   onClick={() => removeArrayItem('keyboard_api_keys_required', index)}
-                  className="px-[0.75rem] py-[0.5rem] bg-[#F3F3F3] rounded-[0.38rem] text-[#737373]"
+                  className="px-[0.75rem] py-[0.5rem] bg-[#F3F3F3] rounded-[0.38rem] text-[#737373] dark:text-[#a9a9a9]"
                 >
                   Remove
                 </button>
@@ -143,14 +143,14 @@ export const Share: React.FC<ShareProps> = ({
             ))}
             <button
               onClick={() => addArrayItem('keyboard_api_keys_required')}
-              className="px-[0.75rem] py-[0.5rem] bg-[#F3F3F3] rounded-[0.38rem] text-[#737373] w-fit"
+              className="px-[0.75rem] py-[0.5rem] bg-[#F3F3F3] rounded-[0.38rem] text-[#737373] dark:text-[#a9a9a9] w-fit"
             >
               + Add API Key
             </button>
           </div>
 
           <div className="flex flex-col gap-[0.5rem]">
-            <label className="text-[#737373] text-[0.75rem]">Provider User Tokens Required</label>
+            <label className="text-[#737373] dark:text-[#a9a9a9] text-[0.75rem]">Provider User Tokens Required</label>
             {formData.provider_user_tokens_required.map((token, index) => (
               <div key={index} className="flex gap-[0.5rem]">
                 <input
@@ -161,7 +161,7 @@ export const Share: React.FC<ShareProps> = ({
                 />
                 <button
                   onClick={() => removeArrayItem('provider_user_tokens_required', index)}
-                  className="px-[0.75rem] py-[0.5rem] bg-[#F3F3F3] rounded-[0.38rem] text-[#737373]"
+                  className="px-[0.75rem] py-[0.5rem] bg-[#F3F3F3] rounded-[0.38rem] text-[#737373] dark:text-[#a9a9a9]"
                 >
                   Remove
                 </button>
@@ -169,14 +169,14 @@ export const Share: React.FC<ShareProps> = ({
             ))}
             <button
               onClick={() => addArrayItem('provider_user_tokens_required')}
-              className="px-[0.75rem] py-[0.5rem] bg-[#F3F3F3] rounded-[0.38rem] text-[#737373] w-fit"
+              className="px-[0.75rem] py-[0.5rem] bg-[#F3F3F3] rounded-[0.38rem] text-[#737373] dark:text-[#a9a9a9] w-fit"
             >
               + Add Token
             </button>
           </div>
 
           <div className="flex flex-col gap-[0.5rem]">
-            <label className="text-[#737373] text-[0.75rem]">Services by Domain Name</label>
+            <label className="text-[#737373] dark:text-[#a9a9a9] text-[0.75rem]">Services by Domain Name</label>
             {formData.api_services.map((service, index) => (
               <div key={index} className="flex gap-[0.5rem]">
                 <input
@@ -187,7 +187,7 @@ export const Share: React.FC<ShareProps> = ({
                 />
                 <button
                   onClick={() => removeArrayItem('api_services', index)}
-                  className="px-[0.75rem] py-[0.5rem] bg-[#F3F3F3] rounded-[0.38rem] text-[#737373]"
+                  className="px-[0.75rem] py-[0.5rem] bg-[#F3F3F3] rounded-[0.38rem] text-[#737373] dark:text-[#a9a9a9]"
                 >
                   Remove
                 </button>
@@ -195,7 +195,7 @@ export const Share: React.FC<ShareProps> = ({
             ))}
             <button
               onClick={() => addArrayItem('api_services')}
-              className="px-[0.75rem] py-[0.5rem] bg-[#F3F3F3] rounded-[0.38rem] text-[#737373] w-fit"
+              className="px-[0.75rem] py-[0.5rem] bg-[#F3F3F3] rounded-[0.38rem] text-[#737373] dark:text-[#a9a9a9] w-fit"
             >
               + Add Service
             </button>
@@ -229,7 +229,7 @@ export const Share: React.FC<ShareProps> = ({
                 />
               )
             : (
-                <div className="flex items-center justify-center h-full text-[#737373]">
+                <div className="flex items-center justify-center h-full text-[#737373] dark:text-[#a9a9a9]">
                   Loading editor...
                 </div>
               )}
@@ -238,7 +238,7 @@ export const Share: React.FC<ShareProps> = ({
 
       {activeTab === 'schema' && (
         <div className="w-full grow min-h-0 flex flex-col gap-[0.5rem]">
-          <div className="text-[#737373] text-[0.75rem]">
+          <div className="text-[#737373] dark:text-[#a9a9a9] text-[0.75rem]">
             Template Variables Schema (JSON)
           </div>
           {schemaJsonError && (
@@ -280,7 +280,7 @@ export const Share: React.FC<ShareProps> = ({
                   />
                 )
               : (
-                  <div className="flex items-center justify-center h-full text-[#737373]">
+                  <div className="flex items-center justify-center h-full text-[#737373] dark:text-[#a9a9a9]">
                     Loading editor...
                   </div>
                 )}
@@ -291,7 +291,7 @@ export const Share: React.FC<ShareProps> = ({
       <div className="w-full flex flex-col gap-[0.5rem]">
         <div className="w-full flex gap-[0.31rem]">
           <button
-            className="bg-[#F3F3F3] text-[#737373] grow basis-0 flex gap-[0.31rem] rounded-[0.25rem] p-[0.5rem] items-center justify-center border-none outline-none"
+            className="bg-[#F3F3F3] text-[#737373] dark:text-[#a9a9a9] grow basis-0 flex gap-[0.31rem] rounded-[0.25rem] p-[0.5rem] items-center justify-center border-none outline-none"
             onClick={onReject}
           >
             <img src={greyXIconUrl} alt="x" className="w-[0.75rem] h-[0.75rem]" />
@@ -307,7 +307,7 @@ export const Share: React.FC<ShareProps> = ({
           </button>
         </div>
 
-        <div className="text-[#737373] text-[0.75rem] text-center w-full">
+        <div className="text-[#737373] dark:text-[#a9a9a9] text-[0.75rem] text-center w-full">
           Review all details before approving this collection request.
         </div>
       </div>

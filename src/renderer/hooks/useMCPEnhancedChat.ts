@@ -107,6 +107,7 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
       if (currentThreadId && currentThreadId !== lastThreadIdRef.current) {
         lastThreadIdRef.current = currentThreadId
         runCodeResultContext.clearResults()
+        adapter.resetTitleGeneration()
       }
     }
 
@@ -244,6 +245,7 @@ export function useMCPEnhancedChat(config: MCPEnhancedChatConfig): MCPEnhancedCh
 
   // Set thread title callback
   const setThreadTitleCallback = useCallback((callback: (title: string) => void) => {
+    adapter.resetTitleGeneration()
     adapter.setThreadTitleCallback(callback)
   }, [adapter])
 

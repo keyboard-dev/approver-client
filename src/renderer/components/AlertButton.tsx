@@ -107,7 +107,7 @@ const AlertButton = () => {
         inbox
         {' '}
       </span>
-      <span className="text-[#737373] text-[0.88rem]">
+      <span className="text-[#737373] dark:text-[#a9a9a9] text-[0.88rem]">
         (
         {' '}
         {alertCount}
@@ -121,7 +121,7 @@ const AlertButton = () => {
     // Show empty state if no notifications
     notifications.length === 0 && (
       <div
-        className="px-[1.25rem] py-[1rem] border-t border-[#E5E5E5] text-center text-[#737373] text-sm"
+        className="px-[1.25rem] py-[1rem] border-t border-[#E5E5E5] text-center text-[#737373] dark:text-[#a9a9a9] text-sm"
         key="empty-state"
       >
         No notifications
@@ -135,7 +135,7 @@ const AlertButton = () => {
       >
         <button
           type="button"
-          className="w-full text-center text-xs text-[#737373] hover:text-[#525252]"
+          className="w-full text-center text-xs text-[#737373] dark:text-[#a9a9a9] hover:text-[#525252]"
           onClick={markAllAsRead}
         >
           Mark all as read

@@ -146,18 +146,18 @@ export function ToolResult({ result, isError }: { result: unknown, isError?: boo
   return (
     <div className={cn(
       'mt-1 border rounded-lg overflow-hidden',
-      isError ? 'border-red-200 bg-white' : 'border-green-200 bg-white',
+      isError ? 'border-red-200 dark:border-red-900 bg-white dark:bg-[#1e1e1e]' : 'border-green-200 dark:border-green-900 bg-white dark:bg-[#1e1e1e]',
     )}
     >
       <button
         type="button"
         onClick={() => setIsExpanded(!isExpanded)}
-        className="flex items-center gap-2.5 w-full px-3 py-2 text-left hover:bg-[#fafafa] transition-colors"
+        className="flex items-center gap-2.5 w-full px-3 py-2 text-left hover:bg-[#fafafa] dark:hover:bg-[#2a2a2a] transition-colors"
       >
         {isError
           ? <XCircleIcon className="size-3.5 text-red-500 shrink-0" />
           : <CheckCircleIcon className="size-3.5 text-emerald-500 shrink-0" />}
-        <span className={cn('text-[13px] font-medium shrink-0', isError ? 'text-red-700' : 'text-green-700')}>
+        <span className={cn('text-[13px] font-medium shrink-0', isError ? 'text-red-700 dark:text-red-400' : 'text-green-700 dark:text-green-400')}>
           {isError ? 'Error' : 'Result'}
         </span>
         <span className="text-[12px] text-[#a3a3a3] truncate min-w-0 flex-1">
@@ -172,10 +172,10 @@ export function ToolResult({ result, isError }: { result: unknown, isError?: boo
       </button>
 
       {isExpanded && (
-        <div className="border-t border-[#f0f0f0] px-3 py-2">
+        <div className="border-t border-[#f0f0f0] dark:border-[#2e2e2e] px-3 py-2">
           <pre className={cn(
             'whitespace-pre-wrap break-words text-[11px] max-h-[400px] overflow-auto font-mono',
-            isError ? 'text-red-700' : 'text-green-700',
+            isError ? 'text-red-700 dark:text-red-400' : 'text-green-700 dark:text-green-400',
           )}
           >
             {resultStr}
