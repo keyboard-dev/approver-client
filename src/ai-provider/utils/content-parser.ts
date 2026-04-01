@@ -319,7 +319,6 @@ export class ContentParser {
     const apiPatterns = [
       /curl\s+-X/i,
       /fetch\(/i,
-      /axios\./i,
       /api\./i,
       /\.post\(|\.get\(|\.put\(|\.delete\(/i,
       /headers\s*:/i,
@@ -332,7 +331,7 @@ export class ContentParser {
   }
 
   private hasApiExamples(content: string): boolean {
-    return /```[\s\S]*?(curl|fetch|axios|api|stripe)[\s\S]*?```/i.test(content)
+    return /```[\s\S]*?(curl|fetch|api|stripe)[\s\S]*?```/i.test(content)
   }
 
   private isDocsContent(content: string): boolean {

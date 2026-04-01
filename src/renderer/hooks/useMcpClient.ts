@@ -133,6 +133,7 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
       })
 
       transportRef.current = transport
+      transportTokenRef.current = token
 
       // Create the client
       const client = new Client({
@@ -256,14 +257,25 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
     hasConnectedRef.current = false
   }, [accessToken, options.serverUrl])
 
-  // Tool calling function — auto-reconnects if client is unavailable
+  // Track the token used when the transport was created
+  const transportTokenRef = useRef<string | null>(null)
+
+  // Tool calling function — auto-reconnects if client is unavailable or token is stale
   const callTool = useCallback(async (name: string, args: Record<string, unknown> = {}): Promise<CallToolResult> => {
+    // Check if the access token has been refreshed since the transport was created
+    const freshToken = await window.electronAPI?.getAccessToken?.()
+    if (freshToken && freshToken !== transportTokenRef.current && options.serverUrl && !isConnectingRef.current) {
+      setAccessToken(freshToken)
+      await connect(freshToken, options.serverUrl)
+    }
+
     let client = clientRef.current
     if (!client) {
       // Attempt reconnect before failing
-      if (accessToken && options.serverUrl && !isConnectingRef.current) {
+      const tokenToUse = freshToken || accessToken
+      if (tokenToUse && options.serverUrl && !isConnectingRef.current) {
         try {
-          await connect(accessToken, options.serverUrl)
+          await connect(tokenToUse, options.serverUrl)
           client = clientRef.current
         }
         catch {
@@ -287,9 +299,10 @@ export function useMcpClient(options: UseMcpClientOptions): UseMcpClientResult {
       // If it's a connection error, try reconnect + retry once
       const msg = err instanceof Error ? err.message : ''
       if (msg.includes('fetch') || msg.includes('network') || msg.includes('Failed') || msg.includes('PROTOCOL_ERROR')) {
-        if (accessToken && options.serverUrl && !isConnectingRef.current) {
+        const tokenToUse = freshToken || accessToken
+        if (tokenToUse && options.serverUrl && !isConnectingRef.current) {
           try {
-            await connect(accessToken, options.serverUrl)
+            await connect(tokenToUse, options.serverUrl)
             const retryClient = clientRef.current
             if (retryClient) {
               const timeout = options.timeout || 300000
