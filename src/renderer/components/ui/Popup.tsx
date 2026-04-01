@@ -51,7 +51,7 @@ export const Popup: React.FC<{
     >
       <div
         ref={containerRef}
-        className="max-w-[24.63rem] flex flex-col p-[1.25rem] gap-[1.25rem] border border-[#E5E5E5] bg-[#FFF] rounded-[0.38rem] max-h-full overflow-y-auto"
+        className="max-w-[24.63rem] flex flex-col p-[1.25rem] gap-[1.25rem] border border-[#E5E5E5] dark:border-[#2e2e2e] bg-[#FFF] dark:bg-[#1f1f1f] rounded-[0.38rem] max-h-full overflow-y-auto"
         onClick={e => e.stopPropagation()}
       >
         {children}

@@ -135,7 +135,7 @@ const StatusDisplay = ({ onClick }: StatusDisplayProps) => {
           {getStatusIcon(connectionStatus)}
         </div>
 
-        <div className="text-[#737373]">
+        <div className="text-[#737373] dark:text-[#a9a9a9]">
           {text}
           {' '}
           <span

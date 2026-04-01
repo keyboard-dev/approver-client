@@ -1,7 +1,7 @@
 import React from 'react'
 import { cn } from '../../lib/utils'
 
-const ACTIVE_COLOR = '#5093B7'
+const ACTIVE_COLOR = '#99A0FF'
 const INACTIVE_COLOR = '#C5C5C5'
 export const Toggle: React.FC<{
   className?: string

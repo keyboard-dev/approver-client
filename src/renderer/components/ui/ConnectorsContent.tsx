@@ -56,7 +56,7 @@ export const SourceTag: React.FC<SourceTagProps> = ({ source }) => {
   const label = labelMap[source] || source
 
   return (
-    <span className="bg-[#f0f0f0] text-black text-[14px] font-medium px-2 py-1 rounded-full">
+    <span className="bg-[#f0f0f0] dark:bg-[#1F1F1F] text-black dark:text-[#A9A9A9] text-[14px] font-medium px-2 py-1 rounded-full">
       {label}
     </span>
   )
@@ -87,8 +87,8 @@ const FilterTabs: React.FC<FilterTabsProps> = ({ activeFilter, onFilterChange })
           onClick={() => onFilterChange(tab.id)}
           className={`px-2 py-1 text-[14px] font-medium rounded-full transition-colors ${
             activeFilter === tab.id
-              ? 'bg-[#f0f0f0] text-black'
-              : 'text-[#a5a5a5] hover:text-[#737373]'
+              ? 'bg-[#f0f0f0] dark:bg-[#1F1F1F] text-black dark:text-[#A9A9A9]'
+              : 'text-[#a5a5a5] hover:text-[#737373] dark:hover:text-[#a9a9a9]'
           }`}
         >
           {tab.label}
@@ -129,7 +129,7 @@ const ConnectorRow: React.FC<ConnectorRowProps> = ({
     <div className="flex items-center gap-[10px] w-full">
       {/* Left section: Icon + Name (dimmed if not connected) */}
       <div className={`flex-1 flex items-center gap-[10px] ${!isConnected ? 'opacity-50' : ''}`}>
-        <div className="bg-white border border-[#e5e5e5] rounded-[4px] p-[5px] flex items-center">
+        <div className="bg-white dark:bg-[#2a2a2a] border border-[#e5e5e5] dark:border-[#3a3a3a] rounded-[4px] p-[5px] flex items-center">
           <img
             src={icon}
             alt={name}
@@ -139,7 +139,7 @@ const ConnectorRow: React.FC<ConnectorRowProps> = ({
             }}
           />
         </div>
-        <span className="font-medium text-[14px] text-[#171717]">{name}</span>
+        <span className="font-medium text-[14px] text-[#171717] dark:text-[#a9a9a9]">{name}</span>
       </div>
 
       {/* Middle: Source Tag */}
@@ -149,7 +149,7 @@ const ConnectorRow: React.FC<ConnectorRowProps> = ({
       {isConnected
         ? (
             <button
-              className="px-3 py-1 text-[14px] font-medium text-[#d23535] hover:bg-[#FEE2E2] rounded-[4px] transition-colors disabled:opacity-50"
+              className="px-3 py-1 text-[14px] font-medium text-[#d23535] dark:text-[#FC8E8F] hover:bg-[#FEE2E2] dark:hover:bg-[#FC8E8F]/10 rounded-[4px] transition-colors disabled:opacity-50"
               disabled={isDisconnecting}
               onClick={onDisconnect}
             >
@@ -158,7 +158,7 @@ const ConnectorRow: React.FC<ConnectorRowProps> = ({
           )
         : (
             <button
-              className="flex items-center gap-1 px-3 py-1 bg-white border border-[#e5e5e5] rounded-[4px] text-[14px] font-medium text-[#171717] hover:border-[#ccc] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-1 px-3 py-1 bg-white dark:bg-[#171717] border border-[#e5e5e5] dark:border-[#171717] rounded-[4px] text-[14px] font-medium text-[#171717] dark:text-[#f5f5f5] hover:border-[#ccc] dark:hover:border-[#333] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={isConnecting || disabled}
               onClick={onConnect}
             >
@@ -449,18 +449,18 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
         <div className="flex items-center justify-between">
           <FilterTabs activeFilter={filterType} onFilterChange={setFilterType} />
           <div className="relative w-[276px]">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-[#737373]" />
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-[#737373] dark:text-[#a9a9a9]" />
             <input
               type="text"
               placeholder="Search from 3,000+ apps"
               value={searchQuery}
               onChange={e => handleSearchChange(e.target.value)}
-              className="w-full h-8 pl-8 pr-8 py-2 bg-[#FAFAFA] border border-[#e5e5e5] rounded-[5px] text-[14px] font-medium text-[#171717] placeholder:text-[#737373] focus:outline-none focus:border-[#a5a5a5]"
+              className="w-full h-8 pl-8 pr-8 py-2 bg-[#FAFAFA] dark:bg-[#242424] border border-[#e5e5e5] dark:border-[#2e2e2e] rounded-[5px] text-[14px] font-medium text-[#171717] dark:text-[#a9a9a9] placeholder:text-[#737373] focus:outline-none focus:border-[#a5a5a5]"
             />
             {searchQuery && (
               <button
                 onClick={handleClearSearch}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-[#737373] hover:text-[#171717]"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-[#737373] dark:text-[#a9a9a9] hover:text-[#171717]"
               >
                 <X className="w-3 h-3" />
               </button>
@@ -474,7 +474,7 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
             Local apps are managed by Keyboard. Pipedream apps are powered by
             {' '}
             <button
-              className="underline decoration-solid hover:text-[#737373]"
+              className="underline decoration-solid hover:text-[#737373] dark:hover:text-[#a9a9a9]"
               onClick={() => window.electronAPI.openExternalUrl('https://pipedream.com/')}
             >
               Pipedream
@@ -482,7 +482,7 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
             . Composio apps are powered by
             {' '}
             <button
-              className="underline decoration-solid hover:text-[#737373]"
+              className="underline decoration-solid hover:text-[#737373] dark:hover:text-[#a9a9a9]"
               onClick={() => window.electronAPI.openExternalUrl('https://composio.dev/')}
             >
               Composio
@@ -503,12 +503,12 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
       <div
         ref={listRef}
         onScroll={handleListScroll}
-        className={`bg-[#FAFAFA] border border-[#e5e5e5] rounded-[6px] p-[15px] flex flex-col gap-[10px] overflow-y-auto ${!maxConnectorsHeight ? 'flex-1 min-h-0' : ''}`}
+        className={`bg-[#FAFAFA] dark:bg-[#242424] border border-[#e5e5e5] dark:border-[#2e2e2e] rounded-[6px] p-[15px] flex flex-col gap-[10px] overflow-y-auto ${!maxConnectorsHeight ? 'flex-1 min-h-0' : ''}`}
         style={maxConnectorsHeight ? { maxHeight: maxConnectorsHeight } : undefined}
       >
         {/* Loading State */}
         {localLoading && (
-          <div className="text-center py-4 text-[#737373]">
+          <div className="text-center py-4 text-[#737373] dark:text-[#a9a9a9]">
             Loading connectors...
           </div>
         )}
@@ -549,7 +549,7 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
 
         {/* Connected Composio Accounts */}
         {composioAccountsLoading && filterType !== 'local' && filterType !== 'pipedream' && (
-          <div className="text-center py-4 text-[#737373]">
+          <div className="text-center py-4 text-[#737373] dark:text-[#a9a9a9]">
             Loading Composio accounts...
           </div>
         )}
@@ -589,7 +589,7 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
         {isSearching && (
           <>
             {pipedreamAppsLoading && (
-              <div className="text-center py-4 text-[#737373]">
+              <div className="text-center py-4 text-[#737373] dark:text-[#a9a9a9]">
                 Searching Pipedream apps...
               </div>
             )}
@@ -613,7 +613,7 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
         {isSearching && (filterType === 'all' || filterType === 'composio') && (
           <>
             {composioAppsLoading && (
-              <div className="text-center py-4 text-[#737373]">
+              <div className="text-center py-4 text-[#737373] dark:text-[#a9a9a9]">
                 Searching Composio apps...
               </div>
             )}
@@ -654,7 +654,7 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
           && filteredComposioApps.length === 0
           && filteredLocalProviders.length === 0
           && filteredComposioAccounts.length === 0 && (
-          <div className="text-center py-6 text-[#737373]">
+          <div className="text-center py-6 text-[#737373] dark:text-[#a9a9a9]">
             No connectors found for "
             {searchQuery}
             "
@@ -665,7 +665,7 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
         {!isSearching && (
           <>
             {pipedreamDefaultAppsLoading && (
-              <div className="text-center py-4 text-[#737373]">
+              <div className="text-center py-4 text-[#737373] dark:text-[#a9a9a9]">
                 Loading more apps...
               </div>
             )}
@@ -689,7 +689,7 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
         {!isSearching && (filterType === 'all' || filterType === 'composio') && (
           <>
             {composioAppsLoading && (
-              <div className="text-center py-4 text-[#737373]">
+              <div className="text-center py-4 text-[#737373] dark:text-[#a9a9a9]">
                 Loading Composio apps...
               </div>
             )}
@@ -733,27 +733,12 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
           && !showPipedreamDefaults
           && composioApps.length === 0
           && !isSearching && (
-          <div className="text-center py-6 text-[#737373]">
+          <div className="text-center py-6 text-[#737373] dark:text-[#a9a9a9]">
             No connectors available
           </div>
         )}
       </div>
 
-      {/* Docs Link */}
-      {showDocsLink && (
-        <p className="text-[14px] font-medium text-[#a5a5a5]">
-          See our
-          {' '}
-          <button
-            className="font-semibold text-[#171717] hover:underline"
-            onClick={() => window.electronAPI.openExternalUrl('https://docs.keyboard.dev/')}
-          >
-            docs
-          </button>
-          {' '}
-          to learn how to connect any app.
-        </p>
-      )}
     </div>
   )
 }

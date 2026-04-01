@@ -43,7 +43,7 @@ export const ConnectorPanel: React.FC = () => {
           Connectors
         </div>
         <div
-          className="text-[#737373]"
+          className="text-[#737373] dark:text-[#a9a9a9]"
         >
           Allow Keyboard to reference other apps and services for more context.
           {' '}

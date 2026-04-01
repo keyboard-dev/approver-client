@@ -88,7 +88,7 @@ export const UpdateDownloadingItem: React.FC<UpdateDownloadingItemProps> = ({ no
             />
           </div>
 
-          <div className="text-xs text-[#737373]">
+          <div className="text-xs text-[#737373] dark:text-[#a9a9a9]">
             {formatBytes(notification.transferred)}
             {' '}
             /

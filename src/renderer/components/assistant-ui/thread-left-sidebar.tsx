@@ -129,19 +129,19 @@ const ChatSearchDialog: FC<{ onClose: () => void, onSelect: (threadId: string) =
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-[12px] border border-[#E5E5E5] shadow-xl w-[480px] max-h-[60vh] flex flex-col overflow-hidden"
+        className="bg-white dark:bg-[#242424] rounded-[12px] border border-[#E5E5E5] dark:border-[#2e2e2e] shadow-xl w-[480px] max-h-[60vh] flex flex-col overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
         {/* Search input */}
-        <div className="flex items-center gap-[10px] px-[16px] py-[14px] border-b border-[#E5E5E5]">
-          <SearchIcon className="size-[16px] text-[#737373] shrink-0" />
+        <div className="flex items-center gap-[10px] px-[16px] py-[14px] border-b border-[#E5E5E5] dark:border-[#2e2e2e]">
+          <SearchIcon className="size-[16px] text-[#737373] dark:text-[#a9a9a9] shrink-0" />
           <input
             ref={inputRef}
             type="text"
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder="Search chats…"
-            className="flex-1 text-[14px] text-[#171717] placeholder-[#a3a3a3] outline-none bg-transparent"
+            className="flex-1 text-[14px] text-[#171717] dark:text-[#f5f5f5] placeholder-[#a3a3a3] outline-none bg-transparent"
           />
           <span className="text-[11px] text-[#a3a3a3] shrink-0">Esc to close</span>
         </div>
@@ -163,11 +163,11 @@ const ChatSearchDialog: FC<{ onClose: () => void, onSelect: (threadId: string) =
               key={r.threadId}
               type="button"
               onClick={() => { onSelect(r.threadId); onClose() }}
-              className="w-full text-left px-[16px] py-[12px] hover:bg-[#F5F5F5] transition-colors flex flex-col gap-[2px]"
+              className="w-full text-left px-[16px] py-[12px] hover:bg-[#F5F5F5] dark:hover:bg-[#2a2a2a] transition-colors flex flex-col gap-[2px]"
             >
-              <span className="text-[14px] font-medium text-[#171717] truncate">{r.title}</span>
+              <span className="text-[14px] font-medium text-[#171717] dark:text-[#f5f5f5] truncate">{r.title}</span>
               {r.snippet && (
-                <span className="text-[12px] text-[#737373] line-clamp-2 leading-relaxed">{r.snippet}</span>
+                <span className="text-[12px] text-[#737373] dark:text-[#a9a9a9] line-clamp-2 leading-relaxed">{r.snippet}</span>
               )}
             </button>
           ))}
@@ -266,7 +266,7 @@ export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
   // ── Collapsed view (icons only) ──
   if (!isOpen) {
     return (
-      <div className="flex flex-col h-full bg-[#EBEBEB] overflow-hidden" style={{ width: COLLAPSED_WIDTH }}>
+      <div className="flex flex-col h-full bg-[#EBEBEB] dark:bg-[#161616] overflow-hidden" style={{ width: COLLAPSED_WIDTH }}>
         <div className="py-2">
           {inSettingsView
             ? (
@@ -276,7 +276,7 @@ export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
                     <button
                       type="button"
                       onClick={handleBack}
-                      className="flex items-center justify-center py-[10px] w-full text-[#737373] hover:bg-[#e5e5e5] transition-colors"
+                      className="flex items-center justify-center py-[10px] ml-[4px] mr-[14px] w-[calc(100%-18px)] rounded-[8px] text-[#737373] dark:text-[#a9a9a9] hover:bg-[#e5e5e5] dark:hover:bg-[#2a2a2a] transition-colors"
                     >
                       <ArrowLeftIcon className="size-[18px]" />
                     </button>
@@ -288,8 +288,8 @@ export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
                       type="button"
                       onClick={() => onTabClick?.('AI Credits')}
                       className={cn(
-                        'flex items-center justify-center py-[10px] w-full transition-colors hover:bg-[#e5e5e5]',
-                        activeTab === 'AI Credits' ? 'text-[#171717]' : 'text-[#737373]',
+                        'flex items-center justify-center py-[10px] ml-[4px] mr-[14px] w-[calc(100%-18px)] rounded-[8px] transition-colors hover:bg-[#e5e5e5] dark:hover:bg-[#2a2a2a]',
+                        activeTab === 'AI Credits' ? 'text-[#171717] dark:text-[#F5F5F5]' : 'text-[#737373] dark:text-[#a9a9a9]',
                       )}
                     >
                       <CreditCardIcon className="size-[18px]" />
@@ -302,8 +302,8 @@ export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
                       type="button"
                       onClick={() => onTabClick?.('Advanced')}
                       className={cn(
-                        'flex items-center justify-center py-[10px] w-full transition-colors hover:bg-[#e5e5e5]',
-                        activeTab === 'Advanced' ? 'text-[#171717]' : 'text-[#737373]',
+                        'flex items-center justify-center py-[10px] ml-[4px] mr-[14px] w-[calc(100%-18px)] rounded-[8px] transition-colors hover:bg-[#e5e5e5] dark:hover:bg-[#2a2a2a]',
+                        activeTab === 'Advanced' ? 'text-[#171717] dark:text-[#F5F5F5]' : 'text-[#737373] dark:text-[#a9a9a9]',
                       )}
                     >
                       <SlidersHorizontalIcon className="size-[18px]" />
@@ -321,7 +321,7 @@ export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
                           <button
                             type="button"
                             onClick={onChatSelect}
-                            className="flex items-center justify-center py-[10px] w-full text-[#737373] hover:bg-[#e5e5e5] transition-colors"
+                            className="flex items-center justify-center py-[10px] ml-[4px] mr-[14px] w-[calc(100%-18px)] rounded-[8px] text-[#737373] dark:text-[#a9a9a9] hover:bg-[#e5e5e5] dark:hover:bg-[#2a2a2a] transition-colors"
                           >
                             <PlusIcon className="size-[18px]" />
                           </button>
@@ -336,7 +336,7 @@ export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
                     <button
                       type="button"
                       onClick={() => setSearchOpen(true)}
-                      className="flex items-center justify-center py-[10px] w-full text-[#737373] hover:bg-[#e5e5e5] transition-colors"
+                      className="flex items-center justify-center py-[10px] ml-[4px] mr-[14px] w-[calc(100%-18px)] rounded-[8px] text-[#737373] dark:text-[#a9a9a9] hover:bg-[#e5e5e5] dark:hover:bg-[#2a2a2a] transition-colors"
                     >
                       <SearchIcon className="size-[18px]" />
                     </button>
@@ -348,8 +348,8 @@ export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
                       type="button"
                       onClick={handleConnectorsClick}
                       className={cn(
-                        'flex items-center justify-center py-[10px] w-full transition-colors hover:bg-[#e5e5e5]',
-                        activeTab === 'Connectors' ? 'text-[#171717]' : 'text-[#737373]',
+                        'flex items-center justify-center py-[10px] ml-[4px] mr-[14px] w-[calc(100%-18px)] rounded-[8px] transition-colors hover:bg-[#e5e5e5] dark:hover:bg-[#2a2a2a]',
+                        activeTab === 'Connectors' ? 'text-[#171717] dark:text-[#F5F5F5]' : 'text-[#737373] dark:text-[#a9a9a9]',
                       )}
                     >
                       <PlugIcon className="size-[18px]" />
@@ -361,7 +361,7 @@ export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
                     <button
                       type="button"
                       onClick={handleSettingsClick}
-                      className="flex items-center justify-center py-[10px] w-full text-[#737373] hover:bg-[#e5e5e5] transition-colors"
+                      className="flex items-center justify-center py-[10px] ml-[4px] mr-[14px] w-[calc(100%-18px)] rounded-[8px] text-[#737373] dark:text-[#a9a9a9] hover:bg-[#e5e5e5] dark:hover:bg-[#2a2a2a] transition-colors"
                     >
                       <CogIcon className="size-[18px]" />
                     </button>
@@ -371,13 +371,13 @@ export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
         </div>
 
         {/* Divider */}
-        <div className="border-t border-[#dbdbdb]" />
+        <div className="mx-[4px] border-t border-[#dbdbdb] dark:border-[#2e2e2e]" />
 
         {/* Spacer */}
         <div className="flex-1" />
 
         {/* Bottom divider + section */}
-        <div className="border-t border-[#dbdbdb]" />
+        <div className="mx-[4px] border-t border-[#dbdbdb] dark:border-[#2e2e2e]" />
         <div className="py-[14px] flex flex-col items-center gap-[12px]">
           {user && (
             <NavTooltip label={`${user.firstName} ${user.lastName}`}>
@@ -394,7 +394,7 @@ export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
             <button
               type="button"
               onClick={handleLogout}
-              className="flex items-center justify-center py-[10px] w-full text-[#737373] hover:text-[#171717] hover:bg-[#e5e5e5] transition-colors"
+              className="flex items-center justify-center py-[10px] ml-[4px] mr-[14px] w-[calc(100%-18px)] rounded-[8px] text-[#737373] dark:text-[#a9a9a9] hover:text-[#171717] dark:hover:text-[#f5f5f5] hover:bg-[#e5e5e5] dark:hover:bg-[#2a2a2a] transition-colors"
             >
               <LogOutIcon className="size-[14px]" />
             </button>
@@ -409,7 +409,7 @@ export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
 
   // ── Expanded view ──
   return (
-    <div className="flex flex-col h-full shrink-0 overflow-hidden bg-[#EBEBEB]" style={{ width }}>
+    <div className="flex flex-col h-full shrink-0 overflow-hidden bg-[#EBEBEB] dark:bg-[#161616]" style={{ width }}>
       {/* Sliding container: two panels side by side */}
       <div
         className="flex h-full transition-transform duration-300 ease-in-out"
@@ -423,7 +423,7 @@ export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
             <button
               type="button"
               onClick={() => setSearchOpen(true)}
-              className="flex items-center gap-[10px] mx-[8px] px-[4px] py-[10px] w-[calc(100%-16px)] rounded-[4px] text-left transition-colors hover:bg-[#e5e5e5] text-[#737373]"
+              className="flex items-center gap-[10px] mx-[6px] px-[4px] py-[8px] w-[calc(100%-12px)] rounded-[8px] text-left transition-colors hover:bg-[#e5e5e5] dark:hover:bg-[#2a2a2a] text-[#737373] dark:text-[#a9a9a9]"
             >
               <SearchIcon className="size-[18px]" />
               <span className="text-[14px] leading-normal font-medium">Search</span>
@@ -434,8 +434,8 @@ export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
               type="button"
               onClick={handleConnectorsClick}
               className={cn(
-                'flex items-center gap-[10px] mx-[8px] px-[4px] py-[10px] w-[calc(100%-16px)] rounded-[4px] text-left transition-colors hover:bg-[#e5e5e5]',
-                activeTab === 'Connectors' ? 'text-[#171717]' : 'text-[#737373]',
+                'flex items-center gap-[10px] mx-[6px] px-[4px] py-[8px] w-[calc(100%-12px)] rounded-[8px] text-left transition-colors hover:bg-[#e5e5e5] dark:hover:bg-[#2a2a2a]',
+                activeTab === 'Connectors' ? 'text-[#171717] dark:text-[#F5F5F5]' : 'text-[#737373] dark:text-[#a9a9a9]',
               )}
             >
               <PlugIcon className="size-[18px]" />
@@ -446,8 +446,8 @@ export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
               type="button"
               onClick={handleSettingsClick}
               className={cn(
-                'flex items-center gap-[10px] mx-[8px] px-[4px] py-[10px] w-[calc(100%-16px)] rounded-[4px] text-left transition-colors hover:bg-[#e5e5e5]',
-                inSettingsView ? 'text-[#171717]' : 'text-[#737373]',
+                'flex items-center gap-[10px] mx-[6px] px-[4px] py-[8px] w-[calc(100%-12px)] rounded-[8px] text-left transition-colors hover:bg-[#e5e5e5] dark:hover:bg-[#2a2a2a]',
+                inSettingsView ? 'text-[#171717] dark:text-[#F5F5F5]' : 'text-[#737373] dark:text-[#a9a9a9]',
               )}
             >
               <CogIcon className="size-[18px]" />
@@ -455,37 +455,37 @@ export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
             </button>
           </div>
 
-          <div className="border-t border-[#dbdbdb]" />
-          <div className="px-[16px] pt-[10px] pb-[4px]">
+          <div className="mx-[6px] border-t border-[#dbdbdb] dark:border-[#2e2e2e]" />
+          <div className="px-[8px] pt-[10px] pb-[4px]">
             <span className="text-[11px] font-semibold text-[#a3a3a3] uppercase tracking-wide">Recents</span>
           </div>
 
-          <div className="flex-1 overflow-y-auto py-1">
+          <div className="flex-1 overflow-y-auto py-1 px-[6px]">
             <ThreadListItems onChatSelect={onChatSelect} />
           </div>
 
-          <div className="border-t border-[#dbdbdb]" />
-          <div className="px-[16px] py-[14px] flex flex-col gap-[12px]">
+          <div className="mx-[6px] border-t border-[#dbdbdb] dark:border-[#2e2e2e]" />
+          <div className="px-[8px] py-[14px] flex flex-col gap-[12px]">
             {credits !== null && (
               <div>
                 <div className="flex items-center justify-between mb-[6px]">
-                  <span className="text-[13px] font-medium text-[#171717]">Credits</span>
-                  <span className="text-[13px] font-medium text-[#171717]">
+                  <span className="text-[13px] font-medium text-[#171717] dark:text-[#f5f5f5]">Credits</span>
+                  <span className="text-[13px] font-medium text-[#171717] dark:text-[#f5f5f5]">
                     {credits.balance_cents}
                     {' / '}
                     {MONTHLY_REFRESH_TOKENS}
                   </span>
                 </div>
-                <div className="h-[5px] rounded-full bg-[#e5e5e5] overflow-hidden mb-[10px]">
+                <div className="h-[5px] rounded-full bg-[#e5e5e5] dark:bg-[#2e2e2e] overflow-hidden mb-[10px]">
                   <div
-                    className="h-full bg-[#3b82f6] rounded-full transition-all"
+                    className="h-full bg-[#99A0FF] rounded-full transition-all"
                     style={{ width: `${creditsPct}%` }}
                   />
                 </div>
                 <button
                   type="button"
                   onClick={() => window.electronAPI.createCreditsCheckout(1000)}
-                  className="w-full bg-[#3b82f6] hover:bg-[#2563eb] text-white text-[13px] font-semibold py-[9px] rounded-[8px] transition-colors"
+                  className="w-full bg-[#99A0FF] hover:bg-[#8088ee] text-[#171717] text-[13px] font-semibold py-[9px] rounded-[8px] transition-colors"
                 >
                   Buy Credits
                 </button>
@@ -501,12 +501,12 @@ export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
                   {userInitials}
                 </div>
                 <div className="min-w-0">
-                  <div className="text-[13px] font-semibold text-[#171717] truncate">
+                  <div className="text-[13px] font-semibold text-[#171717] dark:text-[#f5f5f5] truncate">
                     {user.firstName}
                     {' '}
                     {user.lastName}
                   </div>
-                  <div className="text-[11px] text-[#737373] truncate">{user.email}</div>
+                  <div className="text-[11px] text-[#737373] dark:text-[#a9a9a9] truncate">{user.email}</div>
                 </div>
               </div>
             )}
@@ -514,7 +514,7 @@ export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
             <button
               type="button"
               onClick={handleLogout}
-              className="flex items-center gap-[8px] px-[4px] py-[10px] w-full rounded-[4px] text-[13px] text-[#737373] hover:text-[#171717] hover:bg-[#e5e5e5] transition-colors"
+              className="flex items-center gap-[8px] px-[4px] py-[8px] w-full rounded-[8px] text-[13px] text-[#737373] dark:text-[#a9a9a9] hover:text-[#171717] dark:hover:text-[#f5f5f5] hover:bg-[#e5e5e5] dark:hover:bg-[#2a2a2a] transition-colors"
             >
               <LogOutIcon className="size-[14px]" />
               <span>Log out</span>
@@ -528,7 +528,7 @@ export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
             <button
               type="button"
               onClick={handleBack}
-              className="flex items-center gap-[10px] mx-[8px] px-[4px] py-[10px] w-[calc(100%-16px)] rounded-[4px] text-left text-[#737373] hover:text-[#171717] hover:bg-[#e5e5e5] transition-colors"
+              className="flex items-center gap-[10px] mx-[6px] px-[4px] py-[8px] w-[calc(100%-12px)] rounded-[8px] text-left text-[#737373] dark:text-[#a9a9a9] hover:text-[#171717] dark:hover:text-[#f5f5f5] hover:bg-[#e5e5e5] dark:hover:bg-[#2a2a2a] transition-colors"
             >
               <ArrowLeftIcon className="size-[18px]" />
               <span className="text-[14px] font-medium">Back</span>
@@ -542,8 +542,8 @@ export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
                 type="button"
                 onClick={() => onTabClick?.(tab.id)}
                 className={cn(
-                  'flex items-center gap-[10px] mx-[8px] px-[4px] py-[10px] w-[calc(100%-16px)] rounded-[4px] text-left transition-colors hover:bg-[#e5e5e5]',
-                  activeTab === tab.id ? 'bg-[#e5e5e5] text-[#171717]' : 'text-[#737373]',
+                  'flex items-center gap-[10px] mx-[6px] px-[4px] py-[8px] w-[calc(100%-12px)] rounded-[8px] text-left transition-colors hover:bg-[#e5e5e5] dark:hover:bg-[#2a2a2a]',
+                  activeTab === tab.id ? 'bg-[#e5e5e5] dark:bg-[#2a2a2a] text-[#171717] dark:text-[#F5F5F5]' : 'text-[#737373] dark:text-[#a9a9a9]',
                 )}
               >
                 {tab.icon}

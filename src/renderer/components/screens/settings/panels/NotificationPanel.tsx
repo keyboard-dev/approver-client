@@ -135,7 +135,7 @@ export const NotificationPanel: React.FC = () => {
               Approval requests
             </div>
             <div
-              className="text-[#737373]"
+              className="text-[#737373] dark:text-[#a9a9a9]"
             >
               When Claude sends requests that require your approval to initiate (planning, code execution).
             </div>
@@ -168,7 +168,7 @@ export const NotificationPanel: React.FC = () => {
               Automatic code approvals
             </div>
             <div
-              className="text-[#737373]"
+              className="text-[#737373] dark:text-[#a9a9a9]"
             >
               Automatically approve script executions as they are sent to Keyboard. Select which risk level you would like to auto approve. The selection will also include all lower risk levels.
             </div>
@@ -196,7 +196,7 @@ export const NotificationPanel: React.FC = () => {
               Automatic response approvals
             </div>
             <div
-              className="text-[#737373]"
+              className="text-[#737373] dark:text-[#a9a9a9]"
             >
               Automatically approve responses from the code execution. Success only means the response is automatically approved if there are no errors.
             </div>

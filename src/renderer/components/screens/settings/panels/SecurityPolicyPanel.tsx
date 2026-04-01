@@ -306,7 +306,7 @@ export const SecurityPolicyPanel: React.FC = () => {
   if (loading) {
     return (
       <div className="grow shrink min-w-0 h-full py-[0.5rem] flex items-center justify-center">
-        <div className="text-[#737373]">Loading security policy...</div>
+        <div className="text-[#737373] dark:text-[#a9a9a9]">Loading security policy...</div>
       </div>
     )
   }
@@ -352,7 +352,7 @@ export const SecurityPolicyPanel: React.FC = () => {
         </div>
       </div>
 
-      <div className="text-[0.88rem] text-[#737373] px-[0.94rem]">
+      <div className="text-[0.88rem] text-[#737373] dark:text-[#a9a9a9] px-[0.94rem]">
         Configure your security policy for the 4-layer security system: Domain Control, Language Control, API Path Control, and Package Control.
         {isNew && ' You can have one security policy per account.'}
       </div>
@@ -388,7 +388,7 @@ export const SecurityPolicyPanel: React.FC = () => {
           {/* Layer 1: Domain Control */}
           <div className="flex flex-col gap-[0.5rem]">
             <div className="font-semibold">Layer 1: Allowed Domains</div>
-            <div className="text-[0.88rem] text-[#737373]">
+            <div className="text-[0.88rem] text-[#737373] dark:text-[#a9a9a9]">
               Which external domains can be accessed via HTTP requests
             </div>
             <div className="flex flex-col gap-[0.25rem]">
@@ -422,7 +422,7 @@ export const SecurityPolicyPanel: React.FC = () => {
           {/* Layer 3: API Path Control */}
           <div className="flex flex-col gap-[0.5rem]">
             <div className="font-semibold">Layer 3: API Path Rules</div>
-            <div className="text-[0.88rem] text-[#737373]">
+            <div className="text-[0.88rem] text-[#737373] dark:text-[#a9a9a9]">
               Fine-grained control over which API endpoints can be called
             </div>
             <div className="flex flex-col gap-[0.5rem]">
@@ -467,7 +467,7 @@ export const SecurityPolicyPanel: React.FC = () => {
           {/* Layer 4: Package Control */}
           <div className="flex flex-col gap-[0.5rem]">
             <div className="font-semibold">Layer 4: Allowed Packages</div>
-            <div className="text-[0.88rem] text-[#737373]">
+            <div className="text-[0.88rem] text-[#737373] dark:text-[#a9a9a9]">
               Which npm packages are available for use
             </div>
             <div className="flex flex-col gap-[0.25rem]">
@@ -501,7 +501,7 @@ export const SecurityPolicyPanel: React.FC = () => {
           {/* Layer 4: Binary Control */}
           <div className="flex flex-col gap-[0.5rem]">
             <div className="font-semibold">Layer 4: Allowed Binaries</div>
-            <div className="text-[0.88rem] text-[#737373]">
+            <div className="text-[0.88rem] text-[#737373] dark:text-[#a9a9a9]">
               Which system binaries are available for execution
             </div>
             <div className="flex flex-col gap-[0.25rem]">

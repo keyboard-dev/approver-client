@@ -58,7 +58,7 @@ const SourceTag: FC<{ source: SourceType }> = ({ source }) => {
     composio: 'Composio',
   }
   return (
-    <span className="bg-[#f0f0f0] text-black text-[11px] font-medium px-1.5 py-0.5 rounded-full whitespace-nowrap">
+    <span className="bg-[#f0f0f0] dark:bg-[#2e2e2e] text-black dark:text-[#f5f5f5] text-[11px] font-medium px-1.5 py-0.5 rounded-full whitespace-nowrap">
       {labelMap[source]}
     </span>
   )
@@ -107,7 +107,7 @@ const ConnectedAppRow: FC<ConnectedAppRowProps & { notesReady: boolean }> = ({ a
       <div className="flex items-center gap-[6px] w-full min-w-0">
         {/* Icon + Name */}
         <div className="flex-1 flex items-center gap-[6px] min-w-0">
-          <div className="bg-white border border-[#e5e5e5] rounded-[4px] p-[4px] flex items-center shrink-0">
+          <div className="bg-white dark:bg-[#2a2a2a] border border-[#e5e5e5] dark:border-[#3a3a3a] rounded-[4px] p-[4px] flex items-center shrink-0">
             <img
               src={app.icon}
               alt={app.name}
@@ -119,7 +119,7 @@ const ConnectedAppRow: FC<ConnectedAppRowProps & { notesReady: boolean }> = ({ a
           </div>
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className="font-medium text-[13px] text-[#171717] truncate min-w-0 cursor-default">
+              <span className="font-medium text-[13px] text-[#171717] dark:text-[#a9a9a9] truncate min-w-0 cursor-default">
                 {app.name}
               </span>
             </TooltipTrigger>
@@ -139,7 +139,7 @@ const ConnectedAppRow: FC<ConnectedAppRowProps & { notesReady: boolean }> = ({ a
                 'p-0.5 rounded transition-colors shrink-0',
                 hasNote
                   ? 'text-blue-600 hover:bg-blue-50'
-                  : 'text-[#b0b0b0] hover:text-[#737373] hover:bg-[#f0f0f0]',
+                  : 'text-[#b0b0b0] hover:text-[#737373] dark:hover:text-[#a9a9a9] hover:bg-[#f0f0f0]',
               )}
             >
               <PencilLineIcon className="w-3.5 h-3.5" />
@@ -153,12 +153,12 @@ const ConnectedAppRow: FC<ConnectedAppRowProps & { notesReady: boolean }> = ({ a
         {/* Action Button */}
         {app.isConnecting || app.isDisconnecting
           ? (
-              <Loader2 className="w-5 h-5 animate-spin text-[#737373] shrink-0" />
+              <Loader2 className="w-5 h-5 animate-spin text-[#737373] dark:text-[#a9a9a9] shrink-0" />
             )
           : app.isConnected
             ? (
                 <button
-                  className="px-2 py-0.5 text-[12px] font-medium text-[#d23535] hover:bg-[#FEE2E2] rounded-[4px] transition-colors shrink-0"
+                  className="px-2 py-0.5 text-[12px] font-medium text-[#d23535] dark:text-[#FC8E8F] hover:bg-[#FEE2E2] dark:hover:bg-[#FC8E8F]/10 rounded-[4px] transition-colors shrink-0"
                   onClick={onDisconnect}
                 >
                   Remove
@@ -166,7 +166,7 @@ const ConnectedAppRow: FC<ConnectedAppRowProps & { notesReady: boolean }> = ({ a
               )
             : (
                 <button
-                  className="flex items-center gap-1 px-2 py-0.5 bg-white border border-[#e5e5e5] rounded-[4px] text-[12px] font-medium text-[#171717] hover:border-[#ccc] transition-colors shrink-0"
+                  className="flex items-center gap-1 px-2 py-0.5 bg-white dark:bg-[#2a2a2a] border border-[#e5e5e5] dark:border-[#3a3a3a] rounded-[4px] text-[12px] font-medium text-[#171717] dark:text-[#f5f5f5] hover:border-[#ccc] transition-colors shrink-0"
                   onClick={onConnect}
                 >
                   <ExternalLink className="w-3 h-3" />
@@ -202,7 +202,7 @@ const ConnectedAppRow: FC<ConnectedAppRowProps & { notesReady: boolean }> = ({ a
             value={noteValue}
             onChange={e => setNoteValue(e.target.value)}
             placeholder="e.g. Use the v2 REST API, not GraphQL. My workspace ID is ABC123. Always include the X-Custom-Header..."
-            className="w-full text-[14px] text-[#171717] bg-[#fafafa] border border-[#dbdbdb] rounded-lg px-3 py-2.5 resize-none outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-colors min-h-[120px]"
+            className="w-full text-[14px] text-[#171717] dark:text-[#f5f5f5] bg-[#fafafa] dark:bg-[#242424] border border-[#dbdbdb] dark:border-[#2e2e2e] rounded-lg px-3 py-2.5 resize-none outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-colors min-h-[120px]"
             rows={5}
           />
 
@@ -213,7 +213,7 @@ const ConnectedAppRow: FC<ConnectedAppRowProps & { notesReady: boolean }> = ({ a
                     type="button"
                     onClick={handleDelete}
                     disabled={saving}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium text-[#d23535] hover:bg-red-50 rounded-md transition-colors disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium text-[#d23535] dark:text-[#FC8E8F] hover:bg-red-50 dark:hover:bg-[#FC8E8F]/10 rounded-md transition-colors disabled:opacity-50"
                   >
                     <Trash2Icon className="w-3.5 h-3.5" />
                     Delete note
@@ -225,7 +225,7 @@ const ConnectedAppRow: FC<ConnectedAppRowProps & { notesReady: boolean }> = ({ a
                 type="button"
                 onClick={() => setNoteOpen(false)}
                 disabled={saving}
-                className="px-3 py-1.5 text-[13px] font-medium text-[#737373] hover:bg-[#f0f0f0] rounded-md transition-colors disabled:opacity-50"
+                className="px-3 py-1.5 text-[13px] font-medium text-[#737373] dark:text-[#a9a9a9] hover:bg-[#f0f0f0] dark:hover:bg-[#2a2a2a] rounded-md transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -416,14 +416,14 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
   return (
     <div className="flex flex-col gap-[10px] h-full w-full overflow-x-clip overflow-y-auto">
       {/* Overview Header */}
-      <div className="flex items-center justify-center px-[8px]">
-        <p className="flex-1 font-semibold text-[14px] text-[#737373] leading-normal">
+      <div className="flex items-center justify-center pl-[8px] pr-[7px]">
+        <p className="flex-1 font-semibold text-[14px] text-[#737373] dark:text-[#a9a9a9] leading-normal">
           Overview
         </p>
       </div>
 
       {/* MCP Connection Status */}
-      <div className="px-[8px]">
+      <div className="pl-[8px] pr-[7px]">
         {mcpConnected
           ? (
               <div className="flex items-center gap-2 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2">
@@ -469,7 +469,7 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
       </div>
 
       {/* Model Preferences Section */}
-      <div className="flex flex-col gap-[10px] px-[8px]">
+      <div className="flex flex-col gap-[10px] pl-[8px] pr-[7px]">
         <button
           type="button"
           onClick={() => setModelPreferencesOpen(!modelPreferencesOpen)}
@@ -477,11 +477,11 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
         >
           <ChevronDownIcon
             className={cn(
-              'size-[24px] text-[#171717] transition-transform duration-200',
+              'size-[24px] text-[#171717] dark:text-[#A9A9A9] transition-transform duration-200',
               !modelPreferencesOpen && '-rotate-90',
             )}
           />
-          <p className="flex-1 font-semibold text-[16px] text-[#171717] leading-normal">
+          <p className="flex-1 font-semibold text-[16px] text-[#171717] dark:text-[#f5f5f5] leading-normal">
             Model preferences
           </p>
         </button>
@@ -491,16 +491,16 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
             {orgProvider?.configured ? (
               <>
                 {/* Org Provider Card */}
-                <div className="bg-[#fafafa] border border-[#dbdbdb] flex flex-col gap-[6px] p-[10px] rounded-[12px] w-full">
+                <div className="bg-[#fafafa] dark:bg-[#242424] border border-[#dbdbdb] dark:border-[#2e2e2e] flex flex-col gap-[6px] p-[10px] rounded-[12px] w-full">
                   <div className="flex items-center gap-2">
-                    <p className="font-medium text-[14px] text-[#171717] leading-normal">
+                    <p className="font-medium text-[14px] text-[#171717] dark:text-[#f5f5f5] leading-normal">
                       {orgProvider.display_name || 'Organization AI Provider'}
                     </p>
                     <span className="text-[11px] font-medium text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded-full">
                       Org
                     </span>
                   </div>
-                  <p className="text-[12px] text-[#737373] leading-normal">
+                  <p className="text-[12px] text-[#737373] dark:text-[#a9a9a9] leading-normal">
                     {PROVIDER_TYPE_LABELS[orgProvider.provider_type || ''] || orgProvider.provider_type || 'Custom Provider'}
                   </p>
                 </div>
@@ -511,12 +511,12 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
                     <DropdownMenuTrigger asChild>
                       <button
                         type="button"
-                        className="bg-[#fafafa] border border-[#dbdbdb] flex h-[44px] items-center justify-between p-[10px] rounded-[12px] w-full hover:bg-[#f5f5f5] transition-colors"
+                        className="bg-[#fafafa] dark:bg-[#242424] border border-[#dbdbdb] dark:border-[#2e2e2e] flex h-[44px] items-center justify-between p-[10px] rounded-[12px] w-full hover:bg-[#f5f5f5] dark:hover:bg-[#2a2a2a] transition-colors"
                       >
-                        <p className="font-medium text-[14px] text-[#737373] leading-normal">
+                        <p className="font-medium text-[14px] text-[#737373] dark:text-[#a9a9a9] leading-normal">
                           {selectedModel || 'Select model'}
                         </p>
-                        <ChevronDownIcon className="size-[24px] text-[#737373]" />
+                        <ChevronDownIcon className="size-[24px] text-[#737373] dark:text-[#a9a9a9]" />
                       </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent className="w-[270px]">
@@ -528,7 +528,7 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
                         >
                           <span className={cn(
                             'font-medium text-[14px]',
-                            modelId === selectedModel ? 'text-[#171717]' : 'text-[#737373]',
+                            modelId === selectedModel ? 'text-[#171717] dark:text-[#f5f5f5]' : 'text-[#737373] dark:text-[#a9a9a9]',
                           )}
                           >
                             {modelId}
@@ -546,12 +546,12 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
                   <DropdownMenuTrigger asChild>
                     <button
                       type="button"
-                      className="bg-[#fafafa] border border-[#dbdbdb] flex h-[44px] items-center justify-between p-[10px] rounded-[12px] w-full hover:bg-[#f5f5f5] transition-colors"
+                      className="bg-[#fafafa] dark:bg-[#242424] border border-[#dbdbdb] dark:border-[#2e2e2e] flex h-[44px] items-center justify-between p-[10px] rounded-[12px] w-full hover:bg-[#f5f5f5] dark:hover:bg-[#2a2a2a] transition-colors"
                     >
-                      <p className="font-medium text-[14px] text-[#737373] leading-normal">
+                      <p className="font-medium text-[14px] text-[#737373] dark:text-[#a9a9a9] leading-normal">
                         {currentProvider?.name || 'Select provider'}
                       </p>
-                      <ChevronDownIcon className="size-[24px] text-[#737373]" />
+                      <ChevronDownIcon className="size-[24px] text-[#737373] dark:text-[#a9a9a9]" />
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent className="w-[270px]">
@@ -565,7 +565,7 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
                         >
                           <span className={cn(
                             'font-medium text-[14px]',
-                            provider.id === selectedProvider ? 'text-[#171717]' : 'text-[#737373]',
+                            provider.id === selectedProvider ? 'text-[#171717] dark:text-[#f5f5f5]' : 'text-[#737373] dark:text-[#a9a9a9]',
                           )}
                           >
                             {provider.name}
@@ -581,12 +581,12 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
                     <DropdownMenuTrigger asChild>
                       <button
                         type="button"
-                        className="bg-[#fafafa] border border-[#dbdbdb] flex h-[44px] items-center justify-between p-[10px] rounded-[12px] w-full hover:bg-[#f5f5f5] transition-colors"
+                        className="bg-[#fafafa] dark:bg-[#242424] border border-[#dbdbdb] dark:border-[#2e2e2e] flex h-[44px] items-center justify-between p-[10px] rounded-[12px] w-full hover:bg-[#f5f5f5] dark:hover:bg-[#2a2a2a] transition-colors"
                       >
-                        <p className="font-medium text-[14px] text-[#737373] leading-normal">
+                        <p className="font-medium text-[14px] text-[#737373] dark:text-[#a9a9a9] leading-normal">
                           {currentModelName}
                         </p>
-                        <ChevronDownIcon className="size-[24px] text-[#737373]" />
+                        <ChevronDownIcon className="size-[24px] text-[#737373] dark:text-[#a9a9a9]" />
                       </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent className="w-[270px]">
@@ -598,7 +598,7 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
                         >
                           <span className={cn(
                             'font-medium text-[14px]',
-                            model.id === selectedModel ? 'text-[#171717]' : 'text-[#737373]',
+                            model.id === selectedModel ? 'text-[#171717] dark:text-[#f5f5f5]' : 'text-[#737373] dark:text-[#a9a9a9]',
                           )}
                           >
                             {model.name}
@@ -612,26 +612,26 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
             )}
             {/* Extended Thinking Toggle */}
             <div
-              className="bg-[#fafafa] border border-[#dbdbdb] flex items-center justify-between p-[10px] rounded-[12px] w-full cursor-pointer hover:bg-[#f5f5f5] transition-colors"
+              className="bg-[#fafafa] dark:bg-[#242424] border border-[#dbdbdb] dark:border-[#2e2e2e] flex items-center justify-between p-[10px] rounded-[12px] w-full cursor-pointer hover:bg-[#f5f5f5] dark:hover:bg-[#2a2a2a] transition-colors"
               onClick={() => onThinkingChange?.(!thinkingEnabled)}
             >
               <div className="flex flex-col gap-[2px]">
-                <p className="font-medium text-[14px] text-[#171717] leading-normal">
+                <p className="font-medium text-[14px] text-[#171717] dark:text-[#a9a9a9] leading-normal">
                   Extended thinking
                 </p>
-                <p className="text-[11px] text-[#737373] leading-normal">
+                <p className="text-[11px] text-[#737373] dark:text-[#a9a9a9] leading-normal">
                   Deeper reasoning for complex tasks
                 </p>
               </div>
               <div
                 className={cn(
                   'relative w-[36px] h-[20px] rounded-full transition-colors shrink-0',
-                  thinkingEnabled ? 'bg-[#171717]' : 'bg-[#dbdbdb]',
+                  thinkingEnabled ? 'bg-[#171717] dark:bg-[#f5f5f5]' : 'bg-[#dbdbdb] dark:bg-[#3a3a3a]',
                 )}
               >
                 <div
                   className={cn(
-                    'absolute top-[2px] w-[16px] h-[16px] rounded-full bg-white transition-transform',
+                    'absolute top-[2px] w-[16px] h-[16px] rounded-full bg-white dark:bg-[#a9a9a9] transition-transform',
                     thinkingEnabled ? 'translate-x-[18px]' : 'translate-x-[2px]',
                   )}
                 />
@@ -642,10 +642,10 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
       </div>
 
       {/* Divider */}
-      <div className="shrink-0 h-px bg-[#dbdbdb] w-full" />
+      <div className="shrink-0 h-px bg-[#dbdbdb] dark:bg-[#2e2e2e] mx-[8px]" />
 
       {/* Connectors Section */}
-      <div className="flex flex-col gap-[10px] px-[8px]">
+      <div className="flex flex-col gap-[10px] pl-[8px] pr-[7px]">
         <button
           type="button"
           onClick={() => setConnectorsOpen(!connectorsOpen)}
@@ -653,24 +653,24 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
         >
           <ChevronDownIcon
             className={cn(
-              'size-[24px] text-[#171717] transition-transform duration-200',
+              'size-[24px] text-[#171717] dark:text-[#A9A9A9] transition-transform duration-200',
               !connectorsOpen && '-rotate-90',
             )}
           />
-          <p className="flex-1 font-semibold text-[16px] text-[#171717] leading-normal">
+          <p className="flex-1 font-semibold text-[16px] text-[#171717] dark:text-[#f5f5f5] leading-normal">
             Connectors
           </p>
         </button>
 
         {connectorsOpen && (
           <>
-            <p className="font-medium text-[14px] text-[#737373] leading-normal">
+            <p className="font-medium text-[14px] text-[#737373] dark:text-[#a9a9a9] leading-normal">
               Apps available in this chat
             </p>
 
             {/* Connected Apps List */}
             <TooltipProvider delayDuration={300}>
-              <div className="bg-[#fafafa] border border-[#dbdbdb] flex flex-col gap-[8px] p-[10px] rounded-[12px] w-full overflow-hidden">
+              <div className="bg-[#fafafa] dark:bg-[#242424] border border-[#dbdbdb] dark:border-[#2e2e2e] flex flex-col gap-[8px] p-[10px] rounded-[12px] w-full overflow-hidden">
                 {connectedApps.length > 0
                   ? (
                       connectedApps.map(app => (
@@ -684,7 +684,7 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
                       ))
                     )
                   : (
-                      <p className="font-medium text-[14px] text-[#737373] leading-normal">
+                      <p className="font-medium text-[14px] text-[#737373] dark:text-[#a9a9a9] leading-normal">
                         None in use
                       </p>
                     )}
@@ -695,10 +695,10 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
             <button
               type="button"
               onClick={() => setConnectAppsModalOpen(true)}
-              className="bg-[#fafafa] border border-[#dbdbdb] flex gap-[4px] items-center justify-center px-[20px] py-[4px] rounded-[12px] self-start hover:bg-[#f5f5f5] transition-colors"
+              className="bg-[#fafafa] dark:bg-[#242424] border border-[#dbdbdb] dark:border-[#2e2e2e] flex gap-[4px] items-center justify-center px-[20px] py-[4px] rounded-[12px] self-start hover:bg-[#f5f5f5] dark:hover:bg-[#2a2a2a] transition-colors"
             >
-              <PlusIcon className="size-[24px] text-[#171717]" />
-              <p className="font-medium text-[14px] text-[#171717] leading-normal">
+              <PlusIcon className="size-[24px] text-[#171717] dark:text-[#a9a9a9]" />
+              <p className="font-medium text-[14px] text-[#171717] dark:text-[#a9a9a9] leading-normal">
                 Connect more apps
               </p>
             </button>
@@ -709,18 +709,6 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
               onClose={() => setConnectAppsModalOpen(false)}
             />
 
-            {/* Docs link */}
-            <div className="flex flex-col gap-[6px] w-full">
-              <p className="font-medium text-[14px] text-[#a5a5a5] leading-normal">
-                See our
-                {' '}
-                <span className="font-semibold text-[#171717] cursor-pointer hover:underline">
-                  docs
-                </span>
-                {' '}
-                to learn more about how connectors work or how to connect any app.
-              </p>
-            </div>
           </>
         )}
       </div>

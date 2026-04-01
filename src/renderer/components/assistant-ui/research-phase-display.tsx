@@ -52,8 +52,8 @@ export const ResearchPhaseDisplay = memo(function ResearchPhaseDisplay({ data }:
     <div className="my-2">
       {/* Header */}
       <div className="flex items-center gap-2 mb-2">
-        <Microscope className="size-4 text-[#737373] shrink-0" />
-        <span className="text-[13px] font-medium text-[#737373]">
+        <Microscope className="size-4 text-[#737373] dark:text-[#a9a9a9] shrink-0" />
+        <span className="text-[13px] font-medium text-[#737373] dark:text-[#a9a9a9]">
           {summaryLine}
         </span>
         {currentRound && currentRound > 1 && (

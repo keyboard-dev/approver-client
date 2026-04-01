@@ -1,21 +1,13 @@
 export const Footer = () => {
   return (
     <div className="mt-[2.5rem]">
-      <span className="text-gray-400 text-sm font-medium font-inter">Need help? </span>
+      <span className="text-gray-400 dark:text-[#a9a9a9] text-sm font-medium font-inter">Need help? Reach out at </span>
       <span
-        className="text-gray-900 text-sm font-medium font-inter cursor-pointer hover:underline"
-        onClick={() => window.electronAPI.openExternalUrl('https://discord.com/invite/UxsRWtV6M2')}
+        className="text-gray-900 dark:text-[#f5f5f5] text-sm font-medium font-inter cursor-pointer hover:underline"
+        onClick={() => window.electronAPI.openExternalUrl('mailto:support@keyboard.dev')}
       >
-        Ask in our Discord
+        support@keyboard.dev
       </span>
-      <span className="text-gray-400 text-sm font-medium font-inter"> or read the </span>
-      <span
-        className="text-gray-900 text-sm font-medium font-inter cursor-pointer hover:underline"
-        onClick={() => window.electronAPI.openExternalUrl('https://docs.keyboard.dev')}
-      >
-        docs
-      </span>
-      <span className="text-gray-400 text-sm font-medium font-inter">.</span>
     </div>
   )
 }

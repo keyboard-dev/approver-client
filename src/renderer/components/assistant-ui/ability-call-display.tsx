@@ -98,15 +98,15 @@ export const AbilityCallDisplay = memo(function AbilityCallDisplay({ data }: Abi
 
   return (
     <div data-ability-call-display className="my-2">
-      <div className="border border-[#e5e5e5] rounded-lg overflow-hidden bg-white w-full">
+      <div className="border border-[#e5e5e5] dark:border-[#333] rounded-lg overflow-hidden bg-white dark:bg-[#1e1e1e] w-full">
         {/* Collapsed row */}
         <button
           type="button"
           onClick={() => setIsExpanded(!isExpanded)}
-          className="flex items-center gap-2.5 w-full px-3 py-2 text-left hover:bg-[#fafafa] transition-colors"
+          className="flex items-center gap-2.5 w-full px-3 py-2 text-left hover:bg-[#fafafa] dark:hover:bg-[#2a2a2a] transition-colors"
         >
           <Icon className="size-3.5 text-blue-500 shrink-0" />
-          <span className="text-[13px] font-medium text-[#171717] shrink-0">
+          <span className="text-[13px] font-medium text-[#171717] dark:text-[#e5e5e5] shrink-0">
             {label}
           </span>
           {summary && (
@@ -124,12 +124,12 @@ export const AbilityCallDisplay = memo(function AbilityCallDisplay({ data }: Abi
 
         {/* Expanded content */}
         {isExpanded && displayParams.length > 0 && (
-          <div className="border-t border-[#f0f0f0] px-3 py-2">
+          <div className="border-t border-[#f0f0f0] dark:border-[#2e2e2e] px-3 py-2">
             <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[12px]">
               {displayParams.map(([key, value]) => (
                 <div key={key} className="contents">
-                  <dt className="font-medium text-[#525252]">{key}</dt>
-                  <dd className="text-[#737373] break-words whitespace-pre-wrap">
+                  <dt className="font-medium text-[#525252] dark:text-[#a3a3a3]">{key}</dt>
+                  <dd className="text-[#737373] dark:text-[#a9a9a9] break-words whitespace-pre-wrap">
                     {typeof value === 'string' ? value : JSON.stringify(value, null, 2)}
                   </dd>
                 </div>

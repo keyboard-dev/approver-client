@@ -209,7 +209,7 @@ export const Thread: FC<ThreadCustomProps> = ({
       <MotionConfig reducedMotion="user">
         <div className="flex h-full w-full gap-0 overflow-hidden">
           {/* Left Sidebar - always rendered; collapsed to icon strip when leftSidebarOpen is false */}
-          <div className="h-full pt-[8px] shrink-0 mr-[0.63rem]">
+          <div className="h-full pt-[8px] shrink-0">
             <ThreadLeftSidebar
               isOpen={leftSidebarOpen}
               width={leftSidebarWidth}
@@ -220,16 +220,16 @@ export const Thread: FC<ThreadCustomProps> = ({
           </div>
           {leftSidebarOpen && (
             <div
-              className="group relative h-full w-[8px] shrink-0 cursor-col-resize"
+              className="group relative h-full w-[10px] shrink-0 cursor-col-resize"
               onMouseDown={handleLeftResizeStart}
             >
-              <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[2px] bg-[#d4d4d4] opacity-0 group-hover:opacity-100 transition-opacity" />
+              <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[2px] bg-[#d4d4d4] dark:bg-[#3a3a3a] opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
           )}
 
           {/* Settings Panel - Shown when a settings tab is active (takes full remaining width) */}
           {activeSettingsTab && (
-            <div className="h-full flex-1 overflow-auto bg-[#f5f5f5] rounded-[20px] border border-[#dbdbdb]">
+            <div className="h-full flex-1 overflow-auto bg-[#f5f5f5] dark:bg-[#1f1f1f] rounded-[20px] border border-[#dbdbdb] dark:border-[#2e2e2e]">
               {getSettingsPanel()}
             </div>
           )}
@@ -237,14 +237,14 @@ export const Thread: FC<ThreadCustomProps> = ({
           {/* Main Chat Panel - Hidden when settings tab is active */}
           {showChat && (
             <ThreadPrimitive.Root
-              className="aui-root aui-thread-root @container flex h-full flex-1 flex-col bg-[#f5f5f5] border border-[#dbdbdb] rounded-[20px] overflow-hidden"
+              className="aui-root aui-thread-root @container flex h-full flex-1 flex-col bg-[#f5f5f5] dark:bg-[#1f1f1f] border border-[#dbdbdb] dark:border-[#2e2e2e] rounded-[20px] overflow-hidden"
               style={{
                 ['--thread-max-width' as string]: '960px',
               }}
             >
               {/* Header with title */}
-              <div className="flex items-center p-[16px] border-b border-[#eaeaea]">
-                <p className="font-semibold text-[16px] text-[#171717]">
+              <div className="flex items-center p-[16px] border-b border-[#eaeaea] dark:border-[#2e2e2e]">
+                <p className="font-semibold text-[16px] text-[#171717] dark:text-[#f5f5f5]">
                   <ThreadTitle />
                 </p>
               </div>
@@ -270,7 +270,7 @@ export const Thread: FC<ThreadCustomProps> = ({
               className="group relative h-full w-[8px] shrink-0 cursor-col-resize"
               onMouseDown={handleRightResizeStart}
             >
-              <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[2px] bg-[#d4d4d4] opacity-0 group-hover:opacity-100 transition-opacity" />
+              <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[2px] bg-[#d4d4d4] dark:bg-[#3a3a3a] opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
             <div className="h-full py-[8px] shrink-0" style={{ width: rightSidebarWidth }}>
               <ThreadSidebar
@@ -349,7 +349,7 @@ const ThreadChatArea: FC<ThreadChatAreaProps> = ({
 
         <ThreadPrimitive.If running>
           <div className="w-full max-w-[960px] mx-auto px-[20px] py-[10px]">
-            <span className="animate-cursor-blink text-[#171717] text-[14px] font-medium select-none">_</span>
+            <span className="animate-cursor-blink text-[#171717] dark:text-[#f5f5f5] text-[14px] font-medium select-none">_</span>
           </div>
         </ThreadPrimitive.If>
 
@@ -430,7 +430,7 @@ const ThreadWelcome: FC = () => {
           alt=""
           className="absolute w-full h-[156.89%] left-0 top-[-22.95%] object-cover"
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#f5f5f5]" style={{ backgroundImage: 'linear-gradient(to bottom, rgba(245,245,245,0) 0%, #f5f5f5 85.2%)' }} />
+        <div className="absolute inset-0 welcome-gradient" />
       </div>
 
       {/* Centered headline - positioned like Figma design */}
@@ -442,9 +442,8 @@ const ThreadWelcome: FC = () => {
           className="bg-white/20 backdrop-blur-md border border-white/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.4)] px-5 py-2.5 rounded-full"
         >
           <span
-            className="text-center block"
+            className="text-center block text-[#171717] dark:text-[#f5f5f5]"
             style={{
-              color: '#171717',
               fontFamily: '"Instrument Serif", serif',
               fontSize: '2rem',
               fontStyle: 'normal',
@@ -539,11 +538,11 @@ const Composer: FC<ComposerProps> = ({ selectedScripts = [], onScriptSelect }) =
     <div className="aui-composer-wrapper sticky bottom-0 flex w-full max-w-[960px] mx-auto flex-col gap-2.5 overflow-visible px-5 pb-10">
       <ThreadScrollToBottom />
 
-      <ComposerPrimitive.Root className="aui-composer-root relative flex w-full flex-col rounded-xl border border-[#dbdbdb] bg-[#fafafa] p-4 min-h-[100px] max-h-[260px] justify-between">
+      <ComposerPrimitive.Root className="aui-composer-root relative flex w-full flex-col rounded-xl border border-[#dbdbdb] dark:border-[#2e2e2e] bg-[#fafafa] dark:bg-[#242424] p-4 min-h-[100px] max-h-[260px] justify-between">
         <ComposerAttachments />
         <ComposerPrimitive.Input
           placeholder="Do anything with AI..."
-          className="aui-composer-input w-full resize-none bg-transparent text-sm font-medium text-[#171717] outline-none placeholder:text-[#737373] focus:outline-none"
+          className="aui-composer-input w-full resize-none bg-transparent text-sm font-medium text-[#171717] dark:text-[#f5f5f5] outline-none placeholder:text-[#737373] dark:text-[#a9a9a9] dark:placeholder:text-[#a9a9a9] focus:outline-none"
           rows={1}
           autoFocus
           aria-label="Message input"
@@ -564,7 +563,7 @@ const Composer: FC<ComposerProps> = ({ selectedScripts = [], onScriptSelect }) =
                 type="submit"
                 variant="ghost"
                 size="icon"
-                className="aui-composer-send size-6 rounded-full p-1 bg-[#171717] hover:bg-[#171717] text-white disabled:bg-transparent disabled:text-[#171717] disabled:cursor-default"
+                className="aui-composer-send size-6 rounded-full p-1 bg-[#171717] hover:bg-[#171717] text-white dark:bg-[#f5f5f5] dark:hover:bg-[#e5e5e5] dark:text-[#171717] disabled:bg-transparent disabled:text-[#171717] dark:disabled:text-[#f5f5f5] dark:disabled:bg-transparent disabled:cursor-default"
                 aria-label="Send message"
               >
                 <ArrowUpIcon className="aui-composer-send-icon size-4" />
@@ -581,7 +580,7 @@ const Composer: FC<ComposerProps> = ({ selectedScripts = [], onScriptSelect }) =
                 className="aui-composer-cancel size-6 rounded-full"
                 aria-label="Stop generating"
               >
-                <Square className="aui-composer-cancel-icon size-3.5 fill-[#171717]" />
+                <Square className="aui-composer-cancel-icon size-3.5 fill-[#171717] dark:fill-[#f5f5f5]" />
               </Button>
             </ComposerPrimitive.Cancel>
           </ThreadPrimitive.If>
@@ -647,7 +646,7 @@ const AssistantMessage: FC = () => {
         data-role="assistant"
       >
         <div className="flex flex-wrap gap-[6px] items-start w-full">
-          <div className="aui-assistant-message-content w-full text-[#171717] text-[14px] font-medium leading-normal break-words [&>:not(.aui-tool-fallback-root)]:max-w-[960px]">
+          <div className="aui-assistant-message-content w-full text-[#171717] dark:text-[#f5f5f5] text-[14px] font-medium leading-normal break-words [&>:not(.aui-tool-fallback-root)]:max-w-[960px]">
             <MessagePrimitive.Parts
               components={{
                 Text: SmartText,
@@ -717,7 +716,7 @@ const UserMessage: FC = () => {
         <div className="flex flex-wrap gap-[10px] items-start justify-end w-full">
           <UserMessageAttachments />
           <div className="aui-user-message-content-wrapper relative min-w-0 max-w-[960px]">
-            <div className="aui-user-message-content bg-[#171717] text-white rounded-[12px] p-[10px] break-words text-[14px] font-medium leading-normal">
+            <div className="aui-user-message-content bg-[#171717] dark:bg-[#f0f0f0] text-white dark:text-[#171717] rounded-[12px] p-[10px] break-words text-[14px] font-medium leading-normal">
               <MessagePrimitive.Parts />
             </div>
             <div className="aui-user-action-bar-wrapper absolute top-1/2 left-0 -translate-x-full -translate-y-1/2 pr-2">
@@ -781,7 +780,7 @@ const BranchPicker: FC<BranchPickerPrimitive.Root.Props> = ({
     <BranchPickerPrimitive.Root
       hideWhenSingleBranch
       className={cn(
-        'aui-branch-picker-root mr-2 -ml-2 inline-flex items-center text-xs text-muted-foreground',
+        'aui-branch-picker-root mr-2 -ml-2 inline-flex items-center text-xs text-muted-foreground dark:text-[#A9A9A9]',
         className,
       )}
       {...rest}

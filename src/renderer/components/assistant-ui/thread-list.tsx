@@ -23,12 +23,12 @@ export const NewChatButton: FC<NewChatButtonProps> = ({ onChatSelect }) => {
           type="button"
           onClick={onChatSelect}
           className={cn(
-            'flex items-center gap-[10px] mx-[8px] px-[4px] py-[10px] w-[calc(100%-16px)] text-left transition-colors',
-            'hover:bg-[#e5e5e5] rounded-[4px]',
+            'flex items-center gap-[10px] mx-[6px] px-[4px] py-[8px] w-[calc(100%-12px)] text-left transition-colors',
+            'hover:bg-[#e5e5e5] dark:hover:bg-[#2a2a2a] rounded-[8px]',
           )}
         >
-          <PlusIcon className="size-[18px] text-[#171717]" />
-          <span className="text-[14px] leading-normal text-[#171717] font-medium">
+          <PlusIcon className="size-[18px] text-[#737373] dark:text-[#a9a9a9]" />
+          <span className="text-[14px] leading-normal text-[#737373] dark:text-[#a9a9a9] font-medium">
             New Chat
           </span>
         </button>
@@ -60,13 +60,13 @@ const ThreadListItem: FC<ThreadListItemProps> = ({ onChatSelect }) => {
   return (
     <ThreadListItemPrimitive.Root
       className={cn(
-        'aui-thread-list-item group flex items-center gap-2 rounded-md transition-all',
-        'hover:bg-[#e5e5e5] focus-visible:bg-[#e5e5e5] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
-        'data-[active]:bg-[#e5e5e5]',
+        'aui-thread-list-item group flex items-center gap-2 rounded-[8px] transition-all',
+        'hover:bg-[#e5e5e5] dark:hover:bg-[#2a2a2a] focus-visible:bg-[#e5e5e5] dark:focus-visible:bg-[#2a2a2a] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+        'data-[active]:bg-[#e5e5e5] dark:data-[active]:bg-[#2a2a2a]',
       )}
     >
       <ThreadListItemPrimitive.Trigger
-        className="aui-thread-list-item-trigger flex-grow px-[16px] py-[8px] text-start min-w-0"
+        className="aui-thread-list-item-trigger flex-grow px-[8px] py-[8px] text-start min-w-0"
         onClick={onChatSelect}
       >
         <ThreadListItemTitle />
@@ -81,7 +81,7 @@ const ThreadListItem: FC<ThreadListItemProps> = ({ onChatSelect }) => {
 
 const ThreadListItemTitle: FC = () => {
   return (
-    <span className="aui-thread-list-item-title text-[14px] leading-normal text-[#737373] font-medium truncate block">
+    <span className="aui-thread-list-item-title text-[14px] leading-normal text-[#737373] dark:text-[#a9a9a9] font-medium truncate block">
       <ThreadListItemPrimitive.Title fallback="New Chat" />
     </span>
   )
@@ -91,7 +91,7 @@ const ThreadListItemArchive: FC = () => {
   return (
     <ThreadListItemPrimitive.Archive asChild>
       <TooltipIconButton
-        className="size-6 p-1 text-[#737373] hover:text-[#171717] hover:bg-[#dbdbdb] rounded"
+        className="size-6 p-1 text-[#737373] dark:text-[#a9a9a9] hover:text-[#171717] dark:hover:text-[#f5f5f5] hover:bg-[#dbdbdb] dark:hover:bg-[#2e2e2e] rounded"
         variant="ghost"
         tooltip="Archive thread"
       >
@@ -105,7 +105,7 @@ const ThreadListItemDelete: FC = () => {
   return (
     <ThreadListItemPrimitive.Delete asChild>
       <TooltipIconButton
-        className="size-6 p-1 text-[#737373] hover:text-red-600 hover:bg-red-50 rounded"
+        className="size-6 p-1 text-[#737373] dark:text-[#a9a9a9] hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950 rounded"
         variant="ghost"
         tooltip="Delete thread"
       >

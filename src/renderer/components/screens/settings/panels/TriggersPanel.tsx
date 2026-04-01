@@ -1163,7 +1163,7 @@ export const TriggersPanel: React.FC = () => {
               onChange={e => handleConfigChange(propName, e.target.checked)}
               className="w-4 h-4"
             />
-            <span className="text-sm text-[#737373]">Enable</span>
+            <span className="text-sm text-[#737373] dark:text-[#a9a9a9]">Enable</span>
           </label>
         )
       case 'number':
@@ -1226,7 +1226,7 @@ export const TriggersPanel: React.FC = () => {
             <div className="space-y-3">
               {/* Keyboard Shortcuts */}
               {/* <div>
-              <label className="text-xs text-[#737373] mb-2 block">Keyboard Shortcuts</label>
+              <label className="text-xs text-[#737373] dark:text-[#a9a9a9] mb-2 block">Keyboard Shortcuts</label>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" className="w-full justify-between text-sm h-auto min-h-[2.5rem] py-2" disabled={isLoadingOptions}>
@@ -1240,7 +1240,7 @@ export const TriggersPanel: React.FC = () => {
                   <DropdownMenuLabel>Available Shortcuts</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   {(!availableScripts || availableScripts.length === 0) && (
-                    <div className="px-2 py-3 text-sm text-[#737373]">No shortcuts available</div>
+                    <div className="px-2 py-3 text-sm text-[#737373] dark:text-[#a9a9a9]">No shortcuts available</div>
                   )}
                   {availableScripts && availableScripts.map((script) => {
                     const isSelected = task.keyboard_shortcut_ids?.includes(script.id) || false
@@ -1258,7 +1258,7 @@ export const TriggersPanel: React.FC = () => {
                       >
                         <div className="flex flex-col">
                           <span className="font-medium">{script.name}</span>
-                          <span className="text-xs text-[#737373]">{script.description}</span>
+                          <span className="text-xs text-[#737373] dark:text-[#a9a9a9]">{script.description}</span>
                         </div>
                       </DropdownMenuCheckboxItem>
                     )
@@ -1288,7 +1288,7 @@ export const TriggersPanel: React.FC = () => {
 
               {/* Cloud Credentials */}
               {/* <div>
-              <label className="text-xs text-[#737373] mb-2 block">Cloud Credentials</label>
+              <label className="text-xs text-[#737373] dark:text-[#a9a9a9] mb-2 block">Cloud Credentials</label>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" className="w-full justify-between text-sm h-auto min-h-[2.5rem] py-2" disabled={isLoadingOptions}>
@@ -1302,7 +1302,7 @@ export const TriggersPanel: React.FC = () => {
                   <DropdownMenuLabel>Connected Accounts</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   {(!availableCredentials || availableCredentials.length === 0) && (
-                    <div className="px-2 py-3 text-sm text-[#737373]">No connected accounts</div>
+                    <div className="px-2 py-3 text-sm text-[#737373] dark:text-[#a9a9a9]">No connected accounts</div>
                   )}
                   {availableCredentials && availableCredentials.map((cred) => {
                     const isSelected = task.cloud_credentials?.includes(cred.id) || false
@@ -1350,7 +1350,7 @@ export const TriggersPanel: React.FC = () => {
 
               {/* Pipedream Proxy Apps */}
               <div>
-                <label className="text-xs text-[#737373] mb-2 block">Pipedream Proxy Apps</label>
+                <label className="text-xs text-[#737373] dark:text-[#a9a9a9] mb-2 block">Pipedream Proxy Apps</label>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" className="w-full justify-between text-sm h-auto min-h-[2.5rem] py-2" disabled={isLoadingOptions}>
@@ -1364,7 +1364,7 @@ export const TriggersPanel: React.FC = () => {
                     <DropdownMenuLabel>Pipedream Connected Apps</DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     {(!availablePipedreamAccounts || availablePipedreamAccounts.length === 0) && (
-                      <div className="px-2 py-3 text-sm text-[#737373]">No Pipedream apps connected</div>
+                      <div className="px-2 py-3 text-sm text-[#737373] dark:text-[#a9a9a9]">No Pipedream apps connected</div>
                     )}
                     {availablePipedreamAccounts && availablePipedreamAccounts.map((appNameItem) => {
                       const isSelected = task.pipedream_proxy_apps?.includes(appNameItem) || false
@@ -1406,7 +1406,7 @@ export const TriggersPanel: React.FC = () => {
 
               {/* Composio Proxy Apps */}
               <div>
-                <label className="text-xs text-[#737373] mb-2 block">Composio Proxy Apps</label>
+                <label className="text-xs text-[#737373] dark:text-[#a9a9a9] mb-2 block">Composio Proxy Apps</label>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" className="w-full justify-between text-sm h-auto min-h-[2.5rem] py-2" disabled={isLoadingOptions}>
@@ -1420,7 +1420,7 @@ export const TriggersPanel: React.FC = () => {
                     <DropdownMenuLabel>Composio Connected Apps</DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     {(!composioAccounts || composioAccounts.filter(acc => acc.status?.toUpperCase() === 'ACTIVE').length === 0) && (
-                      <div className="px-2 py-3 text-sm text-[#737373]">No Composio apps connected</div>
+                      <div className="px-2 py-3 text-sm text-[#737373] dark:text-[#a9a9a9]">No Composio apps connected</div>
                     )}
                     {composioAccounts && composioAccounts.filter(acc => acc.status?.toUpperCase() === 'ACTIVE').map((account) => {
                       const appName = account.toolkit?.slug || account.appName || 'Unknown'
@@ -1467,7 +1467,7 @@ export const TriggersPanel: React.FC = () => {
 
               {/* AI Prompt */}
               <div>
-                <label className="text-xs text-[#737373] mb-1 block">AI Prompt (optional)</label>
+                <label className="text-xs text-[#737373] dark:text-[#a9a9a9] mb-1 block">AI Prompt (optional)</label>
                 <textarea
                   value={task.ask || ''}
                   onChange={e => updateFn(index, 'ask', e.target.value)}
@@ -1495,7 +1495,7 @@ export const TriggersPanel: React.FC = () => {
   if (isCheckingToken) {
     return (
       <div className="flex flex-col items-center justify-center w-full h-full p-6">
-        <div className="text-[#737373] mb-2">Loading triggers...</div>
+        <div className="text-[#737373] dark:text-[#a9a9a9] mb-2">Loading triggers...</div>
       </div>
     )
   }
@@ -1506,7 +1506,7 @@ export const TriggersPanel: React.FC = () => {
     <div className="flex flex-col w-full h-full overflow-y-auto">
       <div className="p-6">
         <h2 className="text-[1.25rem] font-bold mb-4">Triggers</h2>
-        <p className="text-[#737373] mb-6">
+        <p className="text-[#737373] dark:text-[#a9a9a9] mb-6">
           Deploy schedule triggers or webhook triggers powered by Pipedream and Composio.
         </p>
 
@@ -1538,7 +1538,7 @@ export const TriggersPanel: React.FC = () => {
         {/* Disable Triggers */}
         {isTokenStored && (
           <div className="mb-6 flex items-center justify-between p-3 border border-[#E5E5E5] rounded-lg bg-[#FAFAFA]">
-            <span className="text-sm text-[#737373]">Triggers are enabled</span>
+            <span className="text-sm text-[#737373] dark:text-[#a9a9a9]">Triggers are enabled</span>
             <button
               onClick={deleteRefreshToken}
               disabled={isDeletingToken}
@@ -1554,11 +1554,11 @@ export const TriggersPanel: React.FC = () => {
         {isTokenStored && (
           <div className="mb-6 p-4 border border-[#E5E5E5] rounded-lg bg-[#FAFAFA]">
             <div className="flex items-center gap-2 mb-3">
-              <Clock className="w-5 h-5 text-[#737373]" />
+              <Clock className="w-5 h-5 text-[#737373] dark:text-[#a9a9a9]" />
               <h3 className="font-semibold text-[#171717]">Schedule Triggers</h3>
               <SourceBadge source="pipedream" />
             </div>
-            <p className="text-sm text-[#737373] mb-4">
+            <p className="text-sm text-[#737373] dark:text-[#a9a9a9] mb-4">
               Deploy time-based triggers that run on a schedule
             </p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -1569,7 +1569,7 @@ export const TriggersPanel: React.FC = () => {
                   className="p-4 border border-[#E5E5E5] rounded-lg hover:border-[#171717] hover:shadow-sm transition-all bg-white text-left"
                 >
                   <div className="font-semibold text-[#171717] mb-1">{trigger.label}</div>
-                  <div className="text-xs text-[#737373]">{trigger.description}</div>
+                  <div className="text-xs text-[#737373] dark:text-[#a9a9a9]">{trigger.description}</div>
                 </button>
               ))}
             </div>
@@ -1579,7 +1579,7 @@ export const TriggersPanel: React.FC = () => {
         {/* Webhook Triggers Section */}
         <div className="border-t border-[#E5E5E5] pt-6">
           <h3 className="font-semibold text-[#171717] mb-3">Webhook Triggers</h3>
-          <p className="text-[#737373] mb-4">
+          <p className="text-[#737373] dark:text-[#a9a9a9] mb-4">
             Browse popular apps or search for webhook triggers
           </p>
 
@@ -1630,14 +1630,14 @@ export const TriggersPanel: React.FC = () => {
                                   (e.target as HTMLImageElement).style.display = 'none'
                                   const parent = (e.target as HTMLImageElement).parentElement
                                   if (parent) {
-                                    parent.classList.add('bg-[#F5F5F5]', 'flex', 'items-center', 'justify-center', 'text-[#737373]', 'text-xs', 'font-bold')
+                                    parent.classList.add('bg-[#F5F5F5]', 'flex', 'items-center', 'justify-center', 'text-[#737373] dark:text-[#a9a9a9]', 'text-xs', 'font-bold')
                                     parent.textContent = app.displayName.charAt(0)
                                   }
                                 }}
                               />
                             )
                           : (
-                              <div className="w-full h-full bg-[#F5F5F5] rounded flex items-center justify-center text-[#737373] text-xs font-bold">
+                              <div className="w-full h-full bg-[#F5F5F5] rounded flex items-center justify-center text-[#737373] dark:text-[#a9a9a9] text-xs font-bold">
                                 {app.displayName.charAt(0)}
                               </div>
                             )}
@@ -1696,7 +1696,7 @@ export const TriggersPanel: React.FC = () => {
                 refreshComposioTriggers()
               }}
               disabled={isLoadingPipedreamDeployed || composioTriggersLoading}
-              className="text-sm text-[#737373] hover:text-[#171717] disabled:opacity-50"
+              className="text-sm text-[#737373] dark:text-[#a9a9a9] hover:text-[#171717] disabled:opacity-50"
             >
               {isLoadingPipedreamDeployed || composioTriggersLoading ? 'Refreshing...' : 'Refresh'}
             </button>
@@ -1724,7 +1724,7 @@ export const TriggersPanel: React.FC = () => {
                         {trigger.status}
                       </span>
                     </div>
-                    <div className="flex gap-3 text-xs text-[#737373] flex-wrap">
+                    <div className="flex gap-3 text-xs text-[#737373] dark:text-[#a9a9a9] flex-wrap">
                       <span>
                         App:
                         {trigger.appName}
@@ -1787,7 +1787,7 @@ export const TriggersPanel: React.FC = () => {
                   {' '}
                   {selectedApp?.name}
                 </h3>
-                <p className="text-sm text-[#737373]">
+                <p className="text-sm text-[#737373] dark:text-[#a9a9a9]">
                   {unifiedAvailableTriggers.length}
                   {' '}
                   trigger
@@ -1810,7 +1810,7 @@ export const TriggersPanel: React.FC = () => {
               </div>
               <button
                 onClick={handleCloseTriggersModal}
-                className="text-[#737373] hover:text-[#171717] ml-4"
+                className="text-[#737373] dark:text-[#a9a9a9] hover:text-[#171717] ml-4"
               >
                 <X className="w-6 h-6" />
               </button>
@@ -1886,12 +1886,12 @@ export const TriggersPanel: React.FC = () => {
             <div className="flex-1 overflow-y-auto p-6">
               {isLoading && (
                 <div className="flex items-center justify-center py-8">
-                  <div className="text-[#737373]">Loading triggers...</div>
+                  <div className="text-[#737373] dark:text-[#a9a9a9]">Loading triggers...</div>
                 </div>
               )}
 
               {!isLoading && unifiedAvailableTriggers.length === 0 && (
-                <div className="text-center py-8 text-[#737373]">
+                <div className="text-center py-8 text-[#737373] dark:text-[#a9a9a9]">
                   No triggers found for this app
                 </div>
               )}
@@ -1926,14 +1926,14 @@ export const TriggersPanel: React.FC = () => {
                                         (e.target as HTMLImageElement).style.display = 'none'
                                         const parent = (e.target as HTMLImageElement).parentElement
                                         if (parent) {
-                                          parent.classList.add('bg-[#F5F5F5]', 'flex', 'items-center', 'justify-center', 'text-[#737373]', 'text-sm', 'font-bold')
+                                          parent.classList.add('bg-[#F5F5F5]', 'flex', 'items-center', 'justify-center', 'text-[#737373] dark:text-[#a9a9a9]', 'text-sm', 'font-bold')
                                           parent.textContent = trigger.appDisplayName?.charAt(0) || trigger.app?.charAt(0) || '?'
                                         }
                                       }}
                                     />
                                   )
                                 : (
-                                    <div className="w-full h-full bg-[#F5F5F5] rounded flex items-center justify-center text-[#737373] text-sm font-bold">
+                                    <div className="w-full h-full bg-[#F5F5F5] rounded flex items-center justify-center text-[#737373] dark:text-[#a9a9a9] text-sm font-bold">
                                       {trigger.appDisplayName?.charAt(0) || trigger.app?.charAt(0) || '?'}
                                     </div>
                                   )}
@@ -1943,13 +1943,13 @@ export const TriggersPanel: React.FC = () => {
                                 <h4 className="font-semibold text-[#171717]">{trigger.name}</h4>
                                 <SourceBadge source={trigger.source} />
                               </div>
-                              <p className="text-sm text-[#737373] mb-2 line-clamp-2">{trigger.description}</p>
+                              <p className="text-sm text-[#737373] dark:text-[#a9a9a9] mb-2 line-clamp-2">{trigger.description}</p>
                             </div>
                           </div>
                           <div className="flex flex-col items-end gap-2 flex-shrink-0">
                             <ConnectionStatus isConnected={isConnected} isActive={isActive} />
                             <svg
-                              className="w-5 h-5 text-[#737373]"
+                              className="w-5 h-5 text-[#737373] dark:text-[#a9a9a9]"
                               fill="none"
                               stroke="currentColor"
                               viewBox="0 0 24 24"
@@ -1986,14 +1986,14 @@ export const TriggersPanel: React.FC = () => {
                             (e.target as HTMLImageElement).style.display = 'none'
                             const parent = (e.target as HTMLImageElement).parentElement
                             if (parent) {
-                              parent.classList.add('bg-[#F5F5F5]', 'flex', 'items-center', 'justify-center', 'text-[#737373]', 'text-lg', 'font-bold')
+                              parent.classList.add('bg-[#F5F5F5]', 'flex', 'items-center', 'justify-center', 'text-[#737373] dark:text-[#a9a9a9]', 'text-lg', 'font-bold')
                               parent.textContent = selectedUnifiedTrigger.appDisplayName?.charAt(0) || selectedUnifiedTrigger.app?.charAt(0) || '?'
                             }
                           }}
                         />
                       )
                     : (
-                        <div className="w-full h-full bg-[#F5F5F5] rounded flex items-center justify-center text-[#737373] text-lg font-bold">
+                        <div className="w-full h-full bg-[#F5F5F5] rounded flex items-center justify-center text-[#737373] dark:text-[#a9a9a9] text-lg font-bold">
                           {selectedUnifiedTrigger.appDisplayName?.charAt(0) || selectedUnifiedTrigger.app?.charAt(0) || '?'}
                         </div>
                       )}
@@ -2003,10 +2003,10 @@ export const TriggersPanel: React.FC = () => {
                     <h3 className="text-xl font-bold text-[#171717]">{selectedUnifiedTrigger.name}</h3>
                     <SourceBadge source={selectedUnifiedTrigger.source} />
                   </div>
-                  <p className="text-sm text-[#737373]">{selectedUnifiedTrigger.description}</p>
+                  <p className="text-sm text-[#737373] dark:text-[#a9a9a9]">{selectedUnifiedTrigger.description}</p>
                 </div>
               </div>
-              <button onClick={handleCloseConfigModal} className="text-[#737373] hover:text-[#171717] ml-4">
+              <button onClick={handleCloseConfigModal} className="text-[#737373] dark:text-[#a9a9a9] hover:text-[#171717] ml-4">
                 <X className="w-6 h-6" />
               </button>
             </div>
@@ -2064,12 +2064,12 @@ export const TriggersPanel: React.FC = () => {
                                 <span className="text-xs text-red-600 px-2 py-0.5 bg-red-50 rounded">Required</span>
                               )}
                             </div>
-                            <span className="text-xs font-mono text-[#737373] px-2 py-1 bg-[#F5F5F5] rounded">
+                            <span className="text-xs font-mono text-[#737373] dark:text-[#a9a9a9] px-2 py-1 bg-[#F5F5F5] rounded">
                               {config.type as string}
                             </span>
                           </div>
                           {config.description && (
-                            <p className="text-sm text-[#737373] mb-3">{config.description as string}</p>
+                            <p className="text-sm text-[#737373] dark:text-[#a9a9a9] mb-3">{config.description as string}</p>
                           )}
                           {renderConfigInput(key, config)}
                         </div>
@@ -2084,7 +2084,7 @@ export const TriggersPanel: React.FC = () => {
                 return c?.type !== 'app' && k !== 'db' && k !== 'http' && k !== 'pipedreamApiKey'
               }).length === 0) && (
                 <div className="mb-6 p-4 bg-[#F5F5F5] rounded-lg text-center">
-                  <p className="text-sm text-[#737373]">
+                  <p className="text-sm text-[#737373] dark:text-[#a9a9a9]">
                     No configuration needed. This trigger uses default settings.
                   </p>
                 </div>
@@ -2100,7 +2100,7 @@ export const TriggersPanel: React.FC = () => {
                     </button>
                   )}
                 </div>
-                <p className="text-xs text-[#737373] mb-3">
+                <p className="text-xs text-[#737373] dark:text-[#a9a9a9] mb-3">
                   Define tasks to execute when this trigger fires (keyboard shortcuts, AI prompts, etc.)
                 </p>
 
@@ -2136,7 +2136,7 @@ export const TriggersPanel: React.FC = () => {
               Connect
               {promptAppName}
             </h3>
-            <p className="text-sm text-[#737373] mb-6">
+            <p className="text-sm text-[#737373] dark:text-[#a9a9a9] mb-6">
               You need to connect your
               {' '}
               {promptAppName}
@@ -2201,7 +2201,7 @@ export const TriggersPanel: React.FC = () => {
               </h3>
             </div>
 
-            <p className="text-sm text-[#737373] mb-6">
+            <p className="text-sm text-[#737373] dark:text-[#a9a9a9] mb-6">
               {composioAccountStatus.isActive
                 ? 'Your account is connected and active.'
                 : composioAccountStatus.hasAccount
@@ -2254,9 +2254,9 @@ export const TriggersPanel: React.FC = () => {
                   </h3>
                   <SourceBadge source="pipedream" />
                 </div>
-                <p className="text-sm text-[#737373]">{selectedScheduleTrigger.description}</p>
+                <p className="text-sm text-[#737373] dark:text-[#a9a9a9]">{selectedScheduleTrigger.description}</p>
               </div>
-              <button onClick={handleCloseScheduleModal} className="text-[#737373] hover:text-[#171717] ml-4">
+              <button onClick={handleCloseScheduleModal} className="text-[#737373] dark:text-[#a9a9a9] hover:text-[#171717] ml-4">
                 <X className="w-6 h-6" />
               </button>
             </div>
@@ -2404,7 +2404,7 @@ export const TriggersPanel: React.FC = () => {
                     placeholder="e.g., Daily morning sync"
                     className="w-full px-3 py-2 border border-[#E5E5E5] rounded focus:outline-none focus:ring-2 focus:ring-[#171717]"
                   />
-                  <p className="text-xs text-[#737373] mt-1">
+                  <p className="text-xs text-[#737373] dark:text-[#a9a9a9] mt-1">
                     A descriptive label for this schedule trigger
                   </p>
                 </div>
@@ -2418,7 +2418,7 @@ export const TriggersPanel: React.FC = () => {
                       </button>
                     )}
                   </div>
-                  <p className="text-xs text-[#737373] mb-3">
+                  <p className="text-xs text-[#737373] dark:text-[#a9a9a9] mb-3">
                     Define tasks to execute when this schedule triggers
                   </p>
 
@@ -2461,7 +2461,7 @@ export const TriggersPanel: React.FC = () => {
                   </h3>
                   <SourceBadge source={viewingTasksTrigger.source} />
                 </div>
-                <p className="text-sm text-[#737373]">
+                <p className="text-sm text-[#737373] dark:text-[#a9a9a9]">
                   App:
                   {' '}
                   {viewingTasksTrigger.appName}
@@ -2469,7 +2469,7 @@ export const TriggersPanel: React.FC = () => {
               </div>
               <button
                 onClick={handleCloseViewTasksModal}
-                className="text-[#737373] hover:text-[#171717] ml-4"
+                className="text-[#737373] dark:text-[#a9a9a9] hover:text-[#171717] ml-4"
               >
                 <X className="w-6 h-6" />
               </button>
@@ -2479,12 +2479,12 @@ export const TriggersPanel: React.FC = () => {
               {isLoadingViewTasks
                 ? (
                     <div className="flex items-center justify-center py-8">
-                      <div className="text-[#737373]">Loading tasks...</div>
+                      <div className="text-[#737373] dark:text-[#a9a9a9]">Loading tasks...</div>
                     </div>
                   )
                 : viewingTasks.length === 0
                   ? (
-                      <div className="text-center py-8 text-[#737373]">
+                      <div className="text-center py-8 text-[#737373] dark:text-[#a9a9a9]">
                         No tasks configured for this trigger
                       </div>
                     )
@@ -2508,7 +2508,7 @@ export const TriggersPanel: React.FC = () => {
                                 </span>
                                 <div className="flex items-center gap-2">
                                   {task.createdAt && (
-                                    <span className="text-xs text-[#737373]">
+                                    <span className="text-xs text-[#737373] dark:text-[#a9a9a9]">
                                       Created:
                                       {' '}
                                       {new Date(task.createdAt).toLocaleDateString()}
@@ -2538,7 +2538,7 @@ export const TriggersPanel: React.FC = () => {
                                       <div className="flex justify-end gap-2 pt-2">
                                         <button
                                           onClick={handleCancelEditTask}
-                                          className="px-3 py-1.5 text-sm text-[#737373] hover:text-[#171717] transition-colors"
+                                          className="px-3 py-1.5 text-sm text-[#737373] dark:text-[#a9a9a9] hover:text-[#171717] transition-colors"
                                         >
                                           Cancel
                                         </button>
@@ -2557,7 +2557,7 @@ export const TriggersPanel: React.FC = () => {
                                     <>
                                       {task.ask && (
                                         <div className="mb-3">
-                                          <div className="text-xs font-medium text-[#737373] mb-1">AI Prompt:</div>
+                                          <div className="text-xs font-medium text-[#737373] dark:text-[#a9a9a9] mb-1">AI Prompt:</div>
                                           <div className="p-2 bg-white border border-[#E5E5E5] rounded text-sm text-[#171717]">
                                             {task.ask}
                                           </div>
@@ -2566,7 +2566,7 @@ export const TriggersPanel: React.FC = () => {
 
                                       {task.keyboard_shortcut_ids && task.keyboard_shortcut_ids.length > 0 && (
                                         <div className="mb-3">
-                                          <div className="text-xs font-medium text-[#737373] mb-1">Keyboard Shortcuts:</div>
+                                          <div className="text-xs font-medium text-[#737373] dark:text-[#a9a9a9] mb-1">Keyboard Shortcuts:</div>
                                           <div className="flex flex-wrap gap-1">
                                             {task.keyboard_shortcut_ids.map((id, idx) => (
                                               <span
@@ -2582,7 +2582,7 @@ export const TriggersPanel: React.FC = () => {
 
                                       {task.cloud_credentials && task.cloud_credentials.length > 0 && (
                                         <div className="mb-3">
-                                          <div className="text-xs font-medium text-[#737373] mb-1">Cloud Credentials:</div>
+                                          <div className="text-xs font-medium text-[#737373] dark:text-[#a9a9a9] mb-1">Cloud Credentials:</div>
                                           <div className="flex flex-wrap gap-1">
                                             {task.cloud_credentials.map((cred, idx) => (
                                               <span
@@ -2598,7 +2598,7 @@ export const TriggersPanel: React.FC = () => {
 
                                       {task.pipedream_proxy_apps && task.pipedream_proxy_apps.length > 0 && (
                                         <div>
-                                          <div className="text-xs font-medium text-[#737373] mb-1">Pipedream Proxy Apps:</div>
+                                          <div className="text-xs font-medium text-[#737373] dark:text-[#a9a9a9] mb-1">Pipedream Proxy Apps:</div>
                                           <div className="flex flex-wrap gap-1">
                                             {task.pipedream_proxy_apps.map((app, idx) => (
                                               <span
@@ -2614,7 +2614,7 @@ export const TriggersPanel: React.FC = () => {
 
                                       {task.composio_proxy_apps && task.composio_proxy_apps.length > 0 && (
                                         <div>
-                                          <div className="text-xs font-medium text-[#737373] mb-1">Composio Proxy Apps:</div>
+                                          <div className="text-xs font-medium text-[#737373] dark:text-[#a9a9a9] mb-1">Composio Proxy Apps:</div>
                                           <div className="flex flex-wrap gap-1">
                                             {task.composio_proxy_apps.map((appName, idx) => {
                                               const displayName = appName.charAt(0).toUpperCase() + appName.slice(1)
@@ -2642,7 +2642,7 @@ export const TriggersPanel: React.FC = () => {
             <div className="p-4 border-t border-[#E5E5E5] flex justify-end">
               <button
                 onClick={handleCloseViewTasksModal}
-                className="px-4 py-2 text-sm text-[#737373] hover:text-[#171717] transition-colors"
+                className="px-4 py-2 text-sm text-[#737373] dark:text-[#a9a9a9] hover:text-[#171717] transition-colors"
               >
                 Close
               </button>

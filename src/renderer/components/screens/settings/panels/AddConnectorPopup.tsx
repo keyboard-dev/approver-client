@@ -128,7 +128,7 @@ export const AddConnectorPopup: React.FC<ManualProviderFormProps> = ({
             </div>
 
             <div
-              className="text-[#737373]"
+              className="text-[#737373] dark:text-[#a9a9a9]"
             >
               A name for this connector, e.g., “My Salesforce”.
             </div>
@@ -154,7 +154,7 @@ export const AddConnectorPopup: React.FC<ManualProviderFormProps> = ({
             </div>
 
             <div
-              className="text-[#737373]"
+              className="text-[#737373] dark:text-[#a9a9a9]"
             >
               Provided by the service you’re connecting to.
             </div>
@@ -181,7 +181,7 @@ export const AddConnectorPopup: React.FC<ManualProviderFormProps> = ({
             </div>
 
             <div
-              className="text-[#737373]"
+              className="text-[#737373] dark:text-[#a9a9a9]"
             >
               Used to authenticate your app with the service.
             </div>
@@ -212,7 +212,7 @@ export const AddConnectorPopup: React.FC<ManualProviderFormProps> = ({
             </div>
 
             <div
-              className="text-[#737373]"
+              className="text-[#737373] dark:text-[#a9a9a9]"
             >
               The URL to authorize your app with the service.
             </div>
@@ -238,7 +238,7 @@ export const AddConnectorPopup: React.FC<ManualProviderFormProps> = ({
             </div>
 
             <div
-              className="text-[#737373]"
+              className="text-[#737373] dark:text-[#a9a9a9]"
             >
               The URL to exchange the authorization code for a token.
             </div>
@@ -260,7 +260,7 @@ export const AddConnectorPopup: React.FC<ManualProviderFormProps> = ({
             </div>
 
             <div
-              className="text-[#737373]"
+              className="text-[#737373] dark:text-[#a9a9a9]"
             >
               Add this to your app settings so it can send users back to Keyboard.
             </div>
@@ -268,7 +268,7 @@ export const AddConnectorPopup: React.FC<ManualProviderFormProps> = ({
             <div
               className="bg-[#F7F7F7] border border-[#CCC] rounded-[0.38rem] flex items-center justify-between"
             >
-              <div className="text-[#737373] grow shrink min-w-0 basis-0 px-[0.63rem]">
+              <div className="text-[#737373] dark:text-[#a9a9a9] grow shrink min-w-0 basis-0 px-[0.63rem]">
                 {config.redirectUri}
               </div>
 

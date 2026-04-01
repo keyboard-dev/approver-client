@@ -236,7 +236,7 @@ export const MyConnectors: React.FC = () => {
         Connectors
       </div>
       <div
-        className="text-[#737373]"
+        className="text-[#737373] dark:text-[#a9a9a9]"
       >
         Connect to your favorite apps
       </div>
@@ -277,7 +277,7 @@ export const MyConnectors: React.FC = () => {
                   </div>
                   {Boolean(email) && (
                     <div
-                      className="text-[#737373] text-[0.75rem]"
+                      className="text-[#737373] dark:text-[#a9a9a9] text-[0.75rem]"
                     >
                       Account:
                       {' '}

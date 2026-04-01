@@ -9,6 +9,10 @@
   background-color: #f8f9fa;
 }
 
+html.dark .app {
+  background-color: #161616;
+}
+
 /* Smooth transitions for all elements */
 * {
   transition: opacity 0.2s ease-in-out, background-color 0.2s ease-in-out, border-color 0.2s ease-in-out;

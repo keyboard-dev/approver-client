@@ -192,7 +192,7 @@ const defaultComponents = memoizeMarkdownComponents({
     <a
       href={href}
       className={cn(
-        'aui-md-a font-medium text-primary underline underline-offset-4 cursor-pointer',
+        'aui-md-a font-medium text-[#99A0FF] underline underline-offset-4 cursor-pointer',
         className,
       )}
       onClick={(e) => {

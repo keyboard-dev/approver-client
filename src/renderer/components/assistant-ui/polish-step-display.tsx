@@ -40,7 +40,7 @@ function AnalysisReasoning({ reasoning }: { reasoning: string }) {
       return (
         <div className="max-h-[200px] overflow-auto text-[12px] text-[#404040] bg-[#fafafa] rounded p-2 space-y-1">
           {parsed.artifactType && (
-            <div className="text-[11px] font-medium text-[#737373] mb-1">
+            <div className="text-[11px] font-medium text-[#737373] dark:text-[#a9a9a9] mb-1">
               Artifact:
               {' '}
               {parsed.artifactType}
@@ -51,7 +51,7 @@ function AnalysisReasoning({ reasoning }: { reasoning: string }) {
               <li key={i} className="text-[12px]">
                 <span className="font-medium">{imp.action}</span>
                 {imp.target && (
-                  <span className="text-[#737373]">
+                  <span className="text-[#737373] dark:text-[#a9a9a9]">
                     {' '}
                     —
                     {imp.target}
@@ -61,7 +61,7 @@ function AnalysisReasoning({ reasoning }: { reasoning: string }) {
             ))}
           </ol>
           {parsed.imageSearches?.length > 0 && (
-            <div className="mt-1.5 text-[11px] text-[#737373]">
+            <div className="mt-1.5 text-[11px] text-[#737373] dark:text-[#a9a9a9]">
               {parsed.imageSearches.length}
               {' '}
               image
@@ -158,7 +158,7 @@ export const PolishStepDisplay = memo(function PolishStepDisplay({ data }: Polis
         {isExpanded && (
           <div className="border-t border-[#f0f0f0]">
             <div className="px-3 pt-2 pb-1">
-              <span className="text-[11px] font-medium text-[#737373]">
+              <span className="text-[11px] font-medium text-[#737373] dark:text-[#a9a9a9]">
                 {originalPhase === 'discovering'
                   ? 'Reading the created artifact to understand its structure'
                   : originalPhase === 'capturing'

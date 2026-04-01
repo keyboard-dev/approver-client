@@ -274,7 +274,7 @@ export const SharedConnectors: React.FC<ServerProviderManagerProps> = ({ classNa
       case 'google':
         return (
           <div
-            className="text-[#737373] text-[0.75rem]"
+            className="text-[#737373] dark:text-[#a9a9a9] text-[0.75rem]"
           >
             Includes:
             {' '}
@@ -310,7 +310,7 @@ export const SharedConnectors: React.FC<ServerProviderManagerProps> = ({ classNa
           </div>
 
           <div
-            className="text-[#737373]"
+            className="text-[#737373] dark:text-[#a9a9a9]"
           >
             A shared integration hub where available connectors are controlled by someone else — such as your organization, team admin, or another service.
           </div>
@@ -388,7 +388,7 @@ export const SharedConnectors: React.FC<ServerProviderManagerProps> = ({ classNa
             </div>
 
             <div
-              className="text-[#737373]"
+              className="text-[#737373] dark:text-[#a9a9a9]"
             >
               A shared integration hub where available connectors are controlled by someone else — such as your organization, team admin, or another service.
             </div>
@@ -447,7 +447,7 @@ export const SharedConnectors: React.FC<ServerProviderManagerProps> = ({ classNa
                                 </div>
                                 {Boolean(email) && (
                                   <div
-                                    className="text-[#737373] text-[0.75rem]"
+                                    className="text-[#737373] dark:text-[#a9a9a9] text-[0.75rem]"
                                   >
                                     Account:
                                     {' '}

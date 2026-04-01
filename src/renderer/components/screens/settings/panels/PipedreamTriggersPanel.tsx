@@ -510,7 +510,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
                   className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${
                     isSelected
                       ? 'bg-[#171717] text-white border-[#171717]'
-                      : 'bg-white text-[#737373] border-[#E5E5E5] hover:border-[#171717]'
+                      : 'bg-white text-[#737373] dark:text-[#a9a9a9] border-[#E5E5E5] hover:border-[#171717]'
                   }`}
                 >
                   {option}
@@ -519,7 +519,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
             })}
           </div>
           {selectedValues.length > 0 && (
-            <p className="text-xs text-[#737373]">
+            <p className="text-xs text-[#737373] dark:text-[#a9a9a9]">
               Selected:
               {' '}
               {selectedValues.join(', ')}
@@ -577,7 +577,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
               onChange={e => handleConfigChange(prop.name, e.target.checked)}
               className="w-4 h-4"
             />
-            <span className="text-sm text-[#737373]">
+            <span className="text-sm text-[#737373] dark:text-[#a9a9a9]">
               {prop.default !== undefined ? `Default: ${String(prop.default)}` : 'Enable'}
             </span>
           </label>
@@ -596,7 +596,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
               className="w-full px-3 py-2 border border-[#E5E5E5] rounded focus:outline-none focus:ring-2 focus:ring-[#171717]"
             />
             {(prop.min !== undefined || prop.max !== undefined) && (
-              <p className="text-xs text-[#737373]">
+              <p className="text-xs text-[#737373] dark:text-[#a9a9a9]">
                 {prop.min !== undefined && `Min: ${prop.min}`}
                 {prop.min !== undefined && prop.max !== undefined && ' | '}
                 {prop.max !== undefined && `Max: ${prop.max}`}
@@ -910,7 +910,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
   if (isCheckingToken) {
     return (
       <div className="flex flex-col items-center justify-center w-full h-full p-6">
-        <div className="text-[#737373] mb-2">Checking token status...</div>
+        <div className="text-[#737373] dark:text-[#a9a9a9] mb-2">Checking token status...</div>
       </div>
     )
   }
@@ -920,7 +920,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
       <div className="flex flex-col w-full h-full overflow-hidden">
         <div className="p-6">
           <h2 className="text-[1.25rem] font-bold mb-4">Webhook Triggers</h2>
-          <p className="text-[#737373] mb-6">
+          <p className="text-[#737373] dark:text-[#a9a9a9] mb-6">
             To use webhook triggers, you need to enable access by storing your refresh token securely on our backend.
           </p>
 
@@ -932,7 +932,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
 
           <div className="mb-6 p-6 border border-[#E5E5E5] rounded-lg bg-[#FAFAFA]">
             <h3 className="font-semibold text-[#171717] mb-3">Enable Triggers</h3>
-            <p className="text-sm text-[#737373] mb-4">
+            <p className="text-sm text-[#737373] dark:text-[#a9a9a9] mb-4">
               Click the button below to enable webhook triggers. This will securely store your refresh token on the backend, allowing you to create and manage webhook triggers.
             </p>
             <button
@@ -981,12 +981,12 @@ export const PipedreamTriggersPanel: React.FC = () => {
     <div className="flex flex-col w-full h-full overflow-hidden">
       <div className="p-6">
         <h2 className="text-[1.25rem] font-bold mb-4">Pipedream Triggers</h2>
-        <p className="text-[#737373] mb-6">
+        <p className="text-[#737373] dark:text-[#a9a9a9] mb-6">
           Deploy time-based schedule triggers or search for webhook triggers powered by Pipedream.
         </p>
 
         <div className="mb-6 flex items-center justify-between p-3 border border-[#E5E5E5] rounded-lg bg-[#FAFAFA]">
-          <span className="text-sm text-[#737373]">Triggers are enabled</span>
+          <span className="text-sm text-[#737373] dark:text-[#a9a9a9]">Triggers are enabled</span>
           <button
             onClick={deleteRefreshToken}
             disabled={isDeletingToken}
@@ -999,7 +999,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
 
         <div className="mb-6 p-4 border border-[#E5E5E5] rounded-lg bg-[#FAFAFA]">
           <h3 className="font-semibold text-[#171717] mb-3">Schedule Triggers</h3>
-          <p className="text-sm text-[#737373] mb-4">
+          <p className="text-sm text-[#737373] dark:text-[#a9a9a9] mb-4">
             Deploy time-based triggers that run on a schedule
           </p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -1010,7 +1010,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
                 className="p-4 border border-[#E5E5E5] rounded-lg hover:border-[#171717] hover:shadow-sm transition-all bg-white text-left"
               >
                 <div className="font-semibold text-[#171717] mb-1">{trigger.label}</div>
-                <div className="text-xs text-[#737373]">{trigger.description}</div>
+                <div className="text-xs text-[#737373] dark:text-[#a9a9a9]">{trigger.description}</div>
               </button>
             ))}
           </div>
@@ -1018,7 +1018,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
 
         <div className="border-t border-[#E5E5E5] pt-6">
           <h3 className="font-semibold text-[#171717] mb-3">🔔 Webhook Triggers</h3>
-          <p className="text-[#737373] mb-4">
+          <p className="text-[#737373] dark:text-[#a9a9a9] mb-4">
             Browse popular apps or search for webhook triggers
           </p>
 
@@ -1062,7 +1062,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
                               />
                             )
                           : (
-                              <div className="w-full h-full bg-[#F5F5F5] rounded flex items-center justify-center text-[#737373] text-xs font-bold">
+                              <div className="w-full h-full bg-[#F5F5F5] rounded flex items-center justify-center text-[#737373] dark:text-[#a9a9a9] text-xs font-bold">
                                 {app.name.charAt(0)}
                               </div>
                             )}
@@ -1116,7 +1116,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
             <button
               onClick={loadDeployedTriggers}
               disabled={isLoadingDeployed}
-              className="text-sm text-[#737373] hover:text-[#171717] disabled:opacity-50"
+              className="text-sm text-[#737373] dark:text-[#a9a9a9] hover:text-[#171717] disabled:opacity-50"
             >
               {isLoadingDeployed ? 'Refreshing...' : 'Refresh'}
             </button>
@@ -1143,7 +1143,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
                         {deployed.status}
                       </span>
                     </div>
-                    <div className="flex gap-3 text-xs text-[#737373]">
+                    <div className="flex gap-3 text-xs text-[#737373] dark:text-[#a9a9a9]">
                       <span>
                         App:
                         {' '}
@@ -1193,7 +1193,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
 
       {triggers.length > 0 && (
         <div className="flex-1 overflow-y-auto px-6 pb-6">
-          <div className="mb-4 text-sm text-[#737373]">
+          <div className="mb-4 text-sm text-[#737373] dark:text-[#a9a9a9]">
             Found
             {' '}
             {triggers.length}
@@ -1229,12 +1229,12 @@ export const PipedreamTriggersPanel: React.FC = () => {
                       <div className="flex items-center gap-2 mb-1">
                         <h3 className="font-semibold text-[#171717]">{trigger.name}</h3>
                         {trigger.app?.name && (
-                          <span className="text-xs text-[#737373] px-2 py-0.5 bg-[#F5F5F5] rounded">
+                          <span className="text-xs text-[#737373] dark:text-[#a9a9a9] px-2 py-0.5 bg-[#F5F5F5] rounded">
                             {trigger.app.name}
                           </span>
                         )}
                       </div>
-                      <p className="text-sm text-[#737373] mb-2 line-clamp-2">{trigger.description}</p>
+                      <p className="text-sm text-[#737373] dark:text-[#a9a9a9] mb-2 line-clamp-2">{trigger.description}</p>
                       <div className="flex gap-2 text-xs">
                         <span className="px-2 py-1 bg-[#F5F5F5] rounded">
                           v
@@ -1252,7 +1252,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
 
                   {/* Arrow Icon */}
                   <svg
-                    className="w-5 h-5 text-[#737373] flex-shrink-0"
+                    className="w-5 h-5 text-[#737373] dark:text-[#a9a9a9] flex-shrink-0"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -1272,11 +1272,11 @@ export const PipedreamTriggersPanel: React.FC = () => {
             <div className="p-6 border-b border-[#E5E5E5] flex items-start justify-between">
               <div className="flex-1">
                 <h3 className="text-xl font-bold text-[#171717] mb-2">{selectedTrigger.name}</h3>
-                <p className="text-sm text-[#737373]">{selectedTrigger.description}</p>
+                <p className="text-sm text-[#737373] dark:text-[#a9a9a9]">{selectedTrigger.description}</p>
               </div>
               <button
                 onClick={handleCloseModal}
-                className="text-[#737373] hover:text-[#171717] ml-4"
+                className="text-[#737373] dark:text-[#a9a9a9] hover:text-[#171717] ml-4"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1315,19 +1315,19 @@ export const PipedreamTriggersPanel: React.FC = () => {
                 <h4 className="font-semibold text-[#171717] mb-2">Trigger Information</h4>
                 <div className="space-y-2 text-sm">
                   <div className="flex">
-                    <span className="text-[#737373] w-32">Key:</span>
+                    <span className="text-[#737373] dark:text-[#a9a9a9] w-32">Key:</span>
                     <span className="font-mono text-[#171717]">{selectedTrigger.key}</span>
                   </div>
                   <div className="flex">
-                    <span className="text-[#737373] w-32">Version:</span>
+                    <span className="text-[#737373] dark:text-[#a9a9a9] w-32">Version:</span>
                     <span className="text-[#171717]">{selectedTrigger.version}</span>
                   </div>
                   <div className="flex">
-                    <span className="text-[#737373] w-32">Type:</span>
+                    <span className="text-[#737373] dark:text-[#a9a9a9] w-32">Type:</span>
                     <span className="text-[#171717]">{selectedTrigger.component_type}</span>
                   </div>
                   <div className="flex">
-                    <span className="text-[#737373] w-32">App:</span>
+                    <span className="text-[#737373] dark:text-[#a9a9a9] w-32">App:</span>
                     <span className="text-[#171717]">{extractAppName(appName)}</span>
                   </div>
                 </div>
@@ -1375,15 +1375,15 @@ export const PipedreamTriggersPanel: React.FC = () => {
                                     <span className="text-xs text-red-600 px-2 py-0.5 bg-red-50 rounded">Required</span>
                                   )}
                                   {prop.optional && (
-                                    <span className="text-xs text-[#737373] px-2 py-0.5 bg-[#F5F5F5] rounded">Optional</span>
+                                    <span className="text-xs text-[#737373] dark:text-[#a9a9a9] px-2 py-0.5 bg-[#F5F5F5] rounded">Optional</span>
                                   )}
                                 </div>
-                                <span className="text-xs font-mono text-[#737373] px-2 py-1 bg-[#F5F5F5] rounded">
+                                <span className="text-xs font-mono text-[#737373] dark:text-[#a9a9a9] px-2 py-1 bg-[#F5F5F5] rounded">
                                   {prop.type}
                                 </span>
                               </div>
                               {prop.description && (
-                                <p className="text-sm text-[#737373] mb-3">{prop.description}</p>
+                                <p className="text-sm text-[#737373] dark:text-[#a9a9a9] mb-3">{prop.description}</p>
                               )}
                               {renderConfigInput(prop)}
                             </div>
@@ -1394,7 +1394,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
 
                     {userConfigProps.length === 0 && alertProps.length === 0 && (
                       <div className="mb-6 p-4 bg-[#F5F5F5] rounded-lg text-center">
-                        <p className="text-sm text-[#737373]">
+                        <p className="text-sm text-[#737373] dark:text-[#a9a9a9]">
                           No configuration needed. This trigger uses default settings.
                         </p>
                       </div>
@@ -1412,7 +1412,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
                           </button>
                         )}
                       </div>
-                      <p className="text-xs text-[#737373] mb-3">
+                      <p className="text-xs text-[#737373] dark:text-[#a9a9a9] mb-3">
                         Define tasks to execute when this trigger fires (keyboard shortcuts, AI prompts, etc.)
                       </p>
 
@@ -1435,7 +1435,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
 
                               <div className="space-y-3">
                                 <div>
-                                  <label className="text-xs text-[#737373] mb-2 block">
+                                  <label className="text-xs text-[#737373] dark:text-[#a9a9a9] mb-2 block">
                                     Keyboard Shortcuts
                                   </label>
                                   <DropdownMenu>
@@ -1455,7 +1455,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
                                       <DropdownMenuLabel>Available Shortcuts</DropdownMenuLabel>
                                       <DropdownMenuSeparator />
                                       {(!availableScripts || availableScripts.length === 0) && (
-                                        <div className="px-2 py-3 text-sm text-[#737373]">
+                                        <div className="px-2 py-3 text-sm text-[#737373] dark:text-[#a9a9a9]">
                                           No shortcuts available
                                         </div>
                                       )}
@@ -1475,7 +1475,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
                                           >
                                             <div className="flex flex-col">
                                               <span className="font-medium">{script.name}</span>
-                                              <span className="text-xs text-[#737373]">{script.description}</span>
+                                              <span className="text-xs text-[#737373] dark:text-[#a9a9a9]">{script.description}</span>
                                             </div>
                                           </DropdownMenuCheckboxItem>
                                         )
@@ -1507,7 +1507,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
                                 </div>
 
                                 <div>
-                                  <label className="text-xs text-[#737373] mb-2 block">
+                                  <label className="text-xs text-[#737373] dark:text-[#a9a9a9] mb-2 block">
                                     Cloud Credentials
                                   </label>
                                   <DropdownMenu>
@@ -1527,7 +1527,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
                                       <DropdownMenuLabel>Connected Accounts</DropdownMenuLabel>
                                       <DropdownMenuSeparator />
                                       {(!availableCredentials || availableCredentials.length === 0) && (
-                                        <div className="px-2 py-3 text-sm text-[#737373]">
+                                        <div className="px-2 py-3 text-sm text-[#737373] dark:text-[#a9a9a9]">
                                           No connected accounts
                                         </div>
                                       )}
@@ -1581,7 +1581,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
                                 </div>
 
                                 <div>
-                                  <label className="text-xs text-[#737373] mb-2 block">
+                                  <label className="text-xs text-[#737373] dark:text-[#a9a9a9] mb-2 block">
                                     Pipedream Proxy Apps
                                   </label>
                                   <DropdownMenu>
@@ -1601,7 +1601,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
                                       <DropdownMenuLabel>Pipedream Connected Apps</DropdownMenuLabel>
                                       <DropdownMenuSeparator />
                                       {(!availablePipedreamAccounts || availablePipedreamAccounts.length === 0) && (
-                                        <div className="px-2 py-3 text-sm text-[#737373]">
+                                        <div className="px-2 py-3 text-sm text-[#737373] dark:text-[#a9a9a9]">
                                           No Pipedream apps connected
                                         </div>
                                       )}
@@ -1651,7 +1651,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
                                 </div>
 
                                 <div>
-                                  <label className="text-xs text-[#737373] mb-1 block">
+                                  <label className="text-xs text-[#737373] dark:text-[#a9a9a9] mb-1 block">
                                     AI Prompt (optional)
                                   </label>
                                   <textarea
@@ -1710,7 +1710,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
                   {' '}
                   {selectedDeployedTrigger.triggerAction}
                 </h3>
-                <p className="text-sm text-[#737373]">
+                <p className="text-sm text-[#737373] dark:text-[#a9a9a9]">
                   {selectedDeployedTrigger.tasks?.length || 0}
                   {' '}
                   task(s) configured
@@ -1718,7 +1718,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
               </div>
               <button
                 onClick={handleCloseTasksModal}
-                className="text-[#737373] hover:text-[#171717] ml-4"
+                className="text-[#737373] dark:text-[#a9a9a9] hover:text-[#171717] ml-4"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1739,7 +1739,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
                               {index + 1}
                             </span>
                             {task.id && (
-                              <span className="ml-2 text-xs text-[#737373]">
+                              <span className="ml-2 text-xs text-[#737373] dark:text-[#a9a9a9]">
                                 ID:
                                 {' '}
                                 {task.id}
@@ -1750,7 +1750,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
                           <div className="space-y-3 text-sm">
                             {task.keyboard_shortcut_ids && task.keyboard_shortcut_ids.length > 0 && (
                               <div>
-                                <span className="text-[#737373]">Keyboard Shortcuts:</span>
+                                <span className="text-[#737373] dark:text-[#a9a9a9]">Keyboard Shortcuts:</span>
                                 <div className="mt-1 flex flex-wrap gap-1">
                                   {task.keyboard_shortcut_ids.map((id, i) => (
                                     <span key={i} className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">
@@ -1763,7 +1763,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
 
                             {task.cloud_credentials && task.cloud_credentials.length > 0 && (
                               <div>
-                                <span className="text-[#737373]">Cloud Credentials:</span>
+                                <span className="text-[#737373] dark:text-[#a9a9a9]">Cloud Credentials:</span>
                                 <div className="mt-1 flex flex-wrap gap-1">
                                   {task.cloud_credentials.map((cred, i) => (
                                     <span key={i} className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs">
@@ -1776,7 +1776,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
 
                             {task.pipedream_proxy_apps && task.pipedream_proxy_apps.length > 0 && (
                               <div>
-                                <span className="text-[#737373]">Pipedream Proxy Apps:</span>
+                                <span className="text-[#737373] dark:text-[#a9a9a9]">Pipedream Proxy Apps:</span>
                                 <div className="mt-1 flex flex-wrap gap-1">
                                   {task.pipedream_proxy_apps.map((app, i) => (
                                     <span key={i} className="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs">
@@ -1789,7 +1789,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
 
                             {task.ask && (
                               <div>
-                                <span className="text-[#737373]">AI Prompt:</span>
+                                <span className="text-[#737373] dark:text-[#a9a9a9]">AI Prompt:</span>
                                 <div className="mt-1 p-3 bg-white rounded border border-[#E5E5E5] text-[#171717]">
                                   {task.ask}
                                 </div>
@@ -1797,7 +1797,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
                             )}
 
                             {task.createdAt && (
-                              <div className="text-xs text-[#737373] pt-2 border-t border-[#E5E5E5]">
+                              <div className="text-xs text-[#737373] dark:text-[#a9a9a9] pt-2 border-t border-[#E5E5E5]">
                                 Created:
                                 {' '}
                                 {new Date(task.createdAt).toLocaleString()}
@@ -1809,7 +1809,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
                     </div>
                   )
                 : (
-                    <div className="text-center text-[#737373] py-8">
+                    <div className="text-center text-[#737373] dark:text-[#a9a9a9] py-8">
                       No tasks configured for this trigger
                     </div>
                   )}
@@ -1837,11 +1837,11 @@ export const PipedreamTriggersPanel: React.FC = () => {
                   {' '}
                   Schedule Trigger
                 </h3>
-                <p className="text-sm text-[#737373]">{selectedScheduleTrigger.description}</p>
+                <p className="text-sm text-[#737373] dark:text-[#a9a9a9]">{selectedScheduleTrigger.description}</p>
               </div>
               <button
                 onClick={handleCloseScheduleModal}
-                className="text-[#737373] hover:text-[#171717] ml-4"
+                className="text-[#737373] dark:text-[#a9a9a9] hover:text-[#171717] ml-4"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -2006,7 +2006,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
                     placeholder="e.g., Daily morning sync"
                     className="w-full px-3 py-2 border border-[#E5E5E5] rounded focus:outline-none focus:ring-2 focus:ring-[#171717]"
                   />
-                  <p className="text-xs text-[#737373] mt-1">
+                  <p className="text-xs text-[#737373] dark:text-[#a9a9a9] mt-1">
                     A descriptive label for this schedule trigger
                   </p>
                 </div>
@@ -2023,7 +2023,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
                       </button>
                     )}
                   </div>
-                  <p className="text-xs text-[#737373] mb-3">
+                  <p className="text-xs text-[#737373] dark:text-[#a9a9a9] mb-3">
                     Define tasks to execute when this schedule triggers (keyboard shortcuts, AI prompts, etc.)
                   </p>
 
@@ -2046,7 +2046,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
 
                           <div className="space-y-3">
                             <div>
-                              <label className="text-xs text-[#737373] mb-2 block">
+                              <label className="text-xs text-[#737373] dark:text-[#a9a9a9] mb-2 block">
                                 Keyboard Shortcuts
                               </label>
                               <DropdownMenu>
@@ -2066,7 +2066,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
                                   <DropdownMenuLabel>Available Shortcuts</DropdownMenuLabel>
                                   <DropdownMenuSeparator />
                                   {(!availableScripts || availableScripts.length === 0) && (
-                                    <div className="px-2 py-3 text-sm text-[#737373]">
+                                    <div className="px-2 py-3 text-sm text-[#737373] dark:text-[#a9a9a9]">
                                       No shortcuts available
                                     </div>
                                   )}
@@ -2086,7 +2086,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
                                       >
                                         <div className="flex flex-col">
                                           <span className="font-medium">{script.name}</span>
-                                          <span className="text-xs text-[#737373]">{script.description}</span>
+                                          <span className="text-xs text-[#737373] dark:text-[#a9a9a9]">{script.description}</span>
                                         </div>
                                       </DropdownMenuCheckboxItem>
                                     )
@@ -2118,7 +2118,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
                             </div>
 
                             <div>
-                              <label className="text-xs text-[#737373] mb-2 block">
+                              <label className="text-xs text-[#737373] dark:text-[#a9a9a9] mb-2 block">
                                 Cloud Credentials
                               </label>
                               <DropdownMenu>
@@ -2138,7 +2138,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
                                   <DropdownMenuLabel>Connected Accounts</DropdownMenuLabel>
                                   <DropdownMenuSeparator />
                                   {(!availableCredentials || availableCredentials.length === 0) && (
-                                    <div className="px-2 py-3 text-sm text-[#737373]">
+                                    <div className="px-2 py-3 text-sm text-[#737373] dark:text-[#a9a9a9]">
                                       No connected accounts
                                     </div>
                                   )}
@@ -2192,7 +2192,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
                             </div>
 
                             <div>
-                              <label className="text-xs text-[#737373] mb-2 block">
+                              <label className="text-xs text-[#737373] dark:text-[#a9a9a9] mb-2 block">
                                 Pipedream Proxy Apps
                               </label>
                               <DropdownMenu>
@@ -2212,7 +2212,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
                                   <DropdownMenuLabel>Pipedream Connected Apps</DropdownMenuLabel>
                                   <DropdownMenuSeparator />
                                   {(!availablePipedreamAccounts || availablePipedreamAccounts.length === 0) && (
-                                    <div className="px-2 py-3 text-sm text-[#737373]">
+                                    <div className="px-2 py-3 text-sm text-[#737373] dark:text-[#a9a9a9]">
                                       No Pipedream apps connected
                                     </div>
                                   )}
@@ -2262,7 +2262,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
                             </div>
 
                             <div>
-                              <label className="text-xs text-[#737373] mb-1 block">
+                              <label className="text-xs text-[#737373] dark:text-[#a9a9a9] mb-1 block">
                                 AI Prompt (optional)
                               </label>
                               <textarea
@@ -2315,7 +2315,7 @@ export const PipedreamTriggersPanel: React.FC = () => {
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full m-4">
             <div className="p-6">
               <h3 className="text-xl font-bold text-[#171717] mb-4">Connect App Required</h3>
-              <p className="text-[#737373] mb-6">
+              <p className="text-[#737373] dark:text-[#a9a9a9] mb-6">
                 To deploy this trigger, you need to connect your
                 {' '}
                 <strong>{promptAppName}</strong>

@@ -53,7 +53,7 @@ const SourceTag: React.FC<SourceTagProps> = ({ source }) => {
   const label = labelMap[source] || source
 
   return (
-    <span className="bg-[#f0f0f0] text-black text-[14px] font-medium px-2 py-1 rounded-full whitespace-nowrap">
+    <span className="bg-[#f0f0f0] dark:bg-[#1F1F1F] text-black dark:text-[#A9A9A9] text-[14px] font-medium px-2 py-1 rounded-full whitespace-nowrap">
       {label}
     </span>
   )
@@ -90,7 +90,7 @@ const ConnectorRow: React.FC<ConnectorRowProps> = ({
     <div className="flex items-center gap-[10px] w-full">
       {/* Left section: Icon + Name (dimmed if not connected) */}
       <div className={`flex-1 flex items-center gap-[10px] ${!isConnected ? 'opacity-50' : ''}`}>
-        <div className="bg-white border border-[#e5e5e5] rounded-[4px] p-[5px] flex items-center shrink-0">
+        <div className="bg-white dark:bg-[#2a2a2a] border border-[#e5e5e5] dark:border-[#3a3a3a] rounded-[4px] p-[5px] flex items-center shrink-0">
           <img
             src={icon}
             alt={name}
@@ -100,7 +100,7 @@ const ConnectorRow: React.FC<ConnectorRowProps> = ({
             }}
           />
         </div>
-        <span className="font-medium text-[14px] text-[#171717]">{name}</span>
+        <span className="font-medium text-[14px] text-[#171717] dark:text-[#a9a9a9]">{name}</span>
       </div>
 
       {/* Middle: Source Tag */}
@@ -110,7 +110,7 @@ const ConnectorRow: React.FC<ConnectorRowProps> = ({
       {isConnected
         ? (
             <button
-              className="px-3 py-1 text-[14px] font-medium text-[#d23535] hover:bg-[#FEE2E2] rounded-[4px] transition-colors disabled:opacity-50"
+              className="px-3 py-1 text-[14px] font-medium text-[#d23535] dark:text-[#FF8E8F] hover:bg-[#FEE2E2] dark:hover:bg-[#FF8E8F]/10 rounded-[4px] transition-colors disabled:opacity-50"
               disabled={isDisconnecting}
               onClick={onDisconnect}
             >
@@ -119,7 +119,7 @@ const ConnectorRow: React.FC<ConnectorRowProps> = ({
           )
         : (
             <button
-              className="flex items-center gap-1 px-3 py-1 bg-white border border-[#e5e5e5] rounded-[4px] text-[14px] font-medium text-[#171717] hover:border-[#ccc] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-1 px-3 py-1 bg-white dark:bg-[#171717] border border-[#e5e5e5] dark:border-[#171717] rounded-[4px] text-[14px] font-medium text-[#171717] dark:text-[#f5f5f5] hover:border-[#ccc] dark:hover:border-[#333] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={isConnecting || disabled}
               onClick={onConnect}
             >
@@ -359,27 +359,27 @@ export const ConnectAppsModal: React.FC<ConnectAppsModalProps> = ({
       <DialogPortal>
         <DialogOverlay />
         <DialogPrimitive.Content
-          className="fixed left-[50%] top-[50%] z-50 translate-x-[-50%] translate-y-[-50%] bg-white max-w-[577px] w-full max-h-[720px] h-[720px] p-[20px] rounded-[20px] border border-[#dbdbdb] flex flex-col gap-[6px] shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95"
+          className="fixed left-[50%] top-[50%] z-50 translate-x-[-50%] translate-y-[-50%] bg-white dark:bg-[#1e1e1e] max-w-[577px] w-full max-h-[720px] h-[720px] p-[20px] rounded-[20px] border border-[#dbdbdb] dark:border-[#2e2e2e] flex flex-col gap-[6px] shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95"
         >
           {/* Header */}
-          <DialogTitle className="font-medium text-[14px] text-[#737373] leading-normal">
+          <DialogTitle className="font-medium text-[14px] text-[#737373] dark:text-[#a9a9a9] leading-normal">
             Connect apps
           </DialogTitle>
 
           {/* Search Input */}
           <div className="relative w-full">
-            <Search className="absolute left-[8px] top-1/2 -translate-y-1/2 w-[12px] h-[12px] text-[#737373]" />
+            <Search className="absolute left-[8px] top-1/2 -translate-y-1/2 w-[12px] h-[12px] text-[#737373] dark:text-[#a9a9a9]" />
             <input
               type="text"
               placeholder="Search 3000+ apps..."
               value={searchQuery}
               onChange={e => handleSearchChange(e.target.value)}
-              className="w-full h-[32px] pl-[30px] pr-[30px] py-[8px] bg-[#fafafa] border border-[#dbdbdb] rounded-[12px] text-[14px] font-medium text-[#171717] placeholder:text-[#737373] focus:outline-none focus:border-[#a5a5a5]"
+              className="w-full h-[32px] pl-[30px] pr-[30px] py-[8px] bg-[#fafafa] dark:bg-[#242424] border border-[#dbdbdb] dark:border-[#2e2e2e] rounded-[12px] text-[14px] font-medium text-[#171717] dark:text-[#a9a9a9] placeholder:text-[#737373] focus:outline-none focus:border-[#a5a5a5]"
             />
             {searchQuery && (
               <button
                 onClick={handleClearSearch}
-                className="absolute right-[8px] top-1/2 -translate-y-1/2 text-[#737373] hover:text-[#171717]"
+                className="absolute right-[8px] top-1/2 -translate-y-1/2 text-[#737373] dark:text-[#a9a9a9] hover:text-[#171717]"
               >
                 <X className="w-[12px] h-[12px]" />
               </button>
@@ -394,10 +394,10 @@ export const ConnectAppsModal: React.FC<ConnectAppsModalProps> = ({
           )}
 
           {/* Connectors List */}
-          <div className="flex-1 bg-[#fafafa] border border-[#dbdbdb] rounded-[12px] p-[10px] overflow-y-auto flex flex-col gap-[10px]">
+          <div className="flex-1 bg-[#fafafa] dark:bg-[#242424] border border-[#dbdbdb] dark:border-[#2e2e2e] rounded-[12px] p-[10px] overflow-y-auto flex flex-col gap-[10px]">
             {/* Loading State */}
             {localLoading && (
-              <div className="text-center py-4 text-[#737373]">
+              <div className="text-center py-4 text-[#737373] dark:text-[#a9a9a9]">
                 Loading connectors...
               </div>
             )}
@@ -438,7 +438,7 @@ export const ConnectAppsModal: React.FC<ConnectAppsModalProps> = ({
 
             {/* Connected Composio Accounts */}
             {composioAccountsLoading && (
-              <div className="text-center py-4 text-[#737373]">
+              <div className="text-center py-4 text-[#737373] dark:text-[#a9a9a9]">
                 Loading Composio accounts...
               </div>
             )}
@@ -478,7 +478,7 @@ export const ConnectAppsModal: React.FC<ConnectAppsModalProps> = ({
             {isSearching && (
               <>
                 {pipedreamAppsLoading && (
-                  <div className="text-center py-4 text-[#737373]">
+                  <div className="text-center py-4 text-[#737373] dark:text-[#a9a9a9]">
                     Searching Pipedream apps...
                   </div>
                 )}
@@ -502,7 +502,7 @@ export const ConnectAppsModal: React.FC<ConnectAppsModalProps> = ({
             {isSearching && (
               <>
                 {composioAppsLoading && (
-                  <div className="text-center py-4 text-[#737373]">
+                  <div className="text-center py-4 text-[#737373] dark:text-[#a9a9a9]">
                     Searching Composio apps...
                   </div>
                 )}
@@ -542,7 +542,7 @@ export const ConnectAppsModal: React.FC<ConnectAppsModalProps> = ({
               && composioApps.length === 0
               && filteredLocalProviders.length === 0
               && filteredComposioAccounts.length === 0 && (
-              <div className="text-center py-6 text-[#737373]">
+              <div className="text-center py-6 text-[#737373] dark:text-[#a9a9a9]">
                 No connectors found for "
                 {searchQuery}
                 "
@@ -553,7 +553,7 @@ export const ConnectAppsModal: React.FC<ConnectAppsModalProps> = ({
             {!isSearching && (
               <>
                 {pipedreamDefaultAppsLoading && (
-                  <div className="text-center py-4 text-[#737373]">
+                  <div className="text-center py-4 text-[#737373] dark:text-[#a9a9a9]">
                     Loading more apps...
                   </div>
                 )}
@@ -577,7 +577,7 @@ export const ConnectAppsModal: React.FC<ConnectAppsModalProps> = ({
             {!isSearching && (
               <>
                 {composioAppsLoading && (
-                  <div className="text-center py-4 text-[#737373]">
+                  <div className="text-center py-4 text-[#737373] dark:text-[#a9a9a9]">
                     Loading Composio apps...
                   </div>
                 )}
@@ -620,7 +620,7 @@ export const ConnectAppsModal: React.FC<ConnectAppsModalProps> = ({
               && !showPipedreamDefaults
               && composioApps.length === 0
               && !isSearching && (
-              <div className="text-center py-6 text-[#737373]">
+              <div className="text-center py-6 text-[#737373] dark:text-[#a9a9a9]">
                 No connectors available
               </div>
             )}
@@ -633,24 +633,22 @@ export const ConnectAppsModal: React.FC<ConnectAppsModalProps> = ({
                 onDismiss()
                 onClose()
               }}
-              className="text-[14px] font-medium text-[#737373] hover:text-[#171717] transition-colors self-start"
+              className="text-[14px] font-medium text-[#737373] dark:text-[#a9a9a9] hover:text-[#171717] transition-colors self-start"
             >
               Dismiss and continue anyway
             </button>
           )}
 
-          {/* Docs Link */}
+          {/* Support Link */}
           <p className="text-[14px] font-medium text-[#a5a5a5] leading-normal">
-            See our
+            Need help? Reach out at
             {' '}
             <button
-              className="font-semibold text-[#171717] hover:underline"
-              onClick={() => window.electronAPI.openExternalUrl('https://docs.keyboard.dev/')}
+              className="font-semibold text-[#171717] dark:text-[#F5F5F5] hover:underline"
+              onClick={() => window.electronAPI.openExternalUrl('mailto:support@keyboard.dev')}
             >
-              docs
+              support@keyboard.dev
             </button>
-            {' '}
-            to learn more about how connectors work or how to connect any app.
           </p>
         </DialogPrimitive.Content>
       </DialogPortal>

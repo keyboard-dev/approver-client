@@ -91,7 +91,7 @@ export const KeyPanel: React.FC<{
               className="flex gap-[0.63rem] px-[0.63rem] shrink grow min-w-0 items-center"
             >
               <div
-                className="overflow-ellipsis overflow-hidden font-fira-code text-[#737373] shrink grow min-w-0"
+                className="overflow-ellipsis overflow-hidden font-fira-code text-[#737373] dark:text-[#a9a9a9] shrink grow min-w-0"
               >
                 {keyInfo?.key
                   ? showKey
@@ -154,7 +154,7 @@ export const KeyPanel: React.FC<{
 
         {description && (
           <div
-            className="text-[#737373]"
+            className="text-[#737373] dark:text-[#a9a9a9]"
           >
             {description}
           </div>

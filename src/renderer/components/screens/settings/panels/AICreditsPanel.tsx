@@ -142,22 +142,22 @@ export const AICreditsPanel: React.FC = () => {
 
   return (
     <div className="grow shrink min-w-0 h-full p-[16px] flex flex-col gap-[0.63rem] overflow-y-auto">
-      <div className="text-[1.13rem]">
+      <div className="text-[1.13rem] dark:text-[#f5f5f5]">
         AI Credits
       </div>
 
       {credits.loading && (
-        <div className="p-[0.94rem] bg-[#FAFAFA] border border-[#E5E5E5] rounded-[0.38rem] flex items-center justify-center">
-          <div className="text-[#737373]">Loading credits balance...</div>
+        <div className="p-[0.94rem] bg-[#FAFAFA] dark:bg-[#242424] border border-[#E5E5E5] dark:border-[#2e2e2e] rounded-[0.38rem] flex items-center justify-center">
+          <div className="text-[#737373] dark:text-[#a9a9a9]">Loading credits balance...</div>
         </div>
       )}
 
       {credits.error && (
-        <div className="p-[0.94rem] bg-[#FAFAFA] border border-[#E5E5E5] rounded-[0.38rem] flex flex-col gap-[0.63rem]">
+        <div className="p-[0.94rem] bg-[#FAFAFA] dark:bg-[#242424] border border-[#E5E5E5] dark:border-[#2e2e2e] rounded-[0.38rem] flex flex-col gap-[0.63rem]">
           <div className="text-red-500">{credits.error}</div>
           <button
             onClick={fetchCreditsBalance}
-            className="px-[0.63rem] py-[0.38rem] bg-[#171717] text-white rounded-[0.25rem] w-fit hover:bg-[#404040] transition-colors"
+            className="px-[0.63rem] py-[0.38rem] bg-[#171717] dark:bg-[#f5f5f5] text-white dark:text-[#171717] rounded-[0.25rem] w-fit hover:bg-[#404040] dark:hover:bg-[#e5e5e5] transition-colors"
           >
             Retry
           </button>
@@ -167,24 +167,24 @@ export const AICreditsPanel: React.FC = () => {
       {credits.balance && (
         <>
           {/* Current Balance Card */}
-          <div className="p-[0.94rem] bg-[#FAFAFA] border border-[#E5E5E5] rounded-[0.38rem] flex flex-col gap-[0.63rem]">
+          <div className="p-[0.94rem] bg-[#FAFAFA] dark:bg-[#242424] border border-[#E5E5E5] dark:border-[#2e2e2e] rounded-[0.38rem] flex flex-col gap-[0.63rem]">
             <div className="flex justify-between items-center">
-              <div className="text-[#737373]">Current Balance</div>
+              <div className="text-[#737373] dark:text-[#a9a9a9]">Current Balance</div>
               <button
                 onClick={fetchCreditsBalance}
-                className="text-[#737373] hover:text-[#171717] text-sm transition-colors"
+                className="text-[#737373] dark:text-[#a9a9a9] hover:text-[#171717] text-sm transition-colors"
               >
                 Refresh
               </button>
             </div>
             <div className="flex items-center justify-between">
-              <div className="text-[2rem] font-semibold text-[#171717]">
+              <div className="text-[2rem] font-semibold text-[#171717] dark:text-[#f5f5f5]">
                 $
                 {credits.balance.balance_usd}
               </div>
               <button
                 onClick={() => setDialogOpen(true)}
-                className="px-[0.75rem] py-[0.5rem] bg-[#171717] text-white rounded-[0.38rem] font-medium hover:bg-[#404040] transition-colors"
+                className="px-[0.75rem] py-[0.5rem] bg-[#171717] dark:bg-[#f5f5f5] text-white dark:text-[#171717] rounded-[0.38rem] font-medium hover:bg-[#404040] dark:hover:bg-[#e5e5e5] transition-colors"
               >
                 Buy Credits
               </button>
@@ -192,20 +192,20 @@ export const AICreditsPanel: React.FC = () => {
           </div>
 
           {/* Usage Breakdown */}
-          <div className="p-[0.94rem] bg-[#FAFAFA] border border-[#E5E5E5] rounded-[0.38rem] flex flex-col gap-[0.63rem]">
-            <div className="text-[#737373]">Usage Breakdown</div>
+          <div className="p-[0.94rem] bg-[#FAFAFA] dark:bg-[#242424] border border-[#E5E5E5] dark:border-[#2e2e2e] rounded-[0.38rem] flex flex-col gap-[0.63rem]">
+            <div className="text-[#737373] dark:text-[#a9a9a9]">Usage Breakdown</div>
 
             <div className="grid grid-cols-3 gap-[0.94rem]">
               <div className="flex flex-col">
-                <div className="text-sm text-[#737373]">Total Purchased</div>
-                <div className="text-[1.13rem] font-medium text-[#171717]">
+                <div className="text-sm text-[#737373] dark:text-[#a9a9a9]">Total Purchased</div>
+                <div className="text-[1.13rem] font-medium text-[#171717] dark:text-[#f5f5f5]">
                   $
                   {credits.balance.total_purchased_usd}
                 </div>
               </div>
 
               <div className="flex flex-col">
-                <div className="text-sm text-[#737373]">Total Earned</div>
+                <div className="text-sm text-[#737373] dark:text-[#a9a9a9]">Total Earned</div>
                 <div className="text-[1.13rem] font-medium text-green-600">
                   $
                   {credits.balance.total_earned_usd}
@@ -213,8 +213,8 @@ export const AICreditsPanel: React.FC = () => {
               </div>
 
               <div className="flex flex-col">
-                <div className="text-sm text-[#737373]">Total Spent</div>
-                <div className="text-[1.13rem] font-medium text-[#171717]">
+                <div className="text-sm text-[#737373] dark:text-[#a9a9a9]">Total Spent</div>
+                <div className="text-[1.13rem] font-medium text-[#171717] dark:text-[#f5f5f5]">
                   $
                   {credits.balance.total_spent_usd}
                 </div>
@@ -223,7 +223,7 @@ export const AICreditsPanel: React.FC = () => {
           </div>
 
           {/* Last Updated */}
-          <div className="text-sm text-[#737373]">
+          <div className="text-sm text-[#737373] dark:text-[#a9a9a9]">
             Last updated:
             {' '}
             {formatDate(credits.balance.updated_at)}
@@ -262,9 +262,9 @@ export const AICreditsPanel: React.FC = () => {
 
             {/* Custom amount input */}
             <div className="flex flex-col gap-[0.5rem]">
-              <label className="text-sm text-[#737373]">Custom Amount</label>
+              <label className="text-sm text-[#737373] dark:text-[#a9a9a9]">Custom Amount</label>
               <div className="relative">
-                <span className="absolute left-[0.75rem] top-1/2 -translate-y-1/2 text-[#737373]">$</span>
+                <span className="absolute left-[0.75rem] top-1/2 -translate-y-1/2 text-[#737373] dark:text-[#a9a9a9]">$</span>
                 <input
                   type="text"
                   value={customAmount}
@@ -278,14 +278,14 @@ export const AICreditsPanel: React.FC = () => {
                   }`}
                 />
               </div>
-              <div className="text-xs text-[#737373]">
+              <div className="text-xs text-[#737373] dark:text-[#a9a9a9]">
                 Min: $1.00 · Max: $1,000.00
               </div>
             </div>
 
             {/* Amount summary */}
             <div className="flex justify-between items-center pt-[0.5rem] border-t border-[#E5E5E5]">
-              <span className="text-[#737373]">Total</span>
+              <span className="text-[#737373] dark:text-[#a9a9a9]">Total</span>
               <span className="text-[1.25rem] font-semibold text-[#171717]">
                 {getDisplayAmount()}
               </span>
@@ -302,7 +302,7 @@ export const AICreditsPanel: React.FC = () => {
           <DialogFooter>
             <button
               onClick={() => setDialogOpen(false)}
-              className="px-[1rem] py-[0.5rem] text-[#737373] hover:text-[#171717] transition-colors"
+              className="px-[1rem] py-[0.5rem] text-[#737373] dark:text-[#a9a9a9] hover:text-[#171717] transition-colors"
             >
               Cancel
             </button>

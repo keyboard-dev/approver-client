@@ -83,21 +83,21 @@ export const RunCodeDisplay = memo(function RunCodeDisplay({ data, rawStreamingT
 
   return (
     <div data-run-code-display className="my-2">
-      <div className="border border-[#e5e5e5] rounded-lg overflow-hidden bg-white w-full">
+      <div className="border border-[#e5e5e5] dark:border-[#333] rounded-lg overflow-hidden bg-white dark:bg-[#1e1e1e] w-full">
         {/* Collapsed row */}
         <button
           type="button"
           onClick={() => setIsExpanded(!isExpanded)}
-          className="flex items-center gap-2.5 w-full px-3 py-2 text-left hover:bg-[#fafafa] transition-colors"
+          className="flex items-center gap-2.5 w-full px-3 py-2 text-left hover:bg-[#fafafa] dark:hover:bg-[#2a2a2a] transition-colors"
         >
           {isStreaming && !data.code
             ? <Loader className="size-3.5 text-blue-500 shrink-0 animate-spin" />
             : <PlayIcon className="size-3.5 text-emerald-500 shrink-0" />}
-          <span className="text-[13px] font-medium text-[#171717] shrink-0">
+          <span className="text-[13px] font-medium text-[#171717] dark:text-[#e5e5e5] shrink-0">
             Run Code
           </span>
           {data.language && (
-            <span className="text-[11px] font-medium text-[#6366f1] bg-[#eef2ff] border border-[#c7d2fe] rounded-full px-1.5 py-0.5 shrink-0">
+            <span className="text-[11px] font-medium text-[#6366f1] bg-[#eef2ff] border border-[#c7d2fe] dark:text-[#818cf8] dark:bg-[#1e1b4b] dark:border-[#4338ca] rounded-full px-1.5 py-0.5 shrink-0">
               {data.language}
             </span>
           )}
@@ -114,10 +114,10 @@ export const RunCodeDisplay = memo(function RunCodeDisplay({ data, rawStreamingT
 
         {/* Expanded content */}
         {isExpanded && (
-          <div className="border-t border-[#f0f0f0]">
+          <div className="border-t border-[#f0f0f0] dark:border-[#2e2e2e]">
             {data.explanation && (
               <div className="px-3 pt-2 pb-1">
-                <p className="text-[12px] text-[#525252] leading-relaxed">{data.explanation}</p>
+                <p className="text-[12px] text-[#525252] dark:text-[#a3a3a3] leading-relaxed">{data.explanation}</p>
               </div>
             )}
             {isStreaming && !data.code && (

@@ -406,7 +406,7 @@ export const ComposioTriggersPanel: React.FC = () => {
     <div className="flex flex-col w-full h-full overflow-hidden">
       <div className="p-6 border-b border-[#E5E5E5]">
         <h2 className="text-[1.25rem] font-bold mb-4">Composio Triggers</h2>
-        <p className="text-[#737373] mb-6">
+        <p className="text-[#737373] dark:text-[#a9a9a9] mb-6">
           Connect your accounts and configure triggers. Composio integrates with 250+ apps.
         </p>
 
@@ -443,11 +443,11 @@ export const ComposioTriggersPanel: React.FC = () => {
       <div className="p-6 border-b border-[#E5E5E5]">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold text-[#171717]">Connected Accounts</h3>
-          {accountsLoading && <span className="text-sm text-[#737373]">Loading...</span>}
+          {accountsLoading && <span className="text-sm text-[#737373] dark:text-[#a9a9a9]">Loading...</span>}
         </div>
 
         {accounts.length === 0 && !accountsLoading && (
-          <div className="text-sm text-[#737373] py-4">
+          <div className="text-sm text-[#737373] dark:text-[#a9a9a9] py-4">
             No accounts connected yet. Connect an app below to get started.
           </div>
         )}
@@ -463,7 +463,7 @@ export const ComposioTriggersPanel: React.FC = () => {
                   <div className={`w-2 h-2 rounded-full ${account.status === 'active' ? 'bg-green-500' : 'bg-gray-400'}`} />
                   <div>
                     <div className="font-medium text-[#171717]">{account.appName}</div>
-                    <div className="text-xs text-[#737373]">
+                    <div className="text-xs text-[#737373] dark:text-[#a9a9a9]">
                       Connected
                       {' '}
                       {new Date(account.createdAt).toLocaleDateString()}
@@ -501,7 +501,7 @@ export const ComposioTriggersPanel: React.FC = () => {
           <button
             onClick={refreshTriggers}
             disabled={triggersLoading}
-            className="text-sm text-[#737373] hover:text-[#171717] disabled:opacity-50"
+            className="text-sm text-[#737373] dark:text-[#a9a9a9] hover:text-[#171717] disabled:opacity-50"
           >
             {triggersLoading ? 'Refreshing...' : 'Refresh'}
           </button>
@@ -516,12 +516,12 @@ export const ComposioTriggersPanel: React.FC = () => {
         {triggersLoading && triggers.length === 0
           ? (
               <div className="flex items-center justify-center py-8">
-                <div className="text-[#737373]">Loading deployed triggers...</div>
+                <div className="text-[#737373] dark:text-[#a9a9a9]">Loading deployed triggers...</div>
               </div>
             )
           : triggers.length === 0
             ? (
-                <div className="text-sm text-[#737373] py-4">
+                <div className="text-sm text-[#737373] dark:text-[#a9a9a9] py-4">
                   No deployed triggers yet. Configure a trigger above to get started.
                 </div>
               )
@@ -546,7 +546,7 @@ export const ComposioTriggersPanel: React.FC = () => {
                             </span>
                           </div>
                           {trigger.description && (
-                            <p className="text-sm text-[#737373] mb-2">{trigger.description}</p>
+                            <p className="text-sm text-[#737373] dark:text-[#a9a9a9] mb-2">{trigger.description}</p>
                           )}
                           <div className="flex items-center gap-2 text-xs text-[#A3A3A3]">
                             <span>
@@ -604,13 +604,13 @@ export const ComposioTriggersPanel: React.FC = () => {
       {/* Available Apps Section */}
       {appsLoading && (
         <div className="flex-1 flex items-center justify-center">
-          <div className="text-[#737373]">Loading apps...</div>
+          <div className="text-[#737373] dark:text-[#a9a9a9]">Loading apps...</div>
         </div>
       )}
 
       {!appsLoading && apps.length === 0 && !appsError && (
         <div className="flex-1 flex items-center justify-center">
-          <div className="text-center text-[#737373]">
+          <div className="text-center text-[#737373] dark:text-[#a9a9a9]">
             {searchQuery ? `No apps found for "${searchQuery}"` : 'No apps available'}
           </div>
         </div>
@@ -618,7 +618,7 @@ export const ComposioTriggersPanel: React.FC = () => {
 
       {!appsLoading && apps.length > 0 && (
         <div className="flex-1 overflow-y-auto px-6 py-6">
-          <div className="mb-4 text-sm text-[#737373]">
+          <div className="mb-4 text-sm text-[#737373] dark:text-[#a9a9a9]">
             Found
             {' '}
             {apps.length}
@@ -652,7 +652,7 @@ export const ComposioTriggersPanel: React.FC = () => {
                     <div className="flex-1">
                       <h3 className="font-semibold text-[#171717] mb-1">{app.name}</h3>
                       {app.description && (
-                        <p className="text-sm text-[#737373] line-clamp-2">{app.description}</p>
+                        <p className="text-sm text-[#737373] dark:text-[#a9a9a9] line-clamp-2">{app.description}</p>
                       )}
                       {app.categories && app.categories.length > 0 && (
                         <div className="flex gap-1 mt-2">
@@ -665,7 +665,7 @@ export const ComposioTriggersPanel: React.FC = () => {
                       )}
                     </div>
                     <svg
-                      className="w-5 h-5 text-[#737373] flex-shrink-0"
+                      className="w-5 h-5 text-[#737373] dark:text-[#a9a9a9] flex-shrink-0"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -696,14 +696,14 @@ export const ComposioTriggersPanel: React.FC = () => {
                   setSelectedApp(null)
                   setConnectionError(null)
                 }}
-                className="text-[#737373] hover:text-[#171717]"
+                className="text-[#737373] dark:text-[#a9a9a9] hover:text-[#171717]"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="mb-6">
-              <p className="text-[#737373] mb-4">
+              <p className="text-[#737373] dark:text-[#a9a9a9] mb-4">
                 You need to connect your
                 {' '}
                 {selectedApp.name}
@@ -755,7 +755,7 @@ export const ComposioTriggersPanel: React.FC = () => {
                   {' '}
                   Triggers
                 </h3>
-                <p className="text-sm text-[#737373]">Select a trigger to configure</p>
+                <p className="text-sm text-[#737373] dark:text-[#a9a9a9]">Select a trigger to configure</p>
               </div>
               <button
                 onClick={() => {
@@ -763,7 +763,7 @@ export const ComposioTriggersPanel: React.FC = () => {
                   setSelectedApp(null)
                   clearAvailableTriggers()
                 }}
-                className="text-[#737373] hover:text-[#171717]"
+                className="text-[#737373] dark:text-[#a9a9a9] hover:text-[#171717]"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -771,7 +771,7 @@ export const ComposioTriggersPanel: React.FC = () => {
 
             {availableTriggersLoading && (
               <div className="flex-1 flex items-center justify-center py-12">
-                <div className="text-[#737373]">Loading triggers...</div>
+                <div className="text-[#737373] dark:text-[#a9a9a9]">Loading triggers...</div>
               </div>
             )}
 
@@ -783,7 +783,7 @@ export const ComposioTriggersPanel: React.FC = () => {
 
             {!availableTriggersLoading && availableTriggers.length === 0 && !availableTriggersError && (
               <div className="flex-1 flex items-center justify-center py-12">
-                <div className="text-center text-[#737373]">
+                <div className="text-center text-[#737373] dark:text-[#a9a9a9]">
                   No triggers available for this app
                 </div>
               </div>
@@ -812,7 +812,7 @@ export const ComposioTriggersPanel: React.FC = () => {
                               {trigger.name}
                             </h4>
                             <svg
-                              className="w-5 h-5 text-[#737373] flex-shrink-0"
+                              className="w-5 h-5 text-[#737373] dark:text-[#a9a9a9] flex-shrink-0"
                               fill="none"
                               stroke="currentColor"
                               viewBox="0 0 24 24"
@@ -821,7 +821,7 @@ export const ComposioTriggersPanel: React.FC = () => {
                             </svg>
                           </div>
                           {trigger.description && (
-                            <p className="text-sm text-[#737373] mb-2 line-clamp-2">{trigger.description}</p>
+                            <p className="text-sm text-[#737373] dark:text-[#a9a9a9] mb-2 line-clamp-2">{trigger.description}</p>
                           )}
                           {trigger.instructions && (
                             <p className="text-xs text-[#A3A3A3] mb-2 line-clamp-2 italic">{trigger.instructions}</p>
@@ -880,7 +880,7 @@ export const ComposioTriggersPanel: React.FC = () => {
                   {' '}
                   {selectedTrigger.name}
                 </h3>
-                <p className="text-sm text-[#737373]">Set up your trigger configuration</p>
+                <p className="text-sm text-[#737373] dark:text-[#a9a9a9]">Set up your trigger configuration</p>
               </div>
               <button
                 onClick={() => {
@@ -890,7 +890,7 @@ export const ComposioTriggersPanel: React.FC = () => {
                   setDeployError(null)
                   clearTriggerConfig()
                 }}
-                className="text-[#737373] hover:text-[#171717]"
+                className="text-[#737373] dark:text-[#a9a9a9] hover:text-[#171717]"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -898,7 +898,7 @@ export const ComposioTriggersPanel: React.FC = () => {
 
             {triggerConfigLoading && (
               <div className="flex-1 flex items-center justify-center py-12">
-                <div className="text-[#737373]">Loading configuration...</div>
+                <div className="text-[#737373] dark:text-[#a9a9a9]">Loading configuration...</div>
               </div>
             )}
 
@@ -948,7 +948,7 @@ export const ComposioTriggersPanel: React.FC = () => {
                               onChange={e => setConfigValues(prev => ({ ...prev, [key]: e.target.checked }))}
                               className="w-4 h-4 rounded border-[#E5E5E5]"
                             />
-                            <span className="text-sm text-[#737373]">
+                            <span className="text-sm text-[#737373] dark:text-[#a9a9a9]">
                               {schema.description || 'Enable this option'}
                             </span>
                           </div>
@@ -1004,7 +1004,7 @@ export const ComposioTriggersPanel: React.FC = () => {
                           {isRequired && <span className="text-red-500 ml-1">*</span>}
                         </label>
                         {schema.description && (
-                          <p className="text-xs text-[#737373]">{schema.description}</p>
+                          <p className="text-xs text-[#737373] dark:text-[#a9a9a9]">{schema.description}</p>
                         )}
                         {renderField()}
                       </div>
@@ -1030,7 +1030,7 @@ export const ComposioTriggersPanel: React.FC = () => {
                     {showTasksSection ? 'Hide Tasks' : 'Add Tasks'}
                   </button>
                 </div>
-                <p className="text-xs text-[#737373] mb-3">
+                <p className="text-xs text-[#737373] dark:text-[#a9a9a9] mb-3">
                   Define tasks to execute when this trigger fires (keyboard shortcuts, AI prompts, etc.)
                 </p>
 
@@ -1040,7 +1040,7 @@ export const ComposioTriggersPanel: React.FC = () => {
                       <div key={index} className="p-4 border border-[#E5E5E5] rounded-lg relative">
                         <button
                           onClick={() => removeTask(index)}
-                          className="absolute top-2 right-2 text-[#737373] hover:text-red-600"
+                          className="absolute top-2 right-2 text-[#737373] dark:text-[#a9a9a9] hover:text-red-600"
                         >
                           <X className="w-4 h-4" />
                         </button>
@@ -1048,7 +1048,7 @@ export const ComposioTriggersPanel: React.FC = () => {
                         <div className="space-y-4 pr-6">
                           {/* Keyboard Shortcuts */}
                           <div>
-                            <label className="text-xs text-[#737373] mb-2 block">
+                            <label className="text-xs text-[#737373] dark:text-[#a9a9a9] mb-2 block">
                               Keyboard Shortcuts
                             </label>
                             <DropdownMenu>
@@ -1068,7 +1068,7 @@ export const ComposioTriggersPanel: React.FC = () => {
                                 <DropdownMenuLabel>Available Shortcuts</DropdownMenuLabel>
                                 <DropdownMenuSeparator />
                                 {(!availableScripts || availableScripts.length === 0) && (
-                                  <div className="px-2 py-3 text-sm text-[#737373]">
+                                  <div className="px-2 py-3 text-sm text-[#737373] dark:text-[#a9a9a9]">
                                     No shortcuts available
                                   </div>
                                 )}
@@ -1118,7 +1118,7 @@ export const ComposioTriggersPanel: React.FC = () => {
 
                           {/* Cloud Credentials */}
                           <div>
-                            <label className="text-xs text-[#737373] mb-2 block">
+                            <label className="text-xs text-[#737373] dark:text-[#a9a9a9] mb-2 block">
                               Cloud Credentials
                             </label>
                             <DropdownMenu>
@@ -1138,7 +1138,7 @@ export const ComposioTriggersPanel: React.FC = () => {
                                 <DropdownMenuLabel>Connected Accounts</DropdownMenuLabel>
                                 <DropdownMenuSeparator />
                                 {(!availableCredentials || availableCredentials.length === 0) && (
-                                  <div className="px-2 py-3 text-sm text-[#737373]">
+                                  <div className="px-2 py-3 text-sm text-[#737373] dark:text-[#a9a9a9]">
                                     No connected accounts
                                   </div>
                                 )}
@@ -1193,7 +1193,7 @@ export const ComposioTriggersPanel: React.FC = () => {
 
                           {/* Pipedream Proxy Apps */}
                           <div>
-                            <label className="text-xs text-[#737373] mb-2 block">
+                            <label className="text-xs text-[#737373] dark:text-[#a9a9a9] mb-2 block">
                               Pipedream Proxy Apps
                             </label>
                             <DropdownMenu>
@@ -1213,7 +1213,7 @@ export const ComposioTriggersPanel: React.FC = () => {
                                 <DropdownMenuLabel>Pipedream Connected Apps</DropdownMenuLabel>
                                 <DropdownMenuSeparator />
                                 {(!availablePipedreamAccounts || availablePipedreamAccounts.length === 0) && (
-                                  <div className="px-2 py-3 text-sm text-[#737373]">
+                                  <div className="px-2 py-3 text-sm text-[#737373] dark:text-[#a9a9a9]">
                                     No Pipedream apps connected
                                   </div>
                                 )}
@@ -1262,7 +1262,7 @@ export const ComposioTriggersPanel: React.FC = () => {
 
                           {/* Composio Proxy Apps */}
                           <div>
-                            <label className="text-xs text-[#737373] mb-2 block">
+                            <label className="text-xs text-[#737373] dark:text-[#a9a9a9] mb-2 block">
                               Composio Proxy Apps
                             </label>
                             <DropdownMenu>
@@ -1282,7 +1282,7 @@ export const ComposioTriggersPanel: React.FC = () => {
                                 <DropdownMenuLabel>Composio Connected Apps</DropdownMenuLabel>
                                 <DropdownMenuSeparator />
                                 {(!availableComposioAccounts || availableComposioAccounts.length === 0) && (
-                                  <div className="px-2 py-3 text-sm text-[#737373]">
+                                  <div className="px-2 py-3 text-sm text-[#737373] dark:text-[#a9a9a9]">
                                     No Composio apps connected
                                   </div>
                                 )}
@@ -1339,7 +1339,7 @@ export const ComposioTriggersPanel: React.FC = () => {
 
                           {/* AI Prompt */}
                           <div>
-                            <label className="text-xs text-[#737373] mb-1 block">
+                            <label className="text-xs text-[#737373] dark:text-[#a9a9a9] mb-1 block">
                               AI Prompt (optional)
                             </label>
                             <textarea
@@ -1401,7 +1401,7 @@ export const ComposioTriggersPanel: React.FC = () => {
               <h3 className="text-lg font-semibold">Connection Status</h3>
               <button
                 onClick={handleCloseAccountStatusModal}
-                className="text-[#737373] hover:text-[#171717]"
+                className="text-[#737373] dark:text-[#a9a9a9] hover:text-[#171717]"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1410,7 +1410,7 @@ export const ComposioTriggersPanel: React.FC = () => {
             {accountStatusLoading
               ? (
                   <div className="flex items-center justify-center py-8">
-                    <div className="text-[#737373]">Checking connection status...</div>
+                    <div className="text-[#737373] dark:text-[#a9a9a9]">Checking connection status...</div>
                   </div>
                 )
               : (
@@ -1422,7 +1422,7 @@ export const ComposioTriggersPanel: React.FC = () => {
                       <div>
                         <h4 className="font-semibold text-[#171717]">{selectedApp.name}</h4>
                         {selectedTrigger && (
-                          <p className="text-sm text-[#737373]">{selectedTrigger.name}</p>
+                          <p className="text-sm text-[#737373] dark:text-[#a9a9a9]">{selectedTrigger.name}</p>
                         )}
                       </div>
                     </div>
@@ -1474,7 +1474,7 @@ export const ComposioTriggersPanel: React.FC = () => {
                             {accountStatus?.message || 'Unable to determine account status'}
                           </p>
                           {accountStatus?.updatedAt && (
-                            <p className="text-xs mt-2 text-[#737373]">
+                            <p className="text-xs mt-2 text-[#737373] dark:text-[#a9a9a9]">
                               Last updated:
                               {' '}
                               {new Date(accountStatus.updatedAt).toLocaleString()}
@@ -1497,7 +1497,7 @@ export const ComposioTriggersPanel: React.FC = () => {
                     )}
 
                     {!accountStatus?.isActive && (
-                      <p className="mt-4 text-sm text-[#737373]">
+                      <p className="mt-4 text-sm text-[#737373] dark:text-[#a9a9a9]">
                         Your connection to
                         {' '}
                         {selectedApp.name}
