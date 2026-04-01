@@ -185,8 +185,14 @@ export function InboxProvider({ children }: { children: React.ReactNode }) {
       await window.electronAPI.quitAndInstall()
     }
     catch (error) {
+      addNotification({
+        type: 'generic',
+        title: 'Update Failed',
+        message: error instanceof Error ? error.message : 'Failed to apply update. Please restart the app manually.',
+        variant: 'error',
+      })
     }
-  }, [])
+  }, [addNotification])
 
   // =============================================================================
   // Subscribe to IPC events for updates
@@ -253,10 +259,21 @@ export function InboxProvider({ children }: { children: React.ReactNode }) {
       })
     }
 
+    // Listen for update errors (e.g. quitAndInstall fails internally)
+    const handleUpdateError = (_event: unknown, error: { message: string }) => {
+      addNotification({
+        type: 'generic',
+        title: 'Update Failed',
+        message: error.message || 'An error occurred during the update.',
+        variant: 'error',
+      })
+    }
+
     // Subscribe to events
     window.electronAPI.onUpdateAvailable(handleUpdateAvailable)
     window.electronAPI.onDownloadProgress(handleDownloadProgress)
     window.electronAPI.onUpdateDownloaded(handleUpdateDownloaded)
+    window.electronAPI.onUpdateError(handleUpdateError)
 
     // Notify main process that renderer is ready to receive update notifications
     window.electronAPI.notifyRendererReady()
@@ -266,6 +283,7 @@ export function InboxProvider({ children }: { children: React.ReactNode }) {
       window.electronAPI.removeAllListeners('update-available')
       window.electronAPI.removeAllListeners('download-progress')
       window.electronAPI.removeAllListeners('update-downloaded')
+      window.electronAPI.removeAllListeners('update-error')
     }
   }, [addNotification])
 
