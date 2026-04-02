@@ -1,5 +1,5 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import { BotIcon, HomeIcon, ListTodoIcon, SettingsIcon, WorkflowIcon } from 'lucide-react'
+import { BotIcon, EyeIcon, HomeIcon, ListTodoIcon, SettingsIcon, WorkflowIcon } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Message } from '../../../types'
@@ -13,6 +13,7 @@ import AuthComponent from '../AuthComponent'
 import { AdvancedPanel } from './settings/panels/AdvancedPanel'
 import { AICreditsPanel } from './settings/panels/AICreditsPanel'
 import { AIProvidersPanel } from './settings/panels/AIProvidersPanel'
+import { AppearancePanel } from './settings/panels/AppearancePanel'
 import { ConnectorsPanel } from './settings/panels/ConnectorsPanel'
 import { KeyPanel } from './settings/panels/KeyPanel'
 import { NotificationPanel } from './settings/panels/NotificationPanel'
@@ -36,18 +37,19 @@ type TabId = typeof TABS[number]['id']
  * Settings sub-tabs (shown when Settings is selected)
  */
 const SETTINGS_TABS = [
-  'WebSocket',
-  'Security',
-  'Security Policies',
-  'AI Providers',
-  'AI Credits',
-  'Notifications',
-  'Connectors',
-  'Triggers',
-  'Advanced',
+  { id: 'Appearance', label: 'Appearance', icon: EyeIcon },
+  { id: 'WebSocket', label: 'WebSocket', icon: null },
+  { id: 'Security', label: 'Security', icon: null },
+  { id: 'Security Policies', label: 'Security Policies', icon: null },
+  { id: 'AI Providers', label: 'AI Providers', icon: null },
+  { id: 'AI Credits', label: 'AI Credits', icon: null },
+  { id: 'Notifications', label: 'Notifications', icon: null },
+  { id: 'Connectors', label: 'Connectors', icon: null },
+  { id: 'Triggers', label: 'Triggers', icon: null },
+  { id: 'Advanced', label: 'Advanced', icon: null },
 ] as const
 
-type SettingsTabType = typeof SETTINGS_TABS[number]
+type SettingsTabType = typeof SETTINGS_TABS[number]['id']
 
 export const HomeScreen: React.FC = () => {
   const navigate = useNavigate()
@@ -59,7 +61,7 @@ export const HomeScreen: React.FC = () => {
   // Initialize activeTab from URL params
   const initialTab = (tab && TABS.some(t => t.id === tab)) ? (tab as TabId) : 'agentic-chat'
   const [activeTab, setActiveTab] = useState<TabId>(initialTab)
-  const [activeSettingsTab, setActiveSettingsTab] = useState<SettingsTabType>('WebSocket')
+  const [activeSettingsTab, setActiveSettingsTab] = useState<SettingsTabType>('Appearance')
 
   // Approval message state (for agentic chat)
   const [approvalMessage, setApprovalMessage] = useState<Message | null>(null)
@@ -152,6 +154,8 @@ export const HomeScreen: React.FC = () => {
   // Get settings panel based on active settings tab
   const getSettingsPanel = () => {
     switch (activeSettingsTab) {
+      case 'Appearance':
+        return <AppearancePanel />
       case 'WebSocket':
         return (
           <KeyPanel
@@ -245,19 +249,20 @@ export const HomeScreen: React.FC = () => {
         return (
           <div className="flex-1 flex min-h-0">
             {/* Settings sub-navigation */}
-            <div className="flex flex-col items-start shrink-0 border-r border-[#dbdbdb] pr-4">
-              {SETTINGS_TABS.map(settingsTab => (
+            <div className="flex flex-col items-start shrink-0 border-r border-[#dbdbdb] dark:border-[#2e2e2e] pr-4">
+              {SETTINGS_TABS.map(({ id, label, icon: Icon }) => (
                 <button
-                  key={settingsTab}
-                  onClick={() => setActiveSettingsTab(settingsTab)}
-                  className="px-[0.63rem] py-[0.5rem] w-full text-left text-[14px]"
+                  key={id}
+                  onClick={() => setActiveSettingsTab(id)}
+                  className="flex items-center gap-2 px-[0.63rem] py-[0.5rem] w-full text-left text-[14px]"
                   style={
-                    activeSettingsTab === settingsTab
+                    activeSettingsTab === id
                       ? { color: '#171717', fontWeight: 600 }
                       : { color: '#737373' }
                   }
                 >
-                  {settingsTab}
+                  {Icon && <Icon className="size-[14px] shrink-0" />}
+                  {label}
                 </button>
               ))}
             </div>

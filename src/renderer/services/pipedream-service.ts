@@ -17,6 +17,7 @@ export interface PipedreamApp {
   name: string
   description?: string
   logoUrl?: string
+  darkLogoUrl?: string
   categories?: string[]
   authType?: 'oauth' | 'keys' | 'none'
   featuredWeight?: number

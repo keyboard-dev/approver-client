@@ -6,7 +6,7 @@
  * Used by ConnectorsPanel (settings) and Integrations (onboarding).
  */
 
-import { ExternalLink, Search, X } from 'lucide-react'
+import { ChevronDown, ExternalLink, Search, X } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import squaresIconUrl from '../../../../assets/icon-squares.svg'
@@ -14,6 +14,7 @@ import { useComposio } from '../../hooks/useComposio'
 import { KeyboardApiProvider, useKeyboardApiConnectors } from '../../hooks/useKeyboardApiConnectors'
 import { usePipedream } from '../../hooks/usePipedream'
 import { usePopup } from '../../hooks/usePopup'
+import { useSidebarStore } from '../../stores/sidebar-store'
 import { ComposioConnectedAccount } from '../../services/composio-service'
 import { PipedreamAccount } from '../../services/pipedream-service'
 
@@ -35,6 +36,13 @@ export interface ConnectorsContentProps {
 }
 
 type FilterType = 'all' | 'local' | 'pipedream' | 'composio'
+type ConnectionFilterOption = 'connected' | 'not-connected'
+type SortOrder = 'default' | 'alphabetical'
+
+function applySort<T>(items: T[], getName: (item: T) => string, sort: SortOrder): T[] {
+  if (sort !== 'alphabetical') return items
+  return [...items].sort((a, b) => getName(a).localeCompare(getName(b)))
+}
 
 // =============================================================================
 // Tag Component
@@ -181,6 +189,7 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
   showDocsLink = false,
 }) => {
   const { showPopup, hidePopup } = usePopup()
+  const { showToast } = useSidebarStore()
 
   const [browsableLimit, setBrowsableLimit] = useState(BROWSE_PAGE_SIZE)
   const listRef = useRef<HTMLDivElement>(null)
@@ -247,63 +256,75 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
   const [searchQuery, setSearchQuery] = useState('')
   const [connectError, setConnectError] = useState<string | null>(null)
   const [filterType, setFilterType] = useState<FilterType>('all')
+  const [connectionFilters, setConnectionFilters] = useState<ConnectionFilterOption[]>([])
+  const [sortOrder, setSortOrder] = useState<SortOrder>('default')
+  const [filterDropdownOpen, setFilterDropdownOpen] = useState(false)
+
+  const toggleConnectionFilter = (f: ConnectionFilterOption) => {
+    setConnectionFilters(prev => prev.includes(f) ? prev.filter(x => x !== f) : [...prev, f])
+  }
+  const filterDropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!filterDropdownOpen) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (filterDropdownRef.current && !filterDropdownRef.current.contains(e.target as Node)) {
+        setFilterDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [filterDropdownOpen])
 
   useEffect(() => {
     setBrowsableLimit(BROWSE_PAGE_SIZE)
-  }, [searchQuery, filterType])
+  }, [searchQuery, filterType, connectionFilters, sortOrder])
 
   // ==========================================================================
   // Computed Values
   // ==========================================================================
 
-  // Filter local providers based on search and filter type
+  // Filter local providers based on search, filter type, connection filter, and sort
   const filteredLocalProviders = useMemo(() => {
-    // Hide local if pipedream or composio filter is active
-    if (filterType === 'pipedream' || filterType === 'composio') {
-      return []
-    }
+    if (filterType === 'pipedream' || filterType === 'composio') return []
 
     let providers = localProviders
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase()
-      providers = providers.filter(provider =>
-        provider.name.toLowerCase().includes(query),
-      )
+      providers = providers.filter(p => p.name.toLowerCase().includes(query))
     }
-    return providers
-  }, [localProviders, searchQuery, filterType])
+    const onlyConnected = connectionFilters.length === 1 && connectionFilters.includes('connected')
+    const onlyNotConnected = connectionFilters.length === 1 && connectionFilters.includes('not-connected')
+    if (onlyConnected) providers = providers.filter(p => providerStatus[p.id]?.authenticated)
+    else if (onlyNotConnected) providers = providers.filter(p => !providerStatus[p.id]?.authenticated)
+    return applySort(providers, p => p.name, sortOrder)
+  }, [localProviders, searchQuery, filterType, connectionFilters, sortOrder, providerStatus])
 
-  // Filter Pipedream apps based on filter type
+  // Filter Pipedream apps (not connected) based on filter type, connection filter, and sort
   const filteredPipedreamApps = useMemo(() => {
-    // Hide pipedream if local or composio filter is active
-    if (filterType === 'local' || filterType === 'composio') {
-      return []
-    }
-    return pipedreamApps
-  }, [pipedreamApps, filterType])
+    if (filterType === 'local' || filterType === 'composio') return []
+    if (connectionFilters.length > 0 && !connectionFilters.includes('not-connected')) return []
+    return applySort(pipedreamApps, a => a.name, sortOrder)
+  }, [pipedreamApps, filterType, connectionFilters, sortOrder])
 
-  // Filter Pipedream default apps based on filter type
+  // Filter Pipedream default apps based on filter type, connection filter, and sort
   const filteredPipedreamDefaultApps = useMemo(() => {
-    // Hide pipedream if local or composio filter is active
-    if (filterType === 'local' || filterType === 'composio') {
-      return []
-    }
-    return pipedreamDefaultApps
-  }, [pipedreamDefaultApps, filterType])
+    if (filterType === 'local' || filterType === 'composio') return []
+    if (connectionFilters.length > 0 && !connectionFilters.includes('not-connected')) return []
+    return applySort(pipedreamDefaultApps, a => a.name, sortOrder)
+  }, [pipedreamDefaultApps, filterType, connectionFilters, sortOrder])
 
-  // Filter Pipedream accounts based on filter type
+  // Filter Pipedream accounts (connected) based on filter type, connection filter, and sort
   const filteredPipedreamAccounts = useMemo(() => {
-    if (filterType === 'local' || filterType === 'composio') {
-      return []
-    }
-    return pipedreamAccounts
-  }, [pipedreamAccounts, filterType])
+    if (filterType === 'local' || filterType === 'composio') return []
+    if (connectionFilters.length > 0 && !connectionFilters.includes('connected')) return []
+    return applySort(pipedreamAccounts, a => a.app.name, sortOrder)
+  }, [pipedreamAccounts, filterType, connectionFilters, sortOrder])
 
-  // Filter Composio accounts based on search and filter type
+  // Filter Composio accounts (connected) based on search, filter type, connection filter, and sort
   const filteredComposioAccounts = useMemo(() => {
-    if (filterType === 'local' || filterType === 'pipedream') {
-      return []
-    }
+    if (filterType === 'local' || filterType === 'pipedream') return []
+    if (connectionFilters.length > 0 && !connectionFilters.includes('connected')) return []
     let accounts = composioAccounts
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase()
@@ -313,17 +334,15 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
         return appName.includes(query) || toolkitSlug.includes(query)
       })
     }
-    return accounts
-  }, [composioAccounts, searchQuery, filterType])
+    return applySort(accounts, a => a.appName || a.toolkit?.slug || '', sortOrder)
+  }, [composioAccounts, searchQuery, filterType, connectionFilters, sortOrder])
 
-  // Filter Composio apps based on filter type
+  // Filter Composio apps (not connected) based on filter type, connection filter, and sort
   const filteredComposioApps = useMemo(() => {
-    // Hide composio if local or pipedream filter is active
-    if (filterType === 'local' || filterType === 'pipedream') {
-      return []
-    }
-    return composioApps
-  }, [composioApps, filterType])
+    if (filterType === 'local' || filterType === 'pipedream') return []
+    if (connectionFilters.length > 0 && !connectionFilters.includes('not-connected')) return []
+    return applySort(composioApps, a => a.name || a.slug || '', sortOrder)
+  }, [composioApps, filterType, connectionFilters, sortOrder])
 
   // ==========================================================================
   // Handlers
@@ -348,10 +367,11 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
     clearComposioSearch()
   }
 
-  const handleConnectLocal = async (providerId: string) => {
+  const handleConnectLocal = async (providerId: string, displayName: string) => {
     setConnectError(null)
     try {
       await connectProvider(providerId)
+      showToast(`Successfully added new account for ${displayName}!`)
     }
     catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to connect'
@@ -375,11 +395,12 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
     })
   }
 
-  const handleConnectPipedream = async (appSlug: string) => {
+  const handleConnectPipedream = async (appSlug: string, displayName: string) => {
     setConnectError(null)
     try {
       await connectPipedreamApp(appSlug)
       handleClearSearch()
+      showToast(`Successfully added new account for ${displayName}!`)
     }
     catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to connect'
@@ -403,10 +424,11 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
     })
   }
 
-  const handleConnectComposio = async (appName: string) => {
+  const handleConnectComposio = async (appSlug: string, displayName: string) => {
     setConnectError(null)
     try {
-      await connectComposioApp(appName)
+      await connectComposioApp(appSlug)
+      showToast(`Successfully added new account for ${displayName}!`)
       // Refresh accounts after initiating connection (user will complete OAuth in browser)
       setTimeout(() => {
         refreshComposioAccounts()
@@ -446,6 +468,7 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
     <div className={`flex flex-col gap-[15px] ${!maxConnectorsHeight ? 'h-full' : ''} ${className}`}>
       {/* Filter Tabs and Search Row */}
       <div className="flex flex-col gap-[10px]">
+        {/* Row 1: Source filter + Search */}
         <div className="flex items-center justify-between">
           <FilterTabs activeFilter={filterType} onFilterChange={setFilterType} />
           <div className="relative w-[276px]">
@@ -468,29 +491,100 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
           </div>
         </div>
 
-        {/* Description Text */}
-        {showDescription && (
-          <p className="text-[14px] font-medium text-[#a5a5a5]">
-            Local apps are managed by Keyboard. Pipedream apps are powered by
-            {' '}
+        {/* Row 2: Filter by + Sort by dropdowns */}
+        <div className="flex items-center gap-[8px]">
+          <div ref={filterDropdownRef} className="relative">
             <button
-              className="underline decoration-solid hover:text-[#737373] dark:hover:text-[#a9a9a9]"
-              onClick={() => window.electronAPI.openExternalUrl('https://pipedream.com/')}
+              onClick={() => setFilterDropdownOpen(prev => !prev)}
+              className="flex items-center gap-[4px] text-[14px] font-medium text-[#737373] dark:text-[#a9a9a9] bg-[#FAFAFA] dark:bg-[#242424] border border-[#e5e5e5] dark:border-[#2e2e2e] rounded-[5px] px-2 py-1 cursor-pointer hover:border-[#ccc] dark:hover:border-[#444] transition-colors"
             >
-              Pipedream
+              Filter by
+              <ChevronDown className="w-[12px] h-[12px]" />
             </button>
-            . Composio apps are powered by
-            {' '}
-            <button
-              className="underline decoration-solid hover:text-[#737373] dark:hover:text-[#a9a9a9]"
-              onClick={() => window.electronAPI.openExternalUrl('https://composio.dev/')}
-            >
-              Composio
-            </button>
-            .
-          </p>
+            {filterDropdownOpen && (
+              <div className="absolute top-full left-0 mt-[4px] bg-[#FAFAFA] dark:bg-[#242424] border border-[#e5e5e5] dark:border-[#2e2e2e] rounded-[6px] py-[6px] z-10 min-w-[148px] shadow-sm">
+                {(['connected', 'not-connected'] as const).map(f => (
+                  <label
+                    key={f}
+                    className="flex items-center gap-[8px] px-[10px] py-[5px] cursor-pointer hover:bg-[#f0f0f0] dark:hover:bg-[#1F1F1F]"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={connectionFilters.includes(f)}
+                      onChange={() => toggleConnectionFilter(f)}
+                      className="w-[13px] h-[13px] accent-[#171717] dark:accent-[#a9a9a9] cursor-pointer"
+                    />
+                    <span className="text-[14px] font-medium text-[#171717] dark:text-[#a9a9a9]">
+                      {f === 'connected' ? 'Connected' : 'Not connected'}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+          <select
+            value={sortOrder}
+            onChange={e => setSortOrder(e.target.value as SortOrder)}
+            className="text-[14px] font-medium text-[#737373] dark:text-[#a9a9a9] bg-[#FAFAFA] dark:bg-[#242424] border border-[#e5e5e5] dark:border-[#2e2e2e] rounded-[5px] px-2 py-1 outline-none cursor-pointer"
+          >
+            <option value="default">Sort by</option>
+            <option value="alphabetical">A-Z</option>
+          </select>
+        </div>
+
+        {/* Row 3: Active filter/sort pills */}
+        {(connectionFilters.length > 0 || sortOrder !== 'default') && (
+          <div className="flex items-center gap-[6px]">
+            {connectionFilters.map(f => (
+              <span key={f} className="flex items-center gap-[4px] px-[8px] py-[3px] bg-[#f0f0f0] dark:bg-[#1F1F1F] text-[#171717] dark:text-[#a9a9a9] text-[13px] font-medium rounded-full">
+                {f === 'connected' ? 'Connected' : 'Not connected'}
+                <button
+                  onClick={() => toggleConnectionFilter(f)}
+                  className="ml-[2px] text-[#737373] dark:text-[#a9a9a9] hover:text-[#171717] dark:hover:text-white"
+                  aria-label="Clear filter"
+                >
+                  <X className="w-[10px] h-[10px]" />
+                </button>
+              </span>
+            ))}
+            {sortOrder !== 'default' && (
+              <span className="flex items-center gap-[4px] px-[8px] py-[3px] bg-[#f0f0f0] dark:bg-[#1F1F1F] text-[#171717] dark:text-[#a9a9a9] text-[13px] font-medium rounded-full">
+                A-Z
+                <button
+                  onClick={() => setSortOrder('default')}
+                  className="ml-[2px] text-[#737373] dark:text-[#a9a9a9] hover:text-[#171717] dark:hover:text-white"
+                  aria-label="Clear sort"
+                >
+                  <X className="w-[10px] h-[10px]" />
+                </button>
+              </span>
+            )}
+          </div>
         )}
       </div>
+
+      {/* Description Text */}
+      {showDescription && (
+        <p className="text-[14px] font-medium text-[#a5a5a5]">
+          Local apps are managed by Keyboard. Pipedream apps are powered by
+          {' '}
+          <button
+            className="underline decoration-solid hover:text-[#737373] dark:hover:text-[#a9a9a9]"
+            onClick={() => window.electronAPI.openExternalUrl('https://pipedream.com/')}
+          >
+            Pipedream
+          </button>
+          . Composio apps are powered by
+          {' '}
+          <button
+            className="underline decoration-solid hover:text-[#737373] dark:hover:text-[#a9a9a9]"
+            onClick={() => window.electronAPI.openExternalUrl('https://composio.dev/')}
+          >
+            Composio
+          </button>
+          .
+        </p>
+      )}
 
       {/* Error Display */}
       {(connectError || localError || pipedreamAppsError || composioAccountsError || composioAppsError) && (
@@ -526,7 +620,7 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
               isConnecting={connectingProviderId === provider.id}
               isDisconnecting={disconnectingProviderId === provider.id}
               disabled={!provider.configured}
-              onConnect={() => handleConnectLocal(provider.id)}
+              onConnect={() => handleConnectLocal(provider.id, provider.name)}
               onDisconnect={() => handleDisconnectLocal(provider)}
             />
           )
@@ -602,7 +696,7 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
                 isConnected={false}
                 isConnecting={pipedreamConnectingApp === app.nameSlug}
                 isDisconnecting={false}
-                onConnect={() => handleConnectPipedream(app.nameSlug)}
+                onConnect={() => handleConnectPipedream(app.nameSlug, app.name)}
                 onDisconnect={() => {}}
               />
             ))}
@@ -639,7 +733,7 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
                   isConnected={false}
                   isConnecting={composioConnectingApp === app.slug}
                   isDisconnecting={false}
-                  onConnect={() => handleConnectComposio(app.slug)}
+                  onConnect={() => handleConnectComposio(app.slug, app.name || app.slug || 'Unknown')}
                   onDisconnect={() => {}}
                 />
               ))}
@@ -678,7 +772,7 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
                 isConnected={false}
                 isConnecting={pipedreamConnectingApp === app.nameSlug}
                 isDisconnecting={false}
-                onConnect={() => handleConnectPipedream(app.nameSlug)}
+                onConnect={() => handleConnectPipedream(app.nameSlug, app.name)}
                 onDisconnect={() => {}}
               />
             ))}
@@ -693,7 +787,7 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
                 Loading Composio apps...
               </div>
             )}
-            {composioApps
+            {filteredComposioApps
               .filter(app =>
                 // Filter out already connected apps
                 !composioAccounts.some((acc) => {
@@ -715,7 +809,7 @@ export const ConnectorsContent: React.FC<ConnectorsContentProps> = ({
                   isConnected={false}
                   isConnecting={composioConnectingApp === app.slug}
                   isDisconnecting={false}
-                  onConnect={() => handleConnectComposio(app.slug)}
+                  onConnect={() => handleConnectComposio(app.slug, app.name || app.slug || 'Unknown')}
                   onDisconnect={() => {}}
                 />
               ))}

@@ -14,12 +14,13 @@ import { cn } from '../../lib/utils'
 export type TooltipIconButtonProps = ComponentPropsWithRef<typeof Button> & {
   tooltip: string
   side?: 'top' | 'bottom' | 'left' | 'right'
+  tooltipClassName?: string
 }
 
 export const TooltipIconButton = forwardRef<
   HTMLButtonElement,
   TooltipIconButtonProps
->(({ children, tooltip, side = 'bottom', className, ...rest }, ref) => {
+>(({ children, tooltip, side = 'bottom', className, tooltipClassName, ...rest }, ref) => {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -34,7 +35,7 @@ export const TooltipIconButton = forwardRef<
           <span className="aui-sr-only sr-only">{tooltip}</span>
         </Button>
       </TooltipTrigger>
-      <TooltipContent side={side}>{tooltip}</TooltipContent>
+      <TooltipContent side={side} className={tooltipClassName}>{tooltip}</TooltipContent>
     </Tooltip>
   )
 })

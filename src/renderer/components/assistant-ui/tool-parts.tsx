@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { ToolCallMessagePartComponent } from '@assistant-ui/react'
+import { useMessage } from '@assistant-ui/react'
 import { ChevronDownIcon, CheckCircleIcon, XCircleIcon } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { RunCodeDisplay } from './run-code-display'
@@ -17,6 +18,8 @@ export const RunCodeToolPart: ToolCallMessagePartComponent = ({
   result,
   isError,
 }) => {
+  const { status } = useMessage()
+  const stopped = status.type !== 'running'
   const isComplete = result !== undefined
 
   // Completed: use parsed args for clean display
@@ -56,7 +59,7 @@ export const RunCodeToolPart: ToolCallMessagePartComponent = ({
 
     return (
       <div data-tool-part="run-code" className="my-2">
-        <RunCodeDisplay data={{ explanation, code, language }} rawStreamingText={argsText} />
+        <RunCodeDisplay data={{ explanation, code, language }} rawStreamingText={argsText} stopped={stopped} />
         {isComplete && <ToolResult result={result} isError={isError} />}
       </div>
     )

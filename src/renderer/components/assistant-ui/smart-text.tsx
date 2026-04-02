@@ -1,5 +1,5 @@
 import { memo, useMemo } from 'react'
-import { useMessagePartText } from '@assistant-ui/react'
+import { useMessage, useMessagePartText } from '@assistant-ui/react'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
@@ -154,6 +154,8 @@ const MarkdownContent = memo(function MarkdownContent({ text }: { text: string }
 const SmartTextImpl = () => {
   const part = useMessagePartText()
   const text = 'text' in part ? part.text : ''
+  const { status } = useMessage()
+  const stopped = status.type !== 'running'
 
   // Tool activity is rendered alongside other content, not as a replacement
   const toolActivityData = useMemo(() => parseToolActivityData(text), [text])
@@ -200,7 +202,7 @@ const SmartTextImpl = () => {
   if (toolActivityData) {
     return (
       <>
-        <ToolActivityDisplay data={toolActivityData} />
+        <ToolActivityDisplay data={toolActivityData} stopped={stopped} />
         {restContent}
       </>
     )

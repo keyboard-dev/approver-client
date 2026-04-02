@@ -1,6 +1,8 @@
-import { AlertCircleIcon, CheckCircle2Icon, ChevronDownIcon, ExternalLink, Loader2, PencilLineIcon, PlusIcon, Trash2Icon, WifiOffIcon } from 'lucide-react'
+import { AlertCircleIcon, CheckCircle2Icon, ChevronDownIcon, ExternalLink, Loader2, PencilLineIcon, PlusIcon, Trash2Icon } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
+import { useAssistantState } from '@assistant-ui/react'
 import { fetchConnectorNotes, getConnectorNote, setConnectorNote } from '../../services/context-service'
 import {
   Dialog,
@@ -14,9 +16,9 @@ import squaresIconUrl from '../../../../assets/icon-squares.svg'
 import { useComposio } from '../../hooks/useComposio'
 import { useKeyboardApiConnectors } from '../../hooks/useKeyboardApiConnectors'
 import { usePipedream } from '../../hooks/usePipedream'
-import { usePopup } from '../../hooks/usePopup'
 import { cn } from '../../lib/utils'
 import { ConnectAppsModal } from '../ui/ConnectAppsModal'
+import { useSidebarStore } from '../../stores/sidebar-store'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,8 +40,10 @@ type SourceType = 'local' | 'pipedream' | 'composio'
 
 interface ConnectedApp {
   id: string
+  chatId: string
   name: string
   icon: string
+  darkIcon?: string
   source: SourceType
   appSlug: string
   isConnected: boolean
@@ -75,6 +79,14 @@ interface ConnectedAppRowProps {
 }
 
 const ConnectedAppRow: FC<ConnectedAppRowProps & { notesReady: boolean }> = ({ app, onConnect, onDisconnect, notesReady }) => {
+  const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'))
+  useEffect(() => {
+    const observer = new MutationObserver(() => setIsDark(document.documentElement.classList.contains('dark')))
+    observer.observe(document.documentElement, { attributeFilter: ['class'] })
+    return () => observer.disconnect()
+  }, [])
+  const iconSrc = (isDark && app.darkIcon) ? app.darkIcon : app.icon
+
   const [noteOpen, setNoteOpen] = useState(false)
   const [noteValue, setNoteValue] = useState('')
   const [saving, setSaving] = useState(false)
@@ -107,9 +119,9 @@ const ConnectedAppRow: FC<ConnectedAppRowProps & { notesReady: boolean }> = ({ a
       <div className="flex items-center gap-[6px] w-full min-w-0">
         {/* Icon + Name */}
         <div className="flex-1 flex items-center gap-[6px] min-w-0">
-          <div className="bg-white dark:bg-[#2a2a2a] border border-[#e5e5e5] dark:border-[#3a3a3a] rounded-[4px] p-[4px] flex items-center shrink-0">
+          <div className="bg-white dark:bg-[#292929] border border-[#e5e5e5] dark:border-[#3a3a3a] rounded-[4px] p-[4px] flex items-center shrink-0">
             <img
-              src={app.icon}
+              src={iconSrc}
               alt={app.name}
               className="w-[18px] h-[18px] object-contain"
               onError={(e) => {
@@ -181,7 +193,7 @@ const ConnectedAppRow: FC<ConnectedAppRowProps & { notesReady: boolean }> = ({ a
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <img
-                src={app.icon}
+                src={iconSrc}
                 alt={app.name}
                 className="w-5 h-5 object-contain"
                 onError={(e) => {
@@ -311,12 +323,14 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
   const [connectAppsModalOpen, setConnectAppsModalOpen] = useState(false)
   const [notesReady, setNotesReady] = useState(false)
 
+  const { pathname } = useLocation()
+
+  const { chatAppsByThread, addChatApp, removeChatApp } = useSidebarStore()
+
   // Fetch connector notes on mount
   useEffect(() => {
     fetchConnectorNotes().then(() => setNotesReady(true)).catch(() => setNotesReady(true))
   }, [])
-
-  const { showPopup, hidePopup } = usePopup()
 
   // Local connectors
   const {
@@ -324,36 +338,48 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
     providerStatus,
     connectingProviderId,
     disconnectingProviderId,
-    connectProvider,
-    disconnectProvider,
+    refreshStatus: refreshLocalStatus,
   } = useKeyboardApiConnectors()
 
   // Pipedream connectors
   const {
     accounts: pipedreamAccounts,
-    disconnectingAccountId: pipedreamDisconnectingAccountId,
-    disconnectAccount: disconnectPipedreamAccount,
+    refreshAccounts: refreshPipedreamAccounts,
   } = usePipedream()
 
   // Composio connectors
   const {
     accounts: composioAccounts,
     apps: composioApps,
-    disconnectingAccountId: composioDisconnectingAccountId,
-    disconnectAccount: disconnectComposioAccount,
+    refreshAccounts: refreshComposioAccounts,
   } = useComposio()
 
-  if (!isOpen) return null
+  // Collect unique tool names called in the current thread (stable via joined string)
+  const usedToolNamesKey = useAssistantState(({ thread }) => {
+    const names = new Set<string>()
+    for (const message of thread.messages) {
+      if (message.role === 'assistant') {
+        for (const part of message.content) {
+          if ((part as { type: string }).type === 'tool-call') {
+            names.add((part as { toolName: string }).toolName)
+          }
+        }
+      }
+    }
+    return [...names].sort().join(',')
+  })
 
-  // Build list of connected apps
+  // Build list of connected apps (before early return so connectedAppsRef can be set)
   const connectedApps: ConnectedApp[] = [
     // Local providers that are authenticated
     ...localProviders
       .filter(provider => providerStatus[provider.id]?.authenticated)
       .map(provider => ({
         id: `local-${provider.id}`,
+        chatId: `local:${provider.id}`,
         name: provider.name,
         icon: provider.icon,
+        darkIcon: provider.darkIcon,
         source: 'local' as SourceType,
         appSlug: provider.id,
         isConnected: true,
@@ -362,12 +388,14 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
     // Pipedream connected accounts
     ...pipedreamAccounts.map(account => ({
       id: `pipedream-${account.id}`,
+      chatId: `pipedream:${account.app.nameSlug}`,
       name: account.app.name,
       icon: account.app.logoUrl || squaresIconUrl,
+      darkIcon: account.app.darkLogoUrl,
       source: 'pipedream' as SourceType,
       appSlug: account.app.nameSlug,
       isConnected: true,
-      isDisconnecting: pipedreamDisconnectingAccountId === account.id,
+      isDisconnecting: false,
     })),
     // Composio connected accounts
     ...composioAccounts.map((account) => {
@@ -376,38 +404,48 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
         (app.name?.toLowerCase() || '') === appIdentifier.toLowerCase()
         || (app.slug?.toLowerCase() || '') === appIdentifier.toLowerCase(),
       )
+      const slug = matchingApp?.slug || appIdentifier
       return {
         id: `composio-${account.id}`,
+        chatId: `composio:${slug.toLowerCase()}`,
         name: matchingApp?.name || appIdentifier || 'Unknown App',
         icon: matchingApp?.meta?.logo || matchingApp?.logo || squaresIconUrl,
+        darkIcon: matchingApp?.meta?.darkLogo || matchingApp?.darkLogo,
         source: 'composio' as SourceType,
-        appSlug: matchingApp?.slug || appIdentifier,
+        appSlug: slug,
         isConnected: true,
-        isDisconnecting: composioDisconnectingAccountId === account.id,
+        isDisconnecting: false,
       }
     }),
   ]
 
-  const handleDisconnect = (app: ConnectedApp) => {
-    showPopup({
-      description: `Are you sure you want to disconnect ${app.name}?`,
-      onConfirm: async () => {
-        hidePopup()
-        if (app.source === 'local') {
-          const providerId = app.id.replace('local-', '')
-          await disconnectProvider(providerId)
-        }
-        else if (app.source === 'pipedream') {
-          const accountId = app.id.replace('pipedream-', '')
-          await disconnectPipedreamAccount(accountId)
-        }
-        else if (app.source === 'composio') {
-          const accountId = app.id.replace('composio-', '')
-          await disconnectComposioAccount(accountId)
-        }
-      },
-      onCancel: hidePopup,
-    })
+  const connectedAppsRef = useRef<ConnectedApp[]>([])
+  connectedAppsRef.current = connectedApps
+
+  const chatAppIds = chatAppsByThread[pathname] || []
+  const chatConnectedApps = connectedApps.filter(app => chatAppIds.includes(app.chatId))
+
+  // Auto-add apps detected via tool calls to the store
+  useEffect(() => {
+    if (!pathname || !usedToolNamesKey) return
+    const currentChatAppIds = useSidebarStore.getState().chatAppsByThread[pathname] || []
+    const toolNamesList = usedToolNamesKey.split(',')
+    for (const app of connectedAppsRef.current) {
+      const toolMatch = toolNamesList.some((t) => {
+        const lower = t.toLowerCase()
+        const slug = app.appSlug.toLowerCase()
+        return lower.startsWith(slug + '_') || lower.startsWith(slug + '-') || lower === slug
+      })
+      if (toolMatch && !currentChatAppIds.includes(app.chatId)) {
+        addChatApp(pathname, app.chatId)
+      }
+    }
+  }, [usedToolNamesKey, pathname, addChatApp])
+
+  if (!isOpen) return null
+
+  const handleRemoveFromChat = (app: ConnectedApp) => {
+    removeChatApp(pathname, app.chatId)
   }
 
   const currentProvider = providers.find(p => p.id === selectedProvider)
@@ -416,14 +454,14 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
   return (
     <div className="flex flex-col gap-[10px] h-full w-full overflow-x-clip overflow-y-auto">
       {/* Overview Header */}
-      <div className="flex items-center justify-center pl-[8px] pr-[7px]">
+      <div className="flex items-center justify-center pl-[8px]">
         <p className="flex-1 font-semibold text-[14px] text-[#737373] dark:text-[#a9a9a9] leading-normal">
           Overview
         </p>
       </div>
 
       {/* MCP Connection Status */}
-      <div className="pl-[8px] pr-[7px]">
+      <div className="pl-[8px]">
         {mcpConnected
           ? (
               <div className="flex items-center gap-2 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2">
@@ -469,7 +507,7 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
       </div>
 
       {/* Model Preferences Section */}
-      <div className="flex flex-col gap-[10px] pl-[8px] pr-[7px]">
+      <div className="flex flex-col gap-[10px] pl-[8px]">
         <button
           type="button"
           onClick={() => setModelPreferencesOpen(!modelPreferencesOpen)}
@@ -642,10 +680,10 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
       </div>
 
       {/* Divider */}
-      <div className="shrink-0 h-px bg-[#dbdbdb] dark:bg-[#2e2e2e] mx-[8px]" />
+      <div className="shrink-0 h-px bg-[#dbdbdb] dark:bg-[#2e2e2e] ml-[8px]" />
 
       {/* Connectors Section */}
-      <div className="flex flex-col gap-[10px] pl-[8px] pr-[7px]">
+      <div className="flex flex-col gap-[10px] pl-[8px]">
         <button
           type="button"
           onClick={() => setConnectorsOpen(!connectorsOpen)}
@@ -665,21 +703,21 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
         {connectorsOpen && (
           <>
             <p className="font-medium text-[14px] text-[#737373] dark:text-[#a9a9a9] leading-normal">
-              Apps available in this chat
+              Apps used in this chat
             </p>
 
             {/* Connected Apps List */}
             <TooltipProvider delayDuration={300}>
               <div className="bg-[#fafafa] dark:bg-[#242424] border border-[#dbdbdb] dark:border-[#2e2e2e] flex flex-col gap-[8px] p-[10px] rounded-[12px] w-full overflow-hidden">
-                {connectedApps.length > 0
+                {chatConnectedApps.length > 0
                   ? (
-                      connectedApps.map(app => (
+                      chatConnectedApps.map(app => (
                         <ConnectedAppRow
                           key={app.id}
                           app={app}
                           notesReady={notesReady}
                           onConnect={() => {}}
-                          onDisconnect={() => handleDisconnect(app)}
+                          onDisconnect={() => handleRemoveFromChat(app)}
                         />
                       ))
                     )
@@ -691,15 +729,15 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
               </div>
             </TooltipProvider>
 
-            {/* Connect more apps button */}
+            {/* Add more apps button */}
             <button
               type="button"
               onClick={() => setConnectAppsModalOpen(true)}
-              className="bg-[#fafafa] dark:bg-[#242424] border border-[#dbdbdb] dark:border-[#2e2e2e] flex gap-[4px] items-center justify-center px-[20px] py-[4px] rounded-[12px] self-start hover:bg-[#f5f5f5] dark:hover:bg-[#2a2a2a] transition-colors"
+              className="bg-[#fafafa] dark:bg-[#242424] border border-[#dbdbdb] dark:border-[#2e2e2e] flex gap-[6px] items-center justify-center w-full py-[8px] rounded-[12px] hover:bg-[#f5f5f5] dark:hover:bg-[#2a2a2a] transition-colors"
             >
-              <PlusIcon className="size-[24px] text-[#171717] dark:text-[#a9a9a9]" />
+              <PlusIcon className="size-[16px] text-[#171717] dark:text-[#a9a9a9]" />
               <p className="font-medium text-[14px] text-[#171717] dark:text-[#a9a9a9] leading-normal">
-                Connect more apps
+                Add more apps
               </p>
             </button>
 
@@ -707,6 +745,15 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
             <ConnectAppsModal
               isOpen={connectAppsModalOpen}
               onClose={() => setConnectAppsModalOpen(false)}
+              chatAppIds={chatAppIds}
+              chatConnectedApps={chatConnectedApps}
+              onAddToChat={(chatId) => addChatApp(pathname, chatId)}
+              onRemoveFromChat={(chatId) => removeChatApp(pathname, chatId)}
+              onDisconnected={() => {
+                refreshPipedreamAccounts()
+                refreshComposioAccounts()
+                refreshLocalStatus()
+              }}
             />
 
           </>

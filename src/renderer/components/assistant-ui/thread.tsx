@@ -23,6 +23,7 @@ import {
   ThreadPrimitive,
   useAssistantState,
   useThreadListItem,
+  useThreadListItemRuntime,
 } from '@assistant-ui/react'
 
 import { LazyMotion, MotionConfig, domAnimation } from 'motion/react'
@@ -54,6 +55,7 @@ import { RunCodeToolPart, AbilityCallToolPart } from './tool-parts'
 // Settings panels
 import { AdvancedPanel } from '../screens/settings/panels/AdvancedPanel'
 import { AICreditsPanel } from '../screens/settings/panels/AICreditsPanel'
+import { AppearancePanel } from '../screens/settings/panels/AppearancePanel'
 import { ConnectorsPanel } from '../screens/settings/panels/ConnectorsPanel'
 import { TooltipIconButton } from './tooltip-icon-button'
 
@@ -98,11 +100,13 @@ interface ThreadCustomProps {
 
 // Maps between SettingsTabType and URL hash fragment
 const PANEL_TO_HASH: Partial<Record<SettingsTabType, string>> = {
+  Appearance: '#appearance',
   Connectors: '#connectors',
   'AI Credits': '#ai-credits',
   Advanced: '#advanced',
 }
 const HASH_TO_PANEL: Record<string, SettingsTabType> = {
+  '#appearance': 'Appearance',
   '#connectors': 'Connectors',
   '#ai-credits': 'AI Credits',
   '#advanced': 'Advanced',
@@ -156,6 +160,8 @@ export const Thread: FC<ThreadCustomProps> = ({
   // Get settings panel based on active tab
   const getSettingsPanel = () => {
     switch (activeSettingsTab) {
+      case 'Appearance':
+        return <AppearancePanel />
       case 'AI Credits':
         return <AICreditsPanel />
       case 'Connectors':
@@ -242,12 +248,7 @@ export const Thread: FC<ThreadCustomProps> = ({
                 ['--thread-max-width' as string]: '960px',
               }}
             >
-              {/* Header with title */}
-              <div className="flex items-center p-[16px] border-b border-[#eaeaea] dark:border-[#2e2e2e]">
-                <p className="font-semibold text-[16px] text-[#171717] dark:text-[#f5f5f5]">
-                  <ThreadTitle />
-                </p>
-              </div>
+              <ThreadHeader />
 
               <ThreadChatArea
                 currentApprovalMessage={currentApprovalMessage}
@@ -327,7 +328,7 @@ const ThreadChatArea: FC<ThreadChatAreaProps> = ({
 
   return (
     <div className={cn('flex flex-col flex-1 min-h-0', isThreadEmpty && 'max-h-[677px]')}>
-      <ThreadPrimitive.Viewport className="aui-thread-viewport relative flex flex-1 flex-col overflow-y-auto overflow-x-hidden px-4 min-h-0">
+      <ThreadPrimitive.Viewport className={cn('aui-thread-viewport relative flex flex-1 flex-col overflow-y-auto overflow-x-hidden min-h-0', !isThreadEmpty && 'px-4')}>
         <ThreadPrimitive.If empty>
           <ThreadWelcome />
         </ThreadPrimitive.If>
@@ -412,9 +413,66 @@ const ThreadScrollToBottom: FC = () => {
 // Hero background image from design (keyboard with dotted pattern)
 import heroBackgroundUrl from '../../../../assets/hero-background.png'
 
+function ThreadHeader() {
+  const threadListItem = useThreadListItem({ optional: true })
+  if (!threadListItem?.title) return null
+  return (
+    <div className="flex items-center p-[16px] border-b border-[#eaeaea] dark:border-[#2e2e2e] min-w-0">
+      <p className="font-semibold text-[16px] text-[#171717] dark:text-[#f5f5f5] min-w-0 flex-1">
+        <ThreadTitle />
+      </p>
+    </div>
+  )
+}
+
 function ThreadTitle() {
   const threadListItem = useThreadListItem({ optional: true })
-  return <>{threadListItem?.title ?? 'New chat'}</>
+  const runtime = useThreadListItemRuntime({ optional: true })
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState('')
+
+  const title = threadListItem?.title ?? 'New chat'
+
+  const startEdit = () => {
+    if (!runtime) return
+    setValue(title)
+    setEditing(true)
+  }
+
+  const save = async () => {
+    setEditing(false)
+    const trimmed = value.trim()
+    if (trimmed && trimmed !== title && runtime) {
+      await runtime.rename(trimmed)
+    }
+  }
+
+  const handleKeyDown = (e: { key: string }) => {
+    if (e.key === 'Enter') save()
+    if (e.key === 'Escape') setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        value={value}
+        onChange={e => setValue(e.target.value)}
+        onBlur={save}
+        onKeyDown={handleKeyDown}
+        className="bg-transparent outline-none border-b border-[#99A0FF] text-[#171717] dark:text-[#f5f5f5] font-semibold text-[16px] w-full min-w-[120px]"
+      />
+    )
+  }
+
+  return (
+    <span
+      onClick={startEdit}
+      className={cn(runtime ? 'cursor-pointer hover:opacity-70 transition-opacity' : '')}
+    >
+      {title}
+    </span>
+  )
 }
 
 const ThreadWelcome: FC = () => {
@@ -422,7 +480,7 @@ const ThreadWelcome: FC = () => {
   const backgroundSrc = orgCoverUrl || heroBackgroundUrl
 
   return (
-    <div className="aui-thread-welcome-root flex w-[calc(100%+2rem)] flex-grow flex-col relative -mx-4">
+    <div className="aui-thread-welcome-root flex w-full flex-grow flex-col relative">
       {/* Background image with gradient overlay */}
       <div className="absolute inset-0 overflow-hidden">
         <img

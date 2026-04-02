@@ -18,6 +18,7 @@ export interface KeyboardApiProvider {
   id: string
   name: string
   icon: string
+  darkIcon?: string
   configured: boolean
   scopes: string[]
 }

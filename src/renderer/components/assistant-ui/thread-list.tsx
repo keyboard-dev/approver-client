@@ -1,4 +1,4 @@
-import type { FC } from 'react'
+import { type FC, useRef, useState } from 'react'
 import {
   ThreadListItemPrimitive,
   ThreadListPrimitive,
@@ -7,6 +7,7 @@ import { ArchiveIcon, PlusIcon, TrashIcon } from 'lucide-react'
 
 import { cn } from '../../lib/utils'
 import { TooltipIconButton } from './tooltip-icon-button'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip'
 
 interface NewChatButtonProps {
   onChatSelect?: () => void
@@ -80,10 +81,32 @@ const ThreadListItem: FC<ThreadListItemProps> = ({ onChatSelect }) => {
 }
 
 const ThreadListItemTitle: FC = () => {
+  const spanRef = useRef<HTMLSpanElement>(null)
+  const [open, setOpen] = useState(false)
+
+  const handleMouseEnter = () => {
+    const el = spanRef.current
+    if (el && el.scrollWidth > el.clientWidth) setOpen(true)
+  }
+
   return (
-    <span className="aui-thread-list-item-title text-[14px] leading-normal text-[#737373] dark:text-[#a9a9a9] font-medium truncate block">
-      <ThreadListItemPrimitive.Title fallback="New Chat" />
-    </span>
+    <TooltipProvider>
+      <Tooltip open={open} onOpenChange={setOpen}>
+        <TooltipTrigger asChild>
+          <span
+            ref={spanRef}
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={() => setOpen(false)}
+            className="aui-thread-list-item-title text-[14px] leading-normal text-[#737373] dark:text-[#a9a9a9] font-medium truncate block"
+          >
+            <ThreadListItemPrimitive.Title fallback="New Chat" />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="right" className="z-[9999] bg-[#171717] text-white border-none">
+          <ThreadListItemPrimitive.Title fallback="New Chat" />
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   )
 }
 
@@ -94,6 +117,8 @@ const ThreadListItemArchive: FC = () => {
         className="size-6 p-1 text-[#737373] dark:text-[#a9a9a9] hover:text-[#171717] dark:hover:text-[#f5f5f5] hover:bg-[#dbdbdb] dark:hover:bg-[#2e2e2e] rounded"
         variant="ghost"
         tooltip="Archive thread"
+        side="right"
+        tooltipClassName="z-[9999] bg-[#171717] text-white border-none"
       >
         <ArchiveIcon className="size-4" />
       </TooltipIconButton>
@@ -108,6 +133,8 @@ const ThreadListItemDelete: FC = () => {
         className="size-6 p-1 text-[#737373] dark:text-[#a9a9a9] hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950 rounded"
         variant="ghost"
         tooltip="Delete thread"
+        side="right"
+        tooltipClassName="z-[9999] bg-[#171717] text-white border-none"
       >
         <TrashIcon className="size-4" />
       </TooltipIconButton>

@@ -58,10 +58,11 @@ export function parseRunCodeBlock(rawContent: string): RunCodeData | null {
 interface RunCodeDisplayProps {
   data: RunCodeData
   rawStreamingText?: string
+  stopped?: boolean
 }
 
-export const RunCodeDisplay = memo(function RunCodeDisplay({ data, rawStreamingText }: RunCodeDisplayProps) {
-  const isStreaming = !!rawStreamingText
+export const RunCodeDisplay = memo(function RunCodeDisplay({ data, rawStreamingText, stopped }: RunCodeDisplayProps) {
+  const isStreaming = !!rawStreamingText && !stopped
   const [isExpanded, setIsExpanded] = useState(false)
   const [isCopied, setIsCopied] = useState(false)
   const lineCount = data.code ? data.code.split('\n').length : 0

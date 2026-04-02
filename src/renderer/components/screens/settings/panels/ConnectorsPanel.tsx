@@ -40,7 +40,7 @@ export const ConnectorsPanel: React.FC = () => {
           Local connectors are managed by Keyboard. Pipedream apps are powered by
           {' '}
           <button
-            className="no-underline dark:text-[#f5f5f5] hover:text-[#404040] dark:hover:text-white"
+            className="no-underline text-[#171717] dark:text-[#f5f5f5] hover:text-[#404040] dark:hover:text-white"
             onClick={() => window.electronAPI.openExternalUrl('https://pipedream.com')}
           >
             Pipedream Connect
@@ -48,7 +48,7 @@ export const ConnectorsPanel: React.FC = () => {
           . Composio apps are powered by
           {' '}
           <button
-            className="no-underline dark:text-[#f5f5f5] hover:text-[#404040] dark:hover:text-white"
+            className="no-underline text-[#171717] dark:text-[#f5f5f5] hover:text-[#404040] dark:hover:text-white"
             onClick={() => window.electronAPI.openExternalUrl('https://composio.dev')}
           >
             Composio

@@ -21,10 +21,12 @@ export interface ComposioApp {
   toolkit: {
     slug: string
   }
+  darkLogo?: string
   meta?: {
     category?: string
     description?: string
     logo?: string
+    darkLogo?: string
     triggerCount?: number
     actionCount?: number
   }

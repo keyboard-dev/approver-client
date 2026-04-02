@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { AdvancedPanel } from './panels/AdvancedPanel'
 import { AICreditsPanel } from './panels/AICreditsPanel'
 import { AIProvidersPanel } from './panels/AIProvidersPanel'
+import { AppearancePanel } from './panels/AppearancePanel'
 import { ConnectorsPanel } from './panels/ConnectorsPanel'
 import { KeyPanel } from './panels/KeyPanel'
 import { NotificationPanel } from './panels/NotificationPanel'
@@ -25,6 +26,7 @@ import { TriggersPanel } from './panels/TriggersPanel'
  */
 
 const TABS = [
+  'Appearance',
   'WebSocket',
   'Security',
   'Security Policies',
@@ -70,6 +72,8 @@ export const SettingsScreen: React.FC = () => {
 
   const getPanel = () => {
     switch (activeTab) {
+      case 'Appearance':
+        return <AppearancePanel />
       case 'WebSocket':
         return (
           <KeyPanel

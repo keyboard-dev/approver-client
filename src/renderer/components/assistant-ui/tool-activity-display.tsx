@@ -23,7 +23,7 @@ function formatElapsed(entry: ToolActivityEntry): string {
   return `${Math.round(ms / 1000)}s`
 }
 
-function ToolEntryRow({ tool, index }: { tool: ToolActivityEntry, index: number }) {
+function ToolEntryRow({ tool, index, stopped }: { tool: ToolActivityEntry, index: number, stopped?: boolean }) {
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const hasDetail = !!tool.result
   const codePreviewRef = useRef<HTMLPreElement>(null)
@@ -45,7 +45,8 @@ function ToolEntryRow({ tool, index }: { tool: ToolActivityEntry, index: number 
           hasDetail && 'cursor-pointer hover:bg-[#fafafa] dark:hover:bg-[#2a2a2a] rounded -mx-1 px-1',
         )}
       >
-        {tool.phase === 'running' && <Loader className="size-3 text-blue-500 animate-spin shrink-0" />}
+        {tool.phase === 'running' && !stopped && <Loader className="size-3 text-blue-500 animate-spin shrink-0" />}
+        {tool.phase === 'running' && stopped && <XCircle className="size-3 text-[#a3a3a3] shrink-0" />}
         {tool.phase === 'complete' && <CheckCircle className="size-3 text-emerald-500 shrink-0" />}
         {tool.phase === 'error' && <XCircle className="size-3 text-red-500 shrink-0" />}
         <span className="text-[12px] text-[#404040] dark:text-[#d4d4d4] truncate flex-1">
@@ -78,9 +79,10 @@ function ToolEntryRow({ tool, index }: { tool: ToolActivityEntry, index: number 
 
 interface ToolActivityDisplayProps {
   data: ToolActivityData
+  stopped?: boolean
 }
 
-export const ToolActivityDisplay = memo(function ToolActivityDisplay({ data }: ToolActivityDisplayProps) {
+export const ToolActivityDisplay = memo(function ToolActivityDisplay({ data, stopped }: ToolActivityDisplayProps) {
   const [isExpanded, setIsExpanded] = useState(true)
   const [flashGreen, setFlashGreen] = useState(false)
   const prevPhaseRef = useRef(data.phase)
@@ -125,12 +127,12 @@ export const ToolActivityDisplay = memo(function ToolActivityDisplay({ data }: T
           onClick={() => setIsExpanded(!isExpanded)}
           className="flex items-center gap-2.5 w-full px-3 py-2 text-left hover:bg-[#fafafa] dark:hover:bg-[#2a2a2a] transition-colors"
         >
-          {data.phase === 'running'
+          {data.phase === 'running' && !stopped
             ? (
                 <Loader className="size-3.5 text-blue-500 shrink-0 animate-spin" />
               )
             : (
-                <Wrench className="size-3.5 text-emerald-500 shrink-0" />
+                <Wrench className={`size-3.5 shrink-0 ${data.phase === 'running' ? 'text-[#a3a3a3]' : 'text-emerald-500'}`} />
               )}
           <span className="text-[13px] font-medium text-[#171717] dark:text-[#e5e5e5] shrink-0">
             Tool Activity
@@ -149,7 +151,7 @@ export const ToolActivityDisplay = memo(function ToolActivityDisplay({ data }: T
         {isExpanded && data.tools.length > 0 && (
           <div className="border-t border-[#f0f0f0] dark:border-[#2e2e2e] px-3 py-1.5">
             {data.tools.map((tool, i) => (
-              <ToolEntryRow key={`${tool.name}-${i}`} tool={tool} index={i} />
+              <ToolEntryRow key={`${tool.name}-${i}`} tool={tool} index={i} stopped={stopped} />
             ))}
           </div>
         )}

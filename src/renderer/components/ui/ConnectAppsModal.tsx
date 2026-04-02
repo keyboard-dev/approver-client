@@ -1,20 +1,18 @@
 /**
  * ConnectAppsModal
  *
- * Modal component for connecting apps/connectors.
- * Displays a searchable list of available connectors with connect/disconnect actions.
+ * Modal component for adding apps to the current chat thread.
+ * Shows "Apps used in chat" and "All apps" sections.
  */
 
-import { ExternalLink, Search, X } from 'lucide-react'
+import { Loader2, PlusIcon, Search, X } from 'lucide-react'
 import React, { useMemo, useState } from 'react'
 
 import squaresIconUrl from '../../../../assets/icon-squares.svg'
 import { useComposio } from '../../hooks/useComposio'
-import { KeyboardApiProvider, useKeyboardApiConnectors } from '../../hooks/useKeyboardApiConnectors'
+import { useKeyboardApiConnectors } from '../../hooks/useKeyboardApiConnectors'
 import { usePipedream } from '../../hooks/usePipedream'
-import { usePopup } from '../../hooks/usePopup'
-import { ComposioConnectedAccount } from '../../services/composio-service'
-import { PipedreamAccount } from '../../services/pipedream-service'
+import { useSidebarStore } from '../../stores/sidebar-store'
 import {
   Dialog,
   DialogOverlay,
@@ -31,6 +29,11 @@ export interface ConnectAppsModalProps {
   isOpen: boolean
   onClose: () => void
   onDismiss?: () => void
+  onDisconnected?: () => void
+  chatAppIds?: string[]
+  chatConnectedApps?: Array<{ chatId: string; name: string; icon: string; source: 'local' | 'pipedream' | 'composio' }>
+  onAddToChat?: (chatId: string) => void
+  onRemoveFromChat?: (chatId: string) => void
 }
 
 type SourceType = 'local' | 'pipedream' | 'composio' | 'cloud'
@@ -60,7 +63,7 @@ const SourceTag: React.FC<SourceTagProps> = ({ source }) => {
 }
 
 // =============================================================================
-// Connector Row Component
+// Connector Row Component (+ button style)
 // =============================================================================
 
 interface ConnectorRowProps {
@@ -69,10 +72,8 @@ interface ConnectorRowProps {
   source: SourceType
   isConnected: boolean
   isConnecting: boolean
-  isDisconnecting: boolean
   disabled?: boolean
-  onConnect: () => void
-  onDisconnect: () => void
+  onAdd: () => void
 }
 
 const ConnectorRow: React.FC<ConnectorRowProps> = ({
@@ -81,14 +82,11 @@ const ConnectorRow: React.FC<ConnectorRowProps> = ({
   source,
   isConnected,
   isConnecting,
-  isDisconnecting,
   disabled = false,
-  onConnect,
-  onDisconnect,
+  onAdd,
 }) => {
   return (
     <div className="flex items-center gap-[10px] w-full">
-      {/* Left section: Icon + Name (dimmed if not connected) */}
       <div className={`flex-1 flex items-center gap-[10px] ${!isConnected ? 'opacity-50' : ''}`}>
         <div className="bg-white dark:bg-[#2a2a2a] border border-[#e5e5e5] dark:border-[#3a3a3a] rounded-[4px] p-[5px] flex items-center shrink-0">
           <img
@@ -102,31 +100,14 @@ const ConnectorRow: React.FC<ConnectorRowProps> = ({
         </div>
         <span className="font-medium text-[14px] text-[#171717] dark:text-[#a9a9a9]">{name}</span>
       </div>
-
-      {/* Middle: Source Tag */}
       <SourceTag source={source} />
-
-      {/* Right: Action Button */}
-      {isConnected
-        ? (
-            <button
-              className="px-3 py-1 text-[14px] font-medium text-[#d23535] dark:text-[#FF8E8F] hover:bg-[#FEE2E2] dark:hover:bg-[#FF8E8F]/10 rounded-[4px] transition-colors disabled:opacity-50"
-              disabled={isDisconnecting}
-              onClick={onDisconnect}
-            >
-              {isDisconnecting ? 'Disconnecting...' : 'Disconnect'}
-            </button>
-          )
-        : (
-            <button
-              className="flex items-center gap-1 px-3 py-1 bg-white dark:bg-[#171717] border border-[#e5e5e5] dark:border-[#171717] rounded-[4px] text-[14px] font-medium text-[#171717] dark:text-[#f5f5f5] hover:border-[#ccc] dark:hover:border-[#333] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={isConnecting || disabled}
-              onClick={onConnect}
-            >
-              <ExternalLink className="w-4 h-4" />
-              {isConnecting ? 'Connecting...' : 'Connect'}
-            </button>
-          )}
+      <button
+        className="flex items-center justify-center w-[28px] h-[28px] rounded-[6px] text-[#171717] dark:text-[#a9a9a9] hover:bg-[#f0f0f0] dark:hover:bg-[#2a2a2a] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        disabled={isConnecting || disabled}
+        onClick={onAdd}
+      >
+        {isConnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlusIcon className="w-4 h-4" />}
+      </button>
     </div>
   )
 }
@@ -139,8 +120,13 @@ export const ConnectAppsModal: React.FC<ConnectAppsModalProps> = ({
   isOpen,
   onClose,
   onDismiss,
+  onDisconnected,
+  chatAppIds,
+  chatConnectedApps,
+  onAddToChat,
+  onRemoveFromChat,
 }) => {
-  const { showPopup, hidePopup } = usePopup()
+  const { showToast } = useSidebarStore()
 
   // Local (Keyboard API) connectors
   const {
@@ -149,9 +135,7 @@ export const ConnectAppsModal: React.FC<ConnectAppsModalProps> = ({
     providersError: localError,
     providerStatus,
     connectingProviderId,
-    disconnectingProviderId,
     connectProvider,
-    disconnectProvider,
   } = useKeyboardApiConnectors()
 
   // Pipedream connectors
@@ -163,9 +147,7 @@ export const ConnectAppsModal: React.FC<ConnectAppsModalProps> = ({
     defaultApps: pipedreamDefaultApps,
     defaultAppsLoading: pipedreamDefaultAppsLoading,
     connectingApp: pipedreamConnectingApp,
-    disconnectingAccountId: pipedreamDisconnectingAccountId,
     connectApp: connectPipedreamApp,
-    disconnectAccount: disconnectPipedreamAccount,
     setSearchQuery: setPipedreamSearchQuery,
     clearSearch: clearPipedreamSearch,
   } = usePipedream()
@@ -179,9 +161,7 @@ export const ConnectAppsModal: React.FC<ConnectAppsModalProps> = ({
     appsLoading: composioAppsLoading,
     appsError: composioAppsError,
     connectingApp: composioConnectingApp,
-    disconnectingAccountId: composioDisconnectingAccountId,
     connectApp: connectComposioApp,
-    disconnectAccount: disconnectComposioAccount,
     searchApps: searchComposioApps,
     refreshAccounts: refreshComposioAccounts,
     clearSearch: clearComposioSearch,
@@ -202,9 +182,13 @@ export const ConnectAppsModal: React.FC<ConnectAppsModalProps> = ({
   // Computed Values
   // ==========================================================================
 
-  // Filter local providers based on search
+  const chatAppIdsSet = new Set(chatAppIds ?? [])
+
+  // Filter local providers based on search, exclude already-in-chat
   const filteredLocalProviders = useMemo(() => {
-    let providers = localProviders
+    let providers = localProviders.filter(
+      provider => providerStatus[provider.id]?.authenticated && !chatAppIdsSet.has(`local:${provider.id}`),
+    )
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase()
       providers = providers.filter(provider =>
@@ -212,20 +196,30 @@ export const ConnectAppsModal: React.FC<ConnectAppsModalProps> = ({
       )
     }
     return providers
-  }, [localProviders, searchQuery])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [localProviders, providerStatus, searchQuery, chatAppIds])
 
-  // Filter Pipedream accounts
+  // Filter Pipedream connected accounts, exclude already-in-chat
   const filteredPipedreamAccounts = useMemo(() => {
-    if (!searchQuery.trim()) return pipedreamAccounts
-    const query = searchQuery.toLowerCase()
-    return pipedreamAccounts.filter(account =>
-      account.app.name.toLowerCase().includes(query),
+    let accounts = pipedreamAccounts.filter(
+      account => !chatAppIdsSet.has(`pipedream:${account.app.nameSlug}`),
     )
-  }, [pipedreamAccounts, searchQuery])
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase()
+      accounts = accounts.filter(account =>
+        account.app.name.toLowerCase().includes(query),
+      )
+    }
+    return accounts
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pipedreamAccounts, searchQuery, chatAppIds])
 
-  // Filter Composio accounts based on search
+  // Filter Composio connected accounts, exclude already-in-chat
   const filteredComposioAccounts = useMemo(() => {
-    let accounts = composioAccounts
+    let accounts = composioAccounts.filter((account) => {
+      const slug = (account.toolkit?.slug || account.appName || '').toLowerCase()
+      return !chatAppIdsSet.has(`composio:${slug}`)
+    })
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase()
       accounts = accounts.filter((account) => {
@@ -235,7 +229,8 @@ export const ConnectAppsModal: React.FC<ConnectAppsModalProps> = ({
       })
     }
     return accounts
-  }, [composioAccounts, searchQuery])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [composioAccounts, searchQuery, chatAppIds])
 
   // ==========================================================================
   // Handlers
@@ -243,9 +238,7 @@ export const ConnectAppsModal: React.FC<ConnectAppsModalProps> = ({
 
   const handleSearchChange = (value: string) => {
     setSearchQuery(value)
-    // Also update Pipedream search
     setPipedreamSearchQuery(value)
-    // Also update Composio search
     if (value.trim()) {
       searchComposioApps(value)
     }
@@ -260,10 +253,13 @@ export const ConnectAppsModal: React.FC<ConnectAppsModalProps> = ({
     clearComposioSearch()
   }
 
-  const handleConnectLocal = async (providerId: string) => {
+  const handleConnectLocal = async (providerId: string, displayName: string) => {
     setConnectError(null)
     try {
       await connectProvider(providerId)
+      const chatId = `local:${providerId}`
+      showToast(`Successfully added new account for ${displayName}!`)
+      onAddToChat?.(chatId)
     }
     catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to connect'
@@ -271,27 +267,14 @@ export const ConnectAppsModal: React.FC<ConnectAppsModalProps> = ({
     }
   }
 
-  const handleDisconnectLocal = (provider: KeyboardApiProvider) => {
-    showPopup({
-      description: `Are you sure you want to disconnect ${provider.name}? You'll need to reconnect to use this connector.`,
-      onConfirm: async () => {
-        hidePopup()
-        try {
-          await disconnectProvider(provider.id)
-        }
-        catch {
-          // Error handled by disconnect function
-        }
-      },
-      onCancel: hidePopup,
-    })
-  }
-
-  const handleConnectPipedream = async (appSlug: string) => {
+  const handleConnectPipedream = async (appSlug: string, displayName: string) => {
     setConnectError(null)
     try {
       await connectPipedreamApp(appSlug)
       handleClearSearch()
+      const chatId = `pipedream:${appSlug}`
+      showToast(`Successfully added new account for ${displayName}!`)
+      onAddToChat?.(chatId)
     }
     catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to connect'
@@ -299,27 +282,13 @@ export const ConnectAppsModal: React.FC<ConnectAppsModalProps> = ({
     }
   }
 
-  const handleDisconnectPipedream = (account: PipedreamAccount) => {
-    showPopup({
-      description: `Are you sure you want to disconnect ${account.app.name}? You'll need to reconnect to use this app.`,
-      onConfirm: async () => {
-        hidePopup()
-        try {
-          await disconnectPipedreamAccount(account.id)
-        }
-        catch {
-          // Error handled by disconnect function
-        }
-      },
-      onCancel: hidePopup,
-    })
-  }
-
-  const handleConnectComposio = async (appName: string) => {
+  const handleConnectComposio = async (appSlug: string, displayName: string) => {
     setConnectError(null)
     try {
-      await connectComposioApp(appName)
-      // Refresh accounts after initiating connection (user will complete OAuth in browser)
+      await connectComposioApp(appSlug)
+      const chatId = `composio:${appSlug}`
+      showToast(`Successfully added new account for ${displayName}!`)
+      onAddToChat?.(chatId)
       setTimeout(() => {
         refreshComposioAccounts()
       }, 2000)
@@ -328,22 +297,6 @@ export const ConnectAppsModal: React.FC<ConnectAppsModalProps> = ({
       const message = error instanceof Error ? error.message : 'Failed to connect'
       setConnectError(message)
     }
-  }
-
-  const handleDisconnectComposio = (account: ComposioConnectedAccount) => {
-    showPopup({
-      description: `Are you sure you want to disconnect ${account.appName}? You'll need to reconnect to use this app.`,
-      onConfirm: async () => {
-        hidePopup()
-        try {
-          await disconnectComposioAccount(account.id)
-        }
-        catch {
-          // Error handled by disconnect function
-        }
-      },
-      onCancel: hidePopup,
-    })
   }
 
   // ==========================================================================
@@ -359,11 +312,11 @@ export const ConnectAppsModal: React.FC<ConnectAppsModalProps> = ({
       <DialogPortal>
         <DialogOverlay />
         <DialogPrimitive.Content
-          className="fixed left-[50%] top-[50%] z-50 translate-x-[-50%] translate-y-[-50%] bg-white dark:bg-[#1e1e1e] max-w-[577px] w-full max-h-[720px] h-[720px] p-[20px] rounded-[20px] border border-[#dbdbdb] dark:border-[#2e2e2e] flex flex-col gap-[6px] shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95"
+          className="fixed left-[50%] top-[50%] z-50 translate-x-[-50%] translate-y-[-50%] bg-white dark:bg-[#1e1e1e] max-w-[577px] w-full max-h-[720px] h-[720px] p-[20px] rounded-[20px] border border-[#dbdbdb] dark:border-[#2e2e2e] flex flex-col gap-[12px] shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95"
         >
           {/* Header */}
           <DialogTitle className="font-medium text-[14px] text-[#737373] dark:text-[#a9a9a9] leading-normal">
-            Connect apps
+            Add apps
           </DialogTitle>
 
           {/* Search Input */}
@@ -393,7 +346,45 @@ export const ConnectAppsModal: React.FC<ConnectAppsModalProps> = ({
             </div>
           )}
 
-          {/* Connectors List */}
+          {/* Apps used in chat */}
+          <div className="flex flex-col gap-[8px] shrink-0">
+            <p className="text-[13px] font-medium text-[#737373] dark:text-[#a9a9a9]">Apps used in chat</p>
+            <div className="bg-[#fafafa] dark:bg-[#242424] border border-[#dbdbdb] dark:border-[#2e2e2e] rounded-[12px] p-[10px] flex flex-col gap-[8px]">
+              {(chatConnectedApps ?? []).length > 0
+                ? (chatConnectedApps ?? []).map(app => (
+                    <div key={app.chatId} className="flex items-center gap-[10px] w-full">
+                      <div className="flex-1 flex items-center gap-[10px]">
+                        <div className="bg-white dark:bg-[#2a2a2a] border border-[#e5e5e5] dark:border-[#3a3a3a] rounded-[4px] p-[5px] flex items-center shrink-0">
+                          <img
+                            src={app.icon}
+                            alt={app.name}
+                            className="w-[22px] h-[22px] object-contain"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = squaresIconUrl
+                            }}
+                          />
+                        </div>
+                        <span className="font-medium text-[14px] text-[#171717] dark:text-[#a9a9a9]">{app.name}</span>
+                      </div>
+                      <SourceTag source={app.source} />
+                      <button
+                        className="flex items-center justify-center w-[28px] h-[28px] rounded-[6px] text-[#737373] dark:text-[#a9a9a9] hover:bg-[#f0f0f0] dark:hover:bg-[#2a2a2a] transition-colors"
+                        onClick={() => onRemoveFromChat?.(app.chatId)}
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))
+                : (
+                    <p className="font-medium text-[14px] text-[#737373] dark:text-[#a9a9a9]">None in use</p>
+                  )}
+            </div>
+          </div>
+
+          {/* All apps label */}
+          <p className="text-[13px] font-medium text-[#737373] dark:text-[#a9a9a9] shrink-0">All apps</p>
+
+          {/* All apps list (scrollable) */}
           <div className="flex-1 bg-[#fafafa] dark:bg-[#242424] border border-[#dbdbdb] dark:border-[#2e2e2e] rounded-[12px] p-[10px] overflow-y-auto flex flex-col gap-[10px]">
             {/* Loading State */}
             {localLoading && (
@@ -402,7 +393,7 @@ export const ConnectAppsModal: React.FC<ConnectAppsModalProps> = ({
               </div>
             )}
 
-            {/* Local Connectors */}
+            {/* Local Connectors (connected, not yet in chat) */}
             {filteredLocalProviders.map((provider) => {
               const isAuthenticated = providerStatus[provider.id]?.authenticated || false
               return (
@@ -413,15 +404,20 @@ export const ConnectAppsModal: React.FC<ConnectAppsModalProps> = ({
                   source="local"
                   isConnected={isAuthenticated}
                   isConnecting={connectingProviderId === provider.id}
-                  isDisconnecting={disconnectingProviderId === provider.id}
                   disabled={!provider.configured}
-                  onConnect={() => handleConnectLocal(provider.id)}
-                  onDisconnect={() => handleDisconnectLocal(provider)}
+                  onAdd={() => {
+                    if (isAuthenticated) {
+                      onAddToChat?.(`local:${provider.id}`)
+                    }
+                    else {
+                      handleConnectLocal(provider.id, provider.name)
+                    }
+                  }}
                 />
               )
             })}
 
-            {/* Connected Pipedream Accounts */}
+            {/* Connected Pipedream Accounts (not yet in chat) */}
             {filteredPipedreamAccounts.map(account => (
               <ConnectorRow
                 key={`pipedream-connected-${account.id}`}
@@ -430,34 +426,26 @@ export const ConnectAppsModal: React.FC<ConnectAppsModalProps> = ({
                 source="pipedream"
                 isConnected={true}
                 isConnecting={false}
-                isDisconnecting={pipedreamDisconnectingAccountId === account.id}
-                onConnect={() => {}}
-                onDisconnect={() => handleDisconnectPipedream(account)}
+                onAdd={() => onAddToChat?.(`pipedream:${account.app.nameSlug}`)}
               />
             ))}
 
-            {/* Connected Composio Accounts */}
+            {/* Connected Composio Accounts (not yet in chat) */}
             {composioAccountsLoading && (
               <div className="text-center py-4 text-[#737373] dark:text-[#a9a9a9]">
                 Loading Composio accounts...
               </div>
             )}
             {filteredComposioAccounts.map((account) => {
-            // Get app identifier - prefer appName, fallback to toolkit.slug
               const appIdentifier = account.appName || account.toolkit?.slug || ''
               const appIdentifierLower = appIdentifier.toLowerCase()
-
-              // Find matching app for logo and display name
               const matchingApp = composioApps.find(app =>
                 (app.name?.toLowerCase() || '') === appIdentifierLower
                 || (app.slug?.toLowerCase() || '') === appIdentifierLower,
               )
-
-              // Get logo from matched app or use default
               const logo = matchingApp?.meta?.logo || matchingApp?.logo || squaresIconUrl
-
-              // Get display name - prefer matched app name, fallback to identifier, then 'Unknown App'
               const displayName = matchingApp?.name || appIdentifier || 'Unknown App'
+              const slug = (matchingApp?.slug || appIdentifier).toLowerCase()
 
               return (
                 <ConnectorRow
@@ -467,14 +455,12 @@ export const ConnectAppsModal: React.FC<ConnectAppsModalProps> = ({
                   source="composio"
                   isConnected={true}
                   isConnecting={false}
-                  isDisconnecting={composioDisconnectingAccountId === account.id}
-                  onConnect={() => {}}
-                  onDisconnect={() => handleDisconnectComposio(account)}
+                  onAdd={() => onAddToChat?.(`composio:${slug}`)}
                 />
               )
             })}
 
-            {/* Pipedream Apps (search results) */}
+            {/* Pipedream Apps (search results — unconnected) */}
             {isSearching && (
               <>
                 {pipedreamAppsLoading && (
@@ -482,23 +468,23 @@ export const ConnectAppsModal: React.FC<ConnectAppsModalProps> = ({
                     Searching Pipedream apps...
                   </div>
                 )}
-                {showPipedreamResults && pipedreamApps.map(app => (
-                  <ConnectorRow
-                    key={`pipedream-${app.id}`}
-                    icon={app.logoUrl || squaresIconUrl}
-                    name={app.name}
-                    source="pipedream"
-                    isConnected={false}
-                    isConnecting={pipedreamConnectingApp === app.nameSlug}
-                    isDisconnecting={false}
-                    onConnect={() => handleConnectPipedream(app.nameSlug)}
-                    onDisconnect={() => {}}
-                  />
-                ))}
+                {showPipedreamResults && pipedreamApps
+                  .filter(app => !pipedreamAccounts.some(acc => acc.app.nameSlug === app.nameSlug))
+                  .map(app => (
+                    <ConnectorRow
+                      key={`pipedream-${app.id}`}
+                      icon={app.logoUrl || squaresIconUrl}
+                      name={app.name}
+                      source="pipedream"
+                      isConnected={false}
+                      isConnecting={pipedreamConnectingApp === app.nameSlug}
+                      onAdd={() => handleConnectPipedream(app.nameSlug, app.name)}
+                    />
+                  ))}
               </>
             )}
 
-            {/* Composio Apps (search results) */}
+            {/* Composio Apps (search results — unconnected) */}
             {isSearching && (
               <>
                 {composioAppsLoading && (
@@ -508,7 +494,6 @@ export const ConnectAppsModal: React.FC<ConnectAppsModalProps> = ({
                 )}
                 {composioApps
                   .filter(app =>
-                  // Filter out already connected apps
                     !composioAccounts.some((acc) => {
                       const accAppName = acc.appName?.toLowerCase() || ''
                       const accToolkitSlug = acc.toolkit?.slug?.toLowerCase() || ''
@@ -526,9 +511,7 @@ export const ConnectAppsModal: React.FC<ConnectAppsModalProps> = ({
                       source="composio"
                       isConnected={false}
                       isConnecting={composioConnectingApp === app.slug}
-                      isDisconnecting={false}
-                      onConnect={() => handleConnectComposio(app.slug)}
-                      onDisconnect={() => {}}
+                      onAdd={() => handleConnectComposio(app.slug, app.name || app.slug || 'Unknown')}
                     />
                   ))}
               </>
@@ -557,19 +540,19 @@ export const ConnectAppsModal: React.FC<ConnectAppsModalProps> = ({
                     Loading more apps...
                   </div>
                 )}
-                {showPipedreamDefaults && pipedreamDefaultApps.map(app => (
-                  <ConnectorRow
-                    key={`pipedream-default-${app.id}`}
-                    icon={app.logoUrl || squaresIconUrl}
-                    name={app.name}
-                    source="pipedream"
-                    isConnected={false}
-                    isConnecting={pipedreamConnectingApp === app.nameSlug}
-                    isDisconnecting={false}
-                    onConnect={() => handleConnectPipedream(app.nameSlug)}
-                    onDisconnect={() => {}}
-                  />
-                ))}
+                {showPipedreamDefaults && pipedreamDefaultApps
+                  .filter(app => !pipedreamAccounts.some(acc => acc.app.nameSlug === app.nameSlug))
+                  .map(app => (
+                    <ConnectorRow
+                      key={`pipedream-default-${app.id}`}
+                      icon={app.logoUrl || squaresIconUrl}
+                      name={app.name}
+                      source="pipedream"
+                      isConnected={false}
+                      isConnecting={pipedreamConnectingApp === app.nameSlug}
+                      onAdd={() => handleConnectPipedream(app.nameSlug, app.name)}
+                    />
+                  ))}
               </>
             )}
 
@@ -583,7 +566,6 @@ export const ConnectAppsModal: React.FC<ConnectAppsModalProps> = ({
                 )}
                 {composioApps
                   .filter(app =>
-                  // Filter out already connected apps
                     !composioAccounts.some((acc) => {
                       const accAppName = acc.appName?.toLowerCase() || ''
                       const accToolkitSlug = acc.toolkit?.slug?.toLowerCase() || ''
@@ -601,9 +583,7 @@ export const ConnectAppsModal: React.FC<ConnectAppsModalProps> = ({
                       source="composio"
                       isConnected={false}
                       isConnecting={composioConnectingApp === app.slug}
-                      isDisconnecting={false}
-                      onConnect={() => handleConnectComposio(app.slug)}
-                      onDisconnect={() => {}}
+                      onAdd={() => handleConnectComposio(app.slug, app.name || app.slug || 'Unknown')}
                     />
                   ))}
               </>

@@ -1,4 +1,5 @@
 import type { ToolCallMessagePartComponent } from '@assistant-ui/react'
+import { useMessage } from '@assistant-ui/react'
 import { CheckIcon, LoaderCircle, XCircle } from 'lucide-react'
 import { useMcpClientContext } from '../../services/mcp-client-context'
 import { McpAppHost } from './mcp-app-host'
@@ -10,7 +11,8 @@ export const ToolFallback: ToolCallMessagePartComponent = ({
   result,
   isError,
 }) => {
-  const isRunning = result === undefined
+  const { status } = useMessage()
+  const isRunning = result === undefined && status.type === 'running'
   const isFailed = isError && !isRunning
 
   // Check if this tool has an MCP App UI widget

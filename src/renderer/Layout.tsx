@@ -1,10 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { ChevronLeftIcon, ChevronRightIcon, PanelLeftIcon, PanelRightIcon } from 'lucide-react'
+import { CheckCircle2Icon, ChevronLeftIcon, ChevronRightIcon, PanelLeftIcon, PanelRightIcon } from 'lucide-react'
+import { AnimatePresence, motion } from 'motion/react'
 
 import { useGlobalWebSocketListeners } from './hooks/useGlobalWebSocketListeners'
 import { useAuth } from './hooks/useAuth'
 import { useSidebarStore } from './stores/sidebar-store'
+import { applyTheme, getStoredTheme } from './hooks/useTheme'
 
 function getPageTitle(pathname: string): string {
   if (pathname === '/' || pathname === '/chat') return 'Chat'
@@ -25,7 +27,7 @@ function getPageTitle(pathname: string): string {
 }
 
 export const Layout: React.FC = () => {
-  const { leftSidebarOpen, setLeftSidebarOpen, rightSidebarOpen, setRightSidebarOpen, activePanelTitle, settingsPanelOpen } = useSidebarStore()
+  const { leftSidebarOpen, setLeftSidebarOpen, rightSidebarOpen, setRightSidebarOpen, activePanelTitle, settingsPanelOpen, toastMessage, hideToast } = useSidebarStore()
   const { pathname, hash } = useLocation()
   const viewId = `${pathname}${hash}`
   const navigate = useNavigate()
@@ -89,15 +91,13 @@ export const Layout: React.FC = () => {
   // Register global WebSocket message listeners (persists across route changes)
   useGlobalWebSocketListeners()
 
-  // Sync dark class on <html> with system color scheme
+  // Sync dark class on <html> with stored theme preference (or system if 'auto')
   useEffect(() => {
-    const apply = (dark: boolean) => {
-      document.documentElement.classList.toggle('dark', dark)
-    }
+    applyTheme(getStoredTheme())
     const mq = window.matchMedia('(prefers-color-scheme: dark)')
-    apply(mq.matches)
-    mq.addEventListener('change', e => apply(e.matches))
-    return () => mq.removeEventListener('change', e => apply(e.matches))
+    const onSystemChange = () => { if (getStoredTheme() === 'auto') applyTheme('auto') }
+    mq.addEventListener('change', onSystemChange)
+    return () => mq.removeEventListener('change', onSystemChange)
   }, [])
 
   const pageTitle = activePanelTitle ?? getPageTitle(pathname)
@@ -114,10 +114,10 @@ export const Layout: React.FC = () => {
             <button
               type="button"
               onClick={() => setLeftSidebarOpen(!leftSidebarOpen)}
-              className="not-draggable"
+              className="not-draggable flex items-center justify-center w-[28px] h-[28px] rounded-[6px] text-[#737373] dark:text-[#a9a9a9] hover:bg-[#d4d4d4] dark:hover:bg-[#2a2a2a] transition-colors"
               aria-label={leftSidebarOpen ? 'Close left sidebar' : 'Open left sidebar'}
             >
-              <PanelLeftIcon className="size-[16px] text-[#171717] dark:text-white" />
+              <PanelLeftIcon className="size-[16px]" />
             </button>
           )}
         </div>
@@ -158,10 +158,10 @@ export const Layout: React.FC = () => {
           <button
             type="button"
             onClick={() => setRightSidebarOpen(!rightSidebarOpen)}
-            className="not-draggable ml-auto mr-[16px]"
+            className="not-draggable ml-auto mr-[20px] flex items-center justify-center w-[28px] h-[28px] rounded-[6px] text-[#737373] dark:text-[#a9a9a9] hover:bg-[#d4d4d4] dark:hover:bg-[#2a2a2a] transition-colors"
             aria-label={rightSidebarOpen ? 'Close right sidebar' : 'Open right sidebar'}
           >
-            <PanelRightIcon className="size-[16px] text-[#171717] dark:text-white" />
+            <PanelRightIcon className="size-[16px]" />
           </button>
         )}
       </div>
@@ -172,6 +172,23 @@ export const Layout: React.FC = () => {
         <Outlet />
       </div>
     </div>
+
+      {/* Success Toast */}
+      <AnimatePresence>
+        {toastMessage && (
+          <motion.div
+            initial={{ y: 24, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 24, opacity: 0 }}
+            transition={{ duration: 0.22, ease: 'easeOut' }}
+            className="fixed bottom-[24px] left-1/2 -translate-x-1/2 z-50 flex items-center gap-[10px] px-[16px] py-[12px] bg-[#f0fdf4] border border-[#bbf7d0] rounded-[12px] shadow-md cursor-pointer"
+            onClick={hideToast}
+          >
+            <CheckCircle2Icon className="size-[18px] shrink-0 text-[#16a34a]" />
+            <span className="text-[13px] font-semibold text-[#15803d] whitespace-nowrap">{toastMessage}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

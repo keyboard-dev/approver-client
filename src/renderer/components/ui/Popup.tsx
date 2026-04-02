@@ -42,7 +42,7 @@ export const Popup: React.FC<{
   return (
     <div
       className={cn(
-        'inset-0 backdrop-blur-[2px] flex flex-col items-center z-30 overflow-y-auto',
+        'inset-0 backdrop-blur-[2px] flex flex-col items-center z-[100] overflow-y-auto pointer-events-auto',
         containerClasses,
         className,
         visibilityClass,

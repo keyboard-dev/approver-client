@@ -51,7 +51,7 @@ export const Confirmation: React.FC<{
         >
           {onConfirm && (
             <ButtonDesigned
-              className="basis-0 grow px-[0.63rem] py-[0.38rem] bg-[#FC8E8F] hover:bg-[#ff9e9f] text-[#f5f5f5]"
+              className="basis-0 grow px-[0.63rem] py-[0.38rem] bg-[#FC8E8F] dark:bg-[#FC8E8F] hover:bg-[#ff9e9f] dark:hover:bg-[#ff9e9f] text-[#171717] dark:text-[#f5f5f5]"
               variant="primary"
               onClick={onConfirm}
               disabled={disabled}
@@ -66,8 +66,7 @@ export const Confirmation: React.FC<{
                 className="basis-0 grow px-[0.63rem] py-[0.38rem]"
                 variant="secondary"
                 onClick={onCancel}
-                hasBorder
-              >
+                >
                 {cancelTextDisplay}
               </ButtonDesigned>
             )}

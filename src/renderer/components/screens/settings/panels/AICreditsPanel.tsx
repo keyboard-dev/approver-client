@@ -233,7 +233,7 @@ export const AICreditsPanel: React.FC = () => {
 
       {/* Buy Credits Dialog */}
       <Dialog open={dialogOpen} onOpenChange={handleDialogOpenChange}>
-        <DialogContent className="sm:max-w-[425px] bg-white">
+        <DialogContent className="sm:max-w-[425px] !rounded-[20px] dark:bg-[#1e1e1e] dark:border-[#2e2e2e]">
           <DialogHeader>
             <DialogTitle>Buy AI Credits</DialogTitle>
             <DialogDescription>
@@ -248,10 +248,10 @@ export const AICreditsPanel: React.FC = () => {
                 <button
                   key={amount}
                   onClick={() => handlePresetClick(amount)}
-                  className={`px-[1rem] py-[0.5rem] rounded-[0.38rem] border transition-colors ${
+                  className={`px-[1rem] py-[0.5rem] rounded-[12px] border transition-colors ${
                     !isCustom && selectedAmount === amount
-                      ? 'bg-[#171717] text-white border-[#171717]'
-                      : 'bg-white text-[#171717] border-[#E5E5E5] hover:border-[#171717]'
+                      ? 'bg-[#171717] dark:bg-[#f5f5f5] text-white dark:text-[#171717] border-[#171717] dark:border-[#f5f5f5]'
+                      : 'bg-[#fafafa] dark:bg-[#242424] text-[#171717] dark:text-[#f5f5f5] border-[#dbdbdb] dark:border-[#2e2e2e] hover:border-[#a5a5a5]'
                   }`}
                 >
                   $
@@ -271,10 +271,10 @@ export const AICreditsPanel: React.FC = () => {
                   onChange={e => handleCustomInputChange(e.target.value)}
                   onFocus={() => setIsCustom(true)}
                   placeholder="Enter amount"
-                  className={`w-full pl-[1.5rem] pr-[0.75rem] py-[0.5rem] border rounded-[0.38rem] outline-none transition-colors ${
+                  className={`w-full pl-[1.5rem] pr-[0.75rem] py-[0.5rem] border rounded-[12px] outline-none transition-colors bg-[#fafafa] dark:bg-[#242424] text-[#171717] dark:text-[#f5f5f5] placeholder:text-[#737373] ${
                     isCustom
-                      ? 'border-[#171717]'
-                      : 'border-[#E5E5E5] focus:border-[#171717]'
+                      ? 'border-[#171717] dark:border-[#a5a5a5]'
+                      : 'border-[#dbdbdb] dark:border-[#2e2e2e] focus:border-[#a5a5a5]'
                   }`}
                 />
               </div>
@@ -284,9 +284,9 @@ export const AICreditsPanel: React.FC = () => {
             </div>
 
             {/* Amount summary */}
-            <div className="flex justify-between items-center pt-[0.5rem] border-t border-[#E5E5E5]">
+            <div className="flex justify-between items-center pt-[0.5rem] border-t border-[#dbdbdb] dark:border-[#2e2e2e]">
               <span className="text-[#737373] dark:text-[#a9a9a9]">Total</span>
-              <span className="text-[1.25rem] font-semibold text-[#171717]">
+              <span className="text-[1.25rem] font-semibold text-[#171717] dark:text-[#f5f5f5]">
                 {getDisplayAmount()}
               </span>
             </div>

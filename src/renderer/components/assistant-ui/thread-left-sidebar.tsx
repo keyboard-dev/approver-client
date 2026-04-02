@@ -2,6 +2,7 @@ import {
   ArrowLeftIcon,
   CogIcon,
   CreditCardIcon,
+  EyeIcon,
   LogOutIcon,
   PlugIcon,
   PlusIcon,
@@ -16,7 +17,7 @@ import { useSidebarStore } from '../../stores/sidebar-store'
 import { NewChatButton, ThreadListItems } from './thread-list'
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip'
 
-type SettingsTabId = 'WebSocket' | 'Security' | 'Security Policies' | 'AI Providers' | 'AI Credits' | 'Notifications' | 'Connectors' | 'Triggers' | 'Advanced'
+type SettingsTabId = 'WebSocket' | 'Security' | 'Security Policies' | 'AI Providers' | 'AI Credits' | 'Notifications' | 'Connectors' | 'Triggers' | 'Advanced' | 'Appearance'
 
 export type SettingsTabType = SettingsTabId
 
@@ -29,6 +30,7 @@ interface ThreadLeftSidebarProps {
 }
 
 const SETTINGS_SUB_TABS: Array<{ id: SettingsTabType, label: string, icon: React.ReactNode }> = [
+  { id: 'Appearance', label: 'Appearance', icon: <EyeIcon className="size-[16px]" /> },
   { id: 'AI Credits', label: 'AI Credits', icon: <CreditCardIcon className="size-[16px]" /> },
   { id: 'Advanced', label: 'Advanced', icon: <SlidersHorizontalIcon className="size-[16px]" /> },
 ]
@@ -276,9 +278,23 @@ export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
                     <button
                       type="button"
                       onClick={handleBack}
-                      className="flex items-center justify-center py-[10px] ml-[4px] mr-[14px] w-[calc(100%-18px)] rounded-[8px] text-[#737373] dark:text-[#a9a9a9] hover:bg-[#e5e5e5] dark:hover:bg-[#2a2a2a] transition-colors"
+                      className="flex items-center justify-center ml-[4px] w-[28px] h-[28px] rounded-[8px] text-[#737373] dark:text-[#a9a9a9] hover:bg-[#e5e5e5] dark:hover:bg-[#2a2a2a] transition-colors"
                     >
                       <ArrowLeftIcon className="size-[18px]" />
+                    </button>
+                  </NavTooltip>
+
+                  {/* Appearance */}
+                  <NavTooltip label="Appearance">
+                    <button
+                      type="button"
+                      onClick={() => onTabClick?.('Appearance')}
+                      className={cn(
+                        'flex items-center justify-center ml-[4px] w-[28px] h-[28px] rounded-[8px] transition-colors hover:bg-[#e5e5e5] dark:hover:bg-[#2a2a2a]',
+                        activeTab === 'Appearance' ? 'text-[#171717] dark:text-[#F5F5F5]' : 'text-[#737373] dark:text-[#a9a9a9]',
+                      )}
+                    >
+                      <EyeIcon className="size-[18px]" />
                     </button>
                   </NavTooltip>
 
@@ -288,7 +304,7 @@ export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
                       type="button"
                       onClick={() => onTabClick?.('AI Credits')}
                       className={cn(
-                        'flex items-center justify-center py-[10px] ml-[4px] mr-[14px] w-[calc(100%-18px)] rounded-[8px] transition-colors hover:bg-[#e5e5e5] dark:hover:bg-[#2a2a2a]',
+                        'flex items-center justify-center ml-[4px] w-[28px] h-[28px] rounded-[8px] transition-colors hover:bg-[#e5e5e5] dark:hover:bg-[#2a2a2a]',
                         activeTab === 'AI Credits' ? 'text-[#171717] dark:text-[#F5F5F5]' : 'text-[#737373] dark:text-[#a9a9a9]',
                       )}
                     >
@@ -302,7 +318,7 @@ export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
                       type="button"
                       onClick={() => onTabClick?.('Advanced')}
                       className={cn(
-                        'flex items-center justify-center py-[10px] ml-[4px] mr-[14px] w-[calc(100%-18px)] rounded-[8px] transition-colors hover:bg-[#e5e5e5] dark:hover:bg-[#2a2a2a]',
+                        'flex items-center justify-center ml-[4px] w-[28px] h-[28px] rounded-[8px] transition-colors hover:bg-[#e5e5e5] dark:hover:bg-[#2a2a2a]',
                         activeTab === 'Advanced' ? 'text-[#171717] dark:text-[#F5F5F5]' : 'text-[#737373] dark:text-[#a9a9a9]',
                       )}
                     >
@@ -321,7 +337,7 @@ export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
                           <button
                             type="button"
                             onClick={onChatSelect}
-                            className="flex items-center justify-center py-[10px] ml-[4px] mr-[14px] w-[calc(100%-18px)] rounded-[8px] text-[#737373] dark:text-[#a9a9a9] hover:bg-[#e5e5e5] dark:hover:bg-[#2a2a2a] transition-colors"
+                            className="flex items-center justify-center ml-[4px] w-[28px] h-[28px] rounded-[8px] text-[#737373] dark:text-[#a9a9a9] hover:bg-[#e5e5e5] dark:hover:bg-[#2a2a2a] transition-colors"
                           >
                             <PlusIcon className="size-[18px]" />
                           </button>
@@ -336,7 +352,7 @@ export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
                     <button
                       type="button"
                       onClick={() => setSearchOpen(true)}
-                      className="flex items-center justify-center py-[10px] ml-[4px] mr-[14px] w-[calc(100%-18px)] rounded-[8px] text-[#737373] dark:text-[#a9a9a9] hover:bg-[#e5e5e5] dark:hover:bg-[#2a2a2a] transition-colors"
+                      className="flex items-center justify-center ml-[4px] w-[28px] h-[28px] rounded-[8px] text-[#737373] dark:text-[#a9a9a9] hover:bg-[#e5e5e5] dark:hover:bg-[#2a2a2a] transition-colors"
                     >
                       <SearchIcon className="size-[18px]" />
                     </button>
@@ -348,7 +364,7 @@ export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
                       type="button"
                       onClick={handleConnectorsClick}
                       className={cn(
-                        'flex items-center justify-center py-[10px] ml-[4px] mr-[14px] w-[calc(100%-18px)] rounded-[8px] transition-colors hover:bg-[#e5e5e5] dark:hover:bg-[#2a2a2a]',
+                        'flex items-center justify-center ml-[4px] w-[28px] h-[28px] rounded-[8px] transition-colors hover:bg-[#e5e5e5] dark:hover:bg-[#2a2a2a]',
                         activeTab === 'Connectors' ? 'text-[#171717] dark:text-[#F5F5F5]' : 'text-[#737373] dark:text-[#a9a9a9]',
                       )}
                     >
@@ -361,7 +377,7 @@ export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
                     <button
                       type="button"
                       onClick={handleSettingsClick}
-                      className="flex items-center justify-center py-[10px] ml-[4px] mr-[14px] w-[calc(100%-18px)] rounded-[8px] text-[#737373] dark:text-[#a9a9a9] hover:bg-[#e5e5e5] dark:hover:bg-[#2a2a2a] transition-colors"
+                      className="flex items-center justify-center ml-[4px] w-[28px] h-[28px] rounded-[8px] text-[#737373] dark:text-[#a9a9a9] hover:bg-[#e5e5e5] dark:hover:bg-[#2a2a2a] transition-colors"
                     >
                       <CogIcon className="size-[18px]" />
                     </button>
@@ -371,18 +387,18 @@ export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
         </div>
 
         {/* Divider */}
-        <div className="mx-[4px] border-t border-[#dbdbdb] dark:border-[#2e2e2e]" />
+        <div className="ml-[4px] w-[28px] border-t border-[#dbdbdb] dark:border-[#2e2e2e]" />
 
         {/* Spacer */}
         <div className="flex-1" />
 
         {/* Bottom divider + section */}
-        <div className="mx-[4px] border-t border-[#dbdbdb] dark:border-[#2e2e2e]" />
-        <div className="py-[14px] flex flex-col items-center gap-[12px]">
+        <div className="ml-[4px] w-[28px] border-t border-[#dbdbdb] dark:border-[#2e2e2e]" />
+        <div className="py-[14px] flex flex-col items-start gap-[12px]">
           {user && (
             <NavTooltip label={`${user.firstName} ${user.lastName}`}>
               <div
-                className="size-[34px] rounded-full flex items-center justify-center text-white text-[12px] font-semibold cursor-default select-none"
+                className="ml-[1px] size-[34px] rounded-full flex items-center justify-center text-white text-[12px] font-semibold cursor-default select-none"
                 style={{ backgroundColor: avatarColor(userInitials) }}
               >
                 {userInitials}
@@ -394,7 +410,7 @@ export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
             <button
               type="button"
               onClick={handleLogout}
-              className="flex items-center justify-center py-[10px] ml-[4px] mr-[14px] w-[calc(100%-18px)] rounded-[8px] text-[#737373] dark:text-[#a9a9a9] hover:text-[#171717] dark:hover:text-[#f5f5f5] hover:bg-[#e5e5e5] dark:hover:bg-[#2a2a2a] transition-colors"
+              className="flex items-center justify-center ml-[4px] w-[28px] h-[28px] rounded-[8px] text-[#737373] dark:text-[#a9a9a9] hover:text-[#171717] dark:hover:text-[#f5f5f5] hover:bg-[#e5e5e5] dark:hover:bg-[#2a2a2a] transition-colors"
             >
               <LogOutIcon className="size-[14px]" />
             </button>
@@ -410,13 +426,10 @@ export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
   // ── Expanded view ──
   return (
     <div className="flex flex-col h-full shrink-0 overflow-hidden bg-[#EBEBEB] dark:bg-[#161616]" style={{ width }}>
-      {/* Sliding container: two panels side by side */}
-      <div
-        className="flex h-full transition-transform duration-300 ease-in-out"
-        style={{ width: width * 2, transform: inSettingsView ? `translateX(-${width}px)` : 'translateX(0)' }}
-      >
-        {/* ── Main View ── */}
-        <div className="shrink-0 flex flex-col h-full" style={{ width }}>
+      {!inSettingsView
+        ? (
+        // ── Main View ──
+        <div className="flex flex-col h-full" style={{ width }}>
           <div className="py-2">
             <NewChatButton onChatSelect={onChatSelect} />
 
@@ -521,9 +534,10 @@ export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
             </button>
           </div>
         </div>
-
-        {/* ── Settings Sub-View ── */}
-        <div className="shrink-0 flex flex-col h-full" style={{ width }}>
+        )
+        : (
+        // ── Settings Sub-View ──
+        <div className="flex flex-col h-full">
           <div className="py-2">
             <button
               type="button"
@@ -552,7 +566,7 @@ export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
             ))}
           </div>
         </div>
-      </div>
+        )}
       {searchOpen && (
         <ChatSearchDialog onClose={() => setSearchOpen(false)} onSelect={handleSearchSelect} />
       )}
