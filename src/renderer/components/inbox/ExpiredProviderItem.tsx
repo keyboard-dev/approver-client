@@ -21,7 +21,7 @@ export const ExpiredProviderItem: React.FC<ExpiredProviderItemProps> = ({ notifi
   }
 
   return (
-    <div className="px-[0.63rem] py-[0.75rem] border-t border-[#E5E5E5]">
+    <div className="px-[0.63rem] py-[0.75rem] border-t border-[#E5E5E5] dark:border-[#333]">
       <div className="border-l-2 border-[#D23535] px-[0.63rem]">
         <div className="flex flex-col">
           <div className="flex justify-between items-center">
@@ -31,7 +31,7 @@ export const ExpiredProviderItem: React.FC<ExpiredProviderItemProps> = ({ notifi
                 alt={notification.providerId}
                 className="w-4 h-4"
               />
-              <span className="text-black font-semibold">
+              <span className="text-black dark:text-white font-semibold">
                 Expired
               </span>
             </div>
@@ -43,7 +43,7 @@ export const ExpiredProviderItem: React.FC<ExpiredProviderItemProps> = ({ notifi
               Reconnect
             </ButtonDesigned>
           </div>
-          <div className="text-sm text-[#525252] mt-1">
+          <div className="text-sm text-[#525252] dark:text-[#a9a9a9] mt-1">
             Your
             {' '}
             <span className="font-medium">{notification.providerId}</span>

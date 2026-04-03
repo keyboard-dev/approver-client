@@ -253,10 +253,32 @@ export function InboxProvider({ children }: { children: React.ReactNode }) {
       })
     }
 
+    // Listen for update errors (e.g. SHA512 mismatch, signature verification failure)
+    const handleUpdateError = (_event: unknown, error: { message: string }) => {
+      // Remove the downloading notification and show an error
+      setNotifications((prev) => {
+        const filtered = prev.filter(n =>
+          n.type !== 'update-downloading'
+          && n.type !== 'update-available',
+        )
+        const errorNotif: GenericNotification = {
+          type: 'generic',
+          id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          title: 'Update Failed',
+          message: error.message || 'Download verification failed. Please try again.',
+          variant: 'error',
+          createdAt: Date.now(),
+          read: false,
+        }
+        return [errorNotif, ...filtered]
+      })
+    }
+
     // Subscribe to events
     window.electronAPI.onUpdateAvailable(handleUpdateAvailable)
     window.electronAPI.onDownloadProgress(handleDownloadProgress)
     window.electronAPI.onUpdateDownloaded(handleUpdateDownloaded)
+    window.electronAPI.onUpdateError(handleUpdateError)
 
     // Notify main process that renderer is ready to receive update notifications
     window.electronAPI.notifyRendererReady()
@@ -266,6 +288,7 @@ export function InboxProvider({ children }: { children: React.ReactNode }) {
       window.electronAPI.removeAllListeners('update-available')
       window.electronAPI.removeAllListeners('download-progress')
       window.electronAPI.removeAllListeners('update-downloaded')
+      window.electronAPI.removeAllListeners('update-error')
     }
   }, [addNotification])
 

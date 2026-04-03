@@ -17,13 +17,13 @@ export const UpdateAvailableItem: React.FC<UpdateAvailableItemProps> = ({ notifi
   }
 
   return (
-    <div className="px-[0.63rem] py-[0.75rem] border-t border-[#E5E5E5]">
+    <div className="px-[0.63rem] py-[0.75rem] border-t border-[#E5E5E5] dark:border-[#333]">
       <div className="border-l-2 border-[#F59E0B] px-[0.63rem]">
         <div className="flex flex-col gap-2">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-[0.63rem]">
               <Download className="w-4 h-4 text-[#F59E0B]" />
-              <span className="text-black font-semibold">
+              <span className="text-black dark:text-white font-semibold">
                 Update Available
               </span>
             </div>
@@ -35,7 +35,7 @@ export const UpdateAvailableItem: React.FC<UpdateAvailableItemProps> = ({ notifi
               Download
             </ButtonDesigned>
           </div>
-          <div className="text-sm text-[#525252]">
+          <div className="text-sm text-[#525252] dark:text-[#a9a9a9]">
             Version
             {' '}
             <span className="font-medium">{notification.version}</span>
@@ -64,24 +64,24 @@ export const UpdateDownloadingItem: React.FC<UpdateDownloadingItemProps> = ({ no
   const percent = Math.round(notification.percent)
 
   return (
-    <div className="px-[0.63rem] py-[0.75rem] border-t border-[#E5E5E5]">
+    <div className="px-[0.63rem] py-[0.75rem] border-t border-[#E5E5E5] dark:border-[#333]">
       <div className="border-l-2 border-[#3B82F6] px-[0.63rem]">
         <div className="flex flex-col gap-2">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-[0.63rem]">
               <Download className="w-4 h-4 text-[#3B82F6] animate-pulse" />
-              <span className="text-black font-semibold">
+              <span className="text-black dark:text-white font-semibold">
                 Downloading Update
               </span>
             </div>
-            <span className="text-xs text-[#525252]">
+            <span className="text-xs text-[#525252] dark:text-[#a9a9a9]">
               {percent}
               %
             </span>
           </div>
 
           {/* Progress bar */}
-          <div className="w-full bg-[#E5E5E5] rounded-full h-1.5">
+          <div className="w-full bg-[#E5E5E5] dark:bg-[#333] rounded-full h-1.5">
             <div
               className="bg-[#3B82F6] h-1.5 rounded-full transition-all duration-300"
               style={{ width: `${percent}%` }}
@@ -119,13 +119,13 @@ export const UpdateDownloadedItem: React.FC<UpdateDownloadedItemProps> = ({ noti
   }
 
   return (
-    <div className="px-[0.63rem] py-[0.75rem] border-t border-[#E5E5E5]">
+    <div className="px-[0.63rem] py-[0.75rem] border-t border-[#E5E5E5] dark:border-[#333]">
       <div className="border-l-2 border-[#22C55E] px-[0.63rem]">
         <div className="flex flex-col gap-2">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-[0.63rem]">
               <RefreshCw className="w-4 h-4 text-[#22C55E]" />
-              <span className="text-black font-semibold">
+              <span className="text-black dark:text-white font-semibold">
                 Update Ready
               </span>
             </div>
@@ -137,7 +137,7 @@ export const UpdateDownloadedItem: React.FC<UpdateDownloadedItemProps> = ({ noti
               Restart
             </ButtonDesigned>
           </div>
-          <div className="text-sm text-[#525252]">
+          <div className="text-sm text-[#525252] dark:text-[#a9a9a9]">
             Version
             {' '}
             <span className="font-medium">{notification.version}</span>

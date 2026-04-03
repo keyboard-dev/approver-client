@@ -310,6 +310,10 @@ class MenuBarNotificationApp {
 
     this.autoUpdateManager = new AutoUpdateManager({
       sendToRenderer: (channel, data) => this.windowManager.sendMessage(channel, data),
+      getUserEmail: () => {
+        const tokens = this.authService.getAuthTokens()
+        return tokens?.user?.email ?? null
+      },
     })
 
     // Set up encryption key provider

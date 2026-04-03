@@ -34,9 +34,13 @@ async function initAutoUpdater(): Promise<AppUpdater> {
   return electronUpdater.autoUpdater
 }
 
+const DEV_TEST_DOMAINS = ['keyboard.dev', 'dev-docs.io', 'docs.dev']
+
 export interface AutoUpdateManagerOptions {
   // Callback to send messages to renderer (for update-available, download-progress, etc.)
   sendToRenderer: (channel: string, data: unknown) => void
+  // Returns the current user's email (for dev test mode gating)
+  getUserEmail?: () => string | null
 }
 
 /**
@@ -217,6 +221,17 @@ export class AutoUpdateManager {
   }
 
   /**
+   * Check if the current user is allowed to use dev test features.
+   * Only users with keyboard.dev, dev-docs.io, or docs.dev email domains.
+   */
+  private isDevTestAllowed(): boolean {
+    const email = this.options.getUserEmail?.()
+    if (!email) return false
+    const domain = email.split('@')[1]?.toLowerCase()
+    return DEV_TEST_DOMAINS.includes(domain)
+  }
+
+  /**
    * Send any pending update notifications to the renderer.
    * Should be called when the renderer window is ready to receive messages.
    */
@@ -297,6 +312,39 @@ export class AutoUpdateManager {
         releaseName: 'Test Update',
         releaseNotes: 'This is a test update notification',
       })
+    })
+
+    // Dev test: trigger a real update check by temporarily spoofing a lower version.
+    // Only available to users with allowed email domains.
+    ipcMain.handle('dev-test-real-update', async (): Promise<{ success: boolean, error?: string }> => {
+      if (!this.isDevTestAllowed()) {
+        return { success: false, error: 'Not authorized — requires keyboard.dev, dev-docs.io, or docs.dev email domain' }
+      }
+
+      if (!this.isSupported || !autoUpdater) {
+        return { success: false, error: 'Auto-updater not available on this platform' }
+      }
+
+      // electron-updater caches currentVersion at init time as a readonly SemVer object.
+      // Cast through any to override it for the duration of the test check.
+      const updater = autoUpdater as any
+      const realVersion = updater.currentVersion
+      try {
+        updater.currentVersion = new (require('semver').SemVer)('0.0.1')
+        await autoUpdater.checkForUpdates()
+        return { success: true }
+      }
+      catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : 'Update check failed' }
+      }
+      finally {
+        updater.currentVersion = realVersion
+      }
+    })
+
+    // Check if current user is allowed to use dev test features
+    ipcMain.handle('dev-test-updater-allowed', async (): Promise<boolean> => {
+      return this.isDevTestAllowed()
     })
   }
 }
