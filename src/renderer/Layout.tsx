@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { ChevronLeftIcon, ChevronRightIcon, PanelLeftIcon, PanelRightIcon } from 'lucide-react'
 
+import AlertButton from './components/AlertButton'
 import { useGlobalWebSocketListeners } from './hooks/useGlobalWebSocketListeners'
 import { useAuth } from './hooks/useAuth'
 import { useSidebarStore } from './stores/sidebar-store'
@@ -153,16 +154,21 @@ export const Layout: React.FC = () => {
           </div>
         )}
 
-        {/* Right: right sidebar toggle */}
-        {!isSignInPage && showRightSidebarButton && (
-          <button
-            type="button"
-            onClick={() => setRightSidebarOpen(!rightSidebarOpen)}
-            className="not-draggable ml-auto mr-[16px]"
-            aria-label={rightSidebarOpen ? 'Close right sidebar' : 'Open right sidebar'}
-          >
-            <PanelRightIcon className="size-[16px] text-[#171717] dark:text-white" />
-          </button>
+        {/* Right: alert bell + right sidebar toggle */}
+        {!isSignInPage && (
+          <div className="flex items-center gap-[8px] ml-auto mr-[16px]">
+            <AlertButton />
+            {showRightSidebarButton && (
+              <button
+                type="button"
+                onClick={() => setRightSidebarOpen(!rightSidebarOpen)}
+                className="not-draggable"
+                aria-label={rightSidebarOpen ? 'Close right sidebar' : 'Open right sidebar'}
+              >
+                <PanelRightIcon className="size-[16px] text-[#171717] dark:text-white" />
+              </button>
+            )}
+          </div>
         )}
       </div>
 

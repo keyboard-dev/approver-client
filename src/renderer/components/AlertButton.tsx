@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import bellIconUrl from '../../../assets/icon-bell.svg'
 import type { InboxNotification } from '../hooks/useInbox'
 import { useInbox } from '../hooks/useInbox'
@@ -75,6 +75,30 @@ const AlertButton = () => {
     prevExpiredRef.current = currentExpiredIds
   }, [expired, addNotification])
 
+  // Dev test: check if user can trigger real update test
+  const [isDevTestAllowed, setIsDevTestAllowed] = useState(false)
+  const [isDevTestRunning, setIsDevTestRunning] = useState(false)
+
+  useEffect(() => {
+    window.electronAPI.devTestUpdaterAllowed().then(setIsDevTestAllowed).catch(() => {})
+  }, [])
+
+  const handleDevTestUpdate = useCallback(async () => {
+    setIsDevTestRunning(true)
+    try {
+      const result = await window.electronAPI.devTestRealUpdate()
+      if (!result.success) {
+        addNotification({ type: 'generic', title: 'Dev Test Failed', message: result.error || 'Unknown error', variant: 'error' })
+      }
+    }
+    catch {
+      addNotification({ type: 'generic', title: 'Dev Test Failed', message: 'Could not trigger update test', variant: 'error' })
+    }
+    finally {
+      setIsDevTestRunning(false)
+    }
+  }, [addNotification])
+
   // Calculate total alert count (inbox notifications + any not yet synced)
   const alertCount = unreadCount
 
@@ -102,7 +126,7 @@ const AlertButton = () => {
       key="inbox"
     >
       <span
-        className="text-black text-[1rem] font-semibold"
+        className="text-black dark:text-white text-[1rem] font-semibold"
       >
         inbox
         {' '}
@@ -121,7 +145,7 @@ const AlertButton = () => {
     // Show empty state if no notifications
     notifications.length === 0 && (
       <div
-        className="px-[1.25rem] py-[1rem] border-t border-[#E5E5E5] text-center text-[#737373] dark:text-[#a9a9a9] text-sm"
+        className="px-[1.25rem] py-[1rem] border-t border-[#E5E5E5] dark:border-[#333] text-center text-[#737373] dark:text-[#a9a9a9] text-sm"
         key="empty-state"
       >
         No notifications
@@ -130,7 +154,7 @@ const AlertButton = () => {
     // Mark all as read button (only show if there are unread notifications)
     alertCount > 0 && (
       <div
-        className="px-[0.63rem] py-[0.5rem] border-t border-[#E5E5E5]"
+        className="px-[0.63rem] py-[0.5rem] border-t border-[#E5E5E5] dark:border-[#333]"
         key="mark-all-read"
       >
         <button
@@ -139,6 +163,22 @@ const AlertButton = () => {
           onClick={markAllAsRead}
         >
           Mark all as read
+        </button>
+      </div>
+    ),
+    // Dev-only: test real update flow (only for keyboard.dev/dev-docs.io/docs.dev users)
+    isDevTestAllowed && (
+      <div
+        className="px-[0.63rem] py-[0.5rem] border-t border-dashed border-[#E5E5E5] dark:border-[#333]"
+        key="dev-test-update"
+      >
+        <button
+          type="button"
+          className="w-full text-center text-xs text-[#9333EA] hover:text-[#7E22CE] disabled:opacity-50"
+          onClick={handleDevTestUpdate}
+          disabled={isDevTestRunning}
+        >
+          {isDevTestRunning ? 'Testing update flow...' : 'Dev: Test Real Update Flow'}
         </button>
       </div>
     ),
@@ -153,7 +193,7 @@ const AlertButton = () => {
           className="px-[0.5rem] py-[0.25rem] rounded-full not-draggable"
           variant="secondary"
         >
-          <img src={bellIconUrl} alt="alert" className="w-4 h-4" />
+          <img src={bellIconUrl} alt="alert" className="w-4 h-4 dark:invert" />
           {alertCount > 0 && (
             <div className="absolute top-0 right-0 px-[0.25rem] py-[0.06rem] bg-[#D23535] rounded-full text-[#F7F7F7] text-[0.63rem] flex items-center justify-center">
               {alertCount}

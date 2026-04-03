@@ -61,7 +61,7 @@ export const DropdownMenuDesigned = ({
 
       <div
         className={cn(
-          'absolute w-fit bg-white border border-[#E5E5E5] rounded-[0.25rem] z-10',
+          'absolute w-fit bg-white dark:bg-[#1e1e1e] border border-[#E5E5E5] dark:border-[#333] rounded-[0.25rem] z-10',
           'transition-all duration-200 ease-out',
           // Vertical positioning
           position.startsWith('bottom-') ? 'top-[calc(100%+2px)]' : 'bottom-[calc(100%+2px)]',

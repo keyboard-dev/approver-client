@@ -47,13 +47,13 @@ export const GenericNotificationItem: React.FC<GenericNotificationItemProps> = (
   }
 
   return (
-    <div className="px-[0.63rem] py-[0.75rem] border-t border-[#E5E5E5]">
+    <div className="px-[0.63rem] py-[0.75rem] border-t border-[#E5E5E5] dark:border-[#333]">
       <div className={`border-l-2 ${config.borderColor} px-[0.63rem]`}>
         <div className="flex flex-col gap-2">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-[0.63rem]">
               <Icon className={`w-4 h-4 ${config.iconColor}`} />
-              <span className="text-black font-semibold">
+              <span className="text-black dark:text-white font-semibold">
                 {notification.title}
               </span>
             </div>
@@ -77,7 +77,7 @@ export const GenericNotificationItem: React.FC<GenericNotificationItemProps> = (
                   </button>
                 )}
           </div>
-          <div className="text-sm text-[#525252]">
+          <div className="text-sm text-[#525252] dark:text-[#a9a9a9]">
             {notification.message}
           </div>
         </div>

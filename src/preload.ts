@@ -287,6 +287,7 @@ export interface ElectronAPI {
   onUpdateAvailable: (callback: (event: IpcRendererEvent, updateInfo: UpdateInfo) => void) => void
   onDownloadProgress: (callback: (event: IpcRendererEvent, progressInfo: ProgressInfo) => void) => void
   onUpdateDownloaded: (callback: (event: IpcRendererEvent, updateInfo: UpdateInfo) => void) => void
+  onUpdateError: (callback: (event: IpcRendererEvent, error: { message: string }) => void) => void
   notifyRendererReady: () => void
   checkForUpdates: () => Promise<void>
   downloadUpdate: () => Promise<void>
@@ -296,6 +297,9 @@ export interface ElectronAPI {
   testUpdateAvailable: () => Promise<void>
   testDownloadUpdate: () => Promise<void>
   testUpdateDownloaded: () => Promise<void>
+  // Dev test: trigger real update flow with spoofed version (domain-gated)
+  devTestRealUpdate: () => Promise<{ success: boolean, error?: string }>
+  devTestUpdaterAllowed: () => Promise<boolean>
   invoke: (channel: string, ...args: unknown[]) => Promise<unknown>
 
   // Executor WebSocket connection methods
@@ -702,6 +706,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onUpdateDownloaded: (callback: (event: IpcRendererEvent, updateInfo: UpdateInfo) => void): void => {
     ipcRenderer.on('update-downloaded', callback)
   },
+  onUpdateError: (callback: (event: IpcRendererEvent, error: { message: string }) => void): void => {
+    ipcRenderer.on('update-error', callback)
+  },
   checkForUpdates: (): Promise<void> => ipcRenderer.invoke('check-for-updates'),
   downloadUpdate: (): Promise<void> => ipcRenderer.invoke('download-update'),
   quitAndInstall: (): Promise<void> => ipcRenderer.invoke('quit-and-install'),
@@ -710,6 +717,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   testUpdateAvailable: (): Promise<void> => ipcRenderer.invoke('test-update-available'),
   testDownloadUpdate: (): Promise<void> => ipcRenderer.invoke('test-download-update'),
   testUpdateDownloaded: (): Promise<void> => ipcRenderer.invoke('test-update-downloaded'),
+  devTestRealUpdate: (): Promise<{ success: boolean, error?: string }> => ipcRenderer.invoke('dev-test-real-update'),
+  devTestUpdaterAllowed: (): Promise<boolean> => ipcRenderer.invoke('dev-test-updater-allowed'),
   invoke: (channel: string, ...args: unknown[]): Promise<unknown> => ipcRenderer.invoke(channel, ...args),
 
   // Executor WebSocket connection methods
