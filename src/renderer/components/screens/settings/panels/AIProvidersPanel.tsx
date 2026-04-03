@@ -11,7 +11,7 @@ interface AIProviderKey {
 const AI_PROVIDERS = [
   {
     id: 'keyboard',
-    name: 'Keyboard (Default)',
+    name: 'Keyboard (default)',
     description: 'Claude 4.5 models via Keyboard API',
     placeholder: '',
     helpUrl: '',

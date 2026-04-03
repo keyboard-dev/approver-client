@@ -2,6 +2,7 @@ import { CodespaceInfo, Script } from '../../types'
 import { generatePlanningToken } from './ability-tools'
 import type { PipedreamAccount } from './pipedream-service'
 import { runCodeResultContext } from './run-code-result-context'
+import { useSidebarStore } from '../stores/sidebar-store'
 
 export interface UserTokensResponse {
   tokensAvailable?: string[]
@@ -69,14 +70,21 @@ export class ContextService {
     // Also refresh connector notes cache (fire and forget, non-critical)
     await fetchConnectorNotes().catch(() => {})
 
+    // Filter connected accounts to only those the user has added to this chat thread
+    const chatAppIds = useSidebarStore.getState().chatAppsByThread[window.location.pathname] || []
+    const allPipedream = pipedreamAccounts.status === 'fulfilled' ? pipedreamAccounts.value : []
+    const allComposio = composioAccounts.status === 'fulfilled' ? composioAccounts.value : []
+    const filteredPipedream = allPipedream.filter(acc => chatAppIds.includes(`pipedream:${acc.app.nameSlug}`))
+    const filteredComposio = allComposio.filter(acc => chatAppIds.includes(`composio:${(acc.toolkit?.slug || '').toLowerCase()}`))
+
     return {
       planningToken,
       userTokens: userTokens.status === 'fulfilled' ? userTokens.value : [],
       codespaceInfo: codespaceInfo.status === 'fulfilled' ? codespaceInfo.value : null,
       executorConnection: executorConnection.status === 'fulfilled' ? executorConnection.value : null,
       selectedScripts: this.selectedScripts,
-      pipedreamAccounts: pipedreamAccounts.status === 'fulfilled' ? pipedreamAccounts.value : [],
-      composioAccounts: composioAccounts.status === 'fulfilled' ? composioAccounts.value : [],
+      pipedreamAccounts: filteredPipedream,
+      composioAccounts: filteredComposio,
     }
   }
 
@@ -254,7 +262,8 @@ ${codespaceDetails}${serviceUrlSection}${selectedScriptsSection}
 ${pipedreamAccountsSection}${composioAccountsSection}${localAccountsSection}${previousResultsSection}
 
 INSTRUCTIONS:
-- IMPORTANT: All context (connected accounts, tokens, codespace info) is already provided above. Do NOT call tools like required-starting-context-information, list-connected-accounts, connect-websocket, or fetch-accounts-data — that data is already here. Jump directly to the action tool (e.g., run-code) to accomplish the user's task.
+- IMPORTANT: All context (connected accounts, tokens, codespace info) is already provided above. Do NOT call tools like required-starting-context-information, connect-websocket, or fetch-accounts-data — that data is already here. Jump directly to the action tool (e.g., run-code) to accomplish the user's task.
+- APP PERMISSION GATE: You are ONLY allowed to use apps that appear in the connected accounts sections above (PIPEDREAM CONNECTED ACCOUNTS, COMPOSIO CONNECTED ACCOUNTS, LOCAL CONNECTED ACCOUNTS). If those sections are absent or empty, no apps are authorized for this chat. If you need apps that are not listed, first output a short message identifying which apps you need — for example: "I don't have access to Google Docs or Notion in this chat. To complete your request, I would need:" — then immediately call the connect-reconnect-accounts tool with the exact app slugs (e.g. { "apps": ["google-docs", "notion"] }). Do NOT output any text after the tool call — the card it renders is the final element. Once the user adds the apps via the card, you will receive fresh account data and can proceed.
 - Planning token is automatically provided above - use it when calling run-code
 - Break down complex tasks into multiple run-code calls when appropriate
 - If no tools are needed, respond conversationally

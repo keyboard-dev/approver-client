@@ -14,7 +14,7 @@ interface NewChatButtonProps {
 }
 
 /**
- * New Chat button - exported for use in sidebar
+ * New chat button - exported for use in sidebar
  */
 export const NewChatButton: FC<NewChatButtonProps> = ({ onChatSelect }) => {
   return (
@@ -30,7 +30,7 @@ export const NewChatButton: FC<NewChatButtonProps> = ({ onChatSelect }) => {
         >
           <PlusIcon className="size-[18px] text-[#737373] dark:text-[#a9a9a9]" />
           <span className="text-[14px] leading-normal text-[#737373] dark:text-[#a9a9a9] font-medium">
-            New Chat
+            New chat
           </span>
         </button>
       </ThreadListPrimitive.New>
@@ -72,7 +72,7 @@ const ThreadListItem: FC<ThreadListItemProps> = ({ onChatSelect }) => {
       >
         <ThreadListItemTitle />
       </ThreadListItemPrimitive.Trigger>
-      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity pr-2">
+      <div className="hidden group-hover:flex items-center gap-1 pr-2">
         <ThreadListItemArchive />
         <ThreadListItemDelete />
       </div>
@@ -90,7 +90,7 @@ const ThreadListItemTitle: FC = () => {
   }
 
   return (
-    <TooltipProvider>
+    <TooltipProvider delayDuration={2500} skipDelayDuration={2500}>
       <Tooltip open={open} onOpenChange={setOpen}>
         <TooltipTrigger asChild>
           <span
@@ -99,11 +99,11 @@ const ThreadListItemTitle: FC = () => {
             onMouseLeave={() => setOpen(false)}
             className="aui-thread-list-item-title text-[14px] leading-normal text-[#737373] dark:text-[#a9a9a9] font-medium truncate block"
           >
-            <ThreadListItemPrimitive.Title fallback="New Chat" />
+            <ThreadListItemPrimitive.Title fallback="New chat" />
           </span>
         </TooltipTrigger>
         <TooltipContent side="right" className="z-[9999] bg-[#171717] text-white border-none">
-          <ThreadListItemPrimitive.Title fallback="New Chat" />
+          <ThreadListItemPrimitive.Title fallback="New chat" />
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

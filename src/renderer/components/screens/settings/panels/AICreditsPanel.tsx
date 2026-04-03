@@ -143,7 +143,7 @@ export const AICreditsPanel: React.FC = () => {
   return (
     <div className="grow shrink min-w-0 h-full p-[16px] flex flex-col gap-[0.63rem] overflow-y-auto">
       <div className="text-[1.13rem] dark:text-[#f5f5f5]">
-        AI Credits
+        AI credits
       </div>
 
       {credits.loading && (
@@ -169,7 +169,7 @@ export const AICreditsPanel: React.FC = () => {
           {/* Current Balance Card */}
           <div className="p-[0.94rem] bg-[#FAFAFA] dark:bg-[#242424] border border-[#E5E5E5] dark:border-[#2e2e2e] rounded-[0.38rem] flex flex-col gap-[0.63rem]">
             <div className="flex justify-between items-center">
-              <div className="text-[#737373] dark:text-[#a9a9a9]">Current Balance</div>
+              <div className="text-[#737373] dark:text-[#a9a9a9]">Current balance</div>
               <button
                 onClick={fetchCreditsBalance}
                 className="text-[#737373] dark:text-[#a9a9a9] hover:text-[#171717] text-sm transition-colors"
@@ -186,18 +186,18 @@ export const AICreditsPanel: React.FC = () => {
                 onClick={() => setDialogOpen(true)}
                 className="px-[0.75rem] py-[0.5rem] bg-[#171717] dark:bg-[#f5f5f5] text-white dark:text-[#171717] rounded-[0.38rem] font-medium hover:bg-[#404040] dark:hover:bg-[#e5e5e5] transition-colors"
               >
-                Buy Credits
+                Buy credits
               </button>
             </div>
           </div>
 
           {/* Usage Breakdown */}
           <div className="p-[0.94rem] bg-[#FAFAFA] dark:bg-[#242424] border border-[#E5E5E5] dark:border-[#2e2e2e] rounded-[0.38rem] flex flex-col gap-[0.63rem]">
-            <div className="text-[#737373] dark:text-[#a9a9a9]">Usage Breakdown</div>
+            <div className="text-[#737373] dark:text-[#a9a9a9]">Usage breakdown</div>
 
             <div className="grid grid-cols-3 gap-[0.94rem]">
               <div className="flex flex-col">
-                <div className="text-sm text-[#737373] dark:text-[#a9a9a9]">Total Purchased</div>
+                <div className="text-sm text-[#737373] dark:text-[#a9a9a9]">Total purchased</div>
                 <div className="text-[1.13rem] font-medium text-[#171717] dark:text-[#f5f5f5]">
                   $
                   {credits.balance.total_purchased_usd}
@@ -205,7 +205,7 @@ export const AICreditsPanel: React.FC = () => {
               </div>
 
               <div className="flex flex-col">
-                <div className="text-sm text-[#737373] dark:text-[#a9a9a9]">Total Earned</div>
+                <div className="text-sm text-[#737373] dark:text-[#a9a9a9]">Total earned</div>
                 <div className="text-[1.13rem] font-medium text-green-600">
                   $
                   {credits.balance.total_earned_usd}
@@ -213,7 +213,7 @@ export const AICreditsPanel: React.FC = () => {
               </div>
 
               <div className="flex flex-col">
-                <div className="text-sm text-[#737373] dark:text-[#a9a9a9]">Total Spent</div>
+                <div className="text-sm text-[#737373] dark:text-[#a9a9a9]">Total spent</div>
                 <div className="text-[1.13rem] font-medium text-[#171717] dark:text-[#f5f5f5]">
                   $
                   {credits.balance.total_spent_usd}
@@ -235,7 +235,7 @@ export const AICreditsPanel: React.FC = () => {
       <Dialog open={dialogOpen} onOpenChange={handleDialogOpenChange}>
         <DialogContent className="sm:max-w-[425px] !rounded-[20px] dark:bg-[#1e1e1e] dark:border-[#2e2e2e]">
           <DialogHeader>
-            <DialogTitle>Buy AI Credits</DialogTitle>
+            <DialogTitle>Buy AI credits</DialogTitle>
             <DialogDescription>
               Select an amount or enter a custom amount to purchase credits.
             </DialogDescription>
@@ -262,7 +262,7 @@ export const AICreditsPanel: React.FC = () => {
 
             {/* Custom amount input */}
             <div className="flex flex-col gap-[0.5rem]">
-              <label className="text-sm text-[#737373] dark:text-[#a9a9a9]">Custom Amount</label>
+              <label className="text-sm text-[#737373] dark:text-[#a9a9a9]">Custom amount</label>
               <div className="relative">
                 <span className="absolute left-[0.75rem] top-1/2 -translate-y-1/2 text-[#737373] dark:text-[#a9a9a9]">$</span>
                 <input
@@ -311,7 +311,7 @@ export const AICreditsPanel: React.FC = () => {
               disabled={checkoutLoading || !isValidAmount()}
               className="px-[1rem] py-[0.5rem] bg-[#171717] text-white rounded-[0.38rem] font-medium hover:bg-[#404040] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {checkoutLoading ? 'Processing...' : 'Continue to Checkout'}
+              {checkoutLoading ? 'Processing...' : 'Continue to checkout'}
             </button>
           </DialogFooter>
         </DialogContent>

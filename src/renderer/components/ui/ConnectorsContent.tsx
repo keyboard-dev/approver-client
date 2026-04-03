@@ -166,7 +166,7 @@ const ConnectorRow: React.FC<ConnectorRowProps> = ({
           )
         : (
             <button
-              className="flex items-center gap-1 px-3 py-1 bg-white dark:bg-[#171717] border border-[#e5e5e5] dark:border-[#171717] rounded-[4px] text-[14px] font-medium text-[#171717] dark:text-[#f5f5f5] hover:border-[#ccc] dark:hover:border-[#333] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-1 px-3 py-1 bg-white dark:bg-[#171717] border border-[#e5e5e5] dark:border-[#2e2e2e] rounded-[4px] text-[14px] font-medium text-[#171717] dark:text-[#f5f5f5] hover:border-[#ccc] dark:hover:border-[#3a3a3a] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={isConnecting || disabled}
               onClick={onConnect}
             >

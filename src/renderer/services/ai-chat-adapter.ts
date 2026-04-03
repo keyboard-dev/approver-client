@@ -122,7 +122,7 @@ export class AIChatAdapter implements ChatModelAdapter {
         [
           {
             role: 'user',
-            content: `Generate a very brief title of maximum 5 words for a conversation that starts with this message. Reply with ONLY the title, no quotes, no punctuation at the end:\n\n${firstUserMessage.slice(0, 300)}`,
+            content: `Generate a short title for a conversation that starts with this message. Keep it as brief as possible — 1 to 4 words is ideal, up to 6 words maximum only if needed for clarity. Use sentence case (only capitalize the first word and proper nouns). Reply with ONLY the title, no quotes, no punctuation at the end:\n\n${firstUserMessage.slice(0, 300)}`,
           },
         ],
         undefined,
@@ -131,10 +131,11 @@ export class AIChatAdapter implements ChatModelAdapter {
       )
       let title = result.text.trim().replace(/^["']|["']$/g, '').trim()
       const words = title.split(/\s+/)
-      if (words.length > 5) {
-        title = words.slice(0, 5).join(' ')
+      if (words.length > 6) {
+        title = words.slice(0, 6).join(' ')
       }
-      if (title.length > 0) {
+      // Reject titles that look incomplete (no content)
+      if (words.length >= 1 && title.length > 0) {
         this.onThreadTitleGenerated(title)
       }
     }
@@ -450,15 +451,17 @@ export class AIChatAdapter implements ChatModelAdapter {
           ? this.buildToolActivityMarker(currentIteration, 'complete', toolActivityEntries) + '\n\n'
           : ''
 
-        const finalContent: Array<{ type: string, [key: string]: unknown }> = [
-          ...completedToolParts,
-        ]
+        // Separate connect-reconnect-accounts parts so they render after tool activity
+        const connectReconnectParts = completedToolParts.filter(p => p.toolName === 'connect-reconnect-accounts')
+        const otherToolParts = completedToolParts.filter(p => p.toolName !== 'connect-reconnect-accounts')
+
+        const finalContent: Array<{ type: string, [key: string]: unknown }> = [...otherToolParts]
 
         // Text was already streamed in real-time, yield final state with reasoning part
         if (streamingThinking) {
           finalContent.push({ type: 'reasoning' as const, text: streamingThinking })
         }
-        yield { content: [...finalContent, { type: 'text' as const, text: activityPrefix + displayText }] }
+        yield { content: [...finalContent, { type: 'text' as const, text: activityPrefix + displayText }, ...connectReconnectParts] }
 
         // Deliverable verification: if tools were used, let the model check whether the
         // last result contains a concrete deliverable. If not, re-enter the loop so it
@@ -524,7 +527,7 @@ export class AIChatAdapter implements ChatModelAdapter {
           activityEntry.completedAt = Date.now()
           toolResults.push({ type: 'tool_result', tool_use_id: tc.id, content: toolPart.result })
           const errorMarker = this.buildToolActivityMarker(currentIteration, 'running', toolActivityEntries)
-          yield { content: [...completedToolParts, { type: 'text' as const, text: errorMarker }] }
+          yield { content: [...completedToolParts.filter(p => p.toolName !== 'connect-reconnect-accounts'), { type: 'text' as const, text: errorMarker }, ...completedToolParts.filter(p => p.toolName === 'connect-reconnect-accounts')] }
           continue
         }
 
@@ -548,7 +551,7 @@ export class AIChatAdapter implements ChatModelAdapter {
 
           // Yield current state so UI shows tool as in-progress with activity panel
           const runningMarker = this.buildToolActivityMarker(currentIteration, 'running', toolActivityEntries)
-          yield { content: [...completedToolParts, { type: 'text' as const, text: runningMarker }] }
+          yield { content: [...completedToolParts.filter(p => p.toolName !== 'connect-reconnect-accounts'), { type: 'text' as const, text: runningMarker }, ...completedToolParts.filter(p => p.toolName === 'connect-reconnect-accounts')] }
 
           // Execute tool (for interactive widget tools, the promise was already started above)
           const executionResult = executionPromise
@@ -572,7 +575,7 @@ export class AIChatAdapter implements ChatModelAdapter {
 
           toolResults.push({ type: 'tool_result', tool_use_id: tc.id, content: contextContent })
           const completedMarker = this.buildToolActivityMarker(currentIteration, 'running', toolActivityEntries)
-          yield { content: [...completedToolParts, { type: 'text' as const, text: completedMarker }] }
+          yield { content: [...completedToolParts.filter(p => p.toolName !== 'connect-reconnect-accounts'), { type: 'text' as const, text: completedMarker }, ...completedToolParts.filter(p => p.toolName === 'connect-reconnect-accounts')] }
         }
         catch (error) {
           const errorMsg = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -591,8 +594,8 @@ export class AIChatAdapter implements ChatModelAdapter {
           })
 
           // Yield updated state so UI shows error
-          const errorMarker = this.buildToolActivityMarker(currentIteration, 'running', toolActivityEntries)
-          yield { content: [...completedToolParts, { type: 'text' as const, text: errorMarker }] }
+          const errorMarker2 = this.buildToolActivityMarker(currentIteration, 'running', toolActivityEntries)
+          yield { content: [...completedToolParts.filter(p => p.toolName !== 'connect-reconnect-accounts'), { type: 'text' as const, text: errorMarker2 }, ...completedToolParts.filter(p => p.toolName === 'connect-reconnect-accounts')] }
         }
         finally {
           this.updateToolExecutionState(false)

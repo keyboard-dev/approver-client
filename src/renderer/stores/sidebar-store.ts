@@ -1,6 +1,14 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
+export interface ConnectedAppInfo {
+  chatId: string
+  displayName: string
+  appSlug: string
+  source: string
+  icon?: string
+}
+
 interface SidebarStore {
   leftSidebarOpen: boolean
   rightSidebarOpen: boolean
@@ -10,6 +18,9 @@ interface SidebarStore {
   activePanelTitle: string | null
   toastMessage: string | null
   chatAppsByThread: Record<string, string[]>
+  allConnectedApps: ConnectedAppInfo[]
+  pendingAppRequests: Record<string, ConnectedAppInfo[]>
+  connectAppsModalOpen: boolean
   setLeftSidebarOpen: (open: boolean) => void
   setRightSidebarOpen: (open: boolean) => void
   setLeftSidebarWidth: (width: number) => void
@@ -20,6 +31,9 @@ interface SidebarStore {
   hideToast: () => void
   addChatApp: (threadId: string, chatId: string) => void
   removeChatApp: (threadId: string, chatId: string) => void
+  setAllConnectedApps: (apps: ConnectedAppInfo[]) => void
+  setPendingAppRequests: (threadId: string, apps: ConnectedAppInfo[]) => void
+  setConnectAppsModalOpen: (open: boolean) => void
 }
 
 export const useSidebarStore = create<SidebarStore>()(
@@ -33,6 +47,9 @@ export const useSidebarStore = create<SidebarStore>()(
       activePanelTitle: null,
       toastMessage: null,
       chatAppsByThread: {},
+      allConnectedApps: [],
+      pendingAppRequests: {},
+      connectAppsModalOpen: false,
       setLeftSidebarOpen: open => set({ leftSidebarOpen: open }),
       setRightSidebarOpen: open => set({ rightSidebarOpen: open }),
       setLeftSidebarWidth: width => set({ leftSidebarWidth: width }),
@@ -56,6 +73,11 @@ export const useSidebarStore = create<SidebarStore>()(
           [threadId]: (state.chatAppsByThread[threadId] || []).filter(id => id !== chatId),
         },
       })),
+      setAllConnectedApps: apps => set({ allConnectedApps: apps }),
+      setPendingAppRequests: (threadId, apps) => set(state => ({
+        pendingAppRequests: { ...state.pendingAppRequests, [threadId]: apps },
+      })),
+      setConnectAppsModalOpen: open => set({ connectAppsModalOpen: open }),
     }),
     {
       name: 'sidebar-store',

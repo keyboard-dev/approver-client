@@ -4,6 +4,7 @@ import { AbilityDiscoveryService, type AbilitySearchResult } from './ability-dis
 import { generateFingerprint, registerInteractiveToolCall, registerPendingCall, removePendingCall } from './pending-tool-calls'
 import { ResultProcessorService } from './result-processor'
 import { toolCacheService } from './tool-cache-service'
+import { useSidebarStore } from '../stores/sidebar-store'
 
 /**
  * Universal MCP Ability Integration Service
@@ -208,6 +209,37 @@ export function useMCPIntegration(
     }
 
     const { name, args: abilityArgs } = prepareMCPAbilityCall(functionName, args)
+
+    // App permission gate: check chatAppIds before executing any connected-app tool
+    const { chatAppsByThread, allConnectedApps, setPendingAppRequests } = useSidebarStore.getState()
+    const chatAppIds = chatAppsByThread[window.location.pathname] || []
+
+    // Block list-connected-accounts — return only apps authorized for this chat
+    if (name === 'list-connected-accounts') {
+      if (chatAppIds.length === 0) {
+        return JSON.stringify({ content: [{ type: 'text', text: 'No apps have been added to this chat. In your response, first output a short message identifying which apps you need and why — for example: "I don\'t have access to Google Docs or Notion in this chat. To complete your request, I would need:" — then immediately call the connect-reconnect-accounts tool with those exact app slugs (e.g. { "apps": ["google-docs", "notion"] }). Do NOT output any text after the tool call. The tool call card will be the final element the user sees.' }] })
+      }
+      const authorizedApps = allConnectedApps.filter(app => chatAppIds.includes(app.chatId))
+      return JSON.stringify({ content: [{ type: 'text', text: `Apps authorized for this chat: ${authorizedApps.map(a => `${a.displayName} (${a.source}:${a.appSlug})`).join(', ')}. Full account credentials are available in your system context above.` }] })
+    }
+
+    // Block run-code if explanation or code mentions a connected app not in chatAppIds
+    if (name === 'run-code' && allConnectedApps.length > 0) {
+      const explanation = String(abilityArgs.explanation_of_code || abilityArgs.explanation || '').toLowerCase()
+      const code = String(abilityArgs.code || '').toLowerCase()
+      const text = explanation + ' ' + code
+      const blockedApps = allConnectedApps.filter((app) => {
+        if (chatAppIds.includes(app.chatId)) return false
+        const slug = app.appSlug.toLowerCase()
+        const displayName = app.displayName.toLowerCase()
+        return text.includes(slug) || text.includes(displayName)
+      })
+      if (blockedApps.length > 0) {
+        setPendingAppRequests(window.location.pathname, blockedApps)
+        const appNames = blockedApps.map(a => a.displayName).join(', ')
+        return `PERMISSION_DENIED: The following apps have not been added to this chat session: ${appNames}. You must stop immediately and tell the user they need to add these apps. Say: "I need [app name(s)] added to this chat to continue. Please use the 'Add Required Apps' button that has appeared above the chat input, or click 'Add more apps' in the right sidebar. Once you've added the apps, send me another message to continue." Do NOT attempt to proceed or work around this restriction.`
+      }
+    }
     const startTime = performance.now()
 
     const interactiveWidgetTools = ['connect-reconnect-accounts']

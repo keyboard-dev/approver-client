@@ -320,12 +320,11 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
 }) => {
   const [modelPreferencesOpen, setModelPreferencesOpen] = useState(true)
   const [connectorsOpen, setConnectorsOpen] = useState(true)
-  const [connectAppsModalOpen, setConnectAppsModalOpen] = useState(false)
   const [notesReady, setNotesReady] = useState(false)
 
   const { pathname } = useLocation()
 
-  const { chatAppsByThread, addChatApp, removeChatApp } = useSidebarStore()
+  const { chatAppsByThread, addChatApp, removeChatApp, setAllConnectedApps, connectAppsModalOpen, setConnectAppsModalOpen } = useSidebarStore()
 
   // Fetch connector notes on mount
   useEffect(() => {
@@ -354,20 +353,28 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
     refreshAccounts: refreshComposioAccounts,
   } = useComposio()
 
-  // Collect unique tool names called in the current thread (stable via joined string)
-  const usedToolNamesKey = useAssistantState(({ thread }) => {
+  // Collect tool names + run-code explanation text (stable string for effect deps)
+  const threadDataKey = useAssistantState(({ thread }) => {
     const names = new Set<string>()
+    const runCodeTexts: string[] = []
     for (const message of thread.messages) {
       if (message.role === 'assistant') {
         for (const part of message.content) {
-          if ((part as { type: string }).type === 'tool-call') {
-            names.add((part as { toolName: string }).toolName)
+          const p = part as { type: string; toolName?: string; args?: Record<string, unknown> }
+          if (p.type === 'tool-call') {
+            names.add(p.toolName || '')
+            if (p.toolName === 'run-code' || p.toolName === 'run_code') {
+              const explanation = String(p.args?.explanation_of_code || p.args?.explanation || '').slice(0, 1000)
+              const code = String(p.args?.code || '').slice(0, 2000)
+              runCodeTexts.push(explanation + ' ' + code)
+            }
           }
         }
       }
     }
-    return [...names].sort().join(',')
+    return [...names].sort().join(',') + '|||' + runCodeTexts.join(' ')
   })
+  const [usedToolNamesKey, runCodeText] = threadDataKey.split('|||')
 
   // Build list of connected apps (before early return so connectedAppsRef can be set)
   const connectedApps: ConnectedApp[] = [
@@ -422,25 +429,42 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
   const connectedAppsRef = useRef<ConnectedApp[]>([])
   connectedAppsRef.current = connectedApps
 
+  // Sync full connected apps list to store so mcp-tool-integration can check permissions
+  useEffect(() => {
+    setAllConnectedApps(connectedApps.map(app => ({
+      chatId: app.chatId,
+      displayName: app.name,
+      appSlug: app.appSlug,
+      source: app.source,
+      icon: app.icon,
+    })))
+  }, [connectedApps.map(a => a.chatId).join(',')])
+
   const chatAppIds = chatAppsByThread[pathname] || []
   const chatConnectedApps = connectedApps.filter(app => chatAppIds.includes(app.chatId))
 
-  // Auto-add apps detected via tool calls to the store
+  // Auto-add apps detected via tool calls (direct or via run-code) to the store
   useEffect(() => {
-    if (!pathname || !usedToolNamesKey) return
+    if (!pathname || !threadDataKey) return
     const currentChatAppIds = useSidebarStore.getState().chatAppsByThread[pathname] || []
-    const toolNamesList = usedToolNamesKey.split(',')
+    const toolNamesList = usedToolNamesKey ? usedToolNamesKey.split(',') : []
+    const runCodeLower = (runCodeText || '').toLowerCase()
     for (const app of connectedAppsRef.current) {
-      const toolMatch = toolNamesList.some((t) => {
+      const slug = app.appSlug.toLowerCase()
+      const name = app.name.toLowerCase()
+      const directMatch = toolNamesList.some((t) => {
         const lower = t.toLowerCase()
-        const slug = app.appSlug.toLowerCase()
         return lower.startsWith(slug + '_') || lower.startsWith(slug + '-') || lower === slug
       })
-      if (toolMatch && !currentChatAppIds.includes(app.chatId)) {
+      // Match against run-code explanation/code text using slug or display name
+      const runCodeMatch = runCodeLower.length > 0 && (
+        runCodeLower.includes(slug) || runCodeLower.includes(name)
+      )
+      if ((directMatch || runCodeMatch) && !currentChatAppIds.includes(app.chatId)) {
         addChatApp(pathname, app.chatId)
       }
     }
-  }, [usedToolNamesKey, pathname, addChatApp])
+  }, [threadDataKey, pathname, addChatApp])
 
   if (!isOpen) return null
 
@@ -654,7 +678,7 @@ export const ThreadSidebar: FC<ThreadSidebarProps> = ({
               onClick={() => onThinkingChange?.(!thinkingEnabled)}
             >
               <div className="flex flex-col gap-[2px]">
-                <p className="font-medium text-[14px] text-[#171717] dark:text-[#a9a9a9] leading-normal">
+                <p className="font-medium text-[14px] text-[#737373] dark:text-[#a9a9a9] leading-normal">
                   Extended thinking
                 </p>
                 <p className="text-[11px] text-[#737373] dark:text-[#a9a9a9] leading-normal">

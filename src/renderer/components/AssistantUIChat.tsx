@@ -35,12 +35,12 @@ interface OrgProviderData {
 const PROVIDERS: ProviderConfig[] = [
   {
     id: 'keyboard',
-    name: 'Keyboard (Default)',
+    name: 'Keyboard (default)',
     supportsMCP: true,
     models: [
-      { id: 'claude-sonnet-4-6', name: 'Claude 4.6 Sonnet (Default)' },
-      { id: 'claude-opus-4-6', name: 'Claude 4.6 Opus (Advanced)' },
-      { id: 'claude-haiku-4-5-20251001', name: 'Claude 4.5 Haiku (Fastest)' },
+      { id: 'claude-sonnet-4-6', name: 'Claude 4.6 Sonnet (default)' },
+      { id: 'claude-opus-4-6', name: 'Claude 4.6 Opus (advanced)' },
+      { id: 'claude-haiku-4-5-20251001', name: 'Claude 4.5 Haiku (fastest)' },
     ],
   },
   {
@@ -57,9 +57,9 @@ const PROVIDERS: ProviderConfig[] = [
     name: 'Anthropic',
     supportsMCP: true,
     models: [
-      { id: 'claude-sonnet-4-6', name: 'Claude 4.6 Sonnet (Recommended)' },
-      { id: 'claude-opus-4-6', name: 'Claude 4.6 Opus (Advanced)' },
-      { id: 'claude-haiku-4-5', name: 'Claude 4.5 Haiku (Fastest)' },
+      { id: 'claude-sonnet-4-6', name: 'Claude 4.6 Sonnet (recommended)' },
+      { id: 'claude-opus-4-6', name: 'Claude 4.6 Opus (advanced)' },
+      { id: 'claude-haiku-4-5', name: 'Claude 4.5 Haiku (fastest)' },
     ],
   },
   {

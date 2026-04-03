@@ -225,7 +225,7 @@ export const AdvancedPanel: React.FC = () => {
             <div
               className="text-[#737373] dark:text-[#a9a9a9]"
             >
-              Choose where code execution should run. GitHub Codespace uses your GitHub Codespace as an execution, while Keyboard Environment uses a managed keyboard environment for you.
+              Choose where code execution should run. GitHub Codespace uses your GitHub Codespace as an execution, while Keyboard Environment uses a managed Keyboard environment for you.
             </div>
           </div>
           <div

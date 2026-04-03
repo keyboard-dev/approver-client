@@ -124,6 +124,15 @@ function stripMarker(text: string, startMarker: string, endMarker: string): stri
   return (text.slice(0, startIdx) + text.slice(endIdx + endMarker.length)).trim()
 }
 
+/** Strip internal API markers that sometimes get echoed into model responses */
+function stripInternalMarkers(text: string): string {
+  // Strip [Used tool: name({...})] — tool_use blocks flattened for API history
+  let result = text.replace(/\[Used tool:.*?\)\]/gs, '')
+  // Strip [Tool result for id]: content — tool_result blocks flattened for API history
+  result = result.replace(/\[Tool result for [^\]]+\]:[^\[]*/gs, '')
+  return result.trim()
+}
+
 const MarkdownContent = memo(function MarkdownContent({ text }: { text: string }) {
   if (!text) return null
   return (
@@ -131,6 +140,9 @@ const MarkdownContent = memo(function MarkdownContent({ text }: { text: string }
       <Markdown
         remarkPlugins={[remarkGfm]}
         components={{
+          p: ({ children }) => (
+            <p className="mt-4 mb-4 leading-7 first:mt-0 last:mb-0">{children}</p>
+          ),
           a: ({ href, children }) => (
             <a
               href={href}
@@ -153,7 +165,8 @@ const MarkdownContent = memo(function MarkdownContent({ text }: { text: string }
 
 const SmartTextImpl = () => {
   const part = useMessagePartText()
-  const text = 'text' in part ? part.text : ''
+  const rawText = 'text' in part ? part.text : ''
+  const text = useMemo(() => stripInternalMarkers(rawText), [rawText])
   const { status } = useMessage()
   const stopped = status.type !== 'running'
 

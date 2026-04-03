@@ -31,7 +31,7 @@ interface ThreadLeftSidebarProps {
 
 const SETTINGS_SUB_TABS: Array<{ id: SettingsTabType, label: string, icon: React.ReactNode }> = [
   { id: 'Appearance', label: 'Appearance', icon: <EyeIcon className="size-[16px]" /> },
-  { id: 'AI Credits', label: 'AI Credits', icon: <CreditCardIcon className="size-[16px]" /> },
+  { id: 'AI Credits', label: 'AI credits', icon: <CreditCardIcon className="size-[16px]" /> },
   { id: 'Advanced', label: 'Advanced', icon: <SlidersHorizontalIcon className="size-[16px]" /> },
 ]
 
@@ -89,7 +89,7 @@ const ChatSearchDialog: FC<{ onClose: () => void, onSelect: (threadId: string) =
 
     for (const threadId of allIds) {
       const item = state.threadItems[threadId]
-      const title = item?.title ?? 'New Chat'
+      const title = item?.title ?? 'New chat'
       const titleLower = title.toLowerCase()
 
       // Search messages for content
@@ -299,7 +299,7 @@ export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
                   </NavTooltip>
 
                   {/* AI Credits */}
-                  <NavTooltip label="AI Credits">
+                  <NavTooltip label="AI credits">
                     <button
                       type="button"
                       onClick={() => onTabClick?.('AI Credits')}
@@ -343,7 +343,7 @@ export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
                           </button>
                         </TooltipTrigger>
                       </ThreadListPrimitive.New>
-                      <TooltipContent side="right">New Chat</TooltipContent>
+                      <TooltipContent side="right">New chat</TooltipContent>
                     </Tooltip>
                   </ThreadListPrimitive.Root>
 
@@ -500,7 +500,7 @@ export const ThreadLeftSidebar: FC<ThreadLeftSidebarProps> = ({
                   onClick={() => window.electronAPI.createCreditsCheckout(1000)}
                   className="w-full bg-[#99A0FF] hover:bg-[#8088ee] text-[#171717] text-[13px] font-semibold py-[9px] rounded-[8px] transition-colors"
                 >
-                  Buy Credits
+                  Buy credits
                 </button>
               </div>
             )}

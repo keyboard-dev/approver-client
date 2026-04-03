@@ -9,6 +9,7 @@ import {
   CopyIcon,
   Loader2Icon,
   PencilIcon,
+  PlusIcon,
   RefreshCwIcon,
   Square,
   WifiOffIcon,
@@ -264,16 +265,21 @@ export const Thread: FC<ThreadCustomProps> = ({
             </ThreadPrimitive.Root>
           )}
 
-          {/* Right Sidebar - Only show when chat is visible */}
+          {/* Right Sidebar - resize handle only when open */}
           {showChat && rightSidebarOpen && (
-            <>
             <div
               className="group relative h-full w-[8px] shrink-0 cursor-col-resize"
               onMouseDown={handleRightResizeStart}
             >
               <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[2px] bg-[#d4d4d4] dark:bg-[#3a3a3a] opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
-            <div className="h-full py-[8px] shrink-0" style={{ width: rightSidebarWidth }}>
+          )}
+          {/* ThreadSidebar always mounted so allConnectedApps stays populated for permission checks */}
+          {showChat && (
+            <div
+              className="h-full py-[8px] shrink-0"
+              style={{ width: rightSidebarOpen ? rightSidebarWidth : 0, overflow: 'hidden', display: rightSidebarOpen ? undefined : 'none' }}
+            >
               <ThreadSidebar
                 isOpen={rightSidebarOpen}
                 onClose={() => setRightSidebarOpen(false)}
@@ -292,7 +298,6 @@ export const Thread: FC<ThreadCustomProps> = ({
                 onRetryMCP={onRetryMCP}
               />
             </div>
-            </>
           )}
 
         </div>
@@ -325,6 +330,17 @@ const ThreadChatArea: FC<ThreadChatAreaProps> = ({
   onScriptSelect,
 }) => {
   const isThreadEmpty = useAssistantState(({ thread }) => thread.messages.length === 0 && !thread.isLoading)
+  const { pathname } = useLocation()
+  const { pendingAppRequests, addChatApp, setPendingAppRequests } = useSidebarStore()
+  const pendingApps = pendingAppRequests[pathname] || []
+
+  const handleAddRequiredApp = (chatId: string) => {
+    addChatApp(pathname, chatId)
+    const remaining = (pendingAppRequests[pathname] || []).filter(a => a.chatId !== chatId)
+    setPendingAppRequests(pathname, remaining)
+  }
+
+  const SOURCE_LABELS: Record<string, string> = { pipedream: 'Pipedream', composio: 'Composio', local: 'Local' }
 
   return (
     <div className={cn('flex flex-col flex-1 min-h-0', isThreadEmpty && 'max-h-[677px]')}>
@@ -347,6 +363,45 @@ const ThreadChatArea: FC<ThreadChatAreaProps> = ({
           onRejectMessage={onRejectMessage}
           onClearMessage={onClearMessage}
         />
+
+        {/* Required Apps inline card */}
+        {pendingApps.length > 0 && (
+          <div className="w-full max-w-[960px] mx-auto px-[20px] py-[10px]">
+            <div className="bg-white dark:bg-[#1f1f1f] border border-[#e5e5e5] dark:border-[#2e2e2e] rounded-[12px] overflow-hidden">
+              {pendingApps.map((app, i) => (
+                <div
+                  key={app.chatId}
+                  className={cn(
+                    'flex items-center gap-[10px] px-[14px] py-[10px]',
+                    i > 0 && 'border-t border-[#f0f0f0] dark:border-[#2e2e2e]',
+                  )}
+                >
+                  <div className="bg-white dark:bg-[#292929] border border-[#e5e5e5] dark:border-[#3a3a3a] rounded-[6px] p-[5px] flex items-center shrink-0">
+                    <img
+                      src={app.icon || squaresIconUrl}
+                      alt={app.displayName}
+                      className="w-[18px] h-[18px] object-contain"
+                      onError={(e) => { (e.target as HTMLImageElement).src = squaresIconUrl }}
+                    />
+                  </div>
+                  <span className="flex-1 font-medium text-[14px] text-[#171717] dark:text-[#f5f5f5]">
+                    {app.displayName}
+                  </span>
+                  <span className="bg-[#f0f0f0] dark:bg-[#2e2e2e] text-[#171717] dark:text-[#f5f5f5] text-[11px] font-medium px-1.5 py-0.5 rounded-full whitespace-nowrap">
+                    {SOURCE_LABELS[app.source] || app.source}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleAddRequiredApp(app.chatId)}
+                    className="flex items-center justify-center w-[28px] h-[28px] rounded-full bg-[#f0f0f0] dark:bg-[#2e2e2e] hover:bg-[#e0e0e0] dark:hover:bg-[#3a3a3a] transition-colors shrink-0"
+                  >
+                    <PlusIcon className="size-[14px] text-[#171717] dark:text-[#f5f5f5]" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <ThreadPrimitive.If running>
           <div className="w-full max-w-[960px] mx-auto px-[20px] py-[10px]">
@@ -410,6 +465,7 @@ const ThreadScrollToBottom: FC = () => {
   )
 }
 
+import squaresIconUrl from '../../../../assets/icon-squares.svg'
 // Hero background image from design (keyboard with dotted pattern)
 import heroBackgroundUrl from '../../../../assets/hero-background.png'
 
@@ -704,7 +760,7 @@ const AssistantMessage: FC = () => {
         data-role="assistant"
       >
         <div className="flex flex-wrap gap-[6px] items-start w-full">
-          <div className="aui-assistant-message-content w-full text-[#171717] dark:text-[#f5f5f5] text-[14px] font-medium leading-normal break-words [&>:not(.aui-tool-fallback-root)]:max-w-[960px]">
+          <div className="aui-assistant-message-content min-w-0 w-full overflow-x-hidden text-[#171717] dark:text-[#f5f5f5] text-[14px] font-medium leading-normal break-words [&>:not(.aui-tool-fallback-root)]:max-w-[960px]">
             <MessagePrimitive.Parts
               components={{
                 Text: SmartText,
@@ -773,7 +829,7 @@ const UserMessage: FC = () => {
       >
         <div className="flex flex-wrap gap-[10px] items-start justify-end w-full">
           <UserMessageAttachments />
-          <div className="aui-user-message-content-wrapper relative min-w-0 max-w-[960px]">
+          <div className="aui-user-message-content-wrapper relative min-w-0 max-w-[75%]">
             <div className="aui-user-message-content bg-[#171717] dark:bg-[#f0f0f0] text-white dark:text-[#171717] rounded-[12px] p-[10px] break-words text-[14px] font-medium leading-normal">
               <MessagePrimitive.Parts />
             </div>
