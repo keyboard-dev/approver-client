@@ -96,7 +96,7 @@ else {
 require('@dotenvx/dotenvx').config()
 
 import * as crypto from 'crypto'
-import { app, BrowserWindow, ipcMain, Menu, Notification, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, Notification, shell } from 'electron'
 import log from 'electron-log/main'
 import * as fs from 'fs'
 import * as os from 'os'
@@ -348,6 +348,27 @@ class MenuBarNotificationApp {
 
     // App ready event
     app.whenReady().then(async () => {
+      // On macOS, prompt user to move to /Applications if running from a read-only location
+      // This prevents "read-only volume" errors from the auto-updater (Squirrel)
+      if (process.platform === 'darwin' && app.isPackaged && !app.isInApplicationsFolder()) {
+        const { response } = await dialog.showMessageBox({
+          type: 'question',
+          buttons: ['Move to Applications', 'Not Now'],
+          defaultId: 0,
+          message: 'Move to Applications folder?',
+          detail: 'Keyboard needs to be in the Applications folder to receive automatic updates.',
+        })
+        if (response === 0) {
+          try {
+            app.moveToApplicationsFolder()
+            return // App will relaunch from /Applications
+          }
+          catch {
+            // User cancelled the macOS auth dialog
+          }
+        }
+      }
+
       // Set application icon for notifications (especially important for macOS)
       const assetsPath = getAssetsPath()
       const iconPath = path.join(assetsPath, 'keyboard-dock.png')
