@@ -2,9 +2,26 @@ import _ from 'lodash'
 import { Message, ShareMessage } from '../../types'
 
 const DB_NAME = 'keyboard-approver-db'
-const DB_VERSION = 3
+const DB_VERSION = 4
 const MESSAGES_STORE = 'messages'
 const SHARE_MESSAGES_STORE = 'shareMessages'
+const CHAT_THREADS_STORE = 'chatThreads'
+const CHAT_MESSAGES_STORE = 'chatMessages'
+
+export interface ChatThreadRecord {
+  remoteId: string
+  headId?: string | null
+  status: 'regular' | 'archived'
+  title?: string
+  createdAt: number
+}
+
+export interface ChatMessageRecord {
+  threadId: string
+  messageId: string
+  parentId: string | null
+  message: any
+}
 
 export interface DatabaseConfig {
   name: string
@@ -53,6 +70,17 @@ export class DatabaseService {
           const shareMessagesStore = db.createObjectStore(SHARE_MESSAGES_STORE, { keyPath: 'id' })
           shareMessagesStore.createIndex('status', 'status', { unique: false })
           shareMessagesStore.createIndex('timestamp', 'timestamp', { unique: false })
+        }
+
+        // Create chatThreads object store (v4)
+        if (!db.objectStoreNames.contains(CHAT_THREADS_STORE)) {
+          db.createObjectStore(CHAT_THREADS_STORE, { keyPath: 'remoteId' })
+        }
+
+        // Create chatMessages object store (v4)
+        if (!db.objectStoreNames.contains(CHAT_MESSAGES_STORE)) {
+          const chatMessagesStore = db.createObjectStore(CHAT_MESSAGES_STORE, { keyPath: ['threadId', 'messageId'] })
+          chatMessagesStore.createIndex('threadId', 'threadId', { unique: false })
         }
       }
     })
@@ -402,6 +430,98 @@ export class DatabaseService {
       this.countPendingShareMessages(),
     ])
     return messagePending + sharePending
+  }
+
+  // Chat thread operations
+  async listChatThreads(): Promise<ChatThreadRecord[]> {
+    this.ensureInitialized()
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([CHAT_THREADS_STORE], 'readonly')
+      const store = transaction.objectStore(CHAT_THREADS_STORE)
+      const request = store.getAll()
+      request.onsuccess = () => resolve(request.result as ChatThreadRecord[])
+      request.onerror = () => reject(request.error)
+    })
+  }
+
+  async putChatThread(thread: Omit<ChatThreadRecord, 'headId' | 'title'> & Partial<Pick<ChatThreadRecord, 'headId' | 'title'>>): Promise<void> {
+    this.ensureInitialized()
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([CHAT_THREADS_STORE], 'readwrite')
+      const store = transaction.objectStore(CHAT_THREADS_STORE)
+      transaction.oncomplete = () => resolve()
+      transaction.onerror = () => reject(transaction.error)
+      store.put(thread)
+    })
+  }
+
+  async updateChatThread(remoteId: string, updates: Partial<Pick<ChatThreadRecord, 'headId' | 'status' | 'title'>>): Promise<void> {
+    this.ensureInitialized()
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([CHAT_THREADS_STORE], 'readwrite')
+      const store = transaction.objectStore(CHAT_THREADS_STORE)
+      transaction.onerror = () => reject(transaction.error)
+      transaction.oncomplete = () => resolve()
+      const getRequest = store.get(remoteId)
+      getRequest.onsuccess = () => {
+        const existing = getRequest.result as ChatThreadRecord | undefined
+        if (existing) {
+          store.put({ ...existing, ...updates })
+        }
+        else {
+          transaction.abort()
+          reject(new Error(`Chat thread ${remoteId} not found`))
+        }
+      }
+    })
+  }
+
+  async deleteChatThread(remoteId: string): Promise<void> {
+    this.ensureInitialized()
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([CHAT_THREADS_STORE, CHAT_MESSAGES_STORE], 'readwrite')
+      transaction.oncomplete = () => resolve()
+      transaction.onerror = () => reject(transaction.error)
+      transaction.objectStore(CHAT_THREADS_STORE).delete(remoteId)
+      // Delete all messages for this thread
+      const msgStore = transaction.objectStore(CHAT_MESSAGES_STORE)
+      const index = msgStore.index('threadId')
+      const cursorRequest = index.openCursor(IDBKeyRange.only(remoteId))
+      cursorRequest.onsuccess = (event) => {
+        const cursor = (event.target as IDBRequest<IDBCursorWithValue>).result
+        if (cursor) {
+          cursor.delete()
+          cursor.continue()
+        }
+      }
+    })
+  }
+
+  async saveChatHead(threadId: string, headId: string): Promise<void> {
+    return this.updateChatThread(threadId, { headId })
+  }
+
+  async loadChatMessages(threadId: string): Promise<ChatMessageRecord[]> {
+    this.ensureInitialized()
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([CHAT_MESSAGES_STORE], 'readonly')
+      const store = transaction.objectStore(CHAT_MESSAGES_STORE)
+      const index = store.index('threadId')
+      const request = index.getAll(IDBKeyRange.only(threadId))
+      request.onsuccess = () => resolve(request.result as ChatMessageRecord[])
+      request.onerror = () => reject(request.error)
+    })
+  }
+
+  async appendChatMessage(record: ChatMessageRecord): Promise<void> {
+    this.ensureInitialized()
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([CHAT_MESSAGES_STORE], 'readwrite')
+      const store = transaction.objectStore(CHAT_MESSAGES_STORE)
+      transaction.oncomplete = () => resolve()
+      transaction.onerror = () => reject(transaction.error)
+      store.put(record)
+    })
   }
 
   async close(): Promise<void> {

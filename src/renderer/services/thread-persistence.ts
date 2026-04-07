@@ -1,4 +1,4 @@
-import type { ExportedMessageRepository, ExportedMessageRepositoryItem } from '@assistant-ui/react'
+import type { ExportedMessageRepository } from '@assistant-ui/react'
 import { databaseService } from './database-service'
 
 /** Ensure DB is ready before any operation */
@@ -27,7 +27,7 @@ export function createThreadHistoryAdapter(threadId: string) {
       }
     },
 
-    async append(item: ExportedMessageRepositoryItem) {
+    async append(item: { message: { id: string }, parentId: string | null }) {
       await ensureDB()
       // Ensure a thread record exists for headId tracking
       const threads = await databaseService.listChatThreads()
