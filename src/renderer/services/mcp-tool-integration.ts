@@ -232,11 +232,24 @@ export function useMCPIntegration(
         if (chatAppIds.includes(app.chatId)) return false
         const slug = app.appSlug.toLowerCase()
         const displayName = app.displayName.toLowerCase()
-        return text.includes(slug) || text.includes(displayName)
+        if (!text.includes(slug) && !text.includes(displayName)) return false
+        // Don't block if any other version of this app (same slug or display name) is already authorized
+        return !allConnectedApps.some(other =>
+          chatAppIds.includes(other.chatId) &&
+          (other.appSlug.toLowerCase() === slug || other.displayName.toLowerCase() === displayName),
+        )
       })
-      if (blockedApps.length > 0) {
-        setPendingAppRequests(window.location.pathname, blockedApps)
-        const appNames = blockedApps.map(a => a.displayName).join(', ')
+      // Deduplicate by slug before blocking
+      const seenSlugs = new Set<string>()
+      const uniqueBlockedApps = blockedApps.filter((app) => {
+        const slug = app.appSlug.toLowerCase()
+        if (seenSlugs.has(slug)) return false
+        seenSlugs.add(slug)
+        return true
+      })
+      if (uniqueBlockedApps.length > 0) {
+        setPendingAppRequests(window.location.pathname, uniqueBlockedApps)
+        const appNames = uniqueBlockedApps.map(a => a.displayName).join(', ')
         return `PERMISSION_DENIED: The following apps have not been added to this chat session: ${appNames}. You must stop immediately and tell the user they need to add these apps. Say: "I need [app name(s)] added to this chat to continue. Please use the 'Add Required Apps' button that has appeared above the chat input, or click 'Add more apps' in the right sidebar. Once you've added the apps, send me another message to continue." Do NOT attempt to proceed or work around this restriction.`
       }
     }

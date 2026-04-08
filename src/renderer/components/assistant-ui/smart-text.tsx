@@ -167,8 +167,8 @@ const SmartTextImpl = () => {
   const part = useMessagePartText()
   const rawText = 'text' in part ? part.text : ''
   const text = useMemo(() => stripInternalMarkers(rawText), [rawText])
-  const { status } = useMessage()
-  const stopped = status.type !== 'running'
+  const message = useMessage({ optional: true } as Parameters<typeof useMessage>[0])
+  const stopped = !message || message.status.type !== 'running'
 
   // Tool activity is rendered alongside other content, not as a replacement
   const toolActivityData = useMemo(() => parseToolActivityData(text), [text])

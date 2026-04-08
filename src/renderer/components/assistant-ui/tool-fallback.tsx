@@ -56,14 +56,15 @@ function ConnectReconnectCard({ args, result }: { args: Record<string, unknown> 
     }
   })
 
-  // Auto-resolve when all connected apps have been added to chat
+  // Auto-resolve when no apps were requested, or when all requested+connected apps are in chat
   const connectedChatIds = requestedApps.filter(a => a.connected).map(a => a.connected!.chatId).join(',')
   const allInChat = requestedApps.filter(a => a.connected).every(a => a.inChat)
   useEffect(() => {
-    if (connectedChatIds && allInChat && result === undefined) {
+    if (result !== undefined) return
+    if (requestedSlugs.length === 0 || (connectedChatIds && allInChat)) {
       resolveInteractiveToolCall('connect-reconnect-accounts', {})
     }
-  }, [chatAppIds.join(','), connectedChatIds, allInChat, result])
+  }, [chatAppIds.join(','), connectedChatIds, allInChat, result, requestedSlugs.length])
 
   const handlePlus = (app: typeof requestedApps[0]) => {
     if (app.connected) {
@@ -151,8 +152,8 @@ export const ToolFallback: ToolCallMessagePartComponent = ({
   result,
   isError,
 }) => {
-  const { status } = useMessage()
-  const isRunning = result === undefined && status.type === 'running'
+  const message = useMessage({ optional: true } as Parameters<typeof useMessage>[0])
+  const isRunning = result === undefined && message?.status.type === 'running'
   const isFailed = isError && !isRunning
 
   // connect-reconnect-accounts: render compact custom card

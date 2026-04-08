@@ -18,8 +18,8 @@ export const RunCodeToolPart: ToolCallMessagePartComponent = ({
   result,
   isError,
 }) => {
-  const { status } = useMessage()
-  const stopped = status.type !== 'running'
+  const message = useMessage({ optional: true } as Parameters<typeof useMessage>[0])
+  const stopped = !message || message.status.type !== 'running'
   const isComplete = result !== undefined
 
   // Completed: use parsed args for clean display

@@ -1,6 +1,7 @@
 import { AssistantRuntimeProvider, useLocalRuntime } from '@assistant-ui/react'
 import React, { useEffect, useMemo, useState } from 'react'
 import { Message } from '../../types'
+import { AppErrorBoundary } from './AppErrorBoundary'
 import { useAuth } from '../hooks/useAuth'
 import { useMCPEnhancedChat } from '../hooks/useMCPEnhancedChat'
 import { useWebSocketConnection } from '../hooks/useWebSocketConnection'
@@ -219,6 +220,7 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
     <TooltipProvider>
       <McpClientProvider value={mcpClientContextValue}>
         <AssistantRuntimeProvider runtime={runtime}>
+          <AppErrorBoundary>
           {/* Track current thread for approval message association and title generation */}
           <ThreadTracker onTitleCallbackReady={mcpChat.setThreadTitleCallback} />
           <div className="w-full h-full flex flex-col overflow-hidden">
@@ -258,6 +260,7 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
                   </div>
                 )}
           </div>
+          </AppErrorBoundary>
         </AssistantRuntimeProvider>
       </McpClientProvider>
     </TooltipProvider>

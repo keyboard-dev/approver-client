@@ -40,37 +40,39 @@ export const NewChatButton: FC<NewChatButtonProps> = ({ onChatSelect }) => {
 
 interface ThreadListItemsProps {
   onChatSelect?: () => void
+  showActiveState?: boolean
 }
 
 /**
  * Thread list items - exported for use in sidebar
  */
-export const ThreadListItems: FC<ThreadListItemsProps> = ({ onChatSelect }) => {
+export const ThreadListItems: FC<ThreadListItemsProps> = ({ onChatSelect, showActiveState = true }) => {
   return (
     <ThreadListPrimitive.Root className="aui-root aui-thread-list-root flex flex-col items-stretch gap-0.5">
-      <ThreadListPrimitive.Items components={{ ThreadListItem: () => <ThreadListItem onChatSelect={onChatSelect} /> }} />
+      <ThreadListPrimitive.Items components={{ ThreadListItem: () => <ThreadListItem onChatSelect={onChatSelect} showActiveState={showActiveState} /> }} />
     </ThreadListPrimitive.Root>
   )
 }
 
 interface ThreadListItemProps {
   onChatSelect?: () => void
+  showActiveState?: boolean
 }
 
-const ThreadListItem: FC<ThreadListItemProps> = ({ onChatSelect }) => {
+const ThreadListItem: FC<ThreadListItemProps> = ({ onChatSelect, showActiveState = true }) => {
   return (
     <ThreadListItemPrimitive.Root
       className={cn(
         'aui-thread-list-item group flex items-center gap-2 rounded-[8px] transition-all',
         'hover:bg-[#e5e5e5] dark:hover:bg-[#2a2a2a] focus-visible:bg-[#e5e5e5] dark:focus-visible:bg-[#2a2a2a] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
-        'data-[active]:bg-[#e5e5e5] dark:data-[active]:bg-[#2a2a2a]',
+        showActiveState && 'data-[active]:bg-[#e5e5e5] dark:data-[active]:bg-[#2a2a2a]',
       )}
     >
       <ThreadListItemPrimitive.Trigger
         className="aui-thread-list-item-trigger flex-grow px-[8px] py-[8px] text-start min-w-0"
         onClick={onChatSelect}
       >
-        <ThreadListItemTitle />
+        <ThreadListItemTitle showActiveState={showActiveState} />
       </ThreadListItemPrimitive.Trigger>
       <div className="hidden group-hover:flex items-center gap-1 pr-2">
         <ThreadListItemArchive />
@@ -80,7 +82,7 @@ const ThreadListItem: FC<ThreadListItemProps> = ({ onChatSelect }) => {
   )
 }
 
-const ThreadListItemTitle: FC = () => {
+const ThreadListItemTitle: FC<{ showActiveState?: boolean }> = ({ showActiveState = true }) => {
   const spanRef = useRef<HTMLSpanElement>(null)
   const [open, setOpen] = useState(false)
 
@@ -97,7 +99,10 @@ const ThreadListItemTitle: FC = () => {
             ref={spanRef}
             onMouseEnter={handleMouseEnter}
             onMouseLeave={() => setOpen(false)}
-            className="aui-thread-list-item-title text-[14px] leading-normal text-[#737373] dark:text-[#a9a9a9] font-medium truncate block"
+            className={cn(
+              'aui-thread-list-item-title text-[14px] leading-normal text-[#737373] dark:text-[#a9a9a9] font-medium truncate block',
+              showActiveState && 'group-data-[active]:text-[#171717] dark:group-data-[active]:text-[#F5F5F5]',
+            )}
           >
             <ThreadListItemPrimitive.Title fallback="New chat" />
           </span>
