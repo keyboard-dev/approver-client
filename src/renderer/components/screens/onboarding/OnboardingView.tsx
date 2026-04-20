@@ -4,6 +4,7 @@ import blueCheckIconUrl from '../../../../../assets/icon-check-blue.svg'
 import { Footer } from '../../Footer'
 import GitHubOAuthButton from '../../GitHubOAuthButton'
 import { ButtonDesigned } from '../../ui/ButtonDesigned'
+import { ExplainerDiagram } from './ExplainerDiagram'
 import McpSetup from './McpSetup'
 import Persona from './Persona'
 import { ProgressIndicator } from './ProgressIndicator'
@@ -325,6 +326,9 @@ export const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) =>
               <ProgressIndicator progress={0} />
             </div>
           </div>
+
+          {/* Explainer Diagram */}
+          <ExplainerDiagram type="execution-environment" />
 
           <div
             className="flex flex-col items-start gap-[0.94rem] text-[#A5A5A5] w-full"
