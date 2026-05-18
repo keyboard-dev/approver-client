@@ -133,7 +133,7 @@
     "tmp": "^0.2.4",
     "@electron/asar": "^4.0.1",
     "minimatch": "^10.0.1",
-    "dompurify": "^3.3.2",
+    "dompurify": "^3.4.5",
     "@tootallnate/once": "^3.0.1"
   },
   "build": {
