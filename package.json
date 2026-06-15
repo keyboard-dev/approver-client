@@ -11,6 +11,7 @@
     "dev:renderer": "vite --host",
     "start": "electron-forge start",
     "dev": "npm run build && npm run copy-assets && electron dist/main.js --dev",
+    "setup:electron": "node node_modules/electron/install.js",
     "copy-assets": "cpy \"assets/**\" dist/assets && cpy dev-app-update.yml dist",
     "create-windows-icon": "node scripts/create-windows-icon.js",
     "build-mac-universal": "npm run build && electron-forge make --platform=darwin --arch=universal",
@@ -136,7 +137,8 @@
     "@electron/asar": "^4.0.1",
     "minimatch": "^10.0.1",
     "dompurify": "^3.4.5",
-    "@tootallnate/once": "^3.0.1"
+    "@tootallnate/once": "^3.0.1",
+    "esbuild": "^0.28.1"
   },
   "build": {
     "appId": "dev.keyboard.desktop",
