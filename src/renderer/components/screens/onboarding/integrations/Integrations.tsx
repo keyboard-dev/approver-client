@@ -11,6 +11,7 @@ import { useAuth } from '../../../../hooks/useAuth'
 import { Footer } from '../../../Footer'
 import { ButtonDesigned } from '../../../ui/ButtonDesigned'
 import { ConnectorsContent } from '../../../ui/ConnectorsContent'
+import { ExplainerDiagram } from '../ExplainerDiagram'
 import { ProgressIndicator } from '../ProgressIndicator'
 
 // =============================================================================
@@ -73,6 +74,11 @@ export const Integrations: React.FC<IntegrationsProps> = ({ onComplete }) => {
             <div className="flex w-full justify-center py-[5px]">
               <ProgressIndicator progress={3} totalSteps={4} />
             </div>
+          </div>
+
+          {/* Explainer Diagram */}
+          <div className="max-w-[400px]">
+            <ExplainerDiagram type="integrations" />
           </div>
 
           {/* Connectors Content */}
