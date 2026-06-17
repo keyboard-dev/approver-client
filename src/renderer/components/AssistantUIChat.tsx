@@ -1,10 +1,19 @@
-import { AssistantRuntimeProvider, useLocalRuntime } from '@assistant-ui/react'
-import React, { useEffect, useMemo, useState } from 'react'
+import {
+  AssistantRuntimeProvider,
+  useLocalRuntime,
+  useThreadListItem,
+  unstable_useRemoteThreadListRuntime as useRemoteThreadListRuntime,
+  type unstable_RemoteThreadListAdapter as RemoteThreadListAdapter,
+} from '@assistant-ui/react'
+import { createAssistantStream } from 'assistant-stream'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Message } from '../../types'
 import { useAuth } from '../hooks/useAuth'
 import { useMCPEnhancedChat } from '../hooks/useMCPEnhancedChat'
 import { useWebSocketConnection } from '../hooks/useWebSocketConnection'
+import { databaseService } from '../services/database-service'
 import { McpClientProvider } from '../services/mcp-client-context'
+import { createThreadHistoryAdapter } from '../services/thread-persistence'
 import { Thread } from './assistant-ui/thread'
 import { ThreadTracker } from './assistant-ui/ThreadTracker'
 import { MCPChatComponent } from './MCPChatComponent'
@@ -198,7 +207,63 @@ const AssistantUIChatContent: React.FC<AssistantUIChatProps> = ({
     }
   }, [authStatus.authenticated, isSkippingAuth, connectionStatus, connectToBestCodespace])
 
-  const runtime = useLocalRuntime(mcpChat.adapter)
+  // Build a stable IndexedDB-backed thread list adapter
+  const threadListAdapter = useMemo<RemoteThreadListAdapter>(() => ({
+    async list() {
+      await databaseService.initialize()
+      const threads = await databaseService.listChatThreads()
+      return {
+        threads: threads.map(t => ({
+          status: t.status,
+          remoteId: t.remoteId,
+          externalId: undefined,
+          title: t.title,
+        })),
+      }
+    },
+    async rename(remoteId, newTitle) {
+      await databaseService.updateChatThread(remoteId, { title: newTitle })
+    },
+    async archive(remoteId) {
+      await databaseService.updateChatThread(remoteId, { status: 'archived' })
+    },
+    async unarchive(remoteId) {
+      await databaseService.updateChatThread(remoteId, { status: 'regular' })
+    },
+    async delete(remoteId) {
+      await databaseService.deleteChatThread(remoteId)
+    },
+    async initialize(threadId) {
+      await databaseService.initialize()
+      await databaseService.putChatThread({ remoteId: threadId, status: 'regular', createdAt: Date.now() })
+      return { remoteId: threadId, externalId: undefined }
+    },
+    async generateTitle(_remoteId, _messages) {
+      // Title is set externally via rename() from AIChatAdapter's title callback.
+      // Return an empty stream so the runtime does not overwrite it.
+      return createAssistantStream((controller) => {
+        controller.close()
+      })
+    },
+  }), [])
+
+  // Per-thread runtime hook: each active thread gets its own local runtime
+  // with a history adapter scoped to that thread's remoteId.
+  const adapter = mcpChat.adapter
+  const useThreadRuntime = useCallback(function usePerThreadRuntime() {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const threadListItem = useThreadListItem({ optional: true })
+    const remoteId = threadListItem?.remoteId ?? 'default'
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    return useLocalRuntime(adapter, {
+      adapters: {
+        // eslint-disable-next-line react-hooks/rules-of-hooks
+        history: useMemo(() => createThreadHistoryAdapter(remoteId), [remoteId]),
+      },
+    })
+  }, [adapter])
+
+  const runtime = useRemoteThreadListRuntime({ runtimeHook: useThreadRuntime, adapter: threadListAdapter })
 
   // MCP Apps host context value
   const mcpClientContextValue = useMemo(() => ({
