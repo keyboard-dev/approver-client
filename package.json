@@ -79,7 +79,7 @@
     "unified": "^11.0.5",
     "unist-util-visit": "^5.0.0",
     "use-mcp": "^0.0.21",
-    "ws": "^8.20.1",
+    "ws": "^8.21.0",
     "zod": "^4.0.5",
     "zustand": "^5.0.8"
   },
@@ -136,7 +136,7 @@
     "js-cookie": "^3.0.6",
     "@electron/asar": "^4.0.1",
     "minimatch": "^10.0.1",
-    "dompurify": "^3.4.5",
+    "dompurify": "^3.4.8",
     "@tootallnate/once": "^3.0.1",
     "esbuild": "^0.28.1"
   },
