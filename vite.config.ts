@@ -7,6 +7,7 @@ export default defineConfig({
   root: './src/renderer',
   base: './',
   build: {
+    target: 'esnext',
     outDir: '../../public/dist',
     emptyOutDir: true,
     rollupOptions: {
