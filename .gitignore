@@ -21,3 +21,4 @@ scripts/build-signed.sh
 poc*
 .keyboard-mcp*
 *.keyboard-mcp*
+.cursor/
