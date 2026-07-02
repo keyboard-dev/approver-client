@@ -2,7 +2,7 @@ import Editor from '@monaco-editor/react'
 import { Separator } from '@radix-ui/react-separator'
 import { CheckCircle, Wifi, WifiOff, XCircle } from 'lucide-react'
 import * as monaco from 'monaco-editor'
-import lazyTheme from 'monaco-themes/themes/Lazy.json'
+import lazyTheme from 'monaco-themes/themes/LAZY.json'
 import React, { useCallback, useEffect, useState } from 'react'
 
 import blueCheckIconUrl from '../../../../assets/icon-check-blue.svg'

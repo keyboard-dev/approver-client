@@ -1,6 +1,6 @@
 import Editor from '@monaco-editor/react'
 import * as monaco from 'monaco-editor'
-import lazyTheme from 'monaco-themes/themes/Lazy.json'
+import lazyTheme from 'monaco-themes/themes/LAZY.json'
 import React, { useState } from 'react'
 
 import blueCheckIconUrl from '../../../assets/icon-check-blue.svg'
